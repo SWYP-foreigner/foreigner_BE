@@ -1,0 +1,47 @@
+name: Deploy Spring Boot to Dev Server
+
+on:
+  push:
+    branches: [ dev ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission to gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew clean build -x test
+
+      - name: Copy JAR to systemd target directory
+        uses: appleboy/scp-action@v0.1.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          source: "build/libs/foreigner-0.0.1-SNAPSHOT.jar"
+          target: "/opt/foreigner/build/libs/"
+          strip_components: 0
+          overwrite: true
+          debug: true
+
+      - name: Restart Spring Boot service via systemd
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            sudo systemctl daemon-reexec
+            sudo systemctl restart foreigner.service
+            sudo systemctl status foreigner.service --no-pager || true
