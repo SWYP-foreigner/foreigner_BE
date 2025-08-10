@@ -30,25 +30,19 @@ public class UserController {
 
     @PostMapping("/google/doLogin")
     public ResponseEntity<?> googleLogin(@RequestBody GoogleLoginReq req) {
-        // 1) 플랫폼 파싱
         GoogleService.Platform platform =
                 GoogleService.Platform.valueOf(req.getPlatform().toUpperCase());
-
-        // 2) 코드 교환(PKCE)
         AccessTokenDto accessTokenDto = googleService.exchangeCodeWithPkce(
                 req.getCode(), req.getCodeVerifier(), platform
         );
 
-        // 3) 사용자 정보 조회 (accessTokenDto.getAccessToken() 주의)
         GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
 
-        // 4) 회원 업서트
         User originalUser = userService.getUserBySocialId(profile.getSub());
         if (originalUser == null) {
             originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
         }
 
-        // 5) 우리 JWT 발급
         String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
 
         Map<String, Object> loginInfo = new HashMap<>();

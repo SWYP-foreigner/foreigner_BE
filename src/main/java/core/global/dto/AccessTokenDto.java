@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true) //없는 필드는 자동무시
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AccessTokenDto {
     private String access_token;
     private String expires_in;

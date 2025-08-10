@@ -13,7 +13,6 @@ import lombok.NoArgsConstructor;
 public class GoogleLoginReq {
     private String code;
     private String codeVerifier;
-    private String platform; // "android" 또는 "ios"
+    private String platform;
 
-    //구글 로그인
 }

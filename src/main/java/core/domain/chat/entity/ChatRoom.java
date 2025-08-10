@@ -17,8 +17,8 @@ public class ChatRoom {
     private Long id;
 
     @Column(name = "is_group", nullable = false)
-    private Boolean group; // 원문 DEFAULT에 한국어 주석 → 제거
+    private Boolean group;
 
     @Column(name = "created_at")
-    private Instant createdAt; // 원문: DEFAULT 만든시간 NULL → 보정
+    private Instant createdAt;
 }

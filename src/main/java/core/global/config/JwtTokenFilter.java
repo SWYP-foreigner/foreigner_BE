@@ -27,10 +27,9 @@ import java.util.List;
 public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
-    private String secretKeyBase64; // Base64 인코딩된 시크릿 추천
+    private String secretKeyBase64;
 
     private SecretKey signingKey() {
-        // Base64 디코드된 키로 HMAC 키 생성 (jjwt 권장 방식)
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
     }
 
@@ -51,14 +50,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                         .parseClaimsJws(jwt)
                         .getBody();
 
-                // subject = 사용자 식별자(예: userId or email)
                 String subject = claims.getSubject();
 
-                // 권한 매핑 (선택)
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                Object role = claims.get("role"); // 발급 시 넣었다면
+                Object role = claims.get("role");
                 if (role != null) {
-                    // "USER"면 "ROLE_USER"로 붙이는 게 일반적
                     authorities.add(new SimpleGrantedAuthority(
                             role.toString().startsWith("ROLE_") ? role.toString() : "ROLE_" + role));
                 }

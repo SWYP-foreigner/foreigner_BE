@@ -22,7 +22,7 @@ public class Notification {
     private User user;
 
     @Column(name = "message", nullable = false)
-    private String message; // 원문 DEFAULT '메세지'는 제거
+    private String message;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -31,10 +31,10 @@ public class Notification {
     private Boolean read;
 
     @Column(name = "reference_id", nullable = false)
-    private Long referenceId; // 무엇을 참조하는지 미상 (확실하지 않음)
+    private Long referenceId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "notification_type", nullable = false)
-    private NotificationType notificationType; // 추측
+    private NotificationType notificationType;
 }
 

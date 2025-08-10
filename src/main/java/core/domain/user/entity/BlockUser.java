@@ -16,9 +16,9 @@ public class BlockUser {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user; // 차단한 사람
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "people_id", nullable = false)
-    private User blocked; // 차단 대상 (확실하지 않음: 컬럼명이 people_id)
+    private User blocked;
 }

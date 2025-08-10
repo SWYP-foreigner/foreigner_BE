@@ -8,11 +8,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true) //없는 필드는 자동무시
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GoogleProfileDto {
     private String sub;
     private String email;
     private String picture;
-
-    // 구글에서 가져올 정보
 }

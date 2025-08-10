@@ -16,7 +16,6 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class GoogleService {
 
-    // 플랫폼별 프로퍼티 주입
     @Value("${oauth.google.android.client-id}")
     private String androidClientId;
     @Value("${oauth.google.android.redirect-uri}")
