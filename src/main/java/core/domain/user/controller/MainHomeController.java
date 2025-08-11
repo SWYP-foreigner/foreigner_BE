@@ -18,7 +18,7 @@ public class MainHomeController {
     @PostMapping("/follow/{userId}")
     public ResponseEntity<ApiResponse<String>> followUser(@PathVariable Long userId) {
         // TODO: 서비스 호출
-        boolean success = true; // 예시
+        boolean success = true;
 
         if (!success) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
@@ -33,7 +33,7 @@ public class MainHomeController {
             @RequestParam String message
     ) {
         // TODO: 서비스 호출
-        boolean success = true; // 예시
+        boolean success = true;
 
         if (!success) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);

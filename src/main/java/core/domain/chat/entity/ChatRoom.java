@@ -21,4 +21,9 @@ public class ChatRoom {
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
+
+    public ChatRoom(Boolean group, Instant createdAt) {
+        this.group = group;
+        this.createdAt = createdAt;
+    }
 }

@@ -17,6 +17,15 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: mydatabase
+      username:  ${MDB_USERNAME}
+      password: ${MDB_PASSWORD}
+      authentication-database: admin
 jwt:
   expiration: 3600000
 
