@@ -38,7 +38,7 @@ public class SecurityConfig {
                                 "/member/create", "/member/doLogin",
                                 "/member/google/doLogin", "/member/kakao/doLogin",
                                 "/oauth2/**",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
+                                "/swagger-ui/**", "/v3/api-docs/**", "/health","/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
