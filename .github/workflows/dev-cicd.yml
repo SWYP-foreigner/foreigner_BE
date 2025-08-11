@@ -59,39 +59,20 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
             set -euo pipefail
-
-            # 0) 기본 점검
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
-            # 1) /foreigner 디렉터리 준비(최초 1회 root 필요할 수 있음)
-            #    권한 문제 없으면 sudo 없이도 OK. 필요하면 sudo 붙이세요.
-            if [ ! -d /foreigner ]; then
-              sudo mkdir -p /foreigner
-              sudo chown "${USER}:${USER}" /foreigner
-            fi
-            cd /foreigner
+            cd /foreigner  # sudo 금지
 
-            # 2) docker-compose.yml 존재 검증 (없으면 실패 처리)
-            if [ ! -f docker-compose.yml ]; then
-              echo "ERROR: /foreigner/docker-compose.yml 이 없습니다. 서버에 파일을 배치하세요."
-              echo "       (레포 클론 또는 scp로 업로드 필요)"
-              exit 1
-            fi
-
-            # 3) Docker Hub 로그인(프라이빗 대비)
             docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
-            # 4) .env 갱신 — compose 자동 로드용
             cat > .env <<'EOF'
             POSTGRES_DB=${{ secrets.DB_NAME }}
             POSTGRES_USER=${{ secrets.DB_USER }}
             POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-
             SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
             SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
-
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             SPRING_PROFILES_ACTIVE=dev
             SPRING_JPA_HIBERNATE_DDL_AUTO=update
@@ -99,32 +80,15 @@ jobs:
             EOF
             chmod 600 .env || true
 
-            # 5) 배포 이미지 태그 고정 (.image.env)
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             echo "IMAGE=${IMAGE}" > .image.env
             echo "Using IMAGE=${IMAGE}"
 
-            # 6) 이미지 존재 사전 점검(있으면 0, 없으면 1)
-            if ! docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
-              echo "WARN: ${IMAGE} 매니페스트가 없습니다. latest로 폴백 시도합니다."
-              IMAGE_FALLBACK="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest"
-              if docker manifest inspect "${IMAGE_FALLBACK}" >/dev/null 2>&1; then
-                echo "IMAGE=${IMAGE_FALLBACK}" > .image.env
-                echo "Using IMAGE=${IMAGE_FALLBACK}"
-              else
-                echo "ERROR: ${IMAGE} 와 latest 모두 존재하지 않습니다. CI 빌드/푸시 확인 필요."
-                exit 1
-              fi
-            fi
-
-            # 7) 배포 (.env + .image.env 둘 다 로딩 중요)
+            # 두 env 파일 모두 로드 (중요)
             docker compose --env-file .env --env-file .image.env config | sed -n '1,120p' || true
             docker compose --env-file .env --env-file .image.env pull
             docker compose --env-file .env --env-file .image.env up -d --remove-orphans
 
-            # 8) 상태 확인
             docker compose ps
             docker compose logs --since=5m || true
-
-            # 9) 청소(옵션)
             docker image prune -f || true
