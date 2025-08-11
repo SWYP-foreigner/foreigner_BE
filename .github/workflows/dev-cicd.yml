@@ -45,4 +45,3 @@ jobs:
             sudo systemctl daemon-reexec
             sudo systemctl restart foreigner.service
             sudo systemctl status foreigner.service --no-pager || true
-
