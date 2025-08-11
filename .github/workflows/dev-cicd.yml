@@ -64,7 +64,7 @@ jobs:
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
-            cd /opt/foreigner
+            cd /foreigner
 
             # 1) Docker Hub 로그인(프라이빗 대비)
             docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
