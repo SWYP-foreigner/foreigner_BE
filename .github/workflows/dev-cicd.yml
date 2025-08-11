@@ -39,20 +39,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push Docker Image
+      - name: Build & Push Docker Image (uses repo Dockerfile)
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
-          # 캐시가 레지스트리에 없으면 자동 생성됨
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
-          # (선택) Dockerfile에서 ARG JDK_VERSION 사용 시 활성화
-          build-args: |
-            JDK_VERSION=21
 
       - name: SSH Deploy on NCP Dev Server
         uses: appleboy/ssh-action@v1.0.3
@@ -69,10 +66,10 @@ jobs:
 
             cd /opt/foreigner/deploy
 
-            # 1) 서버에서 Docker Hub 로그인(프라이빗 레포 대비)
+            # 1) Docker Hub 로그인(프라이빗 대비)
             docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
-            # 2) 애플리케이션 환경값(.env) 갱신 — compose가 자동 로드
+            # 2) .env 갱신 — compose가 자동 로드
             cat > .env <<'EOF'
             POSTGRES_DB=${{ secrets.DB_NAME }}
             POSTGRES_USER=${{ secrets.DB_USER }}
@@ -89,13 +86,14 @@ jobs:
             EOF
             chmod 600 .env || true
 
-            # 3) 이미지 핀닝(sha 태그 사용) — compose 파일은 image: ${IMAGE} 형태여야 함
+            # 3) 이미지 핀 — compose는 image: ${IMAGE} 사용
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+            echo "IMAGE=${IMAGE}" > .image.env
             echo "Using IMAGE=${IMAGE}"
 
             # 4) 배포
-            IMAGE="${IMAGE}" docker compose pull
-            IMAGE="${IMAGE}" docker compose up -d
+            docker compose --env-file .image.env pull
+            docker compose --env-file .image.env up -d --remove-orphans
 
-            # 5) 이미지 청소(옵션)
+            # 5) 청소(옵션)
             docker image prune -f || true
