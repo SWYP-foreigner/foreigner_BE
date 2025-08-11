@@ -1,6 +1,5 @@
 name: Deploy Spring Boot to Dev Server
 
-
 on:
   push:
     branches: [ dev ]
