@@ -31,7 +31,7 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           source: "build/libs/foreigner-0.0.1-SNAPSHOT.jar"
           target: "/opt/foreigner/build/libs/"
-          strip_components: 0
+          strip_components: 2
           overwrite: true
           debug: true
 
