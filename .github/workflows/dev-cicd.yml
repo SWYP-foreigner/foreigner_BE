@@ -12,10 +12,15 @@ jobs:
     steps:
       - name: Preflight — validate required secrets
         run: |
-          for k in DOCKERHUB_USERNAME DOCKERHUB_TOKEN DEV_HOST DEV_USER DEV_SSH_KEY; do
-            test -n "${{ secrets[format('{0}', k)] }}" || (echo "$k is empty" && exit 1)
-          done
-          echo "Required base secrets OK."
+          test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "DOCKERHUB_USERNAME is empty" && exit 1)
+          test -n "${{ secrets.DOCKERHUB_TOKEN }}"     || (echo "DOCKERHUB_TOKEN is empty" && exit 1)
+          test -n "${{ secrets.DEV_HOST }}"            || (echo "DEV_HOST is empty" && exit 1)
+          test -n "${{ secrets.DEV_USER }}"            || (echo "DEV_USER is empty" && exit 1)
+          test -n "${{ secrets.DEV_SSH_KEY }}"         || (echo "DEV_SSH_KEY is empty" && exit 1)
+          test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
+          test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
+          test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
+          echo "All required secrets are set."
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -34,11 +39,9 @@ jobs:
         with:
           context: .
           push: true
-          # 태그: latest + git sha
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
-          # 캐시(선택) — 처음엔 비워둘 수 있음
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
@@ -52,29 +55,19 @@ jobs:
             set -e
             cd /opt/foreigner/deploy
 
-            # .env 파일 갱신 (필요 변수만 예시, 실제 프로젝트에 맞춰 추가/수정)
-            # DB/애플리케이션 환경변수는 여기서 주입됩니다.
             cat > .env <<'EOF'
-            # ------- DB -------
             POSTGRES_DB=${{ secrets.DB_NAME }}
             POSTGRES_USER=${{ secrets.DB_USER }}
             POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-            TZ=Asia/Seoul
 
-            # ------- APP -------
             SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
             SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
             SPRING_PROFILES_ACTIVE=dev
             SPRING_JPA_HIBERNATE_DDL_AUTO=update
             JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
-
-            # 기타 필요 변수 예시
-            # EXTERNAL_API_KEY=${{ secrets.EXTERNAL_API_KEY }}
             EOF
 
-            # 최신 이미지 풀 후 재기동
             docker compose pull
-            docker compose up -d
+            docker compose up -d --force-recreate
             docker image prune -f
-
