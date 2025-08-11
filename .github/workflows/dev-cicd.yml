@@ -47,8 +47,12 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
+          # 캐시가 레지스트리에 없으면 자동 생성됨
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+          # (선택) Dockerfile에서 ARG JDK_VERSION 사용 시 활성화
+          build-args: |
+            JDK_VERSION=21
 
       - name: SSH Deploy on NCP Dev Server
         uses: appleboy/ssh-action@v1.0.3
@@ -59,16 +63,16 @@ jobs:
           script: |
             set -euo pipefail
 
-            # 0) 기본 점검 (처음 1회 대비)
+            # 0) 기본 점검
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
             cd /opt/foreigner/deploy
 
-            # 2) 이미지 핀닝(롤백 대비) - compose에 image: ${IMAGE} 사용 가정
-            echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" > .image.env
+            # 1) 서버에서 Docker Hub 로그인(프라이빗 레포 대비)
+            docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
-            # 3) .env 갱신 (민감정보)
+            # 2) 애플리케이션 환경값(.env) 갱신 — compose가 자동 로드
             cat > .env <<'EOF'
             POSTGRES_DB=${{ secrets.DB_NAME }}
             POSTGRES_USER=${{ secrets.DB_USER }}
@@ -77,6 +81,7 @@ jobs:
             SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
             SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             SPRING_PROFILES_ACTIVE=dev
             SPRING_JPA_HIBERNATE_DDL_AUTO=update
@@ -84,7 +89,13 @@ jobs:
             EOF
             chmod 600 .env || true
 
-            # 4) 배포 (compose는 서버에 고정 보관)
-            docker compose --env-file .image.env pull
-            docker compose --env-file .image.env up -d
-            docker image prune -f
+            # 3) 이미지 핀닝(sha 태그 사용) — compose 파일은 image: ${IMAGE} 형태여야 함
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+            echo "Using IMAGE=${IMAGE}"
+
+            # 4) 배포
+            IMAGE="${IMAGE}" docker compose pull
+            IMAGE="${IMAGE}" docker compose up -d
+
+            # 5) 이미지 청소(옵션)
+            docker image prune -f || true
