@@ -36,8 +36,8 @@ public class SecurityConfig {
                                 "/auth/google/exchange",
                                 "/index.html",
                                 "/member/create", "/member/doLogin",
-                                "/member/google/doLogin", "/member/kakao/doLogin",
-                                "/oauth2/**",
+                                "/member/google/doLogin", "/member/kakao/doLogin","favicon.ico",
+                                "/oauth2/**","/api/v1/chat/**",
 
                                 "/swagger-ui/**", "/v3/api-docs/**", "/health","/actuator/health"
 

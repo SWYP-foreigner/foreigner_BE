@@ -100,36 +100,39 @@
 
 <script>
     // ====== 설정 (백엔드 엔드포인트 & 현재 유저) ======
-    const API_BASE = '/api/v1/chat';
+    const API_BASE = 'http://localhost:8080/api/v1/chat'; // 포트와 주소를 실제 백엔드에 맞게
     const WS_BASE = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
-    const currentUser = { id: 1, name: 'me' };
+    const currentUser = { id: 1, name: 'me' }; // 이 부분은 실제 로그인 유저 정보로 대체 필요
 
     // 앱 상태
-    let rooms = []; // [{id,title,type:'DIRECT'|'GROUP', members:[...]}]
+    let rooms = []; // 서버에서 받아온 채팅방 리스트
     let activeRoom = null;
     let ws = null;
 
     // ====== 유틸 ======
     function el(tag, props = {}, ...children){
         const node = document.createElement(tag);
-        Object.entries(props).forEach(([k,v]) => { if(k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v); else node[k]=v });
-        children.forEach(c => { if(typeof c === 'string') node.appendChild(document.createTextNode(c)); else if(c) node.appendChild(c) });
+        Object.entries(props).forEach(([k,v]) => {
+            if(k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+            else node[k]=v
+        });
+        children.forEach(c => {
+            if(typeof c === 'string') node.appendChild(document.createTextNode(c));
+            else if(c) node.appendChild(c)
+        });
         return node;
     }
 
     // ====== Rooms ======
     async function loadRooms(query){
-        // 실제: GET /api/rooms?query=...
         try{
-            const res = await fetch(API_BASE + '/rooms' + (query?('?q='+encodeURIComponent(query)):''));
-            if(!res.ok) throw res;
-            rooms = await res.json();
+            const res = await fetch(API_BASE + '/rooms' + (query ? ('?q=' + encodeURIComponent(query)) : ''));
+            if(!res.ok) throw new Error('Rooms fetch error');
+            const result = await res.json();  // 전체 응답 객체
+            rooms = result.data || [];        // data 필드만 꺼내서 배열 할당
         }catch(e){
-            // fallback: demo data
-            rooms = [
-                {id:1,title:'홍길동과 1:1',type:'DIRECT',members:[{id:1,name:'me'},{id:2,name:'hong'}]},
-                {id:2,title:'여행 동아리',type:'GROUP',members:[{id:1},{id:3},{id:4}]}
-            ];
+            console.error('Failed to load rooms', e);
+            rooms = []; // 에러 시 빈 배열로 초기화
         }
         renderRooms();
     }
@@ -139,8 +142,8 @@
         container.innerHTML = '';
         rooms.forEach(r => {
             const item = el('div',{className:'roomItem',onclick:()=>openRoom(r.id)},
-                el('div',{}, r.title),
-                el('div',{className:'roomMeta'}, r.type)
+                el('div',{}, r.title || '(제목 없음)'),
+                el('div',{className:'roomMeta'}, r.type || '')
             );
             const del = el('button',{className:'iconBtn',onclick:(ev)=>{ev.stopPropagation(); deleteRoom(r.id);} },'🗑');
             item.appendChild(del);
@@ -150,31 +153,34 @@
 
     // ====== Room actions ======
     async function createRoom(){
-        const title = prompt('새 채팅방 이름을 입력하세요');
-        if(!title) return;
-        // POST /api/rooms {title}
+        const isGroup = confirm('그룹 채팅방인가요? (취소하면 1:1 채팅방)');
         try{
-            const res = await fetch(API_BASE + '/rooms', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
-            const room = await res.json();
+            const res = await fetch(API_BASE + '/rooms?isGroup=' + isGroup, {
+                method:'POST',
+            });
+            if(!res.ok) throw new Error('Create room failed');
+            const result = await res.json(); // 전체 응답 객체
+            console.log(result);             // 결과 찍기 (디버깅용)
+            const room = result.data;        // data 필드에서 방 정보 꺼내기
             rooms.unshift(room);
             renderRooms();
         }catch(e){
-            // demo
-            const id = Date.now();
-            const room = {id, title, type:'GROUP', members:[currentUser]};
-            rooms.unshift(room); renderRooms();
+            console.error('Failed to create room', e);
+            alert('채팅방 생성에 실패했습니다.');
         }
     }
 
     async function deleteRoom(roomId){
         if(!confirm('정말 방을 삭제하시겠습니까?')) return;
         try{
-            await fetch(API_BASE + '/rooms/' + roomId, {method:'DELETE'});
+            const res = await fetch(API_BASE + '/rooms/' + roomId, {method:'DELETE'});
+            if(!res.ok) throw new Error('Delete room failed');
             rooms = rooms.filter(r=>r.id!==roomId);
             if(activeRoom && activeRoom.id===roomId) closeRoom();
             renderRooms();
         }catch(e){
-            rooms = rooms.filter(r=>r.id!==roomId); if(activeRoom&&activeRoom.id===roomId) closeRoom(); renderRooms();
+            console.error('Failed to delete room', e);
+            alert('채팅방 삭제에 실패했습니다.');
         }
     }
 
@@ -185,31 +191,26 @@
         document.getElementById('roomSubtitle').innerText = activeRoom.type || '';
         document.getElementById('activeRoomInfo').innerText = JSON.stringify(activeRoom);
 
-        // load messages
         await loadMessages(roomId);
-
-        // open websocket
         connectWs(roomId);
     }
 
     function closeRoom(){
-        activeRoom = null; document.getElementById('roomTitle').innerText = '선택된 채팅방 없음'; document.getElementById('messages').innerHTML='';
+        activeRoom = null;
+        document.getElementById('roomTitle').innerText = '선택된 채팅방 없음';
+        document.getElementById('messages').innerHTML = '';
         if(ws){ ws.close(); ws = null; }
     }
 
     async function loadMessages(roomId, q){
         try{
-            const res = await fetch(API_BASE + '/rooms/' + roomId + '/messages' + (q?('?q='+encodeURIComponent(q)):''));
-            if(!res.ok) throw res;
+            const res = await fetch(API_BASE + '/rooms/' + roomId + '/messages' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
+            if(!res.ok) throw new Error('Load messages failed');
             const list = await res.json();
             renderMessages(list);
         }catch(e){
-            // demo messages
-            const list = [
-                {id:1,from:{id:2,name:'hong'},text:'안녕하세요',createdAt: Date.now()-60000},
-                {id:2,from:{id:1,name:'me'},text:'반갑습니다',createdAt: Date.now()-30000}
-            ];
-            renderMessages(list);
+            console.error('Failed to load messages', e);
+            document.getElementById('messages').innerHTML = '';
         }
     }
 
@@ -217,15 +218,17 @@
         const box = document.getElementById('messages');
         box.innerHTML = '';
         list.forEach(m => {
-            const div = el('div',{className:'msg ' + (m.from.id===currentUser.id? 'me':'others')});
-            const meta = el('div',{className:'meta'}, (m.from.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
+            const div = el('div',{className:'msg ' + (m.from?.id === currentUser.id ? 'me':'others')});
+            const meta = el('div',{className:'meta'}, (m.from?.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
             div.appendChild(meta);
-            const txt = el('div',{}, m.text);
+            const txt = el('div',{}, m.text || m.content || '');
             div.appendChild(txt);
 
-            // actions
             const actions = el('div',{className:'msgActions'});
-            const btnDelete = el('button',{className:'iconBtn',onclick:async (ev)=>{ev.stopPropagation(); await deleteMessage(m.id); }},'삭제');
+            const btnDelete = el('button',{
+                className:'iconBtn',
+                onclick: async (ev) => { ev.stopPropagation(); await deleteMessage(m.id || m._id); }
+            }, '삭제');
             actions.appendChild(btnDelete);
             div.appendChild(actions);
 
@@ -236,30 +239,38 @@
 
     async function sendMessage(){
         const input = document.getElementById('messageInput');
-        const text = input.value.trim(); if(!text || !activeRoom) return;
-        const payload = {text, fromId: currentUser.id};
+        const text = input.value.trim();
+        if(!text || !activeRoom) return;
+
+        const payload = { senderId: currentUser.id, content: text };
+
         try{
-            const res = await fetch(API_BASE + '/rooms/' + activeRoom.id + '/messages', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            const res = await fetch(API_BASE + '/rooms/' + activeRoom.id + '/messages', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if(!res.ok) throw new Error('Send message failed');
             const saved = await res.json();
-            // append locally
-            // if you use websocket backend, server will broadcast and you may skip append here
             appendMessage(saved);
             input.value = '';
         }catch(e){
-            // demo append
-            appendMessage({id: Date.now(), from:currentUser, text, createdAt: Date.now()});
-            input.value = '';
+            console.error('Failed to send message', e);
+            alert('메시지 전송에 실패했습니다.');
         }
     }
 
     function appendMessage(m){
         const box = document.getElementById('messages');
-        const div = el('div',{className:'msg ' + (m.from.id===currentUser.id? 'me':'others')});
-        const meta = el('div',{className:'meta'}, (m.from.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
+        const div = el('div',{className:'msg ' + (m.from?.id === currentUser.id ? 'me' : 'others')});
+        const meta = el('div',{className:'meta'}, (m.from?.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
         div.appendChild(meta);
-        div.appendChild(el('div',{}, m.text));
+        div.appendChild(el('div', {}, m.text || m.content || ''));
         const actions = el('div',{className:'msgActions'});
-        const btnDelete = el('button',{className:'iconBtn',onclick:async (ev)=>{ev.stopPropagation(); await deleteMessage(m.id); }},'삭제');
+        const btnDelete = el('button',{
+            className:'iconBtn',
+            onclick: async (ev) => { ev.stopPropagation(); await deleteMessage(m.id || m._id); }
+        }, '삭제');
         actions.appendChild(btnDelete);
         div.appendChild(actions);
         box.appendChild(div);
@@ -269,52 +280,60 @@
     async function deleteMessage(messageId){
         if(!confirm('이 메시지를 삭제하시겠습니까?')) return;
         try{
-            await fetch(API_BASE + '/messages/' + messageId, {method:'DELETE'});
-            // refresh messages
+            const res = await fetch(API_BASE + '/messages/' + messageId, {method:'DELETE'});
+            if(!res.ok) throw new Error('Delete message failed');
             if(activeRoom) await loadMessages(activeRoom.id);
         }catch(e){
-            // demo: remove locally
-            const box = document.getElementById('messages');
-            // naive: remove last matching
-            const nodes = Array.from(box.querySelectorAll('.msg'));
-            for(const n of nodes.reverse()){
-                if(n.textContent.includes(messageId) || true){ n.remove(); break; }
-            }
+            console.error('Failed to delete message', e);
+            alert('메시지 삭제에 실패했습니다.');
         }
     }
 
     // ====== Search ======
-    document.getElementById('btnSearchRoom').addEventListener('click', ()=>{
+    document.getElementById('btnSearchRoom').addEventListener('click', () => {
         loadRooms(document.getElementById('roomSearch').value.trim());
     });
-    document.getElementById('btnSearchMsg').addEventListener('click', ()=>{
-        const q = document.getElementById('msgSearch').value.trim(); if(!activeRoom) return alert('방 선택'); loadMessages(activeRoom.id, q);
+    document.getElementById('btnSearchMsg').addEventListener('click', () => {
+        const q = document.getElementById('msgSearch').value.trim();
+        if(!activeRoom) return alert('방을 선택해주세요');
+        loadMessages(activeRoom.id, q);
     });
 
-    // ====== WebSocket (간단한 예제) ======
+    // ====== WebSocket ======
     function connectWs(roomId){
         if(ws){ ws.close(); ws = null; }
         try{
             ws = new WebSocket(WS_BASE + '?roomId=' + roomId + '&userId=' + currentUser.id);
-            ws.addEventListener('open', ()=>console.log('WS open'));
-            ws.addEventListener('message', e=>{
-                try{ const data = JSON.parse(e.data); if(data.type==='message') appendMessage(data.payload); }
-                catch(err){ console.warn('ws parse',err); }
+            ws.addEventListener('open', () => console.log('WS open'));
+            ws.addEventListener('message', e => {
+                try{
+                    const data = JSON.parse(e.data);
+                    if(data.type === 'message') appendMessage(data.payload);
+                }catch(err){
+                    console.warn('ws parse error', err);
+                }
             });
-            ws.addEventListener('close', ()=>console.log('WS closed'));
-        }catch(e){ console.warn('WS fail',e); }
+            ws.addEventListener('close', () => console.log('WS closed'));
+        }catch(e){
+            console.warn('WS connection failed', e);
+        }
     }
 
     // ====== init UI handlers ======
     document.getElementById('btnCreateRoom').addEventListener('click', createRoom);
     document.getElementById('btnSend').addEventListener('click', sendMessage);
-    document.getElementById('btnDeleteRoom').addEventListener('click', ()=>{ if(activeRoom) deleteRoom(activeRoom.id); });
+    document.getElementById('btnDeleteRoom').addEventListener('click', () => {
+        if(activeRoom) deleteRoom(activeRoom.id);
+    });
 
     // keyboard enter to send
-    document.getElementById('messageInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendMessage(); });
+    document.getElementById('messageInput').addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') sendMessage();
+    });
 
-    // bootstrap
+    // load initial rooms
     loadRooms();
 </script>
+
 </body>
 </html>

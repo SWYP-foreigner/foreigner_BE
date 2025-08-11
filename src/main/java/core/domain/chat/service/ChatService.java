@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ChatService {
@@ -44,9 +43,14 @@ public class ChatService {
     }
 
     @Transactional
-    public void deleteRoom(Long roomId) {
+    public boolean deleteRoom(Long roomId) {
+        if (!chatRoomRepo.existsById(roomId)) {
+            return false;
+        }
         chatRoomRepo.deleteById(roomId);
+        return true;
     }
+
 
     public List<ChatParticipant> getParticipants(Long roomId) {
         return participantRepo.findByChatRoomId(roomId);
@@ -61,11 +65,17 @@ public class ChatService {
         User user = userRepo.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid senderId"));
         ChatMessageDoc msg = new ChatMessageDoc(roomId, senderId, user.getName(), content);
+
         return messageRepo.save(msg);
     }
 
     @Transactional
-    public void deleteMessage(String messageId) {
+    public boolean deleteMessage(String messageId) {
+        if (!messageRepo.existsById(messageId)) {
+            return false;
+        }
         messageRepo.deleteById(messageId);
+        return true;
     }
+
 }
