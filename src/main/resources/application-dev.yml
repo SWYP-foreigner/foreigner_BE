@@ -20,3 +20,13 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
+  expiration: 3600000
+
+oauth:
+  google:
+    android:
+      client-id: your-client-id-value
+      redirect-uri: your-redirect-uri-value
+    ios:
+      client-id: your-ios-client-id
+      redirect-uri: your-ios-redirect-uri

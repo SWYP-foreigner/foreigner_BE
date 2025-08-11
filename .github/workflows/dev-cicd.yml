@@ -1,4 +1,4 @@
-name: Deploy Spring Boot to Dev Server
+name: Deploy Foreigner (Dev via Docker Compose)
 
 on:
   push:
@@ -7,41 +7,74 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Preflight — validate required secrets
+        run: |
+          for k in DOCKERHUB_USERNAME DOCKERHUB_TOKEN DEV_HOST DEV_USER DEV_SSH_KEY; do
+            test -n "${{ secrets[format('{0}', k)] }}" || (echo "$k is empty" && exit 1)
+          done
+          echo "Required base secrets OK."
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x ./gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew clean build -x test
-
-      - name: Copy JAR to systemd target directory
-        uses: appleboy/scp-action@v0.1.3
+      - name: Build & Push Docker Image
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ secrets.DEV_HOST }}
-          username: ${{ secrets.DEV_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          source: "build/libs/foreigner-0.0.1-SNAPSHOT.jar"
-          target: "/opt/foreigner/build/libs/"
-          strip_components: 2
-          overwrite: true
-          debug: true
+          context: .
+          push: true
+          # 태그: latest + git sha
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
+          # 캐시(선택) — 처음엔 비워둘 수 있음
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
-      - name: Restart Spring Boot service via systemd
-        uses: appleboy/ssh-action@master
+      - name: SSH Deploy on NCP Dev Server
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
-            sudo systemctl daemon-reexec
-            sudo systemctl restart foreigner.service
-            sudo systemctl status foreigner.service --no-pager || true
+            set -e
+            cd /opt/foreigner/deploy
+
+            # .env 파일 갱신 (필요 변수만 예시, 실제 프로젝트에 맞춰 추가/수정)
+            # DB/애플리케이션 환경변수는 여기서 주입됩니다.
+            cat > .env <<'EOF'
+            # ------- DB -------
+            POSTGRES_DB=${{ secrets.DB_NAME }}
+            POSTGRES_USER=${{ secrets.DB_USER }}
+            POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
+            TZ=Asia/Seoul
+
+            # ------- APP -------
+            SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
+            SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
+            SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+            SPRING_PROFILES_ACTIVE=dev
+            SPRING_JPA_HIBERNATE_DDL_AUTO=update
+            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
+
+            # 기타 필요 변수 예시
+            # EXTERNAL_API_KEY=${{ secrets.EXTERNAL_API_KEY }}
+            EOF
+
+            # 최신 이미지 풀 후 재기동
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+
