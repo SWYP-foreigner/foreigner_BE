@@ -62,7 +62,8 @@ jobs:
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
-            cd /foreigner  # sudo 금지
+            mkdir -p ~/foreigner
+            cd ~/foreigner
 
             docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
@@ -84,8 +85,6 @@ jobs:
             echo "IMAGE=${IMAGE}" > .image.env
             echo "Using IMAGE=${IMAGE}"
 
-            # 두 env 파일 모두 로드 (중요)
-            docker compose --env-file .env --env-file .image.env config | sed -n '1,120p' || true
             docker compose --env-file .env --env-file .image.env pull
             docker compose --env-file .env --env-file .image.env up -d --remove-orphans
 
