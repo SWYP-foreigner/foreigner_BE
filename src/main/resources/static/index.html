@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chat UI — Demo</title>
+    <style>
+        :root{--bg:#0f1720;--panel:#0b1220;--muted:#94a3b8;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
+        html,body{height:100%;margin:0;background:linear-gradient(180deg,#071124 0%, #071933 100%);font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#e6eef6}
+        .app{display:flex;height:100vh;gap:18px;padding:18px;box-sizing:border-box}
+
+        /* left: rooms */
+        .rooms{width:320px;background:var(--panel);border-radius:12px;padding:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6);display:flex;flex-direction:column;gap:10px}
+        .rooms h2{margin:0;font-size:16px}
+        .searchBox{display:flex;gap:8px}
+        .searchBox input{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
+        .btn{background:var(--accent);color:#022;border:none;padding:8px 10px;border-radius:8px;cursor:pointer}
+        .roomsList{overflow:auto;flex:1;padding-top:6px}
+        .roomItem{padding:8px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+        .roomItem:hover{background:rgba(255,255,255,0.02)}
+        .roomMeta{font-size:13px;color:var(--muted)}
+
+        /* center: messages */
+        .chat{flex:1;display:flex;flex-direction:column;background:var(--panel);border-radius:12px;padding:12px;gap:12px}
+        .chatHeader{display:flex;justify-content:space-between;align-items:center}
+        .messages{flex:1;overflow:auto;padding:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border-radius:8px}
+        .msg{padding:8px 12px;margin:8px 0;border-radius:12px;max-width:70%;word-break:break-word}
+        .msg.me{background:linear-gradient(90deg,#096b77,#06b6d4);color:#001821;margin-left:auto}
+        .msg.others{background:rgba(255,255,255,0.03)}
+        .msg .meta{font-size:11px;color:var(--muted);margin-bottom:6px}
+
+        .composer{display:flex;gap:8px}
+        .composer input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+
+        /* right: tools */
+        .tools{width:300px;background:var(--panel);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+        .small{font-size:13px;color:var(--muted)}
+        .msgActions{display:flex;gap:6px}
+        .iconBtn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;color:var(--muted);cursor:pointer}
+
+        /* responsive */
+        @media (max-width:900px){.rooms{display:none}.tools{display:none}}
+    </style>
+</head>
+<body>
+<div class="app">
+    <aside class="rooms">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2>채팅방</h2>
+            <button id="btnCreateRoom" class="btn">새 방</button>
+        </div>
+
+        <div class="searchBox">
+            <input id="roomSearch" placeholder="방 검색 또는 유저 검색" />
+            <button id="btnSearchRoom" class="iconBtn">🔍</button>
+        </div>
+
+        <div class="roomsList" id="roomsList">
+            <!-- room items injected here -->
+        </div>
+    </aside>
+
+    <main class="chat">
+        <div class="chatHeader">
+            <div>
+                <div id="roomTitle">선택된 채팅방 없음</div>
+                <div class="small" id="roomSubtitle">1:1 or 그룹</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input id="msgSearch" placeholder="메시지 검색" />
+                <button id="btnSearchMsg" class="iconBtn">🔎</button>
+                <button id="btnDeleteRoom" class="iconBtn">방 삭제</button>
+            </div>
+        </div>
+
+        <div class="messages" id="messages">
+            <!-- messages go here -->
+        </div>
+
+        <div class="composer">
+            <input id="messageInput" placeholder="메시지를 입력하세요" />
+            <button id="btnSend" class="btn">전송</button>
+        </div>
+    </main>
+
+    <aside class="tools">
+        <div>
+            <strong>활성 방 정보</strong>
+            <div class="small" id="activeRoomInfo">없음</div>
+        </div>
+
+        <div>
+            <strong>도움말</strong>
+            <div class="small">- 메시지 클릭 시 삭제 아이콘 표시
+                - 모바일은 WebSocket 권장
+                - API 엔드포인트는 /api/rooms, /api/rooms/:id/messages</div>
+        </div>
+    </aside>
+</div>
+
+<script>
+    // ====== 설정 (백엔드 엔드포인트 & 현재 유저) ======
+    const API_BASE = '/api'; // TODO: 실제 서버 주소로 바꾸세요
+    const WS_BASE = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
+    const currentUser = { id: 1, name: 'me' };
+
+    // 앱 상태
+    let rooms = []; // [{id,title,type:'DIRECT'|'GROUP', members:[...]}]
+    let activeRoom = null;
+    let ws = null;
+
+    // ====== 유틸 ======
+    function el(tag, props = {}, ...children){
+        const node = document.createElement(tag);
+        Object.entries(props).forEach(([k,v]) => { if(k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v); else node[k]=v });
+        children.forEach(c => { if(typeof c === 'string') node.appendChild(document.createTextNode(c)); else if(c) node.appendChild(c) });
+        return node;
+    }
+
+    // ====== Rooms ======
+    async function loadRooms(query){
+        // 실제: GET /api/rooms?query=...
+        try{
+            const res = await fetch(API_BASE + '/rooms' + (query?('?q='+encodeURIComponent(query)):''));
+            if(!res.ok) throw res;
+            rooms = await res.json();
+        }catch(e){
+            // fallback: demo data
+            rooms = [
+                {id:1,title:'홍길동과 1:1',type:'DIRECT',members:[{id:1,name:'me'},{id:2,name:'hong'}]},
+                {id:2,title:'여행 동아리',type:'GROUP',members:[{id:1},{id:3},{id:4}]}
+            ];
+        }
+        renderRooms();
+    }
+
+    function renderRooms(){
+        const container = document.getElementById('roomsList');
+        container.innerHTML = '';
+        rooms.forEach(r => {
+            const item = el('div',{className:'roomItem',onclick:()=>openRoom(r.id)},
+                el('div',{}, r.title),
+                el('div',{className:'roomMeta'}, r.type)
+            );
+            const del = el('button',{className:'iconBtn',onclick:(ev)=>{ev.stopPropagation(); deleteRoom(r.id);} },'🗑');
+            item.appendChild(del);
+            container.appendChild(item);
+        });
+    }
+
+    // ====== Room actions ======
+    async function createRoom(){
+        const title = prompt('새 채팅방 이름을 입력하세요');
+        if(!title) return;
+        // POST /api/rooms {title}
+        try{
+            const res = await fetch(API_BASE + '/rooms', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+            const room = await res.json();
+            rooms.unshift(room);
+            renderRooms();
+        }catch(e){
+            // demo
+            const id = Date.now();
+            const room = {id, title, type:'GROUP', members:[currentUser]};
+            rooms.unshift(room); renderRooms();
+        }
+    }
+
+    async function deleteRoom(roomId){
+        if(!confirm('정말 방을 삭제하시겠습니까?')) return;
+        try{
+            await fetch(API_BASE + '/rooms/' + roomId, {method:'DELETE'});
+            rooms = rooms.filter(r=>r.id!==roomId);
+            if(activeRoom && activeRoom.id===roomId) closeRoom();
+            renderRooms();
+        }catch(e){
+            rooms = rooms.filter(r=>r.id!==roomId); if(activeRoom&&activeRoom.id===roomId) closeRoom(); renderRooms();
+        }
+    }
+
+    // ====== Messages ======
+    async function openRoom(roomId){
+        activeRoom = rooms.find(r=>r.id===roomId) || {id:roomId,title:'(로딩 중)',type:'DIRECT'};
+        document.getElementById('roomTitle').innerText = activeRoom.title || '무제';
+        document.getElementById('roomSubtitle').innerText = activeRoom.type || '';
+        document.getElementById('activeRoomInfo').innerText = JSON.stringify(activeRoom);
+
+        // load messages
+        await loadMessages(roomId);
+
+        // open websocket
+        connectWs(roomId);
+    }
+
+    function closeRoom(){
+        activeRoom = null; document.getElementById('roomTitle').innerText = '선택된 채팅방 없음'; document.getElementById('messages').innerHTML='';
+        if(ws){ ws.close(); ws = null; }
+    }
+
+    async function loadMessages(roomId, q){
+        try{
+            const res = await fetch(API_BASE + '/rooms/' + roomId + '/messages' + (q?('?q='+encodeURIComponent(q)):''));
+            if(!res.ok) throw res;
+            const list = await res.json();
+            renderMessages(list);
+        }catch(e){
+            // demo messages
+            const list = [
+                {id:1,from:{id:2,name:'hong'},text:'안녕하세요',createdAt: Date.now()-60000},
+                {id:2,from:{id:1,name:'me'},text:'반갑습니다',createdAt: Date.now()-30000}
+            ];
+            renderMessages(list);
+        }
+    }
+
+    function renderMessages(list){
+        const box = document.getElementById('messages');
+        box.innerHTML = '';
+        list.forEach(m => {
+            const div = el('div',{className:'msg ' + (m.from.id===currentUser.id? 'me':'others')});
+            const meta = el('div',{className:'meta'}, (m.from.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
+            div.appendChild(meta);
+            const txt = el('div',{}, m.text);
+            div.appendChild(txt);
+
+            // actions
+            const actions = el('div',{className:'msgActions'});
+            const btnDelete = el('button',{className:'iconBtn',onclick:async (ev)=>{ev.stopPropagation(); await deleteMessage(m.id); }},'삭제');
+            actions.appendChild(btnDelete);
+            div.appendChild(actions);
+
+            box.appendChild(div);
+        });
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMessage(){
+        const input = document.getElementById('messageInput');
+        const text = input.value.trim(); if(!text || !activeRoom) return;
+        const payload = {text, fromId: currentUser.id};
+        try{
+            const res = await fetch(API_BASE + '/rooms/' + activeRoom.id + '/messages', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            const saved = await res.json();
+            // append locally
+            // if you use websocket backend, server will broadcast and you may skip append here
+            appendMessage(saved);
+            input.value = '';
+        }catch(e){
+            // demo append
+            appendMessage({id: Date.now(), from:currentUser, text, createdAt: Date.now()});
+            input.value = '';
+        }
+    }
+
+    function appendMessage(m){
+        const box = document.getElementById('messages');
+        const div = el('div',{className:'msg ' + (m.from.id===currentUser.id? 'me':'others')});
+        const meta = el('div',{className:'meta'}, (m.from.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
+        div.appendChild(meta);
+        div.appendChild(el('div',{}, m.text));
+        const actions = el('div',{className:'msgActions'});
+        const btnDelete = el('button',{className:'iconBtn',onclick:async (ev)=>{ev.stopPropagation(); await deleteMessage(m.id); }},'삭제');
+        actions.appendChild(btnDelete);
+        div.appendChild(actions);
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function deleteMessage(messageId){
+        if(!confirm('이 메시지를 삭제하시겠습니까?')) return;
+        try{
+            await fetch(API_BASE + '/messages/' + messageId, {method:'DELETE'});
+            // refresh messages
+            if(activeRoom) await loadMessages(activeRoom.id);
+        }catch(e){
+            // demo: remove locally
+            const box = document.getElementById('messages');
+            // naive: remove last matching
+            const nodes = Array.from(box.querySelectorAll('.msg'));
+            for(const n of nodes.reverse()){
+                if(n.textContent.includes(messageId) || true){ n.remove(); break; }
+            }
+        }
+    }
+
+    // ====== Search ======
+    document.getElementById('btnSearchRoom').addEventListener('click', ()=>{
+        loadRooms(document.getElementById('roomSearch').value.trim());
+    });
+    document.getElementById('btnSearchMsg').addEventListener('click', ()=>{
+        const q = document.getElementById('msgSearch').value.trim(); if(!activeRoom) return alert('방 선택'); loadMessages(activeRoom.id, q);
+    });
+
+    // ====== WebSocket (간단한 예제) ======
+    function connectWs(roomId){
+        if(ws){ ws.close(); ws = null; }
+        try{
+            ws = new WebSocket(WS_BASE + '?roomId=' + roomId + '&userId=' + currentUser.id);
+            ws.addEventListener('open', ()=>console.log('WS open'));
+            ws.addEventListener('message', e=>{
+                try{ const data = JSON.parse(e.data); if(data.type==='message') appendMessage(data.payload); }
+                catch(err){ console.warn('ws parse',err); }
+            });
+            ws.addEventListener('close', ()=>console.log('WS closed'));
+        }catch(e){ console.warn('WS fail',e); }
+    }
+
+    // ====== init UI handlers ======
+    document.getElementById('btnCreateRoom').addEventListener('click', createRoom);
+    document.getElementById('btnSend').addEventListener('click', sendMessage);
+    document.getElementById('btnDeleteRoom').addEventListener('click', ()=>{ if(activeRoom) deleteRoom(activeRoom.id); });
+
+    // keyboard enter to send
+    document.getElementById('messageInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendMessage(); });
+
+    // bootstrap
+    loadRooms();
+</script>
+</body>
+</html>
