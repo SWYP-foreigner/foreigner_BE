@@ -34,11 +34,12 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/google/callback",
                                 "/auth/google/exchange",
-
+                                "/index.html",
                                 "/member/create", "/member/doLogin",
                                 "/member/google/doLogin", "/member/kakao/doLogin",
                                 "/oauth2/**",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health"
+                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health",
+                                "/api/chat/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
