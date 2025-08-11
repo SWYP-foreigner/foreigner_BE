@@ -11,9 +11,20 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+jwt:
+  expiration: 3600000
+
+oauth:
+  google:
+    android:
+      client-id: your-client-id-value
+      redirect-uri: your-redirect-uri-value
+    ios:
+      client-id: your-ios-client-id
+      redirect-uri: your-ios-redirect-uri

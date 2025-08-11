@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 @Entity
-@Table(name = "User")
+@Table(name = "users")
 @Getter
 @NoArgsConstructor
 public class User {
