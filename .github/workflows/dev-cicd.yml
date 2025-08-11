@@ -18,8 +18,9 @@ jobs:
           test -n "${{ secrets.DEV_USER }}"            || (echo "DEV_USER is empty" && exit 1)
           test -n "${{ secrets.DEV_SSH_KEY }}"         || (echo "DEV_SSH_KEY is empty" && exit 1)
           test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
-          test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
+          test -n "${{ secrets.DB_USERNAME }}"             || (echo "DB_USER is empty" && exit 1)
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
+          test -n "${{ secrets.JWT_SECRET }}"         || (echo "JWT_SECRET is empty" && exit 1)
           echo "All required secrets are set."
 
       - name: Checkout Code
@@ -63,6 +64,7 @@ jobs:
             SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
             SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
             SPRING_PROFILES_ACTIVE=dev
             SPRING_JPA_HIBERNATE_DDL_AUTO=update
             JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
