@@ -1,13 +1,13 @@
-package core.controller;
+package core.global.controller;
 
 
-import com.foreigner.core.common.JwtTokenProvider;
-import com.foreigner.core.domain.user.User;
-import com.foreigner.core.dto.AccessTokenDto;
-import com.foreigner.core.dto.GoogleLoginReq;
-import com.foreigner.core.dto.GoogleProfileDto;
-import com.foreigner.core.service.GoogleService;
-import com.foreigner.core.service.UserService;
+import core.domain.user.entity.User;
+import core.domain.user.service.UserService;
+import core.global.config.JwtTokenProvider;
+import core.global.dto.AccessTokenDto;
+import core.global.dto.GoogleLoginReq;
+import core.global.dto.GoogleProfileDto;
+import core.global.service.GoogleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,11 +20,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/member")
+@RequestMapping("api/v1/member")
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final core.global.config.JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
 
 

@@ -1,7 +1,7 @@
-package core.config;
+package core.global.config;
 
 
-import com.foreigner.core.common.JwtTokenFilter;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

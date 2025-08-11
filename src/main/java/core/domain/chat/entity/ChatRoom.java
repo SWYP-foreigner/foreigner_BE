@@ -1,4 +1,4 @@
-package core.domain.chat;
+package core.domain.chat.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -19,6 +19,6 @@ public class ChatRoom {
     @Column(name = "is_group", nullable = false)
     private Boolean group;
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 }

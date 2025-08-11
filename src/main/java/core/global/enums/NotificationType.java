@@ -1,4 +1,4 @@
-package core.domain.notification;
+package core.global.enums;
 
 public enum NotificationType {
 }

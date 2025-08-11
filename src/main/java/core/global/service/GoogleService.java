@@ -1,8 +1,9 @@
-package core.service;
+package core.global.service;
 
 
-import com.foreigner.core.dto.AccessTokenDto;
-import com.foreigner.core.dto.GoogleProfileDto;
+
+import core.global.dto.AccessTokenDto;
+import core.global.dto.GoogleProfileDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -56,8 +57,8 @@ public class GoogleService {
         form.add("grant_type", "authorization_code");
         form.add("code", code);
         form.add("client_id", clientId);
-        form.add("code_verifier", codeVerifier);      // ✅ PKCE
-        form.add("redirect_uri", redirectUri);        // ✅ 앱에서 사용한 스킴과 동일해야 함
+        form.add("code_verifier", codeVerifier);
+        form.add("redirect_uri", redirectUri);
 
         ResponseEntity<AccessTokenDto> response = restClient.post()
                 .uri("https://oauth2.googleapis.com/token")

@@ -1,12 +1,13 @@
-package core.domain.like;
+package core.domain.like.entity;
 
-import com.foreigner.core.domain.user.User;
+import core.domain.user.entity.User;
+import core.global.enums.LikeType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "like") // 예약어 → 백틱 필요할 수 있음
+@Table(name = "likes")
 @Getter
 @NoArgsConstructor
 public class Like {
@@ -18,9 +19,8 @@ public class Like {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
-    private LikeType type;
-
-    // ※ 원문에 어떤 대상(post/comment 등)을 가리키는 FK(예: target_id)가 없음 → 실사용 불가. 스키마 보완 필요.
+    private String type;
+    /**  todo ※ 원문에 어떤 대상(post/comment 등)을가리키는 FK(예: target_id)가 없음 → 실사용 불가. 스키마 보완 필요.
+     **/
 }

@@ -1,4 +1,4 @@
-package core.domain.listhistory;
+package core.domain.listhistory.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

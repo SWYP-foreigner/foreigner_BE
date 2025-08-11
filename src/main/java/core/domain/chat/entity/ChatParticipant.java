@@ -1,6 +1,6 @@
-package core.domain.chat;
+package core.domain.chat.entity;
 
-import com.foreigner.core.domain.user.User;
+import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,7 +24,7 @@ public class ChatParticipant {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "joined_at")
+    @Column(name = "joined_at", updatable = false)
     private Instant joinedAt;
 
 

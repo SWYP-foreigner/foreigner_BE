@@ -1,4 +1,4 @@
-package core.common;
+package core.global.config;
 
 
 import io.jsonwebtoken.Claims;

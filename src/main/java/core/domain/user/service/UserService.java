@@ -1,8 +1,9 @@
-package core.service;
+package core.domain.user.service;
 
-import com.foreigner.core.domain.user.User;
-import com.foreigner.core.dto.UserCreateDto;
-import com.foreigner.core.repository.UserRepository;
+
+import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
+import core.global.dto.UserCreateDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
     private final UserRepository userRepository;
 
-    public User  create(UserCreateDto memberCreateDto){
+    public User create(UserCreateDto memberCreateDto){
        User user = User.builder()
                 .email(memberCreateDto.getEmail())
                 .build();

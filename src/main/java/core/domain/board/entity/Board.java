@@ -1,4 +1,4 @@
-package core.domain.board;
+package core.domain.board.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

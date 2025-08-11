@@ -1,6 +1,7 @@
-package core.repository;
+package core.domain.user.repository;
 
-import com.foreigner.core.domain.user.User;
+
+import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

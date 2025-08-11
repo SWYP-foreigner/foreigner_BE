@@ -1,5 +1,7 @@
-package core.domain.user;
+package core.domain.user.entity;
 
+
+import core.global.enums.Sex;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -71,7 +73,7 @@ public class User {
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
-        this.createdAt = Instant.now(); // ✅ 여기서 기본값 세팅
+        this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 

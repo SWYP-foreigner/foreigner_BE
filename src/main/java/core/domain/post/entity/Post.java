@@ -1,7 +1,7 @@
-package core.domain.post;
+package core.domain.post.entity;
 
-import com.foreigner.core.domain.board.Board;
-import com.foreigner.core.domain.user.User;
+import core.domain.board.entity.Board;
+import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

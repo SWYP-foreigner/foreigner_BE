@@ -1,6 +1,7 @@
-package core.domain.notification;
+package core.domain.notification.entity;
 
-import com.foreigner.core.domain.user.User;
+import core.domain.user.entity.User;
+import core.global.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

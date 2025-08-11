@@ -1,6 +1,8 @@
-package core.domain.userdevicetoken;
+package core.domain.userdevicetoken.entity;
 
-import com.foreigner.core.domain.user.User;
+
+import core.domain.user.entity.User;
+import core.global.enums.DeviceType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
