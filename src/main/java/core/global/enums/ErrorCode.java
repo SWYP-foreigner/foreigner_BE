@@ -19,6 +19,7 @@ public enum ErrorCode {
 
     USERSPOT_IS_ALREADY_CREATED(HttpStatus.BAD_REQUEST, "이미 존재하는 나만의 장소입니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
+    FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND,"팔로워를 찾을 수 없습니다."),
 
     GEOCODE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "지오코딩 중 실패했습니다."),
 

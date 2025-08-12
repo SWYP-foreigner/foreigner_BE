@@ -4,15 +4,12 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.ChatMessageResponse;
 import core.domain.chat.dto.ChatParticipantResponse;
 import core.domain.chat.dto.ChatRoomResponse;
-import core.domain.chat.entity.ChatParticipant;
-import core.domain.chat.entity.ChatRoom;
 import core.global.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.time.Instant;
 import java.util.List;
 
