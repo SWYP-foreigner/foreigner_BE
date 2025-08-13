@@ -29,29 +29,34 @@ public class ChatController {
     }
 
     @PostMapping("/rooms")
-    public ResponseEntity<ApiResponse<ChatRoomResponse>> createChatRoom(@RequestParam boolean isGroup) {
-        ChatRoom room = null;
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
+            @RequestParam boolean isGroup,
+            @RequestBody List<Long> participantIds
+    ) {
         try {
-            room = chatService.createRoom(isGroup);
+            ChatRoom room = chatService.createRoom(isGroup, participantIds);
+            ChatRoomResponse response = new ChatRoomResponse(
+                    room.getId(),
+                    room.getGroup(),
+                    room.getCreatedAt(),
+                    room.getParticipants().stream()
+                            .map(p -> new ChatParticipantResponse(
+                                    p.getId(),
+                                    p.getUser().getId(),
+                                    p.getUser().getName(),
+                                    p.getJoinedAt(),
+                                    p.getLastReadMessageId(),
+                                    p.getBlocked(),
+                                    p.getDeleted()
+                            ))
+                            .toList()
+            );
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("채팅방 생성 예외", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.fail("채팅방 생성 중 예외가 발생했습니다."));
         }
-
-        if (room == null) {
-            log.error("채팅방 생성 실패: null 반환");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.fail("채팅방 생성에 실패했습니다."));
-        }
-
-        ChatRoomResponse response = new ChatRoomResponse(
-                room.getId(),
-                room.getGroup(),
-                room.getCreatedAt(),
-                List.of()
-        );
-        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
 

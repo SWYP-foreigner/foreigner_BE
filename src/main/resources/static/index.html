@@ -151,20 +151,26 @@
         });
     }
 
-    // ====== Room actions ======
-    async function createRoom(){
+    async function createRoom(participantIds) {
         const isGroup = confirm('그룹 채팅방인가요? (취소하면 1:1 채팅방)');
-        try{
+        const Ids = [participantIds, 2]; // 예시
+
+
+        try {
             const res = await fetch(API_BASE + '/rooms?isGroup=' + isGroup, {
-                method:'POST',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(Ids) // 예: [1, 2]
             });
-            if(!res.ok) throw new Error('Create room failed');
-            const result = await res.json(); // 전체 응답 객체
-            console.log(result);             // 결과 찍기 (디버깅용)
-            const room = result.data;        // data 필드에서 방 정보 꺼내기
+            if (!res.ok) throw new Error('Create room failed');
+            const result = await res.json();
+            console.log(result);
+            const room = result.data;
             rooms.unshift(room);
             renderRooms();
-        }catch(e){
+        } catch (e) {
             console.error('Failed to create room', e);
             alert('채팅방 생성에 실패했습니다.');
         }

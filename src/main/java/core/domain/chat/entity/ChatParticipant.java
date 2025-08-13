@@ -36,5 +36,10 @@ public class ChatParticipant {
 
     @Column(name = "is_deleted")
     private Boolean deleted;
+    public ChatParticipant(ChatRoom chatRoom, User user) {
+        this.chatRoom = chatRoom;
+        this.user = user;
+    }
+
 }
 

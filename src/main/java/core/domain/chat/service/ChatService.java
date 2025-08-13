@@ -37,9 +37,31 @@ public class ChatService {
         return chatRoomRepo.findAll();
     }
     @Transactional
-    public ChatRoom createRoom(boolean isGroup) {
+    public ChatRoom createRoom(boolean isGroup, List<Long> participantIds) {
+        // 1. 방 생성
         ChatRoom room = new ChatRoom(isGroup, Instant.now());
-        return chatRoomRepo.save(room);
+        room = chatRoomRepo.save(room);
+
+        // 2. 참여자 검증 및 조회
+        if (!isGroup && participantIds.size() != 2) {
+            throw new IllegalArgumentException("일대일 채팅방은 정확히 2명의 참여자가 필요합니다.");
+        }
+        if (isGroup && participantIds.isEmpty()) {
+            throw new IllegalArgumentException("그룹 채팅방은 최소 1명 이상의 참여자가 필요합니다.");
+        }
+
+        List<User> users = userRepo.findAllById(participantIds);
+        if (users.size() != participantIds.size()) {
+            throw new IllegalArgumentException("참여자 중 존재하지 않는 사용자가 있습니다.");
+        }
+
+        // 3. 참여자 엔티티 생성 및 저장
+        for (User user : users) {
+            ChatParticipant participant = new ChatParticipant(room, user);
+            participantRepo.save(participant);
+        }
+
+        return room;
     }
 
     @Transactional
