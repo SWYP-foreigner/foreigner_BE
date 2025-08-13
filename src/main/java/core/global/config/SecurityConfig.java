@@ -36,12 +36,13 @@ public class SecurityConfig {
                                 "/auth/google/exchange",
                                 "/api/v1/users/**",
                                 "/member/create", "/member/doLogin",
-                                "/member/google/doLogin", "/member/kakao/doLogin",
+                                "/member/google/doLogin", "/member/apple/doLogin",
                                 "/oauth2/**",
                                 "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health",
                                 "/swagger-resources/**",
                                 "/swagger-ui.html",
-                                "/member/google/TestdoLogin"
+                                "/member/google/TestdoLogin",
+                                "/api/v1/member/google/TestdoLogin"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

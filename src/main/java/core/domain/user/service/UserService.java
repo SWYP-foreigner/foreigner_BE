@@ -9,6 +9,7 @@ import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.Optional;
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
     private final UserRepository userRepository;
 
@@ -28,19 +30,22 @@ public class UserService {
         return user;
     }
 
-    public  User getUserBySocialId(String socialId){
-        User member = userRepository.findBySocialId(socialId).orElse(null);
-        return member;
+    @Transactional
+    public User createOauth(String socialId, String email, String provider) {
+        log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
+        // (중복 이메일 체크, unique 제약 등도 로그)
+        User u = new User();
+        u.setSocialId(socialId);
+        u.setEmail(email);
+        u.setProvider(provider);
+        User saved = userRepository.save(u);
+        log.info("createOauth saved: id={}", saved.getId());
+        return saved;
     }
 
-    public  User createOauth(String socialId, String email, String socialType){
-        User member =  User.builder()
-                .email(email)
-                .provider(socialType)
-                .socialId(socialId)
-                .build();
-      userRepository.save(member);
-        return member;
+    public User getUserBySocialId(String socialId) {
+        log.debug("getUserBySocialId: {}", socialId);
+        return userRepository.findBySocialId(socialId).orElse(null);
     }
 
     public User findUserByUsername(String username) {
