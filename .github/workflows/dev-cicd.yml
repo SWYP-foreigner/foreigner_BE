@@ -1,7 +1,6 @@
 name: Deploy Foreigner (Dev via Docker Compose)
 
 on:
-  workflow_dispatch: {}
   push:
     branches: [ dev ]
 
