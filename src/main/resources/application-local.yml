@@ -29,3 +29,7 @@ oauth:
     ios:
       client-id: your-ios-client-id
       redirect-uri: your-ios-redirect-uri
+
+springdoc:
+  swagger-ui:
+    path: /swagger
