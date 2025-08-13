@@ -74,12 +74,12 @@ public class MyPageController {
 
     @Operation(summary = "친구 끊기(언팔로우) ", description = "로그인한 사용자가 특정 친구를 언팔로우합니다.")
     @DeleteMapping("/users/follow/{friendId}")
-    public ResponseEntity<String> unfollow(
+    public ResponseEntity<ApiResponse<String>> unfollow(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
         followService.unfollow(authentication.getName(), friendId);
-        return ResponseEntity.ok("팔로우가 취소되었습니다.");
+        return ResponseEntity.ok(ApiResponse.success("팔로우가 취소되었습니다."));
     }
 
 

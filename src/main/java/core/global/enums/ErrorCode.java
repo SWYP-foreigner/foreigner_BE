@@ -17,7 +17,7 @@ public enum ErrorCode {
     TOURIST_SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 여행지입니다."),
     INVALID_TRIP_ORDER_INDEX(HttpStatus.BAD_REQUEST, "이동할 수 없는 Index입니다."),
 
-
+    FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST,"이미 팔로우 한 대상입니다."),
     USERSPOT_IS_ALREADY_CREATED(HttpStatus.BAD_REQUEST, "이미 존재하는 나만의 장소입니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND,"팔로워를 찾을 수 없습니다."),
