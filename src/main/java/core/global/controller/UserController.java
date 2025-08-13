@@ -36,7 +36,8 @@ public class UserController {
     private final GoogleService googleService;
 
     @PostMapping("/google/doLogin")
-    @Operation(summary = "구글 로그인 API", description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
+    @Operation(summary = "구글 로그인 API"
+            , description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
     @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<?> googleLogin(
             @Parameter(description = "구글 로그인 요청 데이터", required = true)

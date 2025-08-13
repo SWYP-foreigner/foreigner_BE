@@ -37,7 +37,7 @@ public class MyPageController {
     @GetMapping("/following")
     public ResponseEntity<List<FollowDTO>> getFollowingListByStatus(
             Authentication authentication,
-            @Parameter(description = "조회할 팔로우 상태 (PENDING, ACCEPTED)") @RequestParam FollowStatus status) {
+            @Parameter(description = "조회할 팔로우 상태 (PENDING, ACCEPTED,)") @RequestParam FollowStatus status) {
 
         User fromUser = userService.findUserByUsername(authentication.getName());
         List<FollowDTO> followingList = followService.getFollowingListByStatus(fromUser.getId(), status);
