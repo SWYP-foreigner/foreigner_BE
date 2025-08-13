@@ -27,6 +27,10 @@ oauth:
     android:
       client-id: your-client-id-value
       redirect-uri: your-redirect-uri-value
+    web:
+      client-id: your-client-id-value
+      client-secret: your-client-id-value
+      redirect-uri: your-redirect-uri-value
     ios:
       client-id: your-ios-client-id
       redirect-uri: your-ios-redirect-uri
