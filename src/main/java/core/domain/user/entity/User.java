@@ -1,6 +1,7 @@
 package core.domain.user.entity;
 
 
+import core.domain.user.dto.UserUpdateDTO;
 import core.global.enums.Sex;
 import jakarta.persistence.*;
 import lombok.Builder;
@@ -13,7 +14,8 @@ import java.time.Instant;
 @Getter
 @NoArgsConstructor
 public class User {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
     private Long id;
 
@@ -58,7 +60,6 @@ public class User {
     private String email;
 
 
-
     @Builder
     public User(String name, Sex sex, Integer age, String nationality,
                 String introduction, String visitPurpose, String languages,
@@ -76,6 +77,36 @@ public class User {
         this.email = email;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
+    }
+
+
+    public void updateProfile(UserUpdateDTO dto) {
+        if (dto.getName() != null && !dto.getName().trim().isEmpty()) {
+            this.name = dto.getName().trim();
+        }
+        if (dto.getSex() != null) {
+            this.sex = dto.getSex();
+        }
+        if (dto.getAge() != null) {
+            this.age = dto.getAge();
+        }
+        if (dto.getNationality() != null && !dto.getNationality().trim().isEmpty()) {
+            this.nationality = dto.getNationality().trim();
+        }
+        if (dto.getIntroduction() != null && !dto.getIntroduction().trim().isEmpty()) {
+            this.introduction = dto.getIntroduction().trim();
+        }
+        if (dto.getVisitPurpose() != null && !dto.getVisitPurpose().trim().isEmpty()) {
+            this.visitPurpose = dto.getVisitPurpose().trim();
+        }
+        if (dto.getLanguages() != null && !dto.getLanguages().trim().isEmpty()) {
+            this.languages = dto.getLanguages().trim();
+        }
+        if (dto.getHobby() != null && !dto.getHobby().trim().isEmpty()) {
+            this.hobby = dto.getHobby().trim();
+        }
+
+        this.updatedAt = Instant.now(); // 수정 시각 갱신
     }
 
 }

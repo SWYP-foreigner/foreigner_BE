@@ -1,6 +1,7 @@
 package core.domain.user.service;
 
 
+import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.UserCreateDto;
@@ -8,6 +9,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -47,5 +50,14 @@ public class UserService {
     public User findById(Long id){
         return userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id + " 사용자를 찾을 수 없습니다."));
+    }
+
+
+
+    public User updateUser(String loginName, UserUpdateDTO dto) {
+        User user = userRepository.findByName(loginName)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+        user.updateProfile(dto); // 부분 업데이트 + 검증 + 타임스탬프 갱신
+        return user; // dirty checking으로 자동 반영
     }
 }

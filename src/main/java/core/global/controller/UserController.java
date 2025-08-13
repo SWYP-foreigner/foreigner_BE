@@ -66,31 +66,31 @@ public class UserController {
         return new ResponseEntity<>(loginInfo, HttpStatus.OK);
     }
 
-    // 액세스 토큰을 직접 받아 로그인하는 테스트용 API
-    @PostMapping("/google/TestdoLogin")
-    @Operation(summary = "구글 테스트 로그인 API", description = "이미 발급받은 액세스 토큰으로 로그인하고 JWT 토큰을 발급합니다.")
-    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
-    public ResponseEntity<?> googleTestLogin(
-            @Parameter(description = "구글 Access Token", required = true)
-            @RequestBody GoogleTestReq req) {
-
-        // 1. Access Token으로 사용자 프로필 정보 조회
-        // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
-        GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
-
-        // 2. 소셜 ID로 기존 사용자 찾기 또는 신규 사용자 생성
-        User originalUser = userService.getUserBySocialId(profile.getSub());
-        if (originalUser == null) {
-            originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
-        }
-
-        // 3. 사용자 정보로 JWT 토큰 생성
-        String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
-
-        // 4. 로그인 정보 반환
-        Map<String, Object> loginInfo = new HashMap<>();
-        loginInfo.put("id", originalUser.getId());
-        loginInfo.put("token", jwtToken);
-        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
-    }
+//    // 액세스 토큰을 직접 받아 로그인하는 테스트용 API
+//    @PostMapping("/google/TestdoLogin")
+//    @Operation(summary = "구글 테스트 로그인 API", description = "이미 발급받은 액세스 토큰으로 로그인하고 JWT 토큰을 발급합니다.")
+//    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
+//    public ResponseEntity<?> googleTestLogin(
+//            @Parameter(description = "구글 Access Token", required = true)
+//            @RequestBody GoogleTestReq req) {
+//
+//        // 1. Access Token으로 사용자 프로필 정보 조회
+//        // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
+//        GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
+//
+//        // 2. 소셜 ID로 기존 사용자 찾기 또는 신규 사용자 생성
+//        User originalUser = userService.getUserBySocialId(profile.getSub());
+//        if (originalUser == null) {
+//            originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
+//        }
+//
+//        // 3. 사용자 정보로 JWT 토큰 생성
+//        String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
+//
+//        // 4. 로그인 정보 반환
+//        Map<String, Object> loginInfo = new HashMap<>();
+//        loginInfo.put("id", originalUser.getId());
+//        loginInfo.put("token", jwtToken);
+//        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
+//    }
 }

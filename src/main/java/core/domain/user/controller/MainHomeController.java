@@ -25,20 +25,10 @@ public class MainHomeController {
         @Operation(summary = "팔로우 요청 보내기", description = "마음에 드는 친구에게 팔로우 요청을 전송합니다.")
         @PostMapping("/follow/{userId}")
         public ResponseEntity<ApiResponse<String>> followUser(
-                Authentication authentication,
-                @PathVariable Long userId) {
-            // 인증된 사용자 (팔로우를 요청하는 사람)
-            User fromUser = userService.findUserByUsername(authentication.getName());
-
-            // 팔로우 대상 사용자
-            User toUser = userService.findById(userId);
-
-            // Service에 ID를 전달하여 팔로우 로직 실행
-            followService.follow(fromUser.getId(), toUser.getId());
-
+                Authentication authentication, @PathVariable Long userId) {
+            followService.follow(authentication.getName(), userId);
             return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 전송되었습니다."));
         }
-
 
 
 
