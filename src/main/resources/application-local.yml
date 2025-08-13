@@ -32,6 +32,7 @@ oauth:
 
 
 springdoc:
+  api-docs:
+    enabled: true
   swagger-ui:
-    path: /swagger
-
+    enabled: true
