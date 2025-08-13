@@ -1,4 +1,4 @@
-package core.domain.like.entity;
+package core.global.like.entity;
 
 import core.domain.user.entity.User;
 import core.global.enums.LikeType;
@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Like {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "like_id")
+    @Column(name = "likes_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -21,6 +21,7 @@ public class Like {
 
     @Column(name = "type", nullable = false)
     private String type;
-    /**  todo ※ 원문에 어떤 대상(post/comment 등)을가리키는 FK(예: target_id)가 없음 → 실사용 불가. 스키마 보완 필요.
-     **/
+
+    @Column(name = "related_id")
+    private Long relatedId;
 }

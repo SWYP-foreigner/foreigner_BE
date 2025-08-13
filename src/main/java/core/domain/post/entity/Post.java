@@ -6,10 +6,23 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 
 @Entity
-@Table(name = "post")
+@Table(
+        name = "post",
+        indexes = {
+                @Index(
+                        name = "idx_post_board_created_id",
+                        columnList = "board_id, created_at DESC, post_id DESC"
+                ),
+                @Index(
+                        name = "idx_post_created_id",
+                        columnList = "created_at DESC, post_id DESC"
+                )
+        }
+)
 @Getter
 @NoArgsConstructor
 public class Post {

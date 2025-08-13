@@ -1,5 +1,6 @@
 package core.domain.board.entity;
 
+import core.global.enums.BoardCategory;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,5 +16,5 @@ public class Board {
     private Long id;
 
     @Column(name = "board_category", nullable = false)
-    private String category;
+    private BoardCategory category;
 }

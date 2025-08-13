@@ -1,4 +1,4 @@
-package core.domain.image.entity;
+package core.global.image.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
