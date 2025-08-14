@@ -32,7 +32,7 @@ public class GoogleService {
 
     @Value("${oauth.google.ios.client-id")
     private String iosClientId;
-    @Value("${oauth.google.ios.iosRedirectUri}")
+    @Value("${oauth.google.ios.ios.redirect-uri}")
     private String iosRedirectUri;
 
     // HTTP 통신을 위한 RestClient 인스턴스를 생성합니다.
