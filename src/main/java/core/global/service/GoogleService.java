@@ -2,6 +2,9 @@ package core.global.service;
 
 import core.global.dto.AccessTokenDto;
 import core.global.dto.GoogleProfileDto;
+import core.global.enums.DeviceType;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -20,13 +23,6 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class GoogleService {
 
-    // application.yml에서 웹 클라이언트 정보를 주입받습니다.
-    @Value("${oauth.google.web.client-id}")
-    private String webClientId;
-    @Value("${oauth.google.web.client-secret}")
-    private String webClientSecret;
-    @Value("${oauth.google.web.redirect-uri}")
-    private String webRedirectUri;
 
     // application.yml에서 안드로이드 클라이언트 정보를 주입받습니다.
     @Value("${oauth.google.android.client-id}")
@@ -34,40 +30,15 @@ public class GoogleService {
     @Value("${oauth.google.android.redirect-uri}")
     private String androidRedirectUri;
 
+    @Value("${oauth.google.ios.client-id")
+    private String iosClientId;
+    @Value("${oauth.google.ios.iosRedirectUri}")
+    private String iosRedirectUri;
+
     // HTTP 통신을 위한 RestClient 인스턴스를 생성합니다.
     private final RestClient restClient = RestClient.create();
 
-    /**
-     * 지원하는 클라이언트 플랫폼
-     */
-    public enum Platform {
-        ANDROID, IOS
-    }
 
-    /**
-     * 웹 애플리케이션용: Authorization Code를 사용하여 구글로부터 Access Token을 교환합니다.
-     * 웹에서는 클라이언트 시크릿을 사용하여 안전하게 토큰을 요청합니다.
-     *
-     * @param code 웹 클라이언트에서 받은 Authorization Code
-     * @return 구글로부터 받은 Access Token 정보 (AccessTokenDto)
-     */
-    public AccessTokenDto exchangeCode(String code) {
-        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("grant_type", "authorization_code");
-        formData.add("code", code);
-        formData.add("client_id", webClientId);
-        formData.add("client_secret", webClientSecret);
-        formData.add("redirect_uri", webRedirectUri);
-
-        ResponseEntity<AccessTokenDto> response = restClient.post()
-                .uri("https://oauth2.googleapis.com/token")
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(formData)
-                .retrieve()
-                .toEntity(AccessTokenDto.class);
-
-        return response.getBody();
-    }
 
     /**
      * 모바일 앱용: Authorization Code와 PKCE를 사용하여 구글로부터 Access Token을 교환합니다.
@@ -78,7 +49,7 @@ public class GoogleService {
      * @param platform     요청을 보낸 클라이언트의 플랫폼 (ANDROID)
      * @return 구글로부터 받은 Access Token 정보 (AccessTokenDto)
      */
-    public AccessTokenDto exchangeCodeWithPkce(String code, String codeVerifier, Platform platform) {
+    public AccessTokenDto exchangeCodeWithPkce(String code, String codeVerifier, DeviceType platform) {
         String clientId;
         String redirectUri;
 
@@ -88,11 +59,11 @@ public class GoogleService {
                 clientId = androidClientId;
                 redirectUri = androidRedirectUri;
             }
-//            case IOS -> {
-//                clientId = iosClientId;
-//                redirectUri = iosRedirectUri;
-//            }
-            default -> throw new IllegalArgumentException("지원하지 않는 플랫폼입니다: " + platform);
+            case IOS -> {
+                clientId = iosClientId;
+                redirectUri = iosRedirectUri;
+            }
+            default ->throw new BusinessException(ErrorCode.PLACE_NOT_FOUND);
         }
 
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
@@ -127,4 +98,7 @@ public class GoogleService {
                 .toEntity(GoogleProfileDto.class);
         return response.getBody();
     }
+
+
+
 }
