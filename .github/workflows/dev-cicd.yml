@@ -89,9 +89,9 @@ jobs:
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
             IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
             IOS_REDIRECT_URI=${{ secrets.IOS_REDIRECT_URI }}
-            WEB_CLIENT_ID=${{secrets.WEB_CLIENT_ID}}
-            WEB_CLIENT_SECRET=${secrets.WEB_CLIENT_SECRET}
-            WEB_REDIRECT_URI=${secrets.WEB_REDIRECT_URI}
+            WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
+            WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
+            WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
             EOF
             
             chmod 600 .env || true
