@@ -1,7 +1,6 @@
 package core.global.config;
 
 
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,7 +41,8 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/swagger-ui.html",
                                 "/member/google/TestdoLogin",
-                                "/api/v1/member/google/TestdoLogin"
+                                "/api/v1/member/google/TestdoLogin",
+                                "/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
@@ -56,7 +56,7 @@ public class SecurityConfig {
         CorsConfiguration c = new CorsConfiguration();
         c.setAllowedOriginPatterns(List.of("*"));
         c.setAllowCredentials(false);
-        c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+        c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
