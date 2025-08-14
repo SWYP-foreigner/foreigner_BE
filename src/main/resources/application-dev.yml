@@ -32,5 +32,7 @@ oauth:
       redirect-uri: ${IOS_REDIRECT_URI}
 
 springdoc:
+  api-docs:
+    enabled: true
   swagger-ui:
-    path: /swagger
+    enabled: true
