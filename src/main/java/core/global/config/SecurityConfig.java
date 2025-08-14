@@ -42,6 +42,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/member/google/TestdoLogin",
                                 "/api/v1/member/google/TestdoLogin",
+                                "/api/v1/member/google/doLogin",
                                 "/health"
                         ).permitAll()
                         .anyRequest().authenticated()
