@@ -25,15 +25,11 @@ jwt:
 oauth:
   google:
     android:
-      client-id: your-client-id-value
-      redirect-uri: your-redirect-uri-value
-    web:
-      client-id: your-client-id-value
-      client-secret: your-client-id-value
-      redirect-uri: your-redirect-uri-value
+      client-id: ${ANDROID_CLIENT_ID}
+      redirect-uri: ${ANDROID_REDIRECT_URI}
     ios:
-      client-id: your-ios-client-id
-      redirect-uri: your-ios-redirect-uri
+      client-id: ${IOS_CLIENT_ID}
+      redirect-uri: ${IOS_REDIRECT_URI}
 
 springdoc:
   api-docs:
