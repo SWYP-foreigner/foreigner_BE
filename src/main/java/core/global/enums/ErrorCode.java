@@ -9,6 +9,12 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum ErrorCode {
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
+    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
+    POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
+    POST_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 삭제할 권한이 없습니다."),
+    BOARD_AND_POST_NOT_MATCHED(HttpStatus.NOT_FOUND, "게시판과 게시물이 매치되지 않습니다."),
+    NOT_AVAILABLE_ANONYMOUS(HttpStatus.BAD_REQUEST, "익명이 허용되지 않는 카테고리입니다."),
+    INVALID_BOARD_CATEGORY(HttpStatus.BAD_REQUEST, "유효하지 않은 category입니다."),
 
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     INVALID_PLACE_CATEGORY(HttpStatus.BAD_REQUEST, "유효하지 않은 category입니다."),
