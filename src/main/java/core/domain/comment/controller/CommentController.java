@@ -51,4 +51,18 @@ public class CommentController {
                 .body(response);
     }
 
+    @PutMapping("/{boardId}/{postId}/comment/{commentId}/update")
+    public ResponseEntity<ApiResponse<?>> updateComment(Authentication authentication,
+                                                        @PathVariable("boardId") Long boardId,
+                                                        @PathVariable("postId") Long postId,
+                                                        @PathVariable("commentId") Long commentId,
+                                                        @Valid @RequestBody CommentUpdateRequest request
+    ) {
+        commentService.updateComment(authentication.getName(), commentId, request);
+        ApiResponse<String> response = ApiResponse.success("댓글 수정 완료");
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .body(response);
+    }
+
 }

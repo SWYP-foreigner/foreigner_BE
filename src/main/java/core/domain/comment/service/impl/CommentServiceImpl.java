@@ -152,4 +152,19 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    @Override
+    @Transactional
+    public void updateComment(String name, Long commentId, CommentUpdateRequest request) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+
+        if (name.equals(comment.getAuthor().getName())) {
+            throw new BusinessException(ErrorCode.COMMENT_EDIT_FORBIDDEN);
+        }
+
+        if (request.content() != null) {
+            comment.changeContent(request.content());
+        }
+    }
+
 }
