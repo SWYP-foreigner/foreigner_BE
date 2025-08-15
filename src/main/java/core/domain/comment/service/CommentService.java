@@ -12,5 +12,5 @@ import java.time.Instant;
 public interface CommentService {
     CursorPage<CommentResponse> getCommentList(Long postId, Integer size, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorLikeCount);
 
-
+    void writeComment(String name, Long postId, CommentWriteRequest request);
 }

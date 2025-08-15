@@ -123,4 +123,33 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
+    @Override
+    public void writeComment(String name, Long postId, CommentWriteRequest request) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        Comment parent = null;
+        if (request.parentId() != null) {
+            parent = commentRepository.findById(request.parentId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+            if (!parent.getPost().getId().equals(post.getId())) {
+                throw new BusinessException(ErrorCode.INVALID_PARENT_COMMENT);
+            }
+        }
+
+        try {
+            boolean anonymous = Boolean.TRUE.equals(request.anonymous()); // null-safe
+            Comment toSave = (parent == null)
+                    ? Comment.createRootComment(post, user, request.comment(), anonymous)
+                    : Comment.createReplyComment(post, user, request.comment(), anonymous, parent);
+
+            commentRepository.save(toSave);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_COMMENT_INPUT);
+        }
+    }
+
 }

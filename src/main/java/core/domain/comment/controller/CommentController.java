@@ -38,5 +38,17 @@ public class CommentController {
                 ));
     }
 
+    @PostMapping("/{boardId}/{postId}/comment/write")
+    public ResponseEntity<ApiResponse<?>> writeComment(Authentication authentication,
+                                                       @PathVariable("boardId") Long boardId,
+                                                       @PathVariable("postId") Long postId,
+                                                       @Valid @RequestBody CommentWriteRequest request
+    ) {
+        commentService.writeComment(authentication.getName(), postId, request);
+        ApiResponse<String> response = ApiResponse.success("댓글 작성 완료");
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
 
 }
