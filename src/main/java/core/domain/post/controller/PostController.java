@@ -76,4 +76,24 @@ public class PostController {
                 postService.isAnonymousAvaliable(boardId)
         ));
     }
+
+    @Operation(summary = "게시글 작성", description = "본문/이미지/익명 여부를 포함해 게시글을 작성합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
+    })
+    @PostMapping("/write")
+    public ResponseEntity<ApiResponse<?>> writePost(
+            Authentication authentication,
+            @Valid @RequestBody PostWriteRequest writeRequest) {
+
+        postService.writePost(authentication.getName(), writeRequest);
+        ApiResponse<String> response = ApiResponse.success("게시글 작성 완료");
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
 }

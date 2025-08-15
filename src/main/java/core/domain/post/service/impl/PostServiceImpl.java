@@ -87,6 +87,43 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional
+    public void writePost(String name, PostWriteRequest request) {
+        validateAnonymousPolicy(BoardCategory.valueOf(request.boardCategory()), request.isAnonymous());
+
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Board board = boardRepository.findIdByCategory(BoardCategory.valueOf(request.boardCategory()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+
+        final Post post = new Post(request, user, board);
+        postRepository.save(post);
+
+        if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
+            List<Image> images = new ArrayList<>();
+            int position = 0;
+
+            for (String url : request.imageUrls()) {
+                if (!StringUtils.hasText(url)) continue;
+
+                images.add(
+                        Image.of(
+                                ImageType.POST,
+                                post.getId(),
+                                url.trim(),
+                                position++
+                        )
+                );
+            }
+
+            if (!images.isEmpty()) {
+                imageRepository.saveAll(images);
+            }
+        }
+    }
+
+    @Override
     public PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId) {
         Board board = boardRepository.findById(boardId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
