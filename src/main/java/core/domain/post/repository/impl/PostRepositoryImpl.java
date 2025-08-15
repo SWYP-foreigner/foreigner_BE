@@ -15,6 +15,7 @@ import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QUser;
 import core.global.enums.LikeType;
+import core.global.image.entity.ImageType;
 import core.global.image.entity.QImage;
 import core.global.like.entity.QLike;
 import lombok.RequiredArgsConstructor;
@@ -35,8 +36,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final QLike like = QLike.like;
     private static final QComment comment = QComment.comment;
     private static final QImage image = QImage.image;
-    private static final String TYPE_POST = "POST";
-    private static final String TYPE_USER = "USER";
+    private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
+    private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
+    private static final LikeType LIKE_TYPE_POST = LikeType.POST;
 
     private final JPAQueryFactory query;
 
@@ -70,7 +72,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<Long> likeCountExpr =
                 JPAExpressions.select(like.count())
                         .from(like)
-                        .where(like.type.eq(LikeType.valueOf(TYPE_POST))
+                        .where(like.type.eq(LIKE_TYPE_POST)
                                 .and(like.relatedId.eq(post.id)));
 
         Expression<Long> commentCountExpr =
@@ -84,7 +86,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .select(u.url)
                         .from(u)
                         .where(
-                                u.imageType.eq(TYPE_USER)
+                                u.imageType.eq(IMAGE_TYPE_USER)
                                         .and(u.relatedId.eq(user.id))
                         );
 
@@ -99,7 +101,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                         .select(pi1.id.min())
                                         .from(pi1)
                                         .where(
-                                                pi1.imageType.eq(TYPE_POST)
+                                                pi1.imageType.eq(IMAGE_TYPE_POST)
                                                         .and(pi1.relatedId.eq(post.id))
                                         )
                         ));
@@ -146,7 +148,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .leftJoin(image).on(
-                        image.imageType.eq(TYPE_POST)
+                        image.imageType.eq(IMAGE_TYPE_POST)
                                 .and(image.relatedId.eq(post.id))
                 )
                 .where(post.id.eq(postId))
@@ -161,7 +163,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                         post.createdAt,
                                         JPAExpressions.select(like.count())
                                                 .from(like)
-                                                .where(like.type.eq(LikeType.valueOf(TYPE_POST))
+                                                .where(like.type.eq(LIKE_TYPE_POST)
                                                         .and(like.relatedId.eq(post.id))),
                                         JPAExpressions.select(comment.count())
                                                 .from(comment)
@@ -172,7 +174,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                                 .otherwise(
                                                         JPAExpressions.select(u.url)
                                                                 .from(u)
-                                                                .where(u.imageType.eq(TYPE_USER)
+                                                                .where(u.imageType.eq(IMAGE_TYPE_USER)
                                                                         .and(u.relatedId.eq(user.id)))
                                                 ),
                                         list(image.url)
