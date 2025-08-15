@@ -102,16 +102,16 @@ public class BoardController {
                     )
             )
     })
-    @GetMapping("/{boardCategory}")
+    @GetMapping("/{boardId}")
     public ResponseEntity<core.global.dto.ApiResponse<List<BoardResponse>>> getPostList(Authentication authentication,
-                                                                                        @PathVariable BoardCategory boardCategory,
+                                                                                        @PathVariable Long boardId,
                                                                                         @RequestParam(defaultValue = "LATEST") SortOption sort,
                                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorCreatedAt,
                                                                                         @RequestParam(required = false) Long cursorId,
                                                                                         @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        postService.getPostList(boardCategory, sort, cursorCreatedAt, cursorId, size)
+                        postService.getPostList(boardId, sort, cursorCreatedAt, cursorId, size)
                 ));
     }
 }

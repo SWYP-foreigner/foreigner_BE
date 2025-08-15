@@ -1,8 +1,5 @@
 package core.domain.board.dto;
 
-import core.domain.post.entity.Post;
-
-import java.sql.Timestamp;
 import java.time.Instant;
 
 public record BoardResponse(
@@ -13,9 +10,7 @@ public record BoardResponse(
     Long likeCount,
     Long commentCount,
     Long viewCount,
-    String thumbnailUrl
+    String UserImageUrl,
+    String contentImageUrl
 ) {
-    public BoardResponse fromEntity(Post post, Long likeCount, Long commentCount, Long viewCount, String  thumbnailUrl) {
-        return new BoardResponse(post.getTitle(), post.getContent(), post.getAuthor().getName(), post.getCreatedAt(), likeCount, commentCount, viewCount, thumbnailUrl);
-    }
 }
