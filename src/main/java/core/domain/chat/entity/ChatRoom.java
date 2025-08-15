@@ -34,4 +34,7 @@ public class ChatRoom {
     public void addParticipant(ChatParticipant participant) {
         participants.add(participant);
     }
+    public void changeToGroupChat() {
+        this.group = true;
+    }
 }

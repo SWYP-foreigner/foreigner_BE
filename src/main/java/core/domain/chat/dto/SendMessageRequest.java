@@ -1,3 +1,3 @@
 package core.domain.chat.dto;
 
-public record SendMessageRequest(Long senderId, String content) {}
+public record SendMessageRequest(Long roomId, Long senderId, String content) {}

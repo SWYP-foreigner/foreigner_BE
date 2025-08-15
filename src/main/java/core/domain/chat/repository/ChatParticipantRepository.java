@@ -10,4 +10,8 @@ import java.util.List;
 public interface ChatParticipantRepository extends JpaRepository<ChatParticipant, Long> {
 
     List<ChatParticipant> findByChatRoomId(Long chatRoomId);
+
+    boolean existsByChatRoomIdAndUserId(Long roomId, Long id);
+
+    int countByChatRoomId(Long roomId);
 }

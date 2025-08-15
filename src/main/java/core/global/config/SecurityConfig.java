@@ -43,7 +43,11 @@ public class SecurityConfig {
                                 "/member/google/TestdoLogin",
                                 "/api/v1/member/google/TestdoLogin",
                                 "/api/v1/member/google/doLogin",
-                                "/health"
+                                "/api/v1/chat/**",
+                                "/health",
+                                "index.html",
+                                "index2.html",
+                                "/ws/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

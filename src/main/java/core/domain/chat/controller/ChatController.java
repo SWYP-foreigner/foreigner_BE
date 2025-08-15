@@ -31,10 +31,16 @@ public class ChatController {
     @PostMapping("/rooms")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
             @RequestParam boolean isGroup,
-            @RequestBody List<Long> participantIds
+            @RequestBody List<ParticipantIdDto> participants
     ) {
         try {
+            // ParticipantIdDto -> Long 변환
+            List<Long> participantIds = participants.stream()
+                    .map(ParticipantIdDto::getId)
+                    .toList();
+
             ChatRoom room = chatService.createRoom(isGroup, participantIds);
+
             ChatRoomResponse response = new ChatRoomResponse(
                     room.getId(),
                     room.getGroup(),
@@ -51,6 +57,7 @@ public class ChatController {
                             ))
                             .toList()
             );
+
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("채팅방 생성 예외", e);
@@ -58,6 +65,7 @@ public class ChatController {
                     .body(ApiResponse.fail("채팅방 생성 중 예외가 발생했습니다."));
         }
     }
+
 
 
     @Operation(summary = "채팅방 리스트 조회")

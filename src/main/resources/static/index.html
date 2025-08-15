@@ -97,248 +97,308 @@
         </div>
     </aside>
 </div>
-
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
 <script>
     // ====== 설정 (백엔드 엔드포인트 & 현재 유저) ======
-    const API_BASE = 'http://localhost:8080/api/v1/chat'; // 포트와 주소를 실제 백엔드에 맞게
-    const WS_BASE = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
-    const currentUser = { id: 1, name: 'me' }; // 이 부분은 실제 로그인 유저 정보로 대체 필요
+    const API_BASE = 'http://localhost:8080/api/v1'; // NOTE: /chat 부분을 각 API 경로에 포함시킴
+    const WS_ENDPOINT = '/ws'; // NOTE: SockJS 엔드포인트
+    const currentUser = { id: 1, name: 'me' }; // NOTE: 실제 로그인 유저 정보로 대체 필요
 
-    // 앱 상태
-    let rooms = []; // 서버에서 받아온 채팅방 리스트
-    let activeRoom = null;
-    let ws = null;
+    // ====== 앱 상태 관리 ======
+    const state = {
+        rooms: [],
+        activeRoomId: null,
+        stompClient: null,
+    };
 
-    // ====== 유틸 ======
-    function el(tag, props = {}, ...children){
+    // ====== 유틸리티 함수 ======
+    function el(tag, props = {}, ...children) {
         const node = document.createElement(tag);
-        Object.entries(props).forEach(([k,v]) => {
-            if(k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
-            else node[k]=v
+        Object.entries(props).forEach(([key, value]) => {
+            if (key.startsWith('on')) {
+                node.addEventListener(key.slice(2).toLowerCase(), value);
+            } else {
+                node[key] = value;
+            }
         });
-        children.forEach(c => {
-            if(typeof c === 'string') node.appendChild(document.createTextNode(c));
-            else if(c) node.appendChild(c)
+        children.forEach(child => {
+            if (typeof child === 'string') {
+                node.appendChild(document.createTextNode(child));
+            } else if (child) {
+                node.appendChild(child);
+            }
         });
         return node;
     }
 
-    // ====== Rooms ======
-    async function loadRooms(query){
-        try{
-            const res = await fetch(API_BASE + '/rooms' + (query ? ('?q=' + encodeURIComponent(query)) : ''));
-            if(!res.ok) throw new Error('Rooms fetch error');
-            const result = await res.json();  // 전체 응답 객체
-            rooms = result.data || [];        // data 필드만 꺼내서 배열 할당
-        }catch(e){
+    // ====== 채팅방 (Rooms) 관련 함수 ======
+    async function loadRooms(query = '') {
+        try {
+            const res = await fetch(`${API_BASE}/chat/rooms?q=${encodeURIComponent(query)}`);
+            if (!res.ok) throw new Error(`Rooms fetch error: ${res.statusText}`);
+            const result = await res.json();
+            state.rooms = result.data || [];
+        } catch (e) {
             console.error('Failed to load rooms', e);
-            rooms = []; // 에러 시 빈 배열로 초기화
+            state.rooms = [];
+            alert('채팅방 목록을 불러오는데 실패했습니다.');
         }
         renderRooms();
     }
 
-    function renderRooms(){
+    function renderRooms() {
         const container = document.getElementById('roomsList');
         container.innerHTML = '';
-        rooms.forEach(r => {
-            const item = el('div',{className:'roomItem',onclick:()=>openRoom(r.id)},
-                el('div',{}, r.title || '(제목 없음)'),
-                el('div',{className:'roomMeta'}, r.type || '')
+        state.rooms.forEach(room => {
+            const item = el('div', {
+                    className: `roomItem ${room.id === state.activeRoomId ? 'active' : ''}`,
+                    onclick: () => openRoom(room.id)
+                },
+                el('div', {}, room.title || '(제목 없음)'),
+                el('div', { className: 'roomMeta' }, room.type || '')
             );
-            const del = el('button',{className:'iconBtn',onclick:(ev)=>{ev.stopPropagation(); deleteRoom(r.id);} },'🗑');
-            item.appendChild(del);
+            const delBtn = el('button', {
+                className: 'iconBtn',
+                onclick: (ev) => {
+                    ev.stopPropagation();
+                    deleteRoom(room.id);
+                }
+            }, '🗑');
+            item.appendChild(delBtn);
             container.appendChild(item);
         });
     }
 
-    async function createRoom(participantIds) {
+    async function createRoom() {
         const isGroup = confirm('그룹 채팅방인가요? (취소하면 1:1 채팅방)');
-        const Ids = [participantIds, 2]; // 예시
+        const participantInput = prompt(isGroup ? '참여자 ID를 쉼표로 구분하여 입력하세요 (예: 2,3,4)' : '상대방의 ID를 입력하세요.');
+        if (!participantInput) return alert('참여자 ID를 입력해야 합니다.');
 
+        const participantIds = participantInput.split(',').map(id => Number(id.trim()));
+        if (!isGroup) {
+            participantIds.push(currentUser.id); // 1:1 채팅 시 자신을 포함
+        }
+
+        const body = participantIds.map(id => ({ id }));
 
         try {
-            const res = await fetch(API_BASE + '/rooms?isGroup=' + isGroup, {
+            const res = await fetch(`${API_BASE}/chat/rooms?isGroup=${isGroup}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(Ids) // 예: [1, 2]
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             });
-            if (!res.ok) throw new Error('Create room failed');
+
+            if (!res.ok) throw new Error(`Create room failed: ${res.statusText}`);
+
             const result = await res.json();
-            console.log(result);
-            const room = result.data;
-            rooms.unshift(room);
+            const newRoom = result.data;
+            state.rooms.unshift(newRoom);
             renderRooms();
+            openRoom(newRoom.id);
         } catch (e) {
             console.error('Failed to create room', e);
             alert('채팅방 생성에 실패했습니다.');
         }
     }
 
-    async function deleteRoom(roomId){
-        if(!confirm('정말 방을 삭제하시겠습니까?')) return;
-        try{
-            const res = await fetch(API_BASE + '/rooms/' + roomId, {method:'DELETE'});
-            if(!res.ok) throw new Error('Delete room failed');
-            rooms = rooms.filter(r=>r.id!==roomId);
-            if(activeRoom && activeRoom.id===roomId) closeRoom();
+    async function deleteRoom(roomId) {
+        if (!confirm('정말 방을 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/chat/rooms/${roomId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(`Delete room failed: ${res.statusText}`);
+
+            state.rooms = state.rooms.filter(r => r.id !== roomId);
+            if (state.activeRoomId === roomId) {
+                closeRoom();
+            }
             renderRooms();
-        }catch(e){
+        } catch (e) {
             console.error('Failed to delete room', e);
             alert('채팅방 삭제에 실패했습니다.');
         }
     }
 
-    // ====== Messages ======
-    async function openRoom(roomId){
-        activeRoom = rooms.find(r=>r.id===roomId) || {id:roomId,title:'(로딩 중)',type:'DIRECT'};
-        document.getElementById('roomTitle').innerText = activeRoom.title || '무제';
-        document.getElementById('roomSubtitle').innerText = activeRoom.type || '';
-        document.getElementById('activeRoomInfo').innerText = JSON.stringify(activeRoom);
+    // ====== 메시지 (Messages) 관련 함수 ======
+    async function openRoom(roomId) {
+        if (state.activeRoomId === roomId) return;
 
+        state.activeRoomId = roomId;
+        const room = state.rooms.find(r => r.id === roomId);
+
+        document.getElementById('roomTitle').innerText = room?.title || '대화방';
+        document.getElementById('roomSubtitle').innerText = room?.type || '';
+        document.getElementById('messages').innerHTML = '메시지를 불러오는 중...';
+
+        renderRooms(); // 활성화된 방 UI 업데이트
         await loadMessages(roomId);
         connectWs(roomId);
     }
 
-    function closeRoom(){
-        activeRoom = null;
+    function closeRoom() {
+        state.activeRoomId = null;
         document.getElementById('roomTitle').innerText = '선택된 채팅방 없음';
+        document.getElementById('roomSubtitle').innerText = '';
         document.getElementById('messages').innerHTML = '';
-        if(ws){ ws.close(); ws = null; }
-    }
-
-    async function loadMessages(roomId, q){
-        try{
-            const res = await fetch(API_BASE + '/rooms/' + roomId + '/messages' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
-            if(!res.ok) throw new Error('Load messages failed');
-            const list = await res.json();
-            renderMessages(list);
-        }catch(e){
-            console.error('Failed to load messages', e);
-            document.getElementById('messages').innerHTML = '';
+        if (state.stompClient) {
+            state.stompClient.disconnect();
+            state.stompClient = null;
         }
     }
 
-    function renderMessages(list){
+    async function loadMessages(roomId, query = '') {
+        try {
+            const res = await fetch(`${API_BASE}/chat/rooms/${roomId}/messages?q=${encodeURIComponent(query)}`);
+            if (!res.ok) throw new Error(`Load messages failed: ${res.statusText}`);
+            const messages = await res.json(); // API 응답이 메시지 목록 자체라고 가정
+            renderMessages(messages.data || []);
+        } catch (e) {
+            console.error('Failed to load messages', e);
+            document.getElementById('messages').innerHTML = '<div class="error">메시지를 불러오지 못했습니다.</div>';
+        }
+    }
+
+    // NEW: 메시지 DOM 요소를 생성하는 헬퍼 함수
+    function createMessageElement(message) {
+        const isMe = message.from?.id === currentUser.id;
+        return el('div', {
+                className: `msg ${isMe ? 'me' : 'others'}`,
+                'data-message-id': message.id // CHANGED: DOM에서 메시지를 식별하기 위한 id 추가
+            },
+            el('div', { className: 'meta' },
+                `${message.from?.name || '익명'} • ${new Date(message.createdAt).toLocaleTimeString()}`
+            ),
+            el('div', {}, message.content || message.text || ''),
+            el('div', { className: 'msgActions' },
+                el('button', {
+                    className: 'iconBtn',
+                    onclick: () => deleteMessage(message.id)
+                }, '삭제')
+            )
+        );
+    }
+
+    function renderMessages(messages) {
         const box = document.getElementById('messages');
         box.innerHTML = '';
-        list.forEach(m => {
-            const div = el('div',{className:'msg ' + (m.from?.id === currentUser.id ? 'me':'others')});
-            const meta = el('div',{className:'meta'}, (m.from?.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
-            div.appendChild(meta);
-            const txt = el('div',{}, m.text || m.content || '');
-            div.appendChild(txt);
-
-            const actions = el('div',{className:'msgActions'});
-            const btnDelete = el('button',{
-                className:'iconBtn',
-                onclick: async (ev) => { ev.stopPropagation(); await deleteMessage(m.id || m._id); }
-            }, '삭제');
-            actions.appendChild(btnDelete);
-            div.appendChild(actions);
-
-            box.appendChild(div);
-        });
+        messages.forEach(msg => box.appendChild(createMessageElement(msg)));
         box.scrollTop = box.scrollHeight;
     }
 
-    async function sendMessage(){
+    function appendMessage(message) {
+        const box = document.getElementById('messages');
+        box.appendChild(createMessageElement(message));
+        box.scrollTop = box.scrollHeight;
+    }
+
+    // FIXED: sendMessage 함수 통합
+    async function sendMessage() {
         const input = document.getElementById('messageInput');
         const text = input.value.trim();
-        if(!text || !activeRoom) return;
+        if (!text || !state.activeRoomId) return;
 
-        const payload = { senderId: currentUser.id, content: text };
+        const payload = {
+            roomId: state.activeRoomId,
+            senderId: currentUser.id,
+            content: text
+        };
 
-        try{
-            const res = await fetch(API_BASE + '/rooms/' + activeRoom.id + '/messages', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body: JSON.stringify(payload)
-            });
-            if(!res.ok) throw new Error('Send message failed');
-            const saved = await res.json();
-            appendMessage(saved);
+        // WebSocket이 연결되어 있으면 STOMP로 전송
+        if (state.stompClient && state.stompClient.connected) {
+            state.stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(payload));
             input.value = '';
-        }catch(e){
-            console.error('Failed to send message', e);
-            alert('메시지 전송에 실패했습니다.');
+        } else {
+            // 연결 안되어 있으면 HTTP POST로 전송 (폴백)
+            console.warn("WebSocket not connected. Sending via HTTP.");
+            try {
+                const res = await fetch(`${API_BASE}/chat/rooms/${state.activeRoomId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error('Send message via HTTP failed');
+                const savedMessage = await res.json();
+                appendMessage(savedMessage.data);
+                input.value = '';
+            } catch (e) {
+                console.error('Failed to send message via HTTP', e);
+                alert('메시지 전송에 실패했습니다. 연결을 확인해주세요.');
+            }
         }
     }
 
-    function appendMessage(m){
-        const box = document.getElementById('messages');
-        const div = el('div',{className:'msg ' + (m.from?.id === currentUser.id ? 'me' : 'others')});
-        const meta = el('div',{className:'meta'}, (m.from?.name || '익명') + ' • ' + new Date(m.createdAt).toLocaleTimeString());
-        div.appendChild(meta);
-        div.appendChild(el('div', {}, m.text || m.content || ''));
-        const actions = el('div',{className:'msgActions'});
-        const btnDelete = el('button',{
-            className:'iconBtn',
-            onclick: async (ev) => { ev.stopPropagation(); await deleteMessage(m.id || m._id); }
-        }, '삭제');
-        actions.appendChild(btnDelete);
-        div.appendChild(actions);
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-    }
+    async function deleteMessage(messageId) {
+        if (!confirm('이 메시지를 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/chat/messages/${messageId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete message failed');
 
-    async function deleteMessage(messageId){
-        if(!confirm('이 메시지를 삭제하시겠습니까?')) return;
-        try{
-            const res = await fetch(API_BASE + '/messages/' + messageId, {method:'DELETE'});
-            if(!res.ok) throw new Error('Delete message failed');
-            if(activeRoom) await loadMessages(activeRoom.id);
-        }catch(e){
+            // CHANGED: 전체 리로드 대신 해당 메시지 DOM만 제거
+            const msgElement = document.querySelector(`[data-message-id='${messageId}']`);
+            if (msgElement) {
+                msgElement.remove();
+            }
+        } catch (e) {
             console.error('Failed to delete message', e);
             alert('메시지 삭제에 실패했습니다.');
         }
     }
 
-    // ====== Search ======
-    document.getElementById('btnSearchRoom').addEventListener('click', () => {
-        loadRooms(document.getElementById('roomSearch').value.trim());
-    });
-    document.getElementById('btnSearchMsg').addEventListener('click', () => {
-        const q = document.getElementById('msgSearch').value.trim();
-        if(!activeRoom) return alert('방을 선택해주세요');
-        loadMessages(activeRoom.id, q);
-    });
+    // ====== WebSocket 관련 함수 ======
+    function connectWs(roomId) {
+        if (state.stompClient) {
+            state.stompClient.disconnect();
+        }
 
-    // ====== WebSocket ======
-    function connectWs(roomId){
-        if(ws){ ws.close(); ws = null; }
-        try{
-            ws = new WebSocket(WS_BASE + '?roomId=' + roomId + '&userId=' + currentUser.id);
-            ws.addEventListener('open', () => console.log('WS open'));
-            ws.addEventListener('message', e => {
-                try{
-                    const data = JSON.parse(e.data);
-                    if(data.type === 'message') appendMessage(data.payload);
-                }catch(err){
-                    console.warn('ws parse error', err);
+        const socket = new SockJS(WS_ENDPOINT);
+        state.stompClient = Stomp.over(socket);
+
+        state.stompClient.connect({}, (frame) => {
+            console.log('Connected: ' + frame);
+            state.stompClient.subscribe(`/topic/rooms/${roomId}`, (message) => {
+                const newMessage = JSON.parse(message.body);
+                // 내가 보낸 메시지는 stomp로 받지 않고 appendMessage에서 바로 처리하므로 중복 방지
+                if(newMessage.from?.id !== currentUser.id){
+                    appendMessage(newMessage);
                 }
             });
-            ws.addEventListener('close', () => console.log('WS closed'));
-        }catch(e){
-            console.warn('WS connection failed', e);
-        }
+        }, (error) => {
+            console.error('STOMP connection error:', error);
+        });
     }
 
-    // ====== init UI handlers ======
-    document.getElementById('btnCreateRoom').addEventListener('click', createRoom);
-    document.getElementById('btnSend').addEventListener('click', sendMessage);
-    document.getElementById('btnDeleteRoom').addEventListener('click', () => {
-        if(activeRoom) deleteRoom(activeRoom.id);
-    });
+    // ====== UI 이벤트 핸들러 초기화 ======
+    function initialize() {
+        document.getElementById('btnCreateRoom').addEventListener('click', createRoom);
+        document.getElementById('btnSend').addEventListener('click', sendMessage);
 
-    // keyboard enter to send
-    document.getElementById('messageInput').addEventListener('keydown', (e) => {
-        if(e.key === 'Enter') sendMessage();
-    });
+        document.getElementById('btnDeleteRoom').addEventListener('click', () => {
+            if (state.activeRoomId) deleteRoom(state.activeRoomId);
+        });
 
-    // load initial rooms
-    loadRooms();
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        document.getElementById('btnSearchRoom').addEventListener('click', () => {
+            loadRooms(document.getElementById('roomSearch').value.trim());
+        });
+
+        document.getElementById('btnSearchMsg').addEventListener('click', () => {
+            const query = document.getElementById('msgSearch').value.trim();
+            if (!state.activeRoomId) return alert('방을 선택해주세요');
+            loadMessages(state.activeRoomId, query);
+        });
+
+        // 초기 데이터 로드
+        loadRooms();
+    }
+
+    // DOM이 로드된 후 앱 초기화 실행
+    document.addEventListener('DOMContentLoaded', initialize);
 </script>
 
 </body>
