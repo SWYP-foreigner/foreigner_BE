@@ -38,19 +38,18 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                                int size,
                                                String q) {
 
-        // 동적 조건
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
         BooleanExpression search = (q == null || q.isBlank())
                 ? null
-                : post.title.containsIgnoreCase(q)
-                .or(post.content.containsIgnoreCase(q));
+                : post.content.containsIgnoreCase(q);
 
         BooleanExpression ltCursor = (cursorCreatedAt == null)
                 ? null
                 : post.createdAt.lt(cursorCreatedAt)
-                .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
+                .or(post.createdAt.eq(cursorCreatedAt)
+                        .and(cursorId != null ? post.id.lt(cursorId) : Expressions.TRUE.isFalse())
+                );
 
-        // authorName 익명 마스킹
         Expression<String> authorNameExpr =
                 new CaseBuilder()
                         .when(post.anonymous.isTrue()).then("익명")
@@ -62,7 +61,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<Long> likeCountExpr =
                 JPAExpressions.select(like.count())
                         .from(like)
-                        .where(like.type.eq(TYPE_POST)
+                        .where(like.type.eq(LikeType.valueOf(TYPE_POST))
                                 .and(like.relatedId.eq(post.id)));
 
         Expression<Long> commentCountExpr =
@@ -70,42 +69,52 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .from(comment)
                         .where(comment.post.eq(post));
 
-        Expression<Long> firstImageId =
+        QImage u = new QImage("u");
+        Expression<String> userImageUrlExpr =
                 JPAExpressions
-                        .select(image.id.min())
-                        .from(image)
-                        .where(image.imageType.eq(TYPE_POST)
-                                .and(image.relatedId.eq(post.id)));
+                        .select(u.url)
+                        .from(u)
+                        .where(
+                                u.imageType.eq(TYPE_USER)
+                                        .and(u.relatedId.eq(user.id))
+                        );
 
-        Expression<String> thumbnailExpr =
+        QImage pi1 = new QImage("pi1");
+        QImage pi2 = new QImage("pi2");
+        Expression<String> contentThumbnailUrlExpr =
                 JPAExpressions
-                        .select(image.url)
-                        .from(image)
-                        .where(image.id.eq(firstImageId));
+                        .select(pi2.url)
+                        .from(pi2)
+                        .where(pi2.id.eq(
+                                JPAExpressions
+                                        .select(pi1.id.min())
+                                        .from(pi1)
+                                        .where(
+                                                pi1.imageType.eq(TYPE_POST)
+                                                        .and(pi1.relatedId.eq(post.id))
+                                        )
+                        ));
 
-        // 메인 쿼리
-        // size+1
         return query
                 .select(Projections.constructor(
                         BoardResponse.class,
-                        post.title,
                         preview,
                         authorNameExpr,
                         post.createdAt,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
-                        thumbnailExpr
+                        userImageUrlExpr,
+                        contentThumbnailUrlExpr
                 ))
                 .from(post)
                 .join(post.author, user)
                 .where(allOf(boardFilter, search, ltCursor))
                 .orderBy(post.createdAt.desc())
-                .limit(Math.min(size, 50) + 1L) // size+1
+                .limit(Math.min(size, 50) + 1L)
                 .fetch();
     }
 
-    // 가독성 보조: null 무시 and 결합
     private BooleanExpression allOf(BooleanExpression... exps) {
         BooleanExpression result = null;
         for (BooleanExpression e : exps) {

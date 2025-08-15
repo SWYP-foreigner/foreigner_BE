@@ -22,11 +22,14 @@ public class PostServiceImpl implements PostService {
     private final BoardRepository boardRepository;
 
     @Override
-    public List<BoardResponse> getPostList( BoardCategory boardCategory, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size) {
-        final Long boardId = (boardCategory == BoardCategory.ALL)
-                ? null
-                : boardRepository.findIdByCategory(boardCategory)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND)).getId();
+    @Transactional(readOnly = true)
+    public List<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size) {
+        final Long resolvedBoardId =
+                (boardId == null || boardId <= 0L) ? null : boardId;
+
+        if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
+            throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
+        }
 
         List<BoardResponse> rows;
         switch (sort) {

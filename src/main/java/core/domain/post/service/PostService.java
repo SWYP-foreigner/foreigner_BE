@@ -9,5 +9,18 @@ import java.util.List;
 
 public interface PostService {
 
-    List<BoardResponse> getPostList(BoardCategory boardCategory, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size);
+    List<BoardResponse> getPostList(Long boardCategory, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size);
+
+    PostDetailResponse getPostDetail(Long boardId, Long postId);
+
+    void addLike(String username, Long boardId, Long postId);
+
+    void writePost(String name, PostWriteRequest boardCategory);
+
+    PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId);
+
+    void updatePost(String name, @Positive Long boardId, @Valid PostUpdateRequest updateRequest);
+
+    void deletePost(String name, @Positive Long postId);
+
 }
