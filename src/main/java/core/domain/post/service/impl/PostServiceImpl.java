@@ -88,6 +88,23 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    public void addLike(String username, Long boardId, Long postId) {
+        Optional<Like> existedLike = likeRepository.findLikeByUsernameAndType(username, postId, LikeType.POST);
+        if (existedLike.isPresent()) {
+            likeRepository.delete(existedLike.get());
+        } else {
+            User user = userRepository.findByName(username)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            likeRepository.save(Like.builder()
+                    .user(user)
+                    .type(LikeType.POST)
+                    .relatedId(postId)
+                    .build());
+        }
+    }
+
+    @Override
+    @Transactional
     public void writePost(String name, PostWriteRequest request) {
         validateAnonymousPolicy(BoardCategory.valueOf(request.boardCategory()), request.isAnonymous());
 

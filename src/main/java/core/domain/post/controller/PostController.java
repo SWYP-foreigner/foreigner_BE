@@ -143,4 +143,22 @@ public class PostController {
     }
 
 
+    @Operation(summary = "게시글 좋아요 토글(설정/해제)", description = "이미 좋아요면 해제, 아니면 설정합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @PostMapping("/{boardId}/{postId}/like")
+    public ResponseEntity<ApiResponse<?>> addLike(
+            Authentication authentication,
+            @Parameter(description = "보드 ID", example = "10") @PathVariable @Positive Long boardId,
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
+            ) {
+
+        postService.addLike(authentication.getName(), boardId, postId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
