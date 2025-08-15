@@ -82,6 +82,10 @@ public class PostServiceImpl implements PostService {
         return postRepository.findPostDetail(postId);
     }
 
+    private void addViews(Post post) {
+        post.changeCheckCount();
+    }
+
     @Override
     public PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId) {
         Board board = boardRepository.findById(boardId)
