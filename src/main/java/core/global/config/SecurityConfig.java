@@ -47,7 +47,8 @@ public class SecurityConfig {
                                 "/health",
                                 "index.html",
                                 "index2.html",
-                                "/ws/**"
+                                "/ws/**",
+                                "/plain-ws/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

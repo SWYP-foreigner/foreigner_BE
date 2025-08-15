@@ -260,23 +260,19 @@
 
     // NEW: 메시지 DOM 요소를 생성하는 헬퍼 함수
     function createMessageElement(message) {
-        const isMe = message.from?.id === currentUser.id;
-        return el('div', {
-                className: `msg ${isMe ? 'me' : 'others'}`,
-                'data-message-id': message.id // CHANGED: DOM에서 메시지를 식별하기 위한 id 추가
-            },
-            el('div', { className: 'meta' },
-                `${message.from?.name || '익명'} • ${new Date(message.createdAt).toLocaleTimeString()}`
-            ),
-            el('div', {}, message.content || message.text || ''),
+        const isMe = message.senderId === currentUser.id;
+        const senderName = message.senderName || '익명';
+        const time = message.createdAt ? new Date(message.createdAt).toLocaleTimeString() : '';
+
+        return el('div', { className: `msg ${isMe ? 'me' : 'others'}`, 'data-message-id': message.id },
+            el('div', { className: 'meta' }, `${senderName} • ${time}`),
+            el('div', {}, message.content || ''),
             el('div', { className: 'msgActions' },
-                el('button', {
-                    className: 'iconBtn',
-                    onclick: () => deleteMessage(message.id)
-                }, '삭제')
+                el('button', { className: 'iconBtn', onclick: () => deleteMessage(message.id) }, '삭제')
             )
         );
     }
+
 
     function renderMessages(messages) {
         const box = document.getElementById('messages');
