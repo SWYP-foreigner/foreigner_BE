@@ -1,8 +1,25 @@
 package core.domain.post.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.PostUpdateRequest;
+import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
+import core.domain.post.dto.PostWriteRequest;
+import core.domain.post.service.PostService;
+import core.global.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 @RequestMapping("/api/v1/board")
 @RestController
@@ -10,7 +27,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Posts", description = "게시글/작성/좋아요 API")
 @SecurityRequirement(name = "bearerAuth")
 public class PostController {
-//    @GetMapping("/")
+
+    private final PostService postService;
+
+    PostController(PostService postService) {
+        this.postService = postService;
+    }
+
     @Operation(summary = "게시글 상세 조회", description = "특정 보드의 게시글 상세를 반환합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",

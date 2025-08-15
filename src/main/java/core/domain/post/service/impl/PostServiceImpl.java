@@ -54,12 +54,13 @@ public class PostServiceImpl implements PostService {
 
         List<BoardResponse> rows;
         switch (sort) {
-            case LATEST -> rows = postRepository.findLatestPosts(boardId, cursorCreatedAt, cursorId, size, null);
-            case POPULAR   -> rows = postRepository.findPopularPosts(boardId, Instant.now().minus(Duration.ofDays(7)), null, cursorId, size, null); // TODO
-            default        -> rows = postRepository.findLatestPosts(boardId, cursorCreatedAt, cursorId, size, null);
+            case LATEST ->
+                    rows = postRepository.findLatestPosts(resolvedBoardId, cursorCreatedAt, cursorId, size, null);
+            case POPULAR ->
+                    rows = postRepository.findPopularPosts(resolvedBoardId, Instant.now().minus(Duration.ofDays(7)), null, cursorId, size, null); // TODO
+            default -> rows = postRepository.findLatestPosts(resolvedBoardId, cursorCreatedAt, cursorId, size, null);
         }
 
-        // size+1 방어 → 필요 시 컨트롤러에서 SlicePayload로 감싸세요
         if (rows.size() > size) {
             rows = rows.subList(0, size);
         }
