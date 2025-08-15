@@ -123,6 +123,15 @@ public class PostServiceImpl implements PostService {
         }
     }
 
+    private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
+        final boolean allowAnonymous =
+                category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
+
+        if (!allowAnonymous && isAnonymous) {
+            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
+        }
+    }
+
     @Override
     public PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId) {
         Board board = boardRepository.findById(boardId)
