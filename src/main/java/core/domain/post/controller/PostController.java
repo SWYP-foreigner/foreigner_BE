@@ -119,4 +119,28 @@ public class PostController {
                 .status(HttpStatus.NO_CONTENT)
                 .body(response);
     }
+
+    @Operation(summary = "게시글 삭제", description = "게시글을 삭제합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @DeleteMapping("/{boardId}/{postId}/delete")
+    public ResponseEntity<ApiResponse<?>> deletePost(
+            Authentication authentication,
+            @Parameter(description = "보드 ID", example = "10") @PathVariable @Positive Long boardId,
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
+    ) {
+
+        postService.deletePost(authentication.getName(), postId);
+
+        ApiResponse<String> response = ApiResponse.success("게시글 삭제 완료");
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .body(response);
+    }
+
+
 }

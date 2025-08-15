@@ -186,4 +186,26 @@ public class PostServiceImpl implements PostService {
 
         // 스토리지 수정 고려
     }
+
+    @Override
+    public void deletePost(String name, Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        if (post.getAuthor() == null || !post.getAuthor().getName().equals(name)) {
+            throw new BusinessException(ErrorCode.POST_DELETE_FORBIDDEN);
+        }
+
+        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
+        List<String> urls = images.stream().map(Image::getUrl).toList();
+
+        if (!urls.isEmpty()) {
+            imageRepository.deleteByImageTypeAndRelatedId(ImageType.POST, postId);
+        }
+
+        postRepository.delete(post);
+
+        // 스토리지 삭제
+
+    }
 }
