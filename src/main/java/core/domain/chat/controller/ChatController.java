@@ -4,6 +4,7 @@ import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
+import core.domain.chat.service.ForbiddenWordService;
 import core.global.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,9 +24,10 @@ import java.util.stream.Collectors;
 public class ChatController {
     private final ChatService chatService;
     private final Logger log = LoggerFactory.getLogger(ChatController.class);
-
-    public ChatController(ChatService chatService) {
+    private final ForbiddenWordService forbiddenWordService;
+    public ChatController(ChatService chatService, ForbiddenWordService forbiddenWordService) {
         this.chatService = chatService;
+        this.forbiddenWordService = forbiddenWordService;
     }
 
     @PostMapping("/rooms")
@@ -145,6 +147,13 @@ public class ChatController {
     @Operation(summary = "메시지 전송")
     @PostMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<ChatMessageDoc>> sendMessage(@PathVariable Long roomId, @RequestBody SendMessageRequest req) {
+
+        if (forbiddenWordService.containsForbiddenWord(req.content())) {
+            log.warn("금칙어 메시지 전송 시도: roomId={}, senderId={}", roomId, req.senderId());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.fail("메시지에 금칙어가 포함되어 있습니다."));
+        }
+
         ChatMessageDoc savedMsg = chatService.saveMessage(roomId, req.senderId(), req.content());
         if (savedMsg == null) {
             log.error("메시지 저장 실패: roomId={}, senderId={}", roomId, req.senderId());
@@ -153,5 +162,6 @@ public class ChatController {
         }
         return ResponseEntity.ok(ApiResponse.success(savedMsg));
     }
+
 
 }

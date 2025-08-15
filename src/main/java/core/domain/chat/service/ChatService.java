@@ -67,7 +67,6 @@ public class ChatService {
         }
 
         for (User user : users) {
-            // 중복 참여자 방지
             boolean exists = participantRepo.existsByChatRoomIdAndUserId(roomId, user.getId());
             if (!exists) {
                 ChatParticipant participant = new ChatParticipant(room, user);
