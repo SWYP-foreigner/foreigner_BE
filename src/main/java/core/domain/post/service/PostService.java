@@ -1,8 +1,13 @@
 package core.domain.post.service;
 
 import core.domain.board.dto.BoardResponse;
-import core.global.enums.BoardCategory;
+import core.domain.post.dto.PostUpdateRequest;
+import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
+import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.PostWriteRequest;
 import core.global.enums.SortOption;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 
 import java.time.Instant;
 import java.util.List;

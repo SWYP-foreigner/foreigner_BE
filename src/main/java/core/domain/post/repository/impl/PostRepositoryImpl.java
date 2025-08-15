@@ -137,4 +137,63 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardResponse> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
         throw new UnsupportedOperationException("TODO: score(or 가중치) 기반 구현");
     }
+
+    @Override
+    public PostDetailResponse findPostDetail(Long postId) {
+        QImage u = new QImage("u");
+
+        Map<Long, PostDetailIntermediate> rows = query
+                .from(post)
+                .join(post.author, user)
+                .leftJoin(image).on(
+                        image.imageType.eq(TYPE_POST)
+                                .and(image.relatedId.eq(post.id))
+                )
+                .where(post.id.eq(postId))
+                .orderBy(image.id.asc())
+                .transform(
+                        groupBy(post.id).as(
+                                Projections.constructor(
+                                        PostDetailIntermediate.class,
+                                        post.content,
+                                        new CaseBuilder().when(post.anonymous.isTrue()).then("익명")
+                                                .otherwise(user.name),
+                                        post.createdAt,
+                                        JPAExpressions.select(like.count())
+                                                .from(like)
+                                                .where(like.type.eq(LikeType.valueOf(TYPE_POST))
+                                                        .and(like.relatedId.eq(post.id))),
+                                        JPAExpressions.select(comment.count())
+                                                .from(comment)
+                                                .where(comment.post.eq(post)),
+                                        post.checkCount,
+                                        new CaseBuilder()
+                                                .when(post.anonymous.isTrue()).then((String) null)
+                                                .otherwise(
+                                                        JPAExpressions.select(u.url)
+                                                                .from(u)
+                                                                .where(u.imageType.eq(TYPE_USER)
+                                                                        .and(u.relatedId.eq(user.id)))
+                                                ),
+                                        list(image.url)
+                                )
+                        )
+                );
+
+        PostDetailIntermediate r = rows.get(postId);
+        if (r == null) {
+            return null;
+        }
+
+        return new PostDetailResponse(
+                r.content(),
+                r.userName(),
+                r.createdTime(),
+                r.likeCount(),
+                r.commentCount(),
+                r.viewCount(),
+                r.userImageUrl(),
+                r.contentImageUrls()
+        );
+    }
 }
