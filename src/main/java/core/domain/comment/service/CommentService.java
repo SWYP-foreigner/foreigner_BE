@@ -16,4 +16,5 @@ public interface CommentService {
 
     void updateComment(String name, Long postId, @Valid CommentUpdateRequest request);
 
+    void deleteComment(String name, Long postId);
 }

@@ -82,5 +82,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             Pageable pageable
     );
 
+    Boolean existsByParentIdAndDeletedFalse(Long commentId);
+
+    Long countByParentId(Long id);
 
 }

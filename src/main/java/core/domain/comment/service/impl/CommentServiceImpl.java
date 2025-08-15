@@ -167,4 +167,37 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+
+
+    @Override
+    @Transactional
+    public void deleteComment(String name, Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+
+        if (comment.getAuthor() == null || !comment.getAuthor().getName().equals(name)) {
+            throw new BusinessException(ErrorCode.COMMENT_DELETE_FORBIDDEN);
+        }
+
+        boolean hasAliveChildren = commentRepository.existsByParentIdAndDeletedFalse(commentId);
+
+        if (hasAliveChildren) {
+            comment.markDeleted(name);
+        } else {
+            commentRepository.delete(comment);
+            cleanupIfNoChildren(comment.getParent());
+        }
+    }
+
+
+    private void cleanupIfNoChildren(Comment parent) {
+        if (parent == null) return;
+        if (parent.isDeleted() && commentRepository.countByParentId(parent.getId()) == 0) {
+            Comment grand = parent.getParent();
+            commentRepository.delete(parent);
+            cleanupIfNoChildren(grand);
+        }
+    }
+
+
 }

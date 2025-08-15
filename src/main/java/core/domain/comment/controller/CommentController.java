@@ -65,4 +65,18 @@ public class CommentController {
                 .body(response);
     }
 
+
+    @DeleteMapping("/{boardId}/{postId}/comment/{commentId}/delete")
+    public ResponseEntity<ApiResponse<?>> deleteComment(Authentication authentication,
+                                                        @PathVariable("boardId") Long boardId,
+                                                        @PathVariable("postId") Long postId,
+                                                        @PathVariable("commentId") Long commentId
+    ) {
+        commentService.deleteComment(authentication.getName(), commentId);
+        ApiResponse<String> response = ApiResponse.success("댓글 삭제 완료");
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .body(response);
+    }
+
 }
