@@ -58,4 +58,22 @@ public class PostController {
         ));
     }
 
+    @Operation(summary = "익명 글쓰기 가능 여부", description = "선택한 보드에서 익명 작성이 가능한지 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = PostWriteAnonymousAvailableResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
+    })
+    @GetMapping("/write/isAnonymous")
+    public ResponseEntity<ApiResponse<PostWriteAnonymousAvailableResponse>> isAnonymousAvaliable(
+            Authentication authentication,
+            @Parameter(description = "보드 ID", example = "10")
+            @RequestParam("boardId") @Positive(message = "boardId는 양수여야 합니다.") Long boardId) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                postService.isAnonymousAvaliable(boardId)
+        ));
+    }
 }

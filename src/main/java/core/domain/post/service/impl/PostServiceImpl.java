@@ -82,4 +82,15 @@ public class PostServiceImpl implements PostService {
         return postRepository.findPostDetail(postId);
     }
 
+    @Override
+    public PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId) {
+        Board board = boardRepository.findById(boardId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+
+        if (board.getCategory() == BoardCategory.FREE_TALK || board.getCategory() == BoardCategory.QNA) {
+            return new PostWriteAnonymousAvailableResponse(true);
+        } else {
+            return new PostWriteAnonymousAvailableResponse(false);
+        }
+    }
 }
