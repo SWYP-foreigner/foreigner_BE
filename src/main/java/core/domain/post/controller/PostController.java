@@ -96,4 +96,27 @@ public class PostController {
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
+
+    @Operation(summary = "게시글 수정", description = "게시글을 수정합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수정 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "충돌", content = @Content)
+    })
+    @PutMapping("/{boardId}/{postId}/update")
+    public ResponseEntity<ApiResponse<?>> updatePost(
+            Authentication authentication,
+            @Parameter(description = "보드 ID", example = "10") @PathVariable @Positive Long boardId,
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
+            @Valid @RequestBody PostUpdateRequest updateRequest) {
+
+        postService.updatePost(authentication.getName(), postId, updateRequest);
+        ApiResponse<String> response = ApiResponse.success("게시글 수정 완료");
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .body(response);
+    }
 }

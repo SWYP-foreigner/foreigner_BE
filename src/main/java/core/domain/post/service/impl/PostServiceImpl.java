@@ -143,4 +143,47 @@ public class PostServiceImpl implements PostService {
             return new PostWriteAnonymousAvailableResponse(false);
         }
     }
+
+    @Override
+    @Transactional
+    public void updatePost(String name, Long postId, @Valid PostUpdateRequest request) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        if (name.equals(post.getAuthor().getName())) {
+            throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
+        }
+
+        if (request.content() != null) {
+            post.changeContent(request.content());
+        }
+
+        final List<String> toAdd = request.images() != null ? request.images() : List.of();
+        final List<String> toRemove = request.removedImages() != null ? request.removedImages() : List.of();
+        if (toAdd.isEmpty() && toRemove.isEmpty()) return;
+
+        if (!toRemove.isEmpty()) {
+            imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, toRemove);
+        }
+
+        List<Image> survivors = imageRepository
+                .findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
+
+        int pos = 0;
+        Set<String> survivorUrls = new HashSet<>();
+        for (Image img : survivors) {
+            img.changePosition(pos++);
+            survivorUrls.add(img.getUrl());
+        }
+
+        if (!toAdd.isEmpty()) {
+            for (String url : toAdd) {
+                if (survivorUrls.contains(url)) continue;
+                Image created = Image.of(ImageType.POST, postId, url, pos++);
+                imageRepository.save(created);
+            }
+        }
+
+        // 스토리지 수정 고려
+    }
 }
