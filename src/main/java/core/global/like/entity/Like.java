@@ -3,6 +3,7 @@ package core.global.like.entity;
 import core.domain.user.entity.User;
 import core.global.enums.LikeType;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -20,8 +21,15 @@ public class Like {
     private User user;
 
     @Column(name = "type", nullable = false)
-    private String type;
+    private LikeType type;
 
     @Column(name = "related_id")
     private Long relatedId;
+
+    @Builder
+    Like(User user, LikeType type, Long relatedId) {
+        this.user = user;
+        this.type = type;
+        this.relatedId = relatedId;
+    }
 }
