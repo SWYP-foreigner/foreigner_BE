@@ -9,9 +9,12 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.board.dto.BoardResponse;
 import core.domain.comment.entity.QComment;
+import core.domain.post.dto.PostDetailIntermediate;
+import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QUser;
+import core.global.enums.LikeType;
 import core.global.image.entity.QImage;
 import core.global.like.entity.QLike;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+
+import static com.querydsl.core.group.GroupBy.groupBy;
+import static com.querydsl.core.types.Projections.list;
 
 @Repository
 @RequiredArgsConstructor
@@ -29,6 +36,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final QComment comment = QComment.comment;
     private static final QImage image = QImage.image;
     private static final String TYPE_POST = "POST";
+    private static final String TYPE_USER = "USER";
+
     private final JPAQueryFactory query;
 
     @Override
