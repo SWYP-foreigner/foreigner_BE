@@ -35,8 +35,20 @@ public class UserController {
     private final GoogleService googleService;
 
 
+    @GetMapping("/google/callback")
+    public String handleGoogleLogin(@RequestParam(required = false) String code,
+                                    @RequestParam(required = false) String state) {
+        // query parameter 출력
+        System.out.println("Google Login Response received!");
+        System.out.println("Authorization Code: " + code);
+        System.out.println("State: " + state);
 
-    @GetMapping("/google/doLogin")
+        // 단순 확인용으로 response 그대로 반환
+        return "Received code: " + code + ", state: " + state;
+    }
+
+
+@PostMapping("/google/doLogin")
     @Operation(summary = "구글 로그인(웹 API"
             , description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
     @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
