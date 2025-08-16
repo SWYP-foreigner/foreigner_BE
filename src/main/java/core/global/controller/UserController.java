@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,16 +31,53 @@ import java.util.Map;
 @RestController
 @RequestMapping("api/v1/member")
 @RequiredArgsConstructor
+@Slf4j
 public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
 
 
+    @PostMapping("/google/doLogin")
+    @Operation(summary = "구글 로그인(웹 API)",
+            description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
+    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
+    public ResponseEntity<?> googleTestLogin(
+            @Parameter(description = "구글 Access Token", required = true)
+            @RequestBody GoogleTestReq req) {
+
+        log.info("[GoogleLogin] 요청 수신 - AccessToken: {}", req.getAccessToken());
+
+        // 1. Access Token으로 사용자 프로필 정보 조회
+        GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
+        log.info("[GoogleLogin] 구글 프로필 조회 완료 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
+
+        // 2. 소셜 ID로 기존 사용자 찾기 또는 신규 사용자 생성
+        User originalUser = userService.getUserBySocialId(profile.getSub());
+        if (originalUser == null) {
+            log.info("[GoogleLogin] 신규 사용자 생성 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
+            originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
+        } else {
+            log.info("[GoogleLogin] 기존 사용자 로그인 - userId: {}, email: {}", originalUser.getId(), originalUser.getEmail());
+        }
+
+        // 3. 사용자 정보로 JWT 토큰 생성
+        String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
+        log.info("[GoogleLogin] JWT 토큰 생성 완료 - email: {}", originalUser.getEmail());
+
+        // 4. 로그인 정보 반환
+        Map<String, Object> loginInfo = new HashMap<>();
+        loginInfo.put("id", originalUser.getId());
+        loginInfo.put("token", jwtToken);
+
+        log.info("[GoogleLogin] 로그인 성공 - userId: {}, email: {}", originalUser.getId(), originalUser.getEmail());
+
+        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
+    }
 
 
     @PostMapping("/google/AppLogin")
-    @Operation(summary = "구글 로그인 API", description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
+    @Operation(summary = "구글 앱 로그인 API", description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
     @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<?> googleLogin(
             @Parameter(description = "구글 로그인 요청 데이터", required = true)
