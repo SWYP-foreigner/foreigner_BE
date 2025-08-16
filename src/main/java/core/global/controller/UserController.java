@@ -17,10 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,9 +36,9 @@ public class UserController {
 
 
 
-  @PostMapping("/google/doLogin")
-            @Operation(summary = "구글 로그인(웹 API)",
-            description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
+    @GetMapping("/google/doLogin")
+    @Operation(summary = "구글 로그인(웹 API"
+            , description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
     @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<?> googleTestLogin(
             @Parameter(description = "구글 Access Token", required = true)
@@ -50,6 +47,7 @@ public class UserController {
         log.info("[GoogleLogin] 요청 수신 - AccessToken: {}", req.getAccessToken());
 
         // 1. Access Token으로 사용자 프로필 정보 조회
+        // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
         GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
         log.info("[GoogleLogin] 구글 프로필 조회 완료 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
 
