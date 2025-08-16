@@ -23,12 +23,6 @@ import org.springframework.web.client.RestClient;
 @RequiredArgsConstructor
 public class GoogleService {
 
-    @Value("${oauth.google.web.client-id}")
-    private String webClientId;
-    @Value("${oauth.google.web.client-secret}")
-    private String webClientSecret;
-    @Value("${oauth.google.web.redirect-uri}")
-    private String webRedirectUri;
 
     // application.yml에서 안드로이드 클라이언트 정보를 주입받습니다.
     @Value("${oauth.google.android.client-id}")
@@ -44,24 +38,6 @@ public class GoogleService {
     // HTTP 통신을 위한 RestClient 인스턴스를 생성합니다.
     private final RestClient restClient = RestClient.create();
 
-
-    public AccessTokenDto exchangeCode(String code) {
-        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("grant_type", "authorization_code");
-        formData.add("code", code);
-        formData.add("client_id", webClientId);
-        formData.add("client_secret", webClientSecret);
-        formData.add("redirect_uri", webRedirectUri);
-
-        ResponseEntity<AccessTokenDto> response = restClient.post()
-                .uri("https://oauth2.googleapis.com/token")
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(formData)
-                .retrieve()
-                .toEntity(AccessTokenDto.class);
-
-        return response.getBody();
-    }
     /**
      * 모바일 앱용: Authorization Code와 PKCE를 사용하여 구글로부터 Access Token을 교환합니다.
      * 이 방식은 클라이언트 시크릿을 노출하지 않아도 되므로 모바일 앱에 적합합니다.
