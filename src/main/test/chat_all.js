@@ -5,18 +5,18 @@ import { Trend } from 'k6/metrics';
 
 // 커스텀 Metric (Trend로 변경)
 const wsMessagesSent = new Trend('ws_messages_sent');
+const getMessagesDuration = new Trend('get_messages_duration'); // 과거 메시지 조회 시간 Trend 추가
 
 export const options = {
-    // 5분 동안 0명에서 1000명까지 서서히 증가
-    // 다음 단계에서 1만명까지 증가
     stages: [
-        { duration: '5m', target: 1000 },
-        { duration: '10m', target: 10000 }, // 10분 동안 1만명 유지
-        { duration: '5m', target: 0 },
+        { duration: '1m', target: 500 },
+        { duration: '1m', target: 1000 },
+        { duration: '2m', target: 2000 },
+        { duration: '1m', target: 0 },
     ],
-    // 기존의 임계치들은 유지
     thresholds: {
         'http_req_duration': ['p(95)<500'],
+        'get_messages_duration': ['p(95)<500'], // 새로운 임계값
         'ws_connect_duration': ['p(95)<500'],
         'ws_messages_sent': ['p(95)<2000'],
     },
@@ -34,12 +34,12 @@ function connectWebSocket(roomId) {
         socket.on('open', () => {
             console.log(`WS connected: Room ${roomId}`);
 
-            // Ping/heartbeat
+            // 1️⃣ Ping/heartbeat
             pingInterval = socket.setInterval(() => {
                 socket.send(JSON.stringify({ type: 'ping', roomId }));
             }, 5000);
 
-            // 메시지 송신 반복
+            // 2️⃣ 메시지 송신 반복 (전송 빈도 증가)
             msgInterval = socket.setInterval(() => {
                 const message = {
                     roomId: roomId,
@@ -48,7 +48,7 @@ function connectWebSocket(roomId) {
                 };
                 socket.send(JSON.stringify(message));
                 wsMessagesSent.add(1); // Metric 기록
-            }, 3000);
+            }, 1000); // 3초 -> 1초로 변경
         });
 
         socket.on('message', (msg) => {
@@ -92,7 +92,14 @@ export default function () {
         return;
     }
 
-    // 2️⃣ WebSocket 연결
+    // 2️⃣ 과거 메시지 조회 (새로운 시나리오 추가)
+    // 쿼리 파라미터를 추가하여 메시지 개수를 500개로 지정
+    const getMessagesRes = http.get(`http://localhost:8080/api/v1/chat/rooms/${roomId}/messages?count=500`);
+    getMessagesDuration.add(getMessagesRes.timings.duration); // 측정값 기록
+
+    check(getMessagesRes, { 'messages retrieved': (r) => r.status === 200 });
+
+    // 3️⃣ WebSocket 연결
     connectWebSocket(roomId);
 
     // VU별 유지 시간

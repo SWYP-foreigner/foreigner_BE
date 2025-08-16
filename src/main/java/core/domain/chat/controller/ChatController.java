@@ -1,6 +1,7 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
+import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
@@ -99,8 +100,8 @@ public class ChatController {
 
     @Operation(summary = "채팅방 메시지 조회 (Mongo)")
     @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<ApiResponse<List<ChatMessageDoc>>> getMessages(@PathVariable Long roomId) {
-        List<ChatMessageDoc> messages = chatService.getMessages(roomId);
+    public ResponseEntity<ApiResponse<List<ChatMessage>>> getMessages(@PathVariable Long roomId) {
+        List<ChatMessage> messages = chatService.getMessages(roomId);
         if (messages == null) {
             log.warn("메시지 조회 실패: roomId={}", roomId);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -112,7 +113,7 @@ public class ChatController {
     @Operation(summary = "메시지 삭제")
     @DeleteMapping("/rooms/{roomId}/messages/{messageId}")
     public ResponseEntity<ApiResponse<Void>> deleteMessage(@PathVariable Long roomId, @PathVariable String messageId) {
-        boolean deleted = chatService.deleteMessage(messageId);
+        boolean deleted = chatService.deleteMessage(Long.valueOf(messageId));
         if (!deleted) {
             log.warn("메시지 삭제 실패: messageId={}", messageId);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -146,22 +147,33 @@ public class ChatController {
 
     @Operation(summary = "메시지 전송")
     @PostMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<ApiResponse<ChatMessageDoc>> sendMessage(@PathVariable Long roomId, @RequestBody SendMessageRequest req) {
+    public ResponseEntity<ApiResponse<ChatMessage>> sendMessage(@PathVariable Long roomId, @RequestBody SendMessageRequest req) {
+        try {
+            // 1. 금칙어 검사
+            if (forbiddenWordService.containsForbiddenWord(req.content())) {
+                log.warn("금칙어 메시지 전송 시도: roomId={}, senderId={}", roomId, req.senderId());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.fail("메시지에 금칙어가 포함되어 있습니다."));
+            }
 
-        if (forbiddenWordService.containsForbiddenWord(req.content())) {
-            log.warn("금칙어 메시지 전송 시도: roomId={}, senderId={}", roomId, req.senderId());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.fail("메시지에 금칙어가 포함되어 있습니다."));
-        }
+            ChatMessage savedMsg = chatService.saveMessage(roomId, req.senderId(), req.content());
 
-        ChatMessageDoc savedMsg = chatService.saveMessage(roomId, req.senderId(), req.content());
-        if (savedMsg == null) {
-            log.error("메시지 저장 실패: roomId={}, senderId={}", roomId, req.senderId());
+            return ResponseEntity.ok(ApiResponse.success(savedMsg));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("메시지 전송 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.fail(e.getMessage()));
+        } catch (Exception e) {
+            log.error("메시지 저장 중 예외 발생: roomId={}, senderId={}", roomId, req.senderId(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.fail("메시지 저장에 실패했습니다."));
         }
-        return ResponseEntity.ok(ApiResponse.success(savedMsg));
     }
-
+    @GetMapping("/rooms/{roomId}/messages/search")
+    public ResponseEntity<List<ChatMessage>> searchMessages(@PathVariable Long roomId, @RequestParam String keyword) {
+        List<ChatMessage> messages = chatService.searchMessages(roomId, keyword);
+        return ResponseEntity.ok(messages);
+    }
 
 }

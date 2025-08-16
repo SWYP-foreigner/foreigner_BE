@@ -2,6 +2,7 @@ package core.domain.chat.service;
 
 
 import core.domain.chat.dto.ChatMessageDoc;
+import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
@@ -22,15 +23,19 @@ public class ChatService {
     private final ChatParticipantRepository participantRepo;
     private final ChatMessageRepository messageRepo;
     private final UserRepository userRepo;
+    private final ChatMessageRepository chatMessageRepository; // 추가
+    private final UserRepository userRepository; // User 엔티티가 필요하므로 추가
 
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo,
                        ChatMessageRepository messageRepo,
-                       UserRepository userRepo) {
+                       UserRepository userRepo, ChatMessageRepository chatMessageRepository, UserRepository userRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
         this.messageRepo = messageRepo;
         this.userRepo = userRepo;
+        this.chatMessageRepository = chatMessageRepository;
+        this.userRepository = userRepository;
     }
 
     public List<ChatRoom> getAllRooms() {
@@ -94,26 +99,49 @@ public class ChatService {
         return participantRepo.findByChatRoomId(roomId);
     }
 
-    public List<ChatMessageDoc> getMessages(Long roomId) {
-        return messageRepo.findByRoomIdOrderByCreatedAtAsc(roomId);
+    public List<ChatMessage> getMessages(Long roomId) {
+        // PostgreSQL에서 메시지를 조회합니다.
+        return chatMessageRepository.findByChatRoomIdOrderBySentAtAsc(roomId);
+    }
+    @Transactional
+    public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
+        // ChatRoom 및 User 엔티티를 찾습니다.
+        ChatRoom chatRoom = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+
+        User sender = userRepository.findById(senderId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        ChatMessage chatMessage = new ChatMessage(chatRoom, sender, content);
+
+        return chatMessageRepository.save(chatMessage);
     }
 
     @Transactional
-    public ChatMessageDoc saveMessage(Long roomId, Long senderId, String content) {
-        User user = userRepo.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid senderId"));
-        ChatMessageDoc msg = new ChatMessageDoc(roomId, senderId, user.getName(), content);
-
-        return messageRepo.save(msg);
-    }
-
-    @Transactional
-    public boolean deleteMessage(String messageId) {
-        if (!messageRepo.existsById(messageId)) {
+    public boolean deleteMessage(Long messageId) {
+        if (!chatMessageRepository.existsById(messageId)) {
             return false;
         }
-        messageRepo.deleteById(messageId);
+        chatMessageRepository.deleteById(messageId);
         return true;
+    }
+    @Transactional
+    public void markMessagesAsRead(Long roomId, Long readerId) {
+        ChatRoom chatRoom = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+
+        int memberCount = chatRoom.getParticipants().size();
+
+        List<ChatMessage> unreadMessages = chatMessageRepository.findUnreadMessages(roomId, memberCount);
+
+        for (ChatMessage msg : unreadMessages) {
+            // TODO: 누가 읽었는지에 대한 로직 추가 필요. 현재는 단순히 읽은 사람 수만 증가
+            msg.setReadCount(msg.getReadCount() + 1);
+        }
+    }
+    @Transactional(readOnly = true)
+    public List<ChatMessage> searchMessages(Long roomId, String keyword) {
+        return chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
     }
 
 }
