@@ -85,7 +85,7 @@ public class ChatController {
      * @param roomId 삭제할 채팅방 ID
      * @return 성공 여부
      */
-    @DeleteMapping("/rooms/{roomId}/admin") // 관리자용 엔드포인트
+    @DeleteMapping("/rooms/{roomId}") // 관리자용 엔드포인트
     public ResponseEntity<ApiResponse<Void>> deleteChatRoom(@PathVariable Long roomId) {
         chatService.forceDeleteRoom(roomId);
         return ResponseEntity.ok(ApiResponse.success(null));

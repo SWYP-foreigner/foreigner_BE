@@ -41,6 +41,9 @@ public class ChatParticipant {
     @Enumerated(EnumType.STRING)
     private ChatParticipantStatus status;
 
+    @Column(name = "last_left_at")
+    private Instant lastLeftAt;
+
     public ChatParticipant(ChatRoom chatRoom, User user) {
         this.chatRoom = chatRoom;
         this.user = user;
@@ -49,5 +52,18 @@ public class ChatParticipant {
         this.status = ChatParticipantStatus.LEFT;
     }
 
+
+    public void leave() {
+        this.status = ChatParticipantStatus.LEFT;
+        this.lastLeftAt = Instant.now();
+    }
+
+    public void reJoin() {
+        this.status = ChatParticipantStatus.ACTIVE;
+        this.lastLeftAt = null;
+    }
+    public void setLastReadMessageId(Long messageId) {
+        this.lastReadMessageId = messageId;
+    }
 }
 
