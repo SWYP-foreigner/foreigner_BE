@@ -69,7 +69,7 @@ jobs:
             
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             
-            cat > .env <<EOF
+            cat > .env <<'EOF'
             POSTGRES_DB=${{ secrets.DB_NAME }}
             POSTGRES_USER=${{ secrets.DB_USER }}
             POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -82,7 +82,7 @@ jobs:
             REDIS_HOST=${{ secrets.REDIS_HOST }}
             REDIS_PORT=${{ secrets.REDIS_PORT }}
             REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-            REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
+            REDIS_URL=redis://:${{ secrets.REDIS_PASSWORD }}@${{ secrets.REDIS_HOST }}:${{ secrets.REDIS_PORT }}/0
 
             MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
             MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
@@ -90,7 +90,7 @@ jobs:
             
             MONGO_APP_USERNAME=${{ secrets.MONGO_APP_USERNAME }}
             MONGO_APP_PASSWORD=${{ secrets.MONGO_APP_PASSWORD }}
-            SPRING_DATA_MONGODB_URI=mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=${MONGO_INITDB_DATABASE}
+            SPRING_DATA_MONGODB_URI=mongodb://${{ secrets.MONGO_APP_USERNAME }}:${{ secrets.MONGO_APP_PASSWORD }}@mongo:27017/${{ secrets.MONGO_INITDB_DATABASE }}?authSource=${{ secrets.MONGO_INITDB_DATABASE }}
 
             SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
             
@@ -98,8 +98,6 @@ jobs:
             SPRING_PROFILES_ACTIVE=dev
             SPRING_JPA_HIBERNATE_DDL_AUTO=update
             JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
-            
-            IMAGE=${IMAGE}
             
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
@@ -109,6 +107,8 @@ jobs:
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
             EOF
+            
+            printf 'IMAGE=%s\n' "$IMAGE" >> .env
             
             chmod 600 .env || true
             echo "Using IMAGE=${IMAGE}"
