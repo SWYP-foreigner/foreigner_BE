@@ -15,4 +15,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     List<ChatRoom> find1on1RoomByParticipants(List<Long> creatorId);
 
     List<ChatRoom> findChatRoomsByUserId(Long userId);
+
+    Optional<ChatRoom> findOneOnOneRoom(Long blockerId, Long targetId);
 }

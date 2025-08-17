@@ -32,12 +32,6 @@ public class ChatParticipant {
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
 
-    @Column(name = "is_blocked")
-    private Boolean blocked;
-
-    @Column(name = "is_deleted")
-    private Boolean deleted;
-
     @Enumerated(EnumType.STRING)
     private ChatParticipantStatus status;
 
@@ -47,6 +41,8 @@ public class ChatParticipant {
     public ChatParticipant(ChatRoom chatRoom, User user) {
         this.chatRoom = chatRoom;
         this.user = user;
+        this.status = ChatParticipantStatus.ACTIVE;
+        this.joinedAt = Instant.now();
     }
     public void delete() {
         this.status = ChatParticipantStatus.LEFT;
