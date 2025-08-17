@@ -77,6 +77,22 @@ jobs:
             SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
             SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+          
+            
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
+
+            MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+            MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+            MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
+            
+            MONGO_APP_USERNAME=${{ secrets.MONGO_APP_USERNAME }}
+            MONGO_APP_PASSWORD=${{ secrets.MONGO_APP_PASSWORD }}
+            SPRING_DATA_MONGODB_URI=mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=${MONGO_INITDB_DATABASE}
+
+            SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
             
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             SPRING_PROFILES_ACTIVE=dev
