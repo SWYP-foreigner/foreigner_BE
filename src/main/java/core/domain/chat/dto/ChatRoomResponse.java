@@ -13,7 +13,7 @@ public record ChatRoomResponse(
 ) {
     public static ChatRoomResponse from(ChatRoom room) {
         List<ChatParticipantResponse> participantResponses = room.getParticipants().stream()
-                .map(ChatParticipantResponse::from) // ChatParticipantResponse에도 from() 메서드 필요
+                .map(ChatParticipantResponse::from)
                 .toList();
 
         return new ChatRoomResponse(

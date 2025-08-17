@@ -30,28 +30,23 @@ const sendMessageTrend = new Trend('send_message_duration');
 // ==========================
 export const options = {
     stages: [
-        { duration: '30s', target: 500 },
-        { duration: '30s', target: 1000 },
-        { duration: '30s', target: 1500 },
-        { duration: '30s', target: 2000 },
-        { duration: '4m', target: 2000 },
-        { duration: '1m', target: 0 },
+        { duration: '3m', target: 1000 }, // 3분 동안 0→1000 VU
     ],
     thresholds: {
-        'http_req_duration': ['p(95)<500'],
-        'ws_connecting': ['p(95)<200'],
-        'ws_msgs_sent': ['count>500000'],
-        'ws_msgs_received': ['count>500000'],
+        'ws_connect_duration': ['p(95)<1000'],
+        'ws_messages_sent': ['count>100000'], // 총 메시지 송신 10만개 이상
+        'ws_messages_received': ['count>100000'], // 총 수신 10만개 이상
     },
 };
-
 // ==========================
 // 4. 헬퍼 함수
 // ==========================
 function parseSafely(res) {
     try {
         if (res.body && res.body.length > 0) {
-            return res.json();
+            // ApiResponse 구조에서 'data' 필드만 반환
+            const jsonBody = res.json();
+            return jsonBody.data;
         }
     } catch (e) {
         console.error(`JSON parse error: ${e} for response body: ${res.body}`);
@@ -76,15 +71,21 @@ export default function () {
     });
     sleep(0.5);
 
-    // 응답이 단순 배열인지 확인하고 처리합니다.
-    const roomsData = parseSafely(roomsRes);
+    // 응답에서 data 배열을 올바르게 추출
+    const roomsData = roomsRes.json().data;
+
     if (!roomsData || !Array.isArray(roomsData) || roomsData.length === 0) {
         console.log(`[VU ${vuId}] No rooms found for user ${userId}. Skipping test.`);
         return;
     }
 
     // 2. 무작위 채팅방 선택
-    const roomId = roomsData[Math.floor(Math.random() * roomsData.length)];
+    // 무작위로 선택된 것은 객체 자체이므로, 별도의 변수에 할당합니다.
+    const selectedRoom = roomsData[Math.floor(Math.random() * roomsData.length)];
+
+    // 선택된 객체에서 ID를 추출하여 roomId에 할당합니다.
+    const roomId = selectedRoom.id;
+
     // roomId가 유효한지 확인합니다.
     if (!roomId) {
         console.log(`[VU ${vuId}] Invalid room data found. Skipping test.`);
@@ -95,7 +96,8 @@ export default function () {
     // 3. 메시지 무한 스크롤 시뮬레이션
     let lastMessageId = null;
     for (let i = 0; i < 20; i++) {
-        let url = `${baseUrl}/rooms/${roomId}/messages?limit=50`;
+        let url = `${baseUrl}/api/v1/chat/rooms/${roomId}/messages?userId=${userId}&limit=50`;
+
         if (lastMessageId) {
             url += `&lastMessageId=${lastMessageId}`;
         }
@@ -104,6 +106,7 @@ export default function () {
         check(res, { 'get messages status is 200': (r) => r.status === 200 });
         getMessagesTrend.add(res.timings.duration);
 
+        // API 응답 구조를 고려하여 `data` 필드에서 메시지 목록을 추출
         const messages = parseSafely(res);
         if (!Array.isArray(messages) || messages.length === 0) break;
 

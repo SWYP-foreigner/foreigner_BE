@@ -47,6 +47,7 @@ public class ChatController {
     }
 
     /**
+     * @author 김승환
      * 새로운 채팅방을 생성합니다.
      * 그룹 채팅, 1:1 채팅 모두 이 엔드포인트를 사용합니다.
      *
@@ -64,6 +65,7 @@ public class ChatController {
     }
 
     /**
+     *  @author 김승환
      * 현재 로그인된 사용자가 참여하고 있는 채팅방 목록을 조회합니다.
      *
      * @param userId 채팅방 목록을 조회할 사용자의 ID.
@@ -71,15 +73,15 @@ public class ChatController {
      */
     @Operation(summary = "자신의 채팅방 리스트 조회")
     @GetMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms( Long userId) {
+    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms(Long userId) {
         List<ChatRoom> rooms = chatService.getMyChatRooms(userId);
         List<ChatRoomResponse> responses = rooms.stream()
                 .map(ChatRoomResponse::from)
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
-
     /**
+     *  @author 김승환
      * @apiNote 사용자가 채팅방을 나갑니다.
      * @param roomId 채팅방 ID
      * @return 성공 여부
@@ -91,6 +93,7 @@ public class ChatController {
     }
 
     /**
+     *  @author 김승환
      * @apiNote 커뮤니티로 만들어진 모임 채팅방은 활동이 끝나면 삭제를 원할 시 삭제.
      * @param roomId 삭제할 채팅방 ID
      * @return 성공 여부
@@ -102,6 +105,7 @@ public class ChatController {
     }
 
     /**
+     *  @author 김승환
      * @apiNote 채팅방 메시지를 무한 스크롤로 조회합니다.
      * 재참여한 사용자의 경우, 재참여 시점 이후의 메시지만 반환합니다.
      *
@@ -112,17 +116,22 @@ public class ChatController {
      */
     @Operation(summary = "채팅방 메시지 조회 (무한 스크롤)")
     @GetMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<ApiResponse<List<ChatMessage>>> getMessages(
-            @PathVariable Long roomId,
-            @RequestParam(required = false) Long lastMessageId,
-            @RequestParam Long userId // TODO: JWT 토큰에서 추출, lastMessageId도 쿼리로 추출
-
+    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
+                                                                               @PathVariable Long roomId,
+                                                                               @RequestParam(required = false) Long lastMessageId,
+                                                                               @RequestParam Long userId
     ) {
         List<ChatMessage> messages = chatService.getMessages(roomId, userId, lastMessageId);
-        return ResponseEntity.ok(ApiResponse.success(messages));
+
+        List<ChatMessageResponse> responses = messages.stream()
+                .map(ChatMessageResponse::fromEntity)
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
     /**
+     *  @author 김승환
      * @apiNote 그룹 채팅방의 현재 참여자 목록을 조회합니다.
      * 1:1 채팅방에서는 사용하지 않습니다.
      *
@@ -150,6 +159,7 @@ public class ChatController {
 
 
     /**
+     *  @author 김승환
      * @apiNote 메시지 읽음 상태를 업데이트합니다.
      * 1:1 채팅의 경우 상대방이 읽으면 readCount가 줄고, 그룹 채팅은 읽지 않은 사람 수가 줄어듭니다.
      *
@@ -159,13 +169,14 @@ public class ChatController {
      * @return 성공 여부
      */
     @Operation(summary = "메시지 읽음 상태 업데이트")
-    @PostMapping("/rooms/{roomId}/read")
-    public ResponseEntity<ApiResponse<Void>> markMessagesAsRead(@PathVariable Long roomId, @RequestParam Long userId, @RequestBody Long messageId) {
+    @PostMapping("/rooms/read")
+    public ResponseEntity<ApiResponse<Void>> markMessagesAsRead(@RequestParam Long roomId, @RequestParam Long userId, @RequestParam Long messageId) {
         chatService.markMessagesAsRead(roomId, userId, messageId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     /**
+     *  @author 김승환
      * @apiNote 다른 유저를 차단합니다.
      * 차단하면 1:1 채팅방이 보이지 않고, 알림 및 메시지 수신이 차단됩니다.
      *
@@ -193,11 +204,6 @@ public class ChatController {
     }
 
 
-    @GetMapping("/rooms/{roomId}/messages/search")
-    public ResponseEntity<ApiResponse<List<ChatMessage>>> searchMessages(@PathVariable Long roomId, @RequestParam String keyword) {
-        List<ChatMessage> messages = chatService.searchMessages(roomId, keyword);
-        return ResponseEntity.ok(ApiResponse.success(messages));
-    }
     @Operation(summary = "그룹 채팅방 재참여")
     @PostMapping("/rooms/{roomId}/rejoin")
     public ResponseEntity<ApiResponse<Void>> rejoinChatRoom(@PathVariable Long roomId, @RequestParam Long userId) {
@@ -206,6 +212,7 @@ public class ChatController {
     }
 
     /**
+     *  @author 김승환
      * @apiNote 그룹 채팅방에 새로운 참여자를 추가합니다.
      *
      * @param roomId 채팅방 ID
@@ -220,7 +227,8 @@ public class ChatController {
     }
 
     /**
-     * 특정 채팅방의 메시지 목록을 조회합니다.
+     *  @author 김승환
+     * 특정 채팅방의 메시지 들을 조회합니다.
      * lastMessageId를 기준으로 이전 메시지들을 가져와 무한 스크롤을 지원합니다.
      * * @param roomId          채팅방 ID
      * @param userId          메시지를 조회하는 사용자 ID
@@ -229,7 +237,7 @@ public class ChatController {
      * @return                조회된 메시지 목록
      */
     @GetMapping("/{roomId}/messages")
-    public ResponseEntity<List<ChatMessageResponse>> getChatMessages(
+    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>>getChatMessages(
             @PathVariable Long roomId,
             @RequestParam Long userId,
             @RequestParam(required = false) Long lastMessageId,
@@ -237,9 +245,9 @@ public class ChatController {
     ) {
         List<ChatMessage> messages = chatService.getChatMessages(roomId, userId, lastMessageId, limit);
         List<ChatMessageResponse> response = messages.stream()
-                .map(ChatMessageResponse::fromEntity)
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(response);
+                .map(ChatMessageResponse::fromEntity) // DTO로 변환
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
+
 }

@@ -46,9 +46,12 @@ public class ChatService {
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageReadStatusRepository = chatMessageReadStatusRepository;
     }
-    @Transactional(readOnly = true)
     public List<ChatRoom> getMyChatRooms(Long userId) {
-        return chatRoomRepo.findChatRoomsByUserId(userId);
+        List<ChatParticipant> participants = chatParticipantRepository.findByUserIdExplicit(userId);
+
+        return participants.stream()
+                .map(ChatParticipant::getChatRoom)
+                .toList();
     }
     /**
      * 새로운 채팅방을 생성합니다.
@@ -247,7 +250,6 @@ public class ChatService {
             }
         }
 
-        // 5. 새로운 메시지 엔티티 생성 및 저장
         ChatMessage message = new ChatMessage(room, sender, content);
         return chatMessageRepository.save(message);
     }
@@ -289,10 +291,7 @@ public class ChatService {
 
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
-    @Transactional(readOnly = true)
-    public List<ChatMessage> searchMessages(Long roomId, String keyword) {
-        return chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
-    }
+
 
     @Transactional
     public void rejoinRoom(Long roomId, Long userId) {
