@@ -1,5 +1,7 @@
 package core.domain.chat.dto;
 
+import core.domain.chat.entity.ChatParticipant;
+
 import java.time.Instant;
 
 public record ChatParticipantResponse(
@@ -8,6 +10,18 @@ public record ChatParticipantResponse(
         String userName,
         Instant joinedAt,
         Long lastReadMessageId,
-        Boolean blocked,
-        Boolean deleted
-) {}
+        boolean blocked,
+        boolean deleted
+) {
+    public static ChatParticipantResponse from(ChatParticipant participant) {
+        return new ChatParticipantResponse(
+                participant.getId(),
+                participant.getUser().getId(),
+                participant.getUser().getName(),
+                participant.getJoinedAt(),
+                participant.getLastReadMessageId(),
+                participant.getBlocked(),
+                participant.getDeleted()
+        );
+    }
+}

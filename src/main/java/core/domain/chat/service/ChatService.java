@@ -1,7 +1,6 @@
 package core.domain.chat.service;
 
 
-import core.domain.chat.dto.ChatMessageDoc;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
@@ -10,11 +9,16 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ChatService {
@@ -23,43 +27,77 @@ public class ChatService {
     private final ChatParticipantRepository participantRepo;
     private final ChatMessageRepository messageRepo;
     private final UserRepository userRepo;
-    private final ChatMessageRepository chatMessageRepository; // 추가
-    private final UserRepository userRepository; // User 엔티티가 필요하므로 추가
+    private final ChatMessageRepository chatMessageRepository;
+    private final UserRepository userRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
 
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo,
                        ChatMessageRepository messageRepo,
-                       UserRepository userRepo, ChatMessageRepository chatMessageRepository, UserRepository userRepository) {
+                       UserRepository userRepo, ChatMessageRepository chatMessageRepository, UserRepository userRepository, ChatParticipantRepository chatParticipantRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
         this.messageRepo = messageRepo;
         this.userRepo = userRepo;
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
+        this.chatParticipantRepository = chatParticipantRepository;
     }
-
-    public List<ChatRoom> getAllRooms() {
-        return chatRoomRepo.findAll();
+    @Transactional(readOnly = true)
+    public List<ChatRoom> getMyChatRooms(Long userId) {
+        return chatRoomRepo.findChatRoomsByUserId(userId);
     }
-    @Transactional
-    public ChatRoom createRoom(boolean isGroup, List<Long> participantIds) {
-        ChatRoom room = new ChatRoom(isGroup, Instant.now());
-        room = chatRoomRepo.save(room);
+    /**
+     * 새로운 채팅방을 생성합니다.
+     * 케이스 1: 1:1 채팅방 중복 생성 방지
+     * 케이스 2: 채팅 참여자 유효성 검사 (최소 인원, 존재하지 않는 유저)
+     * 케이스 3: 그룹 채팅 생성
+     */
+    public ChatRoom createRoom(Long creatorId, List<Long> participantIds) {
+        Set<Long> allParticipantIds = new HashSet<>(participantIds);
+        allParticipantIds.add(creatorId);
 
-        if (participantIds != null && !participantIds.isEmpty()) {
-            List<User> users = userRepo.findAllById(participantIds);
+        validateParticipants(allParticipantIds);
 
-            if (users.size() != participantIds.size()) {
-                throw new IllegalArgumentException("참여자 중 존재하지 않는 사용자가 있습니다.");
-            }
-
-            for (User user : users) {
-                ChatParticipant participant = new ChatParticipant(room, user);
-                participantRepo.save(participant);
+        if (allParticipantIds.size() == 2) {
+            ChatRoom existingRoom = find1on1Room(allParticipantIds);
+            if (existingRoom != null) {
+                return existingRoom;
             }
         }
 
-        return room;
+        List<User> participants = userRepository.findAllById(allParticipantIds);
+
+        ChatRoom newRoom = new ChatRoom(allParticipantIds.size() > 2, Instant.now());
+        chatRoomRepo.save(newRoom);
+
+        addParticipantsToRoom(newRoom, participants);
+
+        return newRoom;
+    }
+
+    private void validateParticipants(Set<Long> allParticipantIds) {
+        if (allParticipantIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_MINIMUM);
+        }
+
+        long existingUserCount = userRepository.countByIdIn(allParticipantIds);
+        if (existingUserCount != allParticipantIds.size()) {
+            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND);
+        }
+    }
+
+    private ChatRoom find1on1Room(Set<Long> allParticipantIds) {
+        List<ChatRoom> existingRooms = chatRoomRepo.find1on1RoomByParticipants(
+                new ArrayList<>(allParticipantIds)
+        );
+        return existingRooms.isEmpty() ? null : existingRooms.get(0);
+    }
+
+    private void addParticipantsToRoom(ChatRoom room, List<User> participants) {
+        for (User user : participants) {
+            participantRepo.save(new ChatParticipant(room, user));
+        }
     }
     @Transactional
     public void inviteParticipants(Long roomId, List<Long> userIds) {
@@ -85,27 +123,56 @@ public class ChatService {
     }
 
 
+    /**
+     * 사용자가 채팅방을 나갑니다.
+     * 1:1 채팅방의 경우, 상대방은 방에 남아있습니다.
+     *
+     * @param roomId 채팅방 ID
+     * @param userId 나가려는 사용자 ID
+     * @return 채팅방을 나가는 데 성공했는지 여부
+     */
     @Transactional
-    public boolean deleteRoom(Long roomId) {
-        if (!chatRoomRepo.existsById(roomId)) {
-            return false;
-        }
-        chatRoomRepo.deleteById(roomId);
+    public boolean leaveRoom(Long roomId, Long userId) {
+        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+        participant.delete();
+
+        deleteRoomIfEmpty(roomId);
+
         return true;
     }
 
+    /**
+     * 채팅방의 모든 참여자가 나갔는지 확인하고, 비어있으면 삭제합니다.
+     * 이 메서드는 leaveRoom()에서 호출되어 채팅방 삭제 로직을 분리합니다.
+     *
+     * @param roomId 확인할 채팅방 ID
+     */
+    @Transactional
+    public void deleteRoomIfEmpty(Long roomId) {
+        ChatRoom room = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        long remainingParticipants = participantRepo.countByChatRoomId(roomId);
+        if (remainingParticipants == 0) {
+            chatRoomRepo.delete(room);
+        }
+    }
+    @Transactional
+    public void forceDeleteRoom(Long roomId) {
+        ChatRoom room = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        chatRoomRepo.delete(room);
+    }
 
     public List<ChatParticipant> getParticipants(Long roomId) {
         return participantRepo.findByChatRoomId(roomId);
     }
 
     public List<ChatMessage> getMessages(Long roomId) {
-        // PostgreSQL에서 메시지를 조회합니다.
         return chatMessageRepository.findByChatRoomIdOrderBySentAtAsc(roomId);
     }
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
-        // ChatRoom 및 User 엔티티를 찾습니다.
         ChatRoom chatRoom = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
 

@@ -7,6 +7,8 @@ import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.ForbiddenWordService;
 import core.global.dto.ApiResponse;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
@@ -30,75 +32,66 @@ public class ChatController {
         this.chatService = chatService;
         this.forbiddenWordService = forbiddenWordService;
     }
+    /**
+     * 새로운 채팅방을 생성합니다.
+     * 그룹 채팅, 1:1 채팅 모두 이 엔드포인트를 사용합니다.
+     *
+     * @param creatorId      채팅방을 생성하는 사용자의 ID.
+     * TODO: 로그인 작업 완료시  JWT 토큰에서 유저ID를 추출해야 합니다.
+     * @param participantIds 채팅방에 초대할 사용자 ID 목록.
+     * @return 생성된 채팅방 정보를 담은 응답 (ChatRoomResponse).
+     */
 
     @PostMapping("/rooms")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            @RequestParam boolean isGroup,
-            @RequestBody List<ParticipantIdDto> participants
+            Long creatorId, @RequestBody  List<Long> participantIds
     ) {
-        try {
-            // ParticipantIdDto -> Long 변환
-            List<Long> participantIds = participants.stream()
-                    .map(ParticipantIdDto::getId)
-                    .toList();
-
-            ChatRoom room = chatService.createRoom(isGroup, participantIds);
-
-            ChatRoomResponse response = new ChatRoomResponse(
-                    room.getId(),
-                    room.getGroup(),
-                    room.getCreatedAt(),
-                    room.getParticipants().stream()
-                            .map(p -> new ChatParticipantResponse(
-                                    p.getId(),
-                                    p.getUser().getId(),
-                                    p.getUser().getName(),
-                                    p.getJoinedAt(),
-                                    p.getLastReadMessageId(),
-                                    p.getBlocked(),
-                                    p.getDeleted()
-                            ))
-                            .toList()
-            );
-
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            log.error("채팅방 생성 예외", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.fail("채팅방 생성 중 예외가 발생했습니다."));
-        }
+        ChatRoom room = chatService.createRoom(creatorId,participantIds);
+        ChatRoomResponse response = ChatRoomResponse.from(room);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    /**
+     * 현재 로그인된 사용자가 참여하고 있는 채팅방 목록을 조회합니다.
+     *
+     * @param userId 채팅방 목록을 조회할 사용자의 ID.
+     * TODO: 로그인 작업 완료시  JWT 토큰에서 유저ID를 추출해야 합니다.
+     * @return 사용자가 참여하고 있는 채팅방 목록을 담은 응답 (List<ChatRoomResponse>).
+     */
 
-
-    @Operation(summary = "채팅방 리스트 조회")
+    @Operation(summary = "자신의 채팅방 리스트 조회")
     @GetMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms() {
-        List<ChatRoom> rooms = chatService.getAllRooms();
-        if (rooms == null) {
-            log.warn("채팅방 목록 조회 실패: null 반환");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.fail("채팅방 목록 조회에 실패했습니다."));
-        }
+    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms( Long userId) {
+        List<ChatRoom> rooms = chatService.getMyChatRooms(userId);
         List<ChatRoomResponse> responses = rooms.stream()
-                .map(r -> new ChatRoomResponse(r.getId(), r.getGroup(), r.getCreatedAt(), List.of()))
-                .collect(Collectors.toList());
+                .map(ChatRoomResponse::from)
+                .toList();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
-    @Operation(summary = "채팅방 삭제")
-    @DeleteMapping("/rooms/{roomId}")
-    public ResponseEntity<ApiResponse<Void>> deleteChatRoom(@PathVariable Long roomId) {
-        boolean deleted = chatService.deleteRoom(roomId);
-        if (!deleted) {
-            log.warn("채팅방 삭제 실패: roomId={}", roomId);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.fail("존재하지 않는 채팅방입니다."));
-        }
+    /**
+     * @apiNote 사용자가 채팅방을 나갑니다.
+     * @param roomId 채팅방 ID
+     * @return 성공 여부
+     */
+    @DeleteMapping("/rooms/{roomId}/leave")
+    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId,@RequestParam Long userId) {
+        chatService.leaveRoom(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "채팅방 메시지 조회 (Mongo)")
+    /**
+     * @apiNote 커뮤니티로 만들어진 모임 채팅방은 활동이 끝나면 삭제를 원할 시 삭제.
+     * @param roomId 삭제할 채팅방 ID
+     * @return 성공 여부
+     */
+    @DeleteMapping("/rooms/{roomId}/admin") // 관리자용 엔드포인트
+    public ResponseEntity<ApiResponse<Void>> deleteChatRoom(@PathVariable Long roomId) {
+        chatService.forceDeleteRoom(roomId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @Operation(summary = "채팅방 메시지 조회")
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessage>>> getMessages(@PathVariable Long roomId) {
         List<ChatMessage> messages = chatService.getMessages(roomId);

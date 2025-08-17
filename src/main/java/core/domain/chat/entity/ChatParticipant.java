@@ -1,6 +1,7 @@
 package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
+import core.global.enums.ChatParticipantStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -36,9 +37,16 @@ public class ChatParticipant {
 
     @Column(name = "is_deleted")
     private Boolean deleted;
+
+    @Enumerated(EnumType.STRING)
+    private ChatParticipantStatus status;
+
     public ChatParticipant(ChatRoom chatRoom, User user) {
         this.chatRoom = chatRoom;
         this.user = user;
+    }
+    public void delete() {
+        this.status = ChatParticipantStatus.LEFT;
     }
 
 }
