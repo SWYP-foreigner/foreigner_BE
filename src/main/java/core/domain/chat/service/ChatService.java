@@ -28,21 +28,19 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
-    private final ChatMessageRepository messageRepo;
-    private final UserRepository userRepo;
+
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private static final int MESSAGE_PAGE_SIZE = 20;
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo,
-                       ChatMessageRepository messageRepo,
-                       UserRepository userRepo, ChatMessageRepository chatMessageRepository, UserRepository userRepository, ChatParticipantRepository chatParticipantRepository, ChatMessageReadStatusRepository chatMessageReadStatusRepository) {
+                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
+                       UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
-        this.messageRepo = messageRepo;
-        this.userRepo = userRepo;
+
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.chatParticipantRepository = chatParticipantRepository;
@@ -58,6 +56,7 @@ public class ChatService {
      * 케이스 2: 채팅 참여자 유효성 검사 (최소 인원, 존재하지 않는 유저)
      * 케이스 3: 그룹 채팅 생성
      */
+    @Transactional
     public ChatRoom createRoom(Long creatorId, List<Long> participantIds) {
         Set<Long> allParticipantIds = new HashSet<>(participantIds);
         allParticipantIds.add(creatorId);
@@ -65,9 +64,10 @@ public class ChatService {
         validateParticipants(allParticipantIds);
 
         if (allParticipantIds.size() == 2) {
-            ChatRoom existingRoom = find1on1Room(allParticipantIds);
-            if (existingRoom != null) {
-                return existingRoom;
+            Optional<ChatRoom> existingRoomOpt = find1on1Room(allParticipantIds);
+
+            if (existingRoomOpt.isPresent()) {
+                return existingRoomOpt.get();
             }
         }
 
@@ -92,11 +92,10 @@ public class ChatService {
         }
     }
 
-    private ChatRoom find1on1Room(Set<Long> allParticipantIds) {
-        List<ChatRoom> existingRooms = chatRoomRepo.find1on1RoomByParticipants(
+    public Optional<ChatRoom> find1on1Room(Set<Long> allParticipantIds) {
+        return chatRoomRepo.findOneOnOneRoomByParticipantIds(
                 new ArrayList<>(allParticipantIds)
         );
-        return existingRooms.isEmpty() ? null : existingRooms.get(0);
     }
 
     private void addParticipantsToRoom(ChatRoom room, List<User> participants) {
@@ -115,15 +114,13 @@ public class ChatService {
      */
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
-        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-        participant.delete();
-
+        participant.leave();
         deleteRoomIfEmpty(roomId);
 
         return true;
     }
-
     /**
      * 채팅방의 모든 참여자가 나갔는지 확인하고, 비어있으면 삭제합니다.
      * 이 메서드는 leaveRoom()에서 호출되어 채팅방 삭제 로직을 분리합니다.
@@ -204,31 +201,55 @@ public class ChatService {
      * @return 조회된 메시지 목록
      */
     @Transactional(readOnly = true)
-    public List<ChatMessage> getChatMessages(Long roomId, Long userId) {
-        ChatParticipant participant = (ChatParticipant) participantRepo.findByChatRoomIdAndUserId(roomId, userId)
+    public List<ChatMessage> getChatMessages(Long roomId, Long userId, Long lastMessageId, int limit) {
+        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
-
         if (participant.getStatus() == ChatParticipantStatus.LEFT && participant.getLastLeftAt() != null) {
-            return chatMessageRepository.findByChatRoomIdAndSentAtAfterOrderBySentAtAsc(roomId, participant.getLastLeftAt());
+            if (lastMessageId != null) {
+                return chatMessageRepository.findByChatRoomIdAndIdBeforeAndSentAtAfterOrderBySentAtDesc(
+                        roomId, lastMessageId, participant.getLastLeftAt(), PageRequest.of(0, limit));
+            }
+            return chatMessageRepository.findByChatRoomIdAndSentAtAfterOrderBySentAtDesc(
+                    roomId, participant.getLastLeftAt(), PageRequest.of(0, limit));
         }
 
-        else {
-            return chatMessageRepository.findByChatRoomIdOrderBySentAtAsc(roomId);
+        if (lastMessageId != null) {
+            return chatMessageRepository.findByChatRoomIdAndIdBeforeOrderBySentAtDesc(
+                    roomId, lastMessageId, PageRequest.of(0, limit));
         }
+
+
+        return chatMessageRepository.findByChatRoomIdOrderBySentAtDesc(roomId, PageRequest.of(0, limit));
     }
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
-        ChatRoom chatRoom = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
-
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        ChatMessage chatMessage = new ChatMessage(chatRoom, sender, content);
+        ChatRoom room = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        return chatMessageRepository.save(chatMessage);
+        ChatParticipant senderParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+
+        if (senderParticipant.getStatus() == ChatParticipantStatus.LEFT) {
+            senderParticipant.reJoin();
+        }
+
+        if (Boolean.FALSE.equals(room.getGroup())) {
+            List<ChatParticipant> participants = chatParticipantRepository.findByChatRoomId(roomId);
+            for (ChatParticipant participant : participants) {
+                if (!participant.getUser().getId().equals(senderId) && participant.getStatus() == ChatParticipantStatus.LEFT) {
+                    participant.reJoin();
+                }
+            }
+        }
+
+        // 5. 새로운 메시지 엔티티 생성 및 저장
+        ChatMessage message = new ChatMessage(room, sender, content);
+        return chatMessageRepository.save(message);
     }
 
     @Transactional
@@ -272,28 +293,7 @@ public class ChatService {
     public List<ChatMessage> searchMessages(Long roomId, String keyword) {
         return chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
     }
-    @Transactional
-    public void inviteParticipants(Long roomId, List<Long> userIds) {
-        ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
 
-        List<User> users = userRepo.findAllById(userIds);
-        if (users.size() != userIds.size()) {
-            throw new IllegalArgumentException("참여자 중 존재하지 않는 사용자가 있습니다.");
-        }
-
-        for (User user : users) {
-            boolean exists = participantRepo.existsByChatRoomIdAndUserId(roomId, user.getId());
-            if (!exists) {
-                ChatParticipant participant = new ChatParticipant(room, user);
-                participantRepo.save(participant);
-            }
-        }
-
-        if (participantRepo.countByChatRoomId(roomId) > 2) {
-            room.changeToGroupChat();
-        }
-    }
     @Transactional
     public void rejoinRoom(Long roomId, Long userId) {
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
@@ -325,7 +325,7 @@ public class ChatService {
 
         List<User> newUsers = usersToAdd.stream()
                 .filter(user -> !existingUserIds.contains(user.getId()))
-                .collect(Collectors.toList());
+                .toList();
 
         List<ChatParticipant> newParticipants = newUsers.stream()
                 .map(user -> new ChatParticipant(room, user))

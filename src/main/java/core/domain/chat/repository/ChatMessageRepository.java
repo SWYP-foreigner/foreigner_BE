@@ -27,4 +27,12 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     List<ChatMessage> findByChatRoomId(Long roomId, PageRequest sentAt);
 
     List<ChatMessage> findByChatRoomIdAndIdGreaterThan(Long roomId, Long lastReadMessageId);
+
+    List<ChatMessage> findByChatRoomIdAndIdBeforeAndSentAtAfterOrderBySentAtDesc(Long roomId, Long lastMessageId, Instant lastLeftAt, PageRequest of);
+
+    List<ChatMessage> findByChatRoomIdAndSentAtAfterOrderBySentAtDesc(Long roomId, Instant lastLeftAt, PageRequest of);
+
+    List<ChatMessage> findByChatRoomIdAndIdBeforeOrderBySentAtDesc(Long roomId, Long lastMessageId, PageRequest of);
+
+    List<ChatMessage> findByChatRoomIdOrderBySentAtDesc(Long roomId, PageRequest of);
 }

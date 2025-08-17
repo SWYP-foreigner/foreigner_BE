@@ -22,14 +22,11 @@ public class ChatWebSocketController {
     private final SimpMessageSendingOperations template;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
 
-    // 클라이언트에서 /app/chat.sendMessage 로 전송
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(SendMessageRequest req) {
         try {
-            // ChatService.saveMessage()가 ChatMessage 엔티티를 반환하도록 가정
             ChatMessage saved = chatService.saveMessage(req.roomId(), req.senderId(), req.content());
 
-            // 클라이언트에 전송할 DTO로 변환
             ChatMessageResponse response = new ChatMessageResponse(
                     saved.getId(),
                     saved.getChatRoom().getId(),
@@ -38,7 +35,6 @@ public class ChatWebSocketController {
                     saved.getSentAt()
             );
 
-            // 저장 성공 시 해당 방 구독자에게 DTO를 브로드캐스트
             messagingTemplate.convertAndSend(
                     "/topic/rooms/" + req.roomId(),
                     response

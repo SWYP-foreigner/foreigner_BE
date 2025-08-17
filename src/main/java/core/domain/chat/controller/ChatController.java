@@ -147,19 +147,7 @@ public class ChatController {
 
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
-    /**
-     * @apiNote 그룹 채팅방에 새로운 참여자를 추가합니다.
-     *
-     * @param roomId 채팅방 ID
-     * @param userIds 추가할 사용자의 ID 목록
-     * @return 성공 여부
-     */
-    @Operation(summary = "그룹 채팅 참여자 추가")
-    @PostMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<Void>> addParticipants(@PathVariable Long roomId, @RequestBody List<Long> userIds) {
-        chatService.addParticipants(roomId, userIds);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
+
 
     /**
      * @apiNote 메시지 읽음 상태를 업데이트합니다.
@@ -204,42 +192,7 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    /**
-     * 메시지를 저장하고, 나갔던 사용자의 경우 재참여 처리합니다.
-     * 1대1 채팅, 그룹 채팅 모두 이 메서드를 사용합니다.
-     *
-     * @param roomId   메시지를 보낼 채팅방 ID
-     * @param senderId 메시지를 보내는 사용자 ID
-     * @param content  메시지 내용
-     * @return 저장된 ChatMessage 엔티티
-     */
-    @Transactional
-    public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
-        User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-
-        ChatParticipant senderParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-
-
-        if (senderParticipant.getStatus() == ChatParticipantStatus.LEFT) {
-            senderParticipant.reJoin();
-        }
-
-        if (Boolean.FALSE.equals(room.getGroup())) {
-            List<ChatParticipant> participants = chatParticipantRepository.findByChatRoomId(roomId);
-            for (ChatParticipant participant : participants) {
-                if (!participant.getUser().getId().equals(senderId) && participant.getStatus() == ChatParticipantStatus.LEFT) {
-                    participant.reJoin();
-                }
-            }
-        }
-        ChatMessage message = new ChatMessage(room, sender, content);
-        return chatMessageRepository.save(message);
-    }
     @GetMapping("/rooms/{roomId}/messages/search")
     public ResponseEntity<ApiResponse<List<ChatMessage>>> searchMessages(@PathVariable Long roomId, @RequestParam String keyword) {
         List<ChatMessage> messages = chatService.searchMessages(roomId, keyword);
@@ -252,10 +205,41 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    /**
+     * @apiNote 그룹 채팅방에 새로운 참여자를 추가합니다.
+     *
+     * @param roomId 채팅방 ID
+     * @param userIds 추가할 사용자의 ID 목록
+     * @return 성공 여부
+     */
     @Operation(summary = "그룹 채팅 참여자 추가 및 초대")
     @PostMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<Void>> addParticipants(@PathVariable Long roomId, @RequestBody ChatParticipantAddRequest request) {
-        chatService.addParticipants(roomId, request.userIds());
+    public ResponseEntity<ApiResponse<Void>> addParticipants(@PathVariable Long roomId, @RequestBody List<Long> userIds) {
+        chatService.addParticipants(roomId, userIds);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /**
+     * 특정 채팅방의 메시지 목록을 조회합니다.
+     * lastMessageId를 기준으로 이전 메시지들을 가져와 무한 스크롤을 지원합니다.
+     * * @param roomId          채팅방 ID
+     * @param userId          메시지를 조회하는 사용자 ID
+     * @param lastMessageId   기준이 되는 메시지 ID (이전 메시지 조회를 위함)
+     * @param limit           가져올 메시지 개수
+     * @return                조회된 메시지 목록
+     */
+    @GetMapping("/{roomId}/messages")
+    public ResponseEntity<List<ChatMessageResponse>> getChatMessages(
+            @PathVariable Long roomId,
+            @RequestParam Long userId,
+            @RequestParam(required = false) Long lastMessageId,
+            @RequestParam(defaultValue = "100") int limit
+    ) {
+        List<ChatMessage> messages = chatService.getChatMessages(roomId, userId, lastMessageId, limit);
+        List<ChatMessageResponse> response = messages.stream()
+                .map(ChatMessageResponse::fromEntity)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
     }
 }
