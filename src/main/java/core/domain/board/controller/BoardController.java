@@ -1,15 +1,18 @@
 package core.domain.board.controller;
 
+import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
+import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
-import core.global.enums.BoardCategory;
 import core.global.enums.SortOption;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.constraints.Positive;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,10 +20,9 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/board")
+@RequestMapping("/api/v1/boards")
 public class BoardController {
 
     private final PostService postService;
@@ -102,16 +104,36 @@ public class BoardController {
                     )
             )
     })
-    @GetMapping("/{boardId}")
-    public ResponseEntity<core.global.dto.ApiResponse<List<BoardResponse>>> getPostList(Authentication authentication,
-                                                                                        @PathVariable Long boardId,
-                                                                                        @RequestParam(defaultValue = "LATEST") SortOption sort,
-                                                                                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorCreatedAt,
-                                                                                        @RequestParam(required = false) Long cursorId,
-                                                                                        @RequestParam(defaultValue = "20") int size) {
+    @GetMapping("/{boardId}/posts")
+    public ResponseEntity<core.global.dto.ApiResponse<BoardCursorPageResponse<BoardResponse>>> getPostList(Authentication authentication,
+                                                                                                           @PathVariable Long boardId,
+                                                                                                           @RequestParam(defaultValue = "LATEST") SortOption sort,
+                                                                                                           @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorCreatedAt,
+                                                                                                           @RequestParam(required = false) Long cursorId,
+                                                                                                           @RequestParam(required = false) Long cursorScore,
+                                                                                                           @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        postService.getPostList(boardId, sort, cursorCreatedAt, cursorId, size)
+                        postService.getPostList(boardId, sort, cursorCreatedAt, cursorId, cursorScore, size)
                 ));
+    }
+
+    @Operation(summary = "익명 글쓰기 가능 여부", description = "선택한 보드에서 익명 작성이 가능한지 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = PostWriteAnonymousAvailableResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
+    })
+    @GetMapping("/{boardId}/write-options")
+    public ResponseEntity<core.global.dto.ApiResponse<PostWriteAnonymousAvailableResponse>> getWriteOptions(
+            Authentication authentication,
+            @Parameter(description = "보드 ID", example = "10")
+            @PathVariable @Positive(message = "boardId는 양수여야 합니다.") Long boardId) {
+
+        return ResponseEntity.ok(core.global.dto.ApiResponse.success(
+                postService.isAnonymousAvaliable(boardId)
+        ));
     }
 }
