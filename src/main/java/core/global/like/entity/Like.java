@@ -8,7 +8,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "likes")
+@Table(
+        name = "likes",
+        indexes = {
+                @Index(name = "idx_likes_type_related", columnList = "type, related_id")
+        }
+)
 @Getter
 @NoArgsConstructor
 public class Like {
