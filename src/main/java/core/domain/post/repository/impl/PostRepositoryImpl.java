@@ -5,6 +5,7 @@ import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.board.dto.BoardResponse;
@@ -109,6 +110,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return query
                 .select(Projections.constructor(
                         BoardResponse.class,
+                        post.id,
                         preview,
                         authorNameExpr,
                         post.createdAt,
@@ -116,7 +118,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         commentCountExpr,
                         post.checkCount,
                         userImageUrlExpr,
-                        contentThumbnailUrlExpr
+                        contentThumbnailUrlExpr,
+                        Expressions.numberTemplate(Long.class, "NULL")
                 ))
                 .from(post)
                 .join(post.author, user)
@@ -137,7 +140,113 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     @Override
     public List<BoardResponse> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
-        throw new UnsupportedOperationException("TODO: score(or 가중치) 기반 구현");
+        // ── 필터
+        BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
+        BooleanExpression sinceFilter = (since == null) ? null : post.createdAt.goe(since);
+        BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
+
+        // ── 집계
+        Expression<Long> likeCountSub =
+                JPAExpressions.select(like.count())
+                        .from(like)
+                        .where(like.type.eq(LIKE_TYPE_POST)
+                                .and(like.relatedId.eq(post.id)));
+
+        Expression<Long> commentCountSub =
+                JPAExpressions.select(comment.count())
+                        .from(comment)
+                        .where(comment.post.eq(post));
+
+        NumberExpression<Long> likes = Expressions.numberTemplate(Long.class, "({0})", likeCountSub);
+        NumberExpression<Long> comments = Expressions.numberTemplate(Long.class, "({0})", commentCountSub);
+        NumberExpression<Long> views = post.checkCount;
+
+        // ── 최신성(나이 시간)
+        NumberExpression<Double> ageHours =
+                Expressions.numberTemplate(Double.class,
+                        "EXTRACT(EPOCH FROM (NOW() - {0})) / 3600.0", post.createdAt);
+
+        NumberExpression<Double> recencyFactor =
+                Expressions.numberTemplate(Double.class, "EXP(-({0} / 24.0))", ageHours);
+
+        NumberExpression<Long> recencyPoints =
+                Expressions.numberTemplate(Long.class, "CAST(ROUND(1000 * {0}, 0) AS BIGINT)", recencyFactor);
+
+        // ── 최종 점수(정수)
+        NumberExpression<Long> score =
+                recencyPoints.multiply(5L)
+                        .add(views.multiply(3L))
+                        .add(likes)
+                        .add(comments);
+
+        // ── 커서 조건(무한스크롤)
+        BooleanExpression ltCursor = null;
+        if (cursorScore != null) {
+            BooleanExpression tieBreaker =
+                    (cursorId != null)
+                            ? post.id.lt(cursorId)
+                            : Expressions.FALSE;
+
+            ltCursor = score.lt(cursorScore)
+                    .or(score.eq(cursorScore).and(tieBreaker));
+        }
+
+        Expression<String> authorNameExpr =
+                new CaseBuilder()
+                        .when(post.anonymous.isTrue()).then("익명")
+                        .otherwise(user.name);
+
+        Expression<String> preview =
+                Expressions.stringTemplate("substring({0}, 1, 200)", post.content);
+
+
+        // Images
+        QImage u = new QImage("u");
+        Expression<String> userImageUrlExpr =
+                JPAExpressions
+                        .select(u.url)
+                        .from(u)
+                        .where(u.imageType.eq(IMAGE_TYPE_USER)
+                                .and(u.relatedId.eq(user.id)));
+
+        QImage pi1 = new QImage("pi1");
+        QImage pi2 = new QImage("pi2");
+        Expression<String> contentThumbnailUrlExpr =
+                JPAExpressions
+                        .select(pi2.url)
+                        .from(pi2)
+                        .where(pi2.id.eq(
+                                JPAExpressions
+                                        .select(pi1.id.min())
+                                        .from(pi1)
+                                        .where(pi1.imageType.eq(IMAGE_TYPE_POST)
+                                                .and(pi1.relatedId.eq(post.id)))
+                        ));
+
+        return query
+                .select(Projections.constructor(
+                        BoardResponse.class,
+                        post.id,
+                        preview,
+                        authorNameExpr,
+                        post.createdAt,
+                        likes,
+                        comments,
+                        views,
+                        userImageUrlExpr,
+                        contentThumbnailUrlExpr,
+                        score
+                ))
+                .from(post)
+                .join(post.author, user)
+                .where(allOf(boardFilter, sinceFilter, search, ltCursor))
+                .orderBy(
+                        score.desc(),
+                        post.id.desc()
+                )
+                .limit(Math.min(size, 50) + 1L)
+                .fetch();
+
     }
 
     @Override
@@ -188,6 +297,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         }
 
         return new PostDetailResponse(
+                r.postId(),
                 r.content(),
                 r.userName(),
                 r.createdTime(),

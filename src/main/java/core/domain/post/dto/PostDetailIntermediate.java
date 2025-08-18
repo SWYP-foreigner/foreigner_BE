@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 public record PostDetailIntermediate(
+        Long postId,
         String title,
         String content,
         String userName,
@@ -13,4 +14,5 @@ public record PostDetailIntermediate(
         Long viewCount,
         String userImageUrl,
         List<String> contentImageUrls
-) {}
+) {
+}

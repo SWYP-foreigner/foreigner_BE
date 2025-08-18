@@ -1,5 +1,6 @@
 package core.domain.post.service;
 
+import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
 import core.domain.post.dto.PostUpdateRequest;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
@@ -10,17 +11,16 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
 import java.time.Instant;
-import java.util.List;
 
 public interface PostService {
 
-    List<BoardResponse> getPostList(Long boardCategory, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size);
+    BoardCursorPageResponse<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorScore, int size);
 
-    PostDetailResponse getPostDetail(Long boardId, Long postId);
+    PostDetailResponse getPostDetail(Long postId);
 
-    void addLike(String username, Long boardId, Long postId);
+    void addLike(String username, Long boardId);
 
-    void writePost(String name, PostWriteRequest boardCategory);
+    void writePost(String name, @Positive Long boardId, PostWriteRequest request);
 
     PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId);
 
@@ -28,4 +28,7 @@ public interface PostService {
 
     void deletePost(String name, @Positive Long postId);
 
+    void removeLike(String name, @Positive Long postId);
+
+    PostDetailResponse getMyPostList(@Positive Long postId);
 }

@@ -1,10 +1,11 @@
 package core.domain.post.service.impl;
 
+import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.post.dto.PostUpdateRequest;
 import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.PostUpdateRequest;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.dto.PostWriteRequest;
 import core.domain.post.entity.Post;
@@ -23,6 +24,7 @@ import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +46,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, int size) {
+    public BoardCursorPageResponse<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorScore, int size) {
         final Long resolvedBoardId =
                 (boardId == null || boardId <= 0L) ? null : boardId;
 
@@ -52,29 +54,54 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
         }
 
+        int pageSize = Math.min(Math.max(size, 1), 50);
+
         List<BoardResponse> rows;
         switch (sort) {
-            case LATEST ->
-                    rows = postRepository.findLatestPosts(resolvedBoardId, cursorCreatedAt, cursorId, size, null);
-            case POPULAR ->
-                    rows = postRepository.findPopularPosts(resolvedBoardId, Instant.now().minus(Duration.ofDays(7)), null, cursorId, size, null); // TODO
-            default -> rows = postRepository.findLatestPosts(resolvedBoardId, cursorCreatedAt, cursorId, size, null);
+            case LATEST -> {
+                rows = postRepository.findLatestPosts(
+                        resolvedBoardId,
+                        truncateToMillis(cursorCreatedAt),
+                        cursorId,
+                        pageSize,
+                        null
+                );
+                return BoardCursorPageResponse.ofLatest(
+                        rows, pageSize,
+                        BoardResponse::createdAt,
+                        BoardResponse::postId
+                );
+            }
+            case POPULAR -> {
+                Instant since = Instant.now().minus(Duration.ofDays(10));
+                rows = postRepository.findPopularPosts(
+                        resolvedBoardId,
+                        since,
+                        cursorScore,
+                        cursorId,
+                        pageSize,
+                        null
+                );
+                return BoardCursorPageResponse.ofPopular(
+                        rows, pageSize,
+                        BoardResponse::score,
+                        BoardResponse::postId
+                );
+            }
+            default -> {
+                rows = postRepository.findLatestPosts(resolvedBoardId, truncateToMillis(cursorCreatedAt), cursorId, pageSize, null);
+                return BoardCursorPageResponse.ofLatest(rows, pageSize, BoardResponse::createdAt, BoardResponse::postId);
+            }
         }
+    }
 
-        if (rows.size() > size) {
-            rows = rows.subList(0, size);
-        }
-        return rows;
+    private Instant truncateToMillis(Instant i) {
+        return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
     @Override
     @Transactional
-    public PostDetailResponse getPostDetail(Long boardId, Long postId) {
-        Boolean isTrue = boardRepository.isMatchedPost(postId, boardId);
-        if (!isTrue) {
-            throw new BusinessException(ErrorCode.BOARD_AND_POST_NOT_MATCHED);
-        }
-
+    public PostDetailResponse getPostDetail(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
         addViews(post);
@@ -88,31 +115,14 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void addLike(String username, Long boardId, Long postId) {
-        Optional<Like> existedLike = likeRepository.findLikeByUsernameAndType(username, postId, LikeType.POST);
-        if (existedLike.isPresent()) {
-            likeRepository.delete(existedLike.get());
-        } else {
-            User user = userRepository.findByName(username)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-            likeRepository.save(Like.builder()
-                    .user(user)
-                    .type(LikeType.POST)
-                    .relatedId(postId)
-                    .build());
-        }
-    }
+    public void writePost(String name, @Positive Long boardId, PostWriteRequest request) {
+        Board board = boardRepository.findById(boardId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
-    @Override
-    @Transactional
-    public void writePost(String name, PostWriteRequest request) {
-        validateAnonymousPolicy(BoardCategory.valueOf(request.boardCategory()), request.isAnonymous());
+        validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
 
         User user = userRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        Board board = boardRepository.findIdByCategory(BoardCategory.valueOf(request.boardCategory()))
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
         postRepository.save(post);
@@ -224,5 +234,35 @@ public class PostServiceImpl implements PostService {
 
         // 스토리지 삭제
 
+    }
+
+    @Override
+    @Transactional
+    public void addLike(String username, Long postId) {
+        Optional<Like> existedLike = likeRepository.findLikeByUsernameAndType(username, postId, LikeType.POST);
+        if (existedLike.isPresent()) {
+            throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
+        }
+
+        User user = userRepository.findByName(username)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        likeRepository.save(Like.builder()
+                .user(user)
+                .type(LikeType.POST)
+                .relatedId(postId)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public void removeLike(String username, Long postId) {
+        Long affected = likeRepository.deleteByUserNameAndIdAndType(username, postId, LikeType.POST);
+        if (affected == 0) throw new BusinessException(ErrorCode.LIKE_NOT_FOUND);
+    }
+
+    @Override
+    public PostDetailResponse getMyPostList(Long postId) {
+        return null;
     }
 }

@@ -17,10 +17,6 @@ public record PostWriteRequest(
         @Size(min = 1, max = 10_000, message = "내용은 최대 10,000자까지 가능합니다.")
         String content,
 
-        @Schema(description = "게시판 카테고리(슬러그/코드). 추후 boardId로 대체 가능", example = "free-talk")
-        @NotBlank(message = "게시판 카테고리는 필수입니다.")
-        String boardCategory,
-
         @Schema(description = "익명 작성 여부", example = "true")
         @NotNull(message = "익명 여부는 필수입니다.")
         Boolean isAnonymous,

@@ -7,6 +7,8 @@ import java.util.List;
 
 @Schema(description = "게시글 상세 응답")
 public record PostDetailResponse(
+        @Schema(description = "ID", example = "1")
+        Long postId,
 
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
