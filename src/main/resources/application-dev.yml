@@ -29,10 +29,18 @@ oauth:
       redirect-uri: ${ANDROID_REDIRECT_URI}
     ios:
       client-id: ${IOS_CLIENT_ID}
-      redirect-uri: ${IOS_RE    web:
+      redirect-uri: ${IOS_REDIRECT_URI}
+    web:
       client-id: ${WEB_CLIENT_ID}
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
+  apple:
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
+    private-key-pem: |-
+      ${APPLE_PRIVATE_KEY_PEM}
 
 springdoc:
   api-docs:

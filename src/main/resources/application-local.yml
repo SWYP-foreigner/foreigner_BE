@@ -3,24 +3,34 @@ spring:
     activate:
       on-profile: local
 
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: 1111
+    url: jdbc:postgresql://localhost:5432/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000
 
+cloud:
+  openfeign:
+    client:
+      config:
+        default:
+          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+          readTimeout: ${FEIGN_READ_TIMEOUT}
+          loggerLevel: ${FEIGN_LOGGER_LEVEL}
 oauth:
   google:
     android:
@@ -34,6 +44,15 @@ oauth:
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
 
+
+  apple:
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
+    private-key-pem: |-
+      ${APPLE_PRIVATE_KEY_PEM}
+      
 
 springdoc:
   api-docs:

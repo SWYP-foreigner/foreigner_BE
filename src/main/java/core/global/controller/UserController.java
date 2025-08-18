@@ -4,10 +4,8 @@ package core.global.controller;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
-import core.global.dto.AccessTokenDto;
-import core.global.dto.GoogleLoginReq;
-import core.global.dto.GoogleProfileDto;
-import core.global.dto.GoogleTestReq;
+import core.global.dto.*;
+import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,6 +34,8 @@ public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
+    private final AppleAuthService service;
+
 
 
     @PostMapping("/google/doLogin")
@@ -105,6 +105,35 @@ public class UserController {
 //        loginInfo.put("token", jwtToken);
 //        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
 //    }
+    /**
+     * 권장: Authorization Code + PKCE 플로우
+     */
+    @PostMapping("apple/doLogin")
+    public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
+        AppleLoginResult result = service.loginWithAuthorizationCodeOnly(
+                req.getAuthorizationCode(),
+                req.getCodeVerifier(),
+                req.getRedirectUri(),
+                req.getNonce() // raw nonce (서버에서 sha256 후 검증)
+        );
+        return ResponseEntity.ok(result);
+    }
 
+    /**
+     * refresh token 갱신
+     */
+    @PostMapping("apple/refresh")
+    public ResponseEntity<AppleTokenResponse> refresh(@RequestBody AppleRefreshRequest req) {
+        return ResponseEntity.ok(service.refresh(req.getRefreshToken()));
+    }
+
+    /**
+     * revoke (연동 해제)
+     */
+    @PostMapping("apple/revoke")
+    public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
+        service.revoke(req.getRefreshToken());
+        return ResponseEntity.noContent().build();
+    }
 
 }
