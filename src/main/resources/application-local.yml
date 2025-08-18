@@ -31,6 +31,7 @@ cloud:
           connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
           readTimeout: ${FEIGN_READ_TIMEOUT}
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
+
 oauth:
   google:
     android:

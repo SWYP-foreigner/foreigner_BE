@@ -15,10 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,6 +34,17 @@ public class UserController {
     private final AppleAuthService service;
 
 
+    @GetMapping("/google/callback")
+    public String handleGoogleLogin(@RequestParam(required = false) String code,
+                                    @RequestParam(required = false) String state) {
+        // query parameter 출력
+        System.out.println("Google Login Response received!");
+        System.out.println("Authorization Code: " + code);
+        System.out.println("State: " + state);
+
+        // 단순 확인용으로 response 그대로 반환
+        return "Received code: " + code + ", state: " + state;
+    }
 
     @PostMapping("/google/doLogin")
     @Operation(summary = "구글 로그인(웹 API)",
@@ -48,7 +56,7 @@ public class UserController {
 
         log.info("[GoogleLogin] 요청 수신 - AccessToken: {}", req.getAccessToken());
 
-        // 1. Access Token으로 사용자 프로필 정보 조회
+             // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
         GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
         log.info("[GoogleLogin] 구글 프로필 조회 완료 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
 
