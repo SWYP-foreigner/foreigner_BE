@@ -6,6 +6,7 @@ import io.micrometer.common.lang.Nullable;
 import java.time.Instant;
 
 public record CommentResponse(
+        Long commentId,
         String username,
         String content,
         Long likeCount,
@@ -19,6 +20,7 @@ public record CommentResponse(
         if (c.isDeleted()) {
             return new CommentResponse(
                     null,
+                    null,
                     "삭제된 댓글입니다.",
                     0L,
                     c.getCreatedAt(),
@@ -27,6 +29,7 @@ public record CommentResponse(
             );
         }
         return new CommentResponse(
+                c.getId(),
                 (c.getAuthor() != null) ? c.getAuthor().getName() : null,
                 c.getContent(),
                 likeCount,
