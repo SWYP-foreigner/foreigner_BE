@@ -22,8 +22,6 @@ public interface PostService {
 
     void writePost(String name, @Positive Long boardId, PostWriteRequest request);
 
-    PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId);
-
     void updatePost(String name, @Positive Long boardId, @Valid PostUpdateRequest updateRequest);
 
     void deletePost(String name, @Positive Long postId);
@@ -31,4 +29,6 @@ public interface PostService {
     void removeLike(String name, @Positive Long postId);
 
     PostDetailResponse getMyPostList(@Positive Long postId);
+
+    CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
 }
