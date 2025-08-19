@@ -268,4 +268,12 @@ public class PostServiceImpl implements PostService {
     public PostDetailResponse getMyPostList(Long postId) {
         return null;
     }
+
+    @Override
+    public CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
+    }
 }

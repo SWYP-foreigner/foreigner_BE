@@ -2,7 +2,9 @@ package core.domain.post.controller;
 
 import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.dto.PostUpdateRequest;
+import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.dto.PostWriteRequest;
+import core.domain.post.service.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -161,6 +163,28 @@ public class PostController {
                 .status(HttpStatus.NO_CONTENT)
                 .body(ApiResponse.success("좋아요 설정"));
     }
+
+
+
+    @Operation(summary = "익명 댓글 쓰기 가능 여부", description = "선택한 보드에서 익명 작성이 가능한지 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = PostWriteAnonymousAvailableResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
+    })
+    @GetMapping("/posts/{postId}/write-options")
+    public ResponseEntity<core.global.dto.ApiResponse<CommentWriteAnonymousAvailableResponse>> getWriteOptions(
+            Authentication authentication,
+            @Parameter(description = "게시글 ID", example = "10")
+            @PathVariable @Positive(message = "postId는 양수여야 합니다.") Long postId) {
+
+        return ResponseEntity.ok(core.global.dto.ApiResponse.success(
+                postService.isAnonymousAvaliable(postId)
+        ));
+    }
+
 
     @Operation(summary = "게시글 좋아요 해제", description = "좋아요 해제합니다.")
     @ApiResponses({
