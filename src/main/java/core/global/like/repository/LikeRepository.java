@@ -43,12 +43,5 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-    select l.relatedId
-    from Like l
-    where l.type = :type
-      and l.user.name = :name
-      and l.relatedId in :id
-    """)
-    Long deleteByUserNameAndIdAndType(String name, Long id, LikeType likeType);
+    void deleteByUserNameAndIdAndType(String name, Long id, LikeType likeType);
 }

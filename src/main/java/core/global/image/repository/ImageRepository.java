@@ -22,6 +22,30 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
             @Param("commentIds") List<Long> commentIds
     );
 
+    @Query("""
+        select i.relatedId, i.url
+        from Image i
+        where i.id in (
+            select min(i2.id)
+            from Image i2
+            where i2.imageType = :imageType
+              and i2.relatedId in :relatedIds
+            group by i2.relatedId
+        )
+    """)
+    List<Object[]> findFirstUrlByRelatedIds(@Param("imageType") ImageType imageType,
+                                            @Param("relatedIds") List<Long> relatedIds);
+
+    @Query("""
+        select i.relatedId, i.url
+        from Image i
+        where i.imageType = :imageType
+          and i.relatedId in :relatedIds
+        order by i.id asc
+    """)
+    List<Object[]> findAllUrlsByRelatedIds(@Param("imageType") ImageType imageType,
+                                           @Param("relatedIds") List<Long> relatedIds);
+
     List<Image> findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType imageType, Long relatedId);
 
     @Modifying
@@ -33,11 +57,12 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     """)
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, Collection<String> urls);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
         delete from Image i
          where i.imageType = :imageType
            and i.relatedId  = :relatedId
     """)
-    void deleteByImageTypeAndRelatedId(ImageType imageType, Long postId);
+    void deleteByImageTypeAndRelatedId(@Param("imageType") ImageType imageType,
+                                       @Param("relatedId") Long relatedId);
 }

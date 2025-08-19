@@ -260,8 +260,7 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public void removeLike(String username, Long postId) {
-        Long affected = likeRepository.deleteByUserNameAndIdAndType(username, postId, LikeType.POST);
-        if (affected == 0) throw new BusinessException(ErrorCode.LIKE_NOT_FOUND);
+        likeRepository.deleteByUserNameAndIdAndType(username, postId, LikeType.POST);
     }
 
     @Override
