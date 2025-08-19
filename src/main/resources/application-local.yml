@@ -1,8 +1,4 @@
 spring:
-  config:
-    activate:
-      on-profile: local
-
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USERNAME}
@@ -11,7 +7,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -34,6 +30,8 @@ oauth:
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
 
+swagger:
+  server-url: http://localhost:8080
 
 springdoc:
   api-docs:

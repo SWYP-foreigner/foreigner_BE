@@ -35,6 +35,10 @@ oauth:
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
 
+swagger:
+  server-url: https://dev.ko-ri.cloud
+
+
 springdoc:
   api-docs:
     enabled: true
