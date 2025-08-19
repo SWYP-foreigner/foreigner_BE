@@ -2,6 +2,8 @@ package core.domain.board.controller;
 
 import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
+import core.domain.board.service.BoardService;
+import core.domain.board.service.impl.CategoryListResponse;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.enums.SortOption;
@@ -20,15 +22,18 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/boards")
 public class BoardController {
 
     private final PostService postService;
+    private final BoardService boardService;
 
-    BoardController(PostService postService) {
+    BoardController(PostService postService, BoardService boardService) {
         this.postService = postService;
+        this.boardService = boardService;
     }
 
 
@@ -118,6 +123,24 @@ public class BoardController {
                 ));
     }
 
+    @Operation(summary = "카테고리 목록", description = "카테고리 목록을 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = PostWriteAnonymousAvailableResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
+    })
+    @GetMapping("/categories")
+    public ResponseEntity<core.global.dto.ApiResponse<List<CategoryListResponse>>> getCategories(
+            Authentication authentication
+    ) {
+
+        return ResponseEntity.ok(core.global.dto.ApiResponse.success(
+                boardService.getCategories()
+        ));
+    }
+
     @Operation(summary = "익명 글쓰기 가능 여부", description = "선택한 보드에서 익명 작성이 가능한지 반환합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
@@ -133,7 +156,7 @@ public class BoardController {
             @PathVariable @Positive(message = "boardId는 양수여야 합니다.") Long boardId) {
 
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(
-                postService.isAnonymousAvaliable(boardId)
+                boardService.isAnonymousAvaliable(boardId)
         ));
     }
 }

@@ -9,7 +9,6 @@ import java.util.Optional;
 
 
 public interface BoardRepository extends JpaRepository<Board, Long> {
-    Optional<Board> findIdByCategory(BoardCategory boardCategory);
 
     Boolean existsByCategory(BoardCategory category);
 
