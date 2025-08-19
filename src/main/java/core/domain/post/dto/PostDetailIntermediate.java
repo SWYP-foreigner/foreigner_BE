@@ -5,7 +5,6 @@ import java.util.List;
 
 public record PostDetailIntermediate(
         Long postId,
-        String title,
         String content,
         String userName,
         Instant createdTime,
