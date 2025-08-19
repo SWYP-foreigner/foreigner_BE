@@ -103,7 +103,7 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public PostDetailResponse getPostDetail(Long postId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
         addViews(post);
 
         return postRepository.findPostDetail(postId);
