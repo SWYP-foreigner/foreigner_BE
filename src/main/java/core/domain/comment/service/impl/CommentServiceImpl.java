@@ -3,7 +3,7 @@ package core.domain.comment.service.impl;
 import core.domain.comment.controller.CommentUpdateRequest;
 import core.domain.comment.controller.CommentWriteRequest;
 import core.domain.comment.dto.CommentResponse;
-import core.domain.comment.dto.CursorPage;
+import core.domain.comment.dto.CommentCursorPageResponse;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.comment.service.CommentService;
@@ -46,9 +46,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPage<CommentResponse> getCommentList(Long postId, Integer size, SortOption sort, @Nullable Instant cursorCreatedAt,
-                                                      @Nullable Long cursorId,
-                                                      @Nullable Long cursorLikeCount) {
+    public CommentCursorPageResponse<CommentResponse> getCommentList(Long postId, Integer size, SortOption sort, @Nullable Instant cursorCreatedAt,
+                                                                     @Nullable Long cursorId,
+                                                                     @Nullable Long cursorLikeCount) {
         Sort sortSpec = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
         Pageable pageable = PageRequest.of(0, size, sortSpec);
 
@@ -56,7 +56,7 @@ public class CommentServiceImpl implements CommentService {
 
         if (sort == SortOption.POPULAR) {
 //             인기순: ORDER BY는 쿼리 안에서 서브쿼리로 처리하므로 Pageable의 sort는 의미 없음
-            pageable = PageRequest.of(0, size); // size만 사용
+            pageable = PageRequest.of(0, size);
             if (cursorCreatedAt == null || cursorId == null || cursorLikeCount == null) {
                 // 초기 로드
                 slice = commentRepository.findPopularByPostId(postId, LikeType.COMMENT, pageable);
@@ -76,7 +76,7 @@ public class CommentServiceImpl implements CommentService {
 
         List<Comment> comments = slice.getContent();
         if (comments.isEmpty()) {
-            return new CursorPage<>(List.of(), false, null, null, null);
+            return new CommentCursorPageResponse<>(List.of(), false, null, null, null);
         }
 
         List<Long> commentIds = comments.stream().map(Comment::getId).toList();
@@ -93,8 +93,8 @@ public class CommentServiceImpl implements CommentService {
 
         Map<Long, String> userImageMap = imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
                 .collect(Collectors.toMap(
-                        r -> (Long) r[0],   // related_id (userId)
-                        r -> (String) r[1]  // url
+                        r -> (Long) r[0],
+                        r -> (String) r[1]
                 ));
 
 
@@ -113,7 +113,7 @@ public class CommentServiceImpl implements CommentService {
                 ? likeCountMap.getOrDefault(last.getId(), 0L)
                 : null;
 
-        return new CursorPage<>(
+        return new CommentCursorPageResponse<>(
                 items,
                 slice.hasNext(),
                 last.getCreatedAt(),

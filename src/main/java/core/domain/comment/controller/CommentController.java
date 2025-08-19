@@ -22,15 +22,25 @@ public class CommentController {
         this.commentService = commentService;
     }
 
-    @GetMapping("/{boardId}/{postId}/comment")
-    public ResponseEntity<ApiResponse<CursorPage<CommentResponse>>> getCommentList(Authentication authentication,
-                                                                                   @PathVariable("boardId") Long boardId,
-                                                                                   @PathVariable("postId") Long postId,
-                                                                                   @RequestParam(defaultValue = "20") Integer size,
-                                                                                   @RequestParam(required = false) Instant cursorCreatedAt,
-                                                                                   @RequestParam(required = false) Long cursorId,
-                                                                                   @RequestParam(defaultValue = "LATEST") SortOption sort,
-                                                                                   @RequestParam(required = false) Long cursorLikeCount
+    @Operation(summary = "댓글 목록 조회", description = "커서 기반 페이지네이션으로 댓글 목록을 조회합니다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "성공",
+            content = @Content(schema = @Schema(implementation = CommentCursorPageResponse.class))
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @GetMapping("/posts/{postId}/comments")
+    public ResponseEntity<ApiResponse<CommentCursorPageResponse<CommentResponse>>> getCommentList(
+            Authentication authentication,
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
+            @Parameter(description = "페이지 크기(최대 100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
+            @Parameter(description = "커서 기준 생성시각(ISO-8601)", example = "2025-08-01T12:00:00Z") @RequestParam(required = false) Instant cursorCreatedAt,
+            @Parameter(description = "커서 기준 댓글 ID", example = "98765") @RequestParam(required = false) Long cursorId,
+            @Parameter(description = "정렬 옵션", example = "LATEST", schema = @Schema(implementation = SortOption.class)) @RequestParam(defaultValue = "LATEST") SortOption sort,
+            @Parameter(description = "커서 기준 좋아요 수", example = "10") @RequestParam(required = false) Long cursorLikeCount
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
