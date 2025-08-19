@@ -48,7 +48,7 @@ public class PostServiceImpl implements PostService {
     @Transactional(readOnly = true)
     public BoardCursorPageResponse<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorScore, int size) {
         final Long resolvedBoardId =
-                (boardId == null || boardId <= 0L) ? null : boardId;
+                (boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
             throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
@@ -116,6 +116,9 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public void writePost(String name, @Positive Long boardId, PostWriteRequest request) {
+        if (boardId == 1) {
+            throw new BusinessException(ErrorCode.NOT_AVAILABLE_WRITE);
+        }
         Board board = boardRepository.findById(boardId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
