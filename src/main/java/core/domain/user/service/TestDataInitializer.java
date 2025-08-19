@@ -16,9 +16,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.IntStream;
 
 @Component
@@ -29,8 +27,13 @@ public class TestDataInitializer implements CommandLineRunner {
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
     private static final int NUM_USERS = 1000;
-    private static final int NUM_ROOMS = 500;
-    private static final int MESSAGES_PER_ROOM = 1000;
+    private static final int NUM_ONE_ON_ONE_ROOMS = 500;
+    private static final int MESSAGES_PER_ONE_ON_ONE_ROOM = 1000;
+    // 그룹 채팅방 관련 상수 추가
+    private static final int NUM_GROUP_ROOMS = 1000;
+    private static final int GROUP_PARTICIPANTS_PER_ROOM = 10;
+    private static final int MESSAGES_PER_GROUP_ROOM = 1000;
+    private final Random random = new Random();
 
     public TestDataInitializer(
             UserRepository userRepository,
@@ -46,7 +49,6 @@ public class TestDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // 매번 클린한 상태에서 테스트를 시작하도록 데이터베이스를 초기화합니다.
         clearAllData();
 
         // 1. 1000명의 테스트 유저 생성
@@ -68,52 +70,85 @@ public class TestDataInitializer implements CommandLineRunner {
             users.add(user);
         }
         userRepository.saveAll(users);
-        System.out.println("1000명의 테스트 유저 생성 완료!");
+        System.out.println(NUM_USERS + "명의 테스트 유저 생성 완료!");
 
-        List<ChatRoom> rooms = new ArrayList<>();
-        List<ChatParticipant> participants = new ArrayList<>();
+        // 2. 500개의 1대1 채팅방과 50만 개의 메시지 생성
+        List<ChatRoom> oneOnOneRooms = new ArrayList<>();
+        List<ChatParticipant> oneOnOneParticipants = new ArrayList<>();
+        List<ChatMessage> oneOnOneMessages = new ArrayList<>();
 
-        for (int i = 0; i < NUM_ROOMS; i++) {
+        for (int i = 0; i < NUM_ONE_ON_ONE_ROOMS; i++) {
             ChatRoom room = new ChatRoom(false, Instant.now());
-            rooms.add(room);
+            oneOnOneRooms.add(room);
 
             User user1 = users.get(i * 2);
             User user2 = users.get(i * 2 + 1);
 
             ChatParticipant participant1 = new ChatParticipant(room, user1);
             ChatParticipant participant2 = new ChatParticipant(room, user2);
-            participants.add(participant1);
-            participants.add(participant2);
-        }
+            oneOnOneParticipants.add(participant1);
+            oneOnOneParticipants.add(participant2);
 
-        chatRoomRepository.saveAll(rooms);
-        chatParticipantRepository.saveAll(participants);
-        System.out.println(NUM_ROOMS + "개의 테스트 채팅방과 " + (NUM_ROOMS * 2) + "명의 참가자 생성 완료!");
-
-        // 3. 500,000개의 메시지 생성
-        List<ChatMessage> messages = new ArrayList<>();
-        for (int i = 0; i < NUM_ROOMS; i++) {
-            ChatRoom room = rooms.get(i);
-            User user1 = users.get(i * 2);
-            User user2 = users.get(i * 2 + 1);
-
-            for (int j = 0; j < MESSAGES_PER_ROOM; j++) {
+            for (int j = 0; j < MESSAGES_PER_ONE_ON_ONE_ROOM; j++) {
                 User sender = (j % 2 == 0) ? user1 : user2;
 
                 ChatMessage message = new ChatMessage(
                         room,
                         sender,
-                        "메시지 #" + (j + 1) + " from " + sender.getName()
+                        "1대1 메시지 #" + (j + 1) + " from " + sender.getName()
                 );
-                messages.add(message);
+                oneOnOneMessages.add(message);
             }
         }
-        chatMessageRepository.saveAll(messages);
-        System.out.println((NUM_ROOMS * MESSAGES_PER_ROOM) + "개의 메시지 생성 완료!");
+        chatRoomRepository.saveAll(oneOnOneRooms);
+        chatParticipantRepository.saveAll(oneOnOneParticipants);
+        chatMessageRepository.saveAll(oneOnOneMessages);
+        System.out.println(NUM_ONE_ON_ONE_ROOMS + "개의 1대1 채팅방과 " + (NUM_ONE_ON_ONE_ROOMS * MESSAGES_PER_ONE_ON_ONE_ROOM) + "개의 메시지 생성 완료!");
 
-        generateRoomIdsJsonFile(rooms);
-        generateUserIdsJsonFile2(users);
 
+        // 3. 1000개의 그룹 채팅방과 100만 개의 메시지 생성
+        List<ChatRoom> groupRooms = new ArrayList<>();
+        List<ChatParticipant> groupParticipants = new ArrayList<>();
+        List<ChatMessage> groupMessages = new ArrayList<>();
+
+        for (int i = 0; i < NUM_GROUP_ROOMS; i++) {
+            ChatRoom groupRoom = new ChatRoom(true, Instant.now());
+            groupRooms.add(groupRoom);
+
+            // 1. 전체 사용자 목록을 복사하고 섞는다
+            List<User> shuffledUsers = new ArrayList<>(users);
+            Collections.shuffle(shuffledUsers);
+
+            // 2. 섞인 목록에서 필요한 만큼(10명)의 사용자만 가져온다
+            List<User> participantsInRoom = shuffledUsers.subList(0, GROUP_PARTICIPANTS_PER_ROOM);
+
+            // 3. 각 사용자를 참여자로 추가한다
+            for (User user : participantsInRoom) {
+                ChatParticipant participant = new ChatParticipant(groupRoom, user);
+                groupParticipants.add(participant);
+            }
+
+            // 그룹 메시지 생성
+            for (int j = 0; j < MESSAGES_PER_GROUP_ROOM; j++) {
+                User sender = participantsInRoom.get(random.nextInt(participantsInRoom.size()));
+                ChatMessage message = new ChatMessage(
+                        groupRoom,
+                        sender,
+                        "그룹 메시지 #" + (j + 1) + " from " + sender.getName()
+                );
+                groupMessages.add(message);
+            }
+        }
+        chatRoomRepository.saveAll(groupRooms);
+        chatParticipantRepository.saveAll(groupParticipants);
+        chatMessageRepository.saveAll(groupMessages);
+        System.out.println(NUM_GROUP_ROOMS + "개의 그룹 채팅방과 " + (NUM_GROUP_ROOMS * GROUP_PARTICIPANTS_PER_ROOM) + "명의 참가자 생성 완료!");
+        System.out.println((NUM_GROUP_ROOMS * MESSAGES_PER_GROUP_ROOM) + "개의 그룹 메시지 생성 완료!");
+
+        // K6 테스트를 위한 JSON 파일 생성
+        generateRoomIdsJsonFile(oneOnOneRooms, groupRooms);
+        generateUserIdsJsonFile(users);
+        generateValidCombinationsJsonFile(oneOnOneParticipants, groupParticipants);
     }
 
     // 데이터베이스 초기화를 위한 private 메서드
@@ -125,11 +160,10 @@ public class TestDataInitializer implements CommandLineRunner {
         System.out.println("기존 테스트 데이터 삭제 완료.");
     }
 
-    private void generateRoomIdsJsonFile(List<ChatRoom> rooms) {
-        List<String> roomIds = rooms.stream()
-                .map(ChatRoom::getId)
-                .map(String::valueOf)
-                .toList();
+    private void generateRoomIdsJsonFile(List<ChatRoom> oneOnOneRooms, List<ChatRoom> groupRooms) {
+        List<String> roomIds = new ArrayList<>();
+        roomIds.addAll(oneOnOneRooms.stream().map(r -> String.valueOf(r.getId())).toList());
+        roomIds.addAll(groupRooms.stream().map(r -> String.valueOf(r.getId())).toList());
 
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -142,8 +176,9 @@ public class TestDataInitializer implements CommandLineRunner {
         } catch (Exception e) {
             System.err.println("roomIds.json 파일 생성 중 오류 발생: " + e.getMessage());
         }
-    }    // 유저 ID를 JSON 파일로 생성하는 메서드 추가
-    private void generateUserIdsJsonFile2(List<User> users) {
+    }
+
+    private void generateUserIdsJsonFile(List<User> users) {
         List<String> userIds = users.stream()
                 .map(User::getId)
                 .map(String::valueOf)
@@ -161,4 +196,26 @@ public class TestDataInitializer implements CommandLineRunner {
         }
     }
 
+    private void generateValidCombinationsJsonFile(List<ChatParticipant> oneOnOneParticipants, List<ChatParticipant> groupParticipants) {
+        List<Object> combinations = new ArrayList<>();
+        oneOnOneParticipants.forEach(p -> combinations.add(new Object() {
+            public final String userId = String.valueOf(p.getUser().getId());
+            public final String roomId = String.valueOf(p.getChatRoom().getId());
+        }));
+        groupParticipants.forEach(p -> combinations.add(new Object() {
+            public final String userId = String.valueOf(p.getUser().getId());
+            public final String roomId = String.valueOf(p.getChatRoom().getId());
+        }));
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String projectRoot = System.getProperty("user.dir");
+            String filePath = Paths.get(projectRoot, "src", "main", "test", "valid_combinations.json").toString();
+            File file = new File(filePath);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(file, combinations);
+            System.out.println("K6 테스트를 위한 valid_combinations.json 파일 생성 완료!");
+        } catch (Exception e) {
+            System.err.println("valid_combinations.json 파일 생성 중 오류 발생: " + e.getMessage());
+        }
+    }
 }

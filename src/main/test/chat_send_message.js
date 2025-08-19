@@ -5,10 +5,10 @@ import { Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 
 // ==========================
-// 1. 채팅방 ID 불러오기
+// 1. 유효한 조합 불러오기
 // ==========================
-const preExistingRoomIds = new SharedArray('roomIds', function () {
-    const file = open('./roomIds.json'); // 기존 채팅방 ID JSON
+const validCombinations = new SharedArray('validCombinations', function () {
+    const file = open('./valid_combinations.json');
     return JSON.parse(file);
 });
 
@@ -27,46 +27,57 @@ export const options = {
     ],
     thresholds: {
         'ws_connect_duration': ['p(95)<1000'],
-        'ws_messages_sent': ['count>100000'], // 총 메시지 송신 10만개 이상
-        'ws_messages_received': ['count>100000'], // 총 수신 10만개 이상
+        'ws_messages_sent': ['count>100000'],
+        'ws_messages_received': ['count>100000'],
     },
 };
 
 // ==========================
 // 4. 헬퍼 함수
 // ==========================
-function pickRandomRoomId() {
-    return preExistingRoomIds[Math.floor(Math.random() * preExistingRoomIds.length)];
+function getRandomCombination() {
+    return validCombinations[Math.floor(Math.random() * validCombinations.length)];
 }
 
 // ==========================
 // 5. 시나리오
 // ==========================
 export default function () {
-    const vuId = __VU;
-    const roomId = pickRandomRoomId();
+    // ⚠️ VU ID가 아닌, 유효한 조합에서 userId와 roomId를 가져옵니다.
+    const combination = getRandomCombination();
+    const userId = combination.userId;
+    const roomId = combination.roomId;
 
-    // ----- 5-1. 채팅방 입장 전, 과거 메시지 조회 -----
-    const res = http.get(`http://localhost:8080/rooms/${roomId}/messages?limit=50`);
-    check(res, {
+    const res = http.get(`http://localhost:8080/rooms/${roomId}/messages?limit=50&userId=${userId}`);
+
+// 1. 응답 상태 코드가 200인지 먼저 확인
+// 2. 응답 본문이 존재하는지 확인
+    const isSuccess = check(res, {
         'history status 200': (r) => r.status === 200,
-        'history not empty': (r) => JSON.parse(r.body).length >= 0, // 메시지가 없을 수도 있음
     });
 
+// 3. 성공한 경우에만 JSON 파싱 및 길이 체크
+    if (isSuccess) {
+        const messages = JSON.parse(res.body);
+        check(res, {
+            'history not empty': () => messages.length >= 0,
+        });
+    }
+
     // ----- 5-2. WebSocket 연결 -----
-    const wsRes = ws.connect(`ws://localhost:8080/plain-ws/chat`, {}, (socket) => {
+    const wsRes = ws.connect(`ws://localhost:8080/plain-ws/chat?userId=${userId}&roomId=${roomId}`, {}, (socket) => {
         let msgInterval;
 
         // 연결 열렸을 때
         socket.on('open', () => {
-            console.log(`VU ${vuId} connected to Room ${roomId}`);
+            console.log(`User ${userId} connected to Room ${roomId}`);
 
             // 1초마다 메시지 송신
             msgInterval = socket.setInterval(() => {
                 const message = {
                     roomId: roomId,
-                    senderId: vuId,
-                    content: `VU-${vuId}의 테스트 메시지`,
+                    senderId: userId,
+                    content: `User-${userId}의 테스트 메시지`,
                 };
                 socket.send(JSON.stringify(message));
                 wsMessagesSent.add(1);
@@ -76,21 +87,20 @@ export default function () {
         // 실시간 메시지 수신
         socket.on('message', (msg) => {
             wsMessagesReceived.add(1);
-            // 필요시 console.log(msg)로 확인 가능
         });
 
         // 연결 종료
         socket.on('close', () => {
             if (msgInterval) socket.clearInterval(msgInterval);
-            console.log(`VU ${vuId} disconnected from Room ${roomId}`);
+            console.log(`User ${userId} disconnected from Room ${roomId}`);
         });
 
         socket.on('error', (e) => {
-            console.error(`VU ${vuId} WS error: ${e}`);
+            console.error(`User ${userId} WS error: ${e}`);
         });
     });
 
     check(wsRes, { 'ws status 101': (r) => r && r.status === 101 });
 
-    sleep(1); // 다음 iteration 전 1초 대기
+    sleep(1);
 }

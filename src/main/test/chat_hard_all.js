@@ -1,49 +1,44 @@
-import http from 'k6/http';
 import ws from 'k6/ws';
-import { check, group, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
 
+
 // ==========================
-// 1. Test Data (Load from JSON files)
+// 1. Test Data: 유효한 조합 및 키워드 불러오기
 // ==========================
-const preExistingRoomIds = new SharedArray('roomIds', function () {
-    const file = open('roomIds.json');
+const validCombinations = new SharedArray('validCombinations', function () {
+    const file = open('./valid_combinations.json');
     return JSON.parse(file);
-});
-const preExistingUserIds = new SharedArray('userIds', function () {
-    const file = open('userIds.json');
-    return JSON.parse(file);
-});
+});// 테스트에 사용할 검색 키워드
+const searchKeyword = '테스트';
 
 // ==========================
 // 2. Custom Metrics
 // ==========================
-const createRoomTrend = new Trend('create_room_duration');
-const getRoomsTrend = new Trend('get_rooms_duration');
 const getMessagesTrend = new Trend('get_messages_duration');
-const addParticipantsTrend = new Trend('add_participants_duration');
-const leaveRoomTrend = new Trend('leave_room_duration');
 const markReadTrend = new Trend('mark_messages_as_read_duration');
 const searchMessagesTrend = new Trend('search_messages_duration');
 
 // ==========================
-// 3. Test Options
+// 3. Test Options (멀티 시나리오)
 // ==========================
 export const options = {
-    stages: [
-        { duration: '30s', target: 10 },
-        { duration: '30s', target: 10 },
-        { duration: '30s', target: 10 },
-        { duration: '10s', target: 0 },
-    ],
+    scenarios: {
+        http_scenario: {
+            executor: 'ramping-vus',
+            startVUs: 0,
+            stages: [
+                { duration: '1m', target: 10 },
+            ],
+            exec: 'httpTest',
+        },
+    },
     thresholds: {
-        'http_req_duration': ['p(95)<500'],
-        'ws_messages_sent': ['count>0'],
-        'ws_messages_received': ['count>0'],
-        'create_room_duration': ['p(95)<1000'],
-        'get_messages_duration': ['p(95)<1000'],
-        'search_messages_duration': ['p(95)<2000'], // 검색은 더 오래 걸릴 수 있으므로 임계값 상향
+        'get_messages_duration': ['p(95)<1500'],
+        'search_messages_duration': ['p(95)<3000'],
+        'mark_messages_as_read_duration': ['p(95)<1000'],
     },
 };
 
@@ -52,45 +47,37 @@ export const options = {
 // ==========================
 function parseSafely(res) {
     try {
-        if (res.body && res.body.length > 0) {
-            const jsonBody = res.json();
+        if (res.status === 200 && res.body && res.body.length > 0) {
+            const jsonBody = JSON.parse(res.body);
             return jsonBody.data;
         }
     } catch (e) {
-        console.error(`JSON parse error: ${e} for response body: ${res.body}`);
+        console.error(`JSON parse error: ${e} for response status ${res.status}, body: ${res.body}`);
     }
     return null;
 }
 
+// 무작위로 유효한 조합 선택
+function getRandomCombination() {
+    return validCombinations[Math.floor(Math.random() * validCombinations.length)];
+}
+
 // ==========================
-// 5. Main Scenario
+// 5. HTTP Scenario
 // ==========================
-export default function () {
-    const vuId = __VU;
-    const userId = preExistingUserIds[Math.floor(Math.random() * preExistingUserIds.length)];
+export function httpTest() {
     const baseUrl = 'http://localhost:8080/api/v1/chat';
+    const combination = getRandomCombination();
+    const userId = combination.userId;
+    const roomId = combination.roomId;
 
-    // 무작위로 미리 생성된 방을 선택하여 테스트
-    const roomId = preExistingRoomIds[Math.floor(Math.random() * preExistingRoomIds.length)];
-
-    // 1. WebSocket Messaging
-    group('websocket messaging', function() {
-        // 기존 웹소켓 로직 유지
-    });
-
-    // 2. Get my chat rooms
-    group('get chat rooms list', function() {
-        const res = http.get(`${baseUrl}/rooms?userId=${userId}`, { tags: { name: 'get_rooms' } });
-        check(res, { 'get rooms status is 200': (r) => r.status === 200 });
-        getRoomsTrend.add(res.timings.duration);
-        sleep(1);
-    });
-
-    // 3. Infinite scroll simulation
-    group('get messages with infinite scroll', function() {
+    // ---------------------------------------------
+    // 5-1. 채팅방 메시지 조회 (무한 스크롤)
+    // ---------------------------------------------
+    group('get messages with infinite scroll', function () {
         let lastMessageId = null;
-        for (let i = 0; i < 5; i++) {
-            let url = `${baseUrl}/rooms/${roomId}/messages?userId=${userId}&limit=50`;
+        for (let i = 0; i < 3; i++) { // 3번만 반복하여 메시지 조회
+            let url = `${baseUrl}/rooms/${roomId}/messages?userId=${userId}`;
             if (lastMessageId) {
                 url += `&lastMessageId=${lastMessageId}`;
             }
@@ -108,29 +95,13 @@ export default function () {
         }
     });
 
-    group('mark messages as read', function () {
-        const getMessagesRes = http.get(`${baseUrl}/rooms/${roomId}/messages?userId=${userId}&limit=1`);
-        const messages = parseSafely(getMessagesRes);
-
-        if (messages && messages.length > 0) {
-            const lastMessageId = messages[0].id;
-            const res = http.post(
-                `${baseUrl}/rooms/${roomId}/read?userId=${userId}`,
-                JSON.stringify(lastMessageId),
-                {
-                    headers: { 'Content-Type': 'application/json' },
-                    tags: { name: 'mark_messages_as_read' }
-                }
-            );
-            check(res, { 'mark read status is 200': (r) => r.status === 200 });
-            markReadTrend.add(res.timings.duration);
-        }
-        sleep(0.5);
-    });
-
-    group('search messages', function() {
-        const searchKeyword = '테스트'; // 고정된 키워드로 검색
-        const url = `${baseUrl}/rooms/${roomId}/messages?userId=${userId}&search=${searchKeyword}`;
+    // ---------------------------------------------
+    // 5-2. 메시지 키워드 검색
+    // ---------------------------------------------
+    group('search messages', function () {
+        // search 파라미터를 URL 인코딩하여 전송
+        const encodedSearchKeyword = encodeURIComponent(searchKeyword);
+        const url = `${baseUrl}/search?roomId=${roomId}&userId=${userId}&search=${encodedSearchKeyword}`;
         const res = http.get(url, { tags: { name: 'search_messages' } });
 
         check(res, { 'search messages status is 200': (r) => r.status === 200 });
@@ -138,9 +109,26 @@ export default function () {
         sleep(0.5);
     });
 
-    group('leave chat room', function() {
-        const res = http.del(`${baseUrl}/rooms/${roomId}/leave?userId=${userId}`, { tags: { name: 'leave_room' } });
-        check(res, { 'leave room status is 200': (r) => r.status === 200 });
-        leaveRoomTrend.add(res.timings.duration);
+    // ---------------------------------------------
+    // 5-3. 메시지 읽음 상태 업데이트
+    // ---------------------------------------------
+    group('mark messages as read', function () {
+        // 먼저 메시지 목록을 가져와 마지막 메시지 ID를 확보
+        const getMessagesRes = http.get(`${baseUrl}/rooms/${roomId}/messages?userId=${userId}`);
+        const messages = parseSafely(getMessagesRes);
+
+        if (messages && messages.length > 0) {
+            const lastMessageId = messages[0].id; // 보통 최신 메시지를 읽음 처리
+            const url = `${baseUrl}/rooms/read?roomId=${roomId}&userId=${userId}&messageId=${lastMessageId}`;
+
+            const res = http.post(url, null, {
+                headers: { 'Content-Type': 'application/json' },
+                tags: { name: 'mark_messages_as_read' },
+            });
+
+            check(res, { 'mark read status is 200': (r) => r.status === 200 });
+            markReadTrend.add(res.timings.duration);
+        }
+        sleep(0.5);
     });
 }

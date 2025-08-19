@@ -160,23 +160,6 @@ public class ChatController {
 
     /**
      *  @author 김승환
-     * @apiNote 메시지 읽음 상태를 업데이트합니다.
-     * 1:1 채팅의 경우 상대방이 읽으면 readCount가 줄고, 그룹 채팅은 읽지 않은 사람 수가 줄어듭니다.
-     *
-     * @param roomId 메시지를 읽은 채팅방 ID
-     * @param userId 메시지를 읽은 사용자의 ID (TODO: JWT 토큰에서 추출)
-     * @param messageId 마지막으로 읽은 메시지 ID
-     * @return 성공 여부
-     */
-    @Operation(summary = "메시지 읽음 상태 업데이트")
-    @PostMapping("/rooms/read")
-    public ResponseEntity<ApiResponse<Void>> markMessagesAsRead(@RequestParam Long roomId, @RequestParam Long userId, @RequestParam Long messageId) {
-        chatService.markMessagesAsRead(roomId, userId, messageId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    /**
-     *  @author 김승환
      * @apiNote 다른 유저를 차단합니다.
      * 차단하면 1:1 채팅방이 보이지 않고, 알림 및 메시지 수신이 차단됩니다.
      *
@@ -227,27 +210,27 @@ public class ChatController {
     }
 
     /**
-     *  @author 김승환
-     * 특정 채팅방의 메시지 들을 조회합니다.
-     * lastMessageId를 기준으로 이전 메시지들을 가져와 무한 스크롤을 지원합니다.
-     * * @param roomId          채팅방 ID
-     * @param userId          메시지를 조회하는 사용자 ID
-     * @param lastMessageId   기준이 되는 메시지 ID (이전 메시지 조회를 위함)
-     * @param limit           가져올 메시지 개수
-     * @return                조회된 메시지 목록
+     * 특정 채팅방의 메시지를 키워드로 검색합니다.
+     *
+     * @param roomId          채팅방 ID
+     * @param userId          검색하는 사용자 ID
+     * @param search          검색 키워드
+     * @return                검색 결과 메시지 목록
+     * todo: @RequestParam String search가 한글로 올 시 인코딩 오류로 400을 뱉음
      */
-    @GetMapping("/{roomId}/messages")
-    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>>getChatMessages(
-            @PathVariable Long roomId,
+    @Operation(summary = "메시지 키워드 검색 (무겁게 수행)")
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
+            @RequestParam  Long roomId,
             @RequestParam Long userId,
-            @RequestParam(required = false) Long lastMessageId,
-            @RequestParam(defaultValue = "100") int limit
+            @RequestParam String search
     ) {
-        List<ChatMessage> messages = chatService.getChatMessages(roomId, userId, lastMessageId, limit);
+        List<ChatMessage> messages = chatService.searchMessages(roomId, userId, search);
         List<ChatMessageResponse> response = messages.stream()
-                .map(ChatMessageResponse::fromEntity) // DTO로 변환
-                .toList();
+                .map(ChatMessageResponse::fromEntity)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
 
 }

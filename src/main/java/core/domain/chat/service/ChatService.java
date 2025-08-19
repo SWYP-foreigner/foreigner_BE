@@ -15,6 +15,7 @@ import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private static final int MESSAGE_PAGE_SIZE = 20;
+    private static final int MESSAGE_SEARCH_PAGE_SIZE = 20;
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
@@ -252,6 +254,16 @@ public class ChatService {
 
         ChatMessage message = new ChatMessage(room, sender, content);
         return chatMessageRepository.save(message);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatMessage> searchMessages(Long roomId, Long userId, String searchKeyword) {
+        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+
+        Pageable pageable = PageRequest.of(0, MESSAGE_SEARCH_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "sentAt"));
+        return chatMessageRepository.findByChatRoomIdAndContentContaining(
+                roomId, searchKeyword, pageable);
     }
 
     @Transactional

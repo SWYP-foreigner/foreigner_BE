@@ -2,6 +2,7 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatMessage;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,8 +15,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     @Query("SELECT cm FROM ChatMessage cm WHERE cm.chatRoom.id = :roomId AND cm.readCount < :memberCount")
     List<ChatMessage> findUnreadMessages(@Param("roomId") Long roomId, @Param("memberCount") int memberCount);
 
-    List<ChatMessage> findByChatRoomIdAndContentContaining(Long roomId, String keyword);
-
+    List<ChatMessage> findByChatRoomIdAndContentContaining(Long roomId, String content, Pageable pageable);
     List<ChatMessage> findByChatRoomIdAndSentAtAfterOrderBySentAtAsc(Long roomId, Instant lastLeftAt);
 
     List<ChatMessage> findByChatRoomIdAndSentAtAfterAndIdBefore(Long roomId, Instant lastLeftAt, Long lastMessageId, PageRequest sentAt);
@@ -35,4 +35,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     List<ChatMessage> findByChatRoomIdAndIdBeforeOrderBySentAtDesc(Long roomId, Long lastMessageId, PageRequest of);
 
     List<ChatMessage> findByChatRoomIdOrderBySentAtDesc(Long roomId, PageRequest of);
+
+    List<ChatMessage> findByChatRoomIdAndContentContainingOrderBySentAtDesc(Long roomId, String searchKeyword);
 }
