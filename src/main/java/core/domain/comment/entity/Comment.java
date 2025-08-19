@@ -15,7 +15,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "comments")
+@Table(
+        name = "comment",
+        indexes = {
+                @Index(name = "idx_comment_post", columnList = "post_id"),
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Comment {
