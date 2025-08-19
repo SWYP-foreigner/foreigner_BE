@@ -1,11 +1,9 @@
 package core.domain.post.repository.impl;
 
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.CaseBuilder;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.core.types.dsl.*;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.board.dto.BoardResponse;
@@ -24,10 +22,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-
-import static com.querydsl.core.group.GroupBy.groupBy;
-import static com.querydsl.core.types.Projections.list;
+import java.util.Objects;
 
 @Repository
 @RequiredArgsConstructor
@@ -253,7 +248,42 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public PostDetailResponse findPostDetail(Long postId) {
         QImage u = new QImage("u");
 
-        Map<Long, PostDetailIntermediate> rows = query
+        // 1) 필요한 Expression 정의 (서브쿼리 포함)
+        Expression<Long> likeCountExpr = JPAExpressions.select(like.count())
+                .from(like)
+                .where(like.type.eq(LIKE_TYPE_POST)
+                        .and(like.relatedId.eq(post.id)));
+
+        Expression<Long> commentCountExpr = JPAExpressions.select(comment.count())
+                .from(comment)
+                .where(comment.post.eq(post));
+
+        StringExpression userNameExpr = new CaseBuilder()
+                .when(post.anonymous.isTrue()).then("익명")
+                .otherwise(user.name);
+
+        Expression<String> userImageUrlExpr = new CaseBuilder()
+                .when(post.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
+                .otherwise(
+                        JPAExpressions.select(u.url)
+                                .from(u)
+                                .where(u.imageType.eq(IMAGE_TYPE_USER)
+                                        .and(u.relatedId.eq(user.id)))
+                );
+
+        // 2) 한 번에 평평한 결과로 가져오기 (이미지 조인으로 행이 늘어날 수 있음)
+        List<Tuple> rows = query
+                .select(
+                        post.id,
+                        post.content,
+                        userNameExpr,
+                        post.createdAt,
+                        likeCountExpr,
+                        commentCountExpr,
+                        post.checkCount,
+                        userImageUrlExpr,
+                        image.url
+                )
                 .from(post)
                 .join(post.author, user)
                 .leftJoin(image).on(
@@ -262,50 +292,40 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 )
                 .where(post.id.eq(postId))
                 .orderBy(image.id.asc())
-                .transform(
-                        groupBy(post.id).as(
-                                Projections.constructor(
-                                        PostDetailIntermediate.class,
-                                        post.content,
-                                        new CaseBuilder().when(post.anonymous.isTrue()).then("익명")
-                                                .otherwise(user.name),
-                                        post.createdAt,
-                                        JPAExpressions.select(like.count())
-                                                .from(like)
-                                                .where(like.type.eq(LIKE_TYPE_POST)
-                                                        .and(like.relatedId.eq(post.id))),
-                                        JPAExpressions.select(comment.count())
-                                                .from(comment)
-                                                .where(comment.post.eq(post)),
-                                        post.checkCount,
-                                        new CaseBuilder()
-                                                .when(post.anonymous.isTrue()).then((String) null)
-                                                .otherwise(
-                                                        JPAExpressions.select(u.url)
-                                                                .from(u)
-                                                                .where(u.imageType.eq(IMAGE_TYPE_USER)
-                                                                        .and(u.relatedId.eq(user.id)))
-                                                ),
-                                        list(image.url)
-                                )
-                        )
-                );
+                .fetch();
 
-        PostDetailIntermediate r = rows.get(postId);
-        if (r == null) {
+        if (rows.isEmpty()) {
             return null;
         }
 
+        // 3) 스칼라 필드는 첫 행에서 추출
+        Tuple t0 = rows.getFirst();
+        Long              id           = t0.get(post.id);
+        String            content      = t0.get(post.content);
+        String            userName     = t0.get(userNameExpr);
+        java.time.Instant createdTime  = t0.get(post.createdAt);
+        Long              likeCount    = t0.get(likeCountExpr);
+        Long              commentCount = t0.get(commentCountExpr);
+        Long              viewCount    = t0.get(post.checkCount);
+        String            userImageUrl = t0.get(userImageUrlExpr);
+
+        // 4) 이미지 URL은 자바에서 수집(정렬 유지 + 중복 제거)
+        List<String> contentImageUrls = rows.stream()
+                .map(r -> r.get(image.url))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
         return new PostDetailResponse(
-                r.postId(),
-                r.content(),
-                r.userName(),
-                r.createdTime(),
-                r.likeCount(),
-                r.commentCount(),
-                r.viewCount(),
-                r.userImageUrl(),
-                r.contentImageUrls()
+                id,
+                content,
+                userName,
+                createdTime,
+                likeCount,
+                commentCount,
+                viewCount,
+                userImageUrl,
+                contentImageUrls
         );
     }
 }
