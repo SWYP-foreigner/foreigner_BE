@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Table(
         name = "image",
         indexes = {
-                @Index(name = "idx_image_type_related_id", columnList = "image_type, related_id, id")
+                @Index(name = "idx_image_type_related_id", columnList = "image_type, related_id, image_id")
         }
 )
 @Getter
