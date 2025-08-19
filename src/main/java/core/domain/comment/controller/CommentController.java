@@ -1,10 +1,18 @@
 package core.domain.comment.controller;
 
 import core.domain.comment.dto.CommentResponse;
-import core.domain.comment.dto.CursorPage;
+import core.domain.comment.dto.CommentUpdateRequest;
+import core.domain.comment.dto.CommentWriteRequest;
+import core.domain.comment.dto.CommentCursorPageResponse;
 import core.domain.comment.service.CommentService;
 import core.global.dto.ApiResponse;
 import core.global.enums.SortOption;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +23,7 @@ import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "Comments", description = "댓글 조회/작성/수정/삭제 API")
 public class CommentController {
     private final CommentService commentService;
 
@@ -48,45 +57,62 @@ public class CommentController {
                 ));
     }
 
-    @PostMapping("/{boardId}/{postId}/comment/write")
-    public ResponseEntity<ApiResponse<?>> writeComment(Authentication authentication,
-                                                       @PathVariable("boardId") Long boardId,
-                                                       @PathVariable("postId") Long postId,
-                                                       @Valid @RequestBody CommentWriteRequest request
+    @Operation(summary = "댓글 작성", description = "게시글에 댓글을 작성합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content)
+    })
+    @PostMapping("/posts/{postId}/comments")
+    public ResponseEntity<ApiResponse<?>> writeComment(
+            Authentication authentication,
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
+            @Valid @RequestBody CommentWriteRequest request
     ) {
         commentService.writeComment(authentication.getName(), postId, request);
-        ApiResponse<String> response = ApiResponse.success("댓글 작성 완료");
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(response);
+                .body(ApiResponse.success("댓글 작성 완료"));
     }
 
-    @PutMapping("/{boardId}/{postId}/comment/{commentId}/update")
-    public ResponseEntity<ApiResponse<?>> updateComment(Authentication authentication,
-                                                        @PathVariable("boardId") Long boardId,
-                                                        @PathVariable("postId") Long postId,
-                                                        @PathVariable("commentId") Long commentId,
-                                                        @Valid @RequestBody CommentUpdateRequest request
+    @Operation(summary = "댓글 수정", description = "본인이 작성한 댓글을 수정합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수정 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+    })
+    @PatchMapping("/comments/{commentId}")
+    public ResponseEntity<ApiResponse<?>> updateComment(
+            Authentication authentication,
+            @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId,
+            @Valid @RequestBody CommentUpdateRequest request
     ) {
         commentService.updateComment(authentication.getName(), commentId, request);
-        ApiResponse<String> response = ApiResponse.success("댓글 수정 완료");
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(response);
+                .body(ApiResponse.success("댓글 수정 완료"));
     }
 
 
-    @DeleteMapping("/{boardId}/{postId}/comment/{commentId}/delete")
-    public ResponseEntity<ApiResponse<?>> deleteComment(Authentication authentication,
-                                                        @PathVariable("boardId") Long boardId,
-                                                        @PathVariable("postId") Long postId,
-                                                        @PathVariable("commentId") Long commentId
+    @Operation(summary = "댓글 삭제", description = "본인이 작성한 댓글을 삭제합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+    })
+    @DeleteMapping("/comments/{commentId}")
+    public ResponseEntity<ApiResponse<?>> deleteComment(
+            Authentication authentication,
+            @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
         commentService.deleteComment(authentication.getName(), commentId);
-        ApiResponse<String> response = ApiResponse.success("댓글 삭제 완료");
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(response);
+                .body(ApiResponse.success("댓글 삭제 완료"));
     }
 
 }
