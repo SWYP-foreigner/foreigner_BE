@@ -14,6 +14,7 @@ public enum ErrorCode {
     POST_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 삭제할 권한이 없습니다."),
     NOT_AVAILABLE_ANONYMOUS(HttpStatus.BAD_REQUEST, "익명이 허용되지 않는 카테고리입니다."),
     INVALID_BOARD_CATEGORY(HttpStatus.BAD_REQUEST, "유효하지 않은 카테고리입니다."),
+    NOT_AVAILABLE_WRITE(HttpStatus.BAD_REQUEST,"쓰기가 불가능한 카테고리입니다." ),
 
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
     INVALID_PARENT_COMMENT(HttpStatus.NOT_FOUND, "대댓글하려는 댓글이 적합하지 않습니다."),
