@@ -21,11 +21,8 @@ public class BoardDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         for (BoardCategory category : BoardCategory.values()) {
-            try {
+            if (!boardRepository.existsByCategory(category)) {
                 boardRepository.save(new Board(category));
-            } catch (DataIntegrityViolationException e) {
-                // 다른 인스턴스가 먼저 넣은 케이스: 정보 로그로만 처리
-                log.info("Category {} already inserted by another instance.", category);
             }
         }
     }
