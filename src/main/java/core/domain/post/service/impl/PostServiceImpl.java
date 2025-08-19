@@ -6,10 +6,10 @@ import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.dto.PostUpdateRequest;
-import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.dto.PostWriteRequest;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.post.service.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -163,18 +163,6 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PostWriteAnonymousAvailableResponse isAnonymousAvaliable(Long boardId) {
-        Board board = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
-
-        if (board.getCategory() == BoardCategory.FREE_TALK || board.getCategory() == BoardCategory.QNA) {
-            return new PostWriteAnonymousAvailableResponse(true);
-        } else {
-            return new PostWriteAnonymousAvailableResponse(false);
-        }
-    }
-
-    @Override
     @Transactional
     public void updatePost(String name, Long postId, @Valid PostUpdateRequest request) {
         Post post = postRepository.findById(postId)
@@ -218,6 +206,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional
     public void deletePost(String name, Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));

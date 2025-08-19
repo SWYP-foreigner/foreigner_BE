@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -26,7 +25,6 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @Validated
 @Tag(name = "Posts", description = "게시글/작성/좋아요 API")
-@SecurityRequirement(name = "bearerAuth")
 public class PostController {
 
     private final PostService postService;
@@ -67,11 +65,11 @@ public class PostController {
     })
     @PostMapping("/boards/{boardId}/posts")
     public ResponseEntity<ApiResponse<?>> writePost(
-//            Authentication authentication,
+            Authentication authentication,
             @PathVariable @Positive Long boardId,
             @Valid @RequestBody PostWriteRequest writeRequest) {
 
-        postService.writePost("authentication.getName()", boardId, writeRequest);
+        postService.writePost(authentication.getName(), boardId, writeRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("게시글 작성 완료"));
@@ -88,12 +86,11 @@ public class PostController {
     })
     @PutMapping("/posts/{postId}")
     public ResponseEntity<ApiResponse<?>> updatePost(
-//            Authentication authentication,
-            @Parameter(description = "보드 ID", example = "10") @PathVariable @Positive Long boardId,
+            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
             @Valid @RequestBody PostUpdateRequest updateRequest) {
 
-        postService.updatePost("authentication.getName()", postId, updateRequest);
+        postService.updatePost(authentication.getName(), postId, updateRequest);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(ApiResponse.success("게시글 수정 완료"));
@@ -108,12 +105,11 @@ public class PostController {
     })
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<ApiResponse<?>> deletePost(
-//            Authentication authentication,
-            @Parameter(description = "보드 ID", example = "10") @PathVariable @Positive Long boardId,
+            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
 
-        postService.deletePost("authentication.getName()", postId);
+        postService.deletePost(authentication.getName(), postId);
 
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
@@ -121,27 +117,26 @@ public class PostController {
     }
 
 
-    @Operation(summary = "나의 게시글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-            responseCode = "200",
-            description = "성공",
-            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
-    })
-    @GetMapping("/my/posts")
-    public ResponseEntity<ApiResponse<PostDetailResponse>> getMyPostList(
-            Authentication authentication,
-            @Parameter(description = "게시글 ID", example = "123")
-            @PathVariable @Positive Long postId) {
-
-        return ResponseEntity.ok(ApiResponse.success(
-                postService.getMyPostList(postId)
-        ));
-    }
+//    @Operation(summary = "나의 게시글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
+//    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//            responseCode = "200",
+//            description = "성공",
+//            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
+//    )
+//    @ApiResponses({
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+//    })
+//    @GetMapping("/my/posts")
+//    public ResponseEntity<ApiResponse<PostDetailResponse>> getMyPostList(
+//            Authentication authentication
+//    ) {
+//
+//        return ResponseEntity.ok(ApiResponse.success(
+//                postService.getMyPostList()
+//        ));
+//    }
 
 
     @Operation(summary = "게시글 좋아요 설정", description = "좋아요 설정합니다.")
@@ -156,7 +151,7 @@ public class PostController {
     public ResponseEntity<ApiResponse<?>> addLike(
             Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
-            ) {
+    ) {
 
         postService.addLike(authentication.getName(), postId);
         return ResponseEntity
