@@ -1,7 +1,7 @@
 package core.domain.comment.service.impl;
 
-import core.domain.comment.controller.CommentUpdateRequest;
-import core.domain.comment.controller.CommentWriteRequest;
+import core.domain.comment.dto.CommentUpdateRequest;
+import core.domain.comment.dto.CommentWriteRequest;
 import core.domain.comment.dto.CommentResponse;
 import core.domain.comment.dto.CommentCursorPageResponse;
 import core.domain.comment.entity.Comment;
@@ -160,6 +160,10 @@ public class CommentServiceImpl implements CommentService {
 
         if (name.equals(comment.getAuthor().getName())) {
             throw new BusinessException(ErrorCode.COMMENT_EDIT_FORBIDDEN);
+        }
+
+        if (comment.isDeleted()) {
+            throw new BusinessException(ErrorCode.COMMENT_ALREADY_DELETED);
         }
 
         if (request.content() != null) {
