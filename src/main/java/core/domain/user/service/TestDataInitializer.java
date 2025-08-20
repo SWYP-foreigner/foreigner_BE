@@ -19,7 +19,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.IntStream;
 
-@Component
+//@Component
 public class TestDataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
@@ -29,7 +29,6 @@ public class TestDataInitializer implements CommandLineRunner {
     private static final int NUM_USERS = 1000;
     private static final int NUM_ONE_ON_ONE_ROOMS = 500;
     private static final int MESSAGES_PER_ONE_ON_ONE_ROOM = 1000;
-    // 그룹 채팅방 관련 상수 추가
     private static final int NUM_GROUP_ROOMS = 1000;
     private static final int GROUP_PARTICIPANTS_PER_ROOM = 10;
     private static final int MESSAGES_PER_GROUP_ROOM = 1000;
@@ -51,7 +50,6 @@ public class TestDataInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         clearAllData();
 
-        // 1. 1000명의 테스트 유저 생성
         List<User> users = new ArrayList<>();
         for (int i = 1; i <= NUM_USERS; i++) {
             User user = new User(
@@ -71,8 +69,6 @@ public class TestDataInitializer implements CommandLineRunner {
         }
         userRepository.saveAll(users);
         System.out.println(NUM_USERS + "명의 테스트 유저 생성 완료!");
-
-        // 2. 500개의 1대1 채팅방과 50만 개의 메시지 생성
         List<ChatRoom> oneOnOneRooms = new ArrayList<>();
         List<ChatParticipant> oneOnOneParticipants = new ArrayList<>();
         List<ChatMessage> oneOnOneMessages = new ArrayList<>();
@@ -106,7 +102,6 @@ public class TestDataInitializer implements CommandLineRunner {
         System.out.println(NUM_ONE_ON_ONE_ROOMS + "개의 1대1 채팅방과 " + (NUM_ONE_ON_ONE_ROOMS * MESSAGES_PER_ONE_ON_ONE_ROOM) + "개의 메시지 생성 완료!");
 
 
-        // 3. 1000개의 그룹 채팅방과 100만 개의 메시지 생성
         List<ChatRoom> groupRooms = new ArrayList<>();
         List<ChatParticipant> groupParticipants = new ArrayList<>();
         List<ChatMessage> groupMessages = new ArrayList<>();
@@ -115,20 +110,15 @@ public class TestDataInitializer implements CommandLineRunner {
             ChatRoom groupRoom = new ChatRoom(true, Instant.now());
             groupRooms.add(groupRoom);
 
-            // 1. 전체 사용자 목록을 복사하고 섞는다
             List<User> shuffledUsers = new ArrayList<>(users);
             Collections.shuffle(shuffledUsers);
 
-            // 2. 섞인 목록에서 필요한 만큼(10명)의 사용자만 가져온다
             List<User> participantsInRoom = shuffledUsers.subList(0, GROUP_PARTICIPANTS_PER_ROOM);
-
-            // 3. 각 사용자를 참여자로 추가한다
             for (User user : participantsInRoom) {
                 ChatParticipant participant = new ChatParticipant(groupRoom, user);
                 groupParticipants.add(participant);
             }
 
-            // 그룹 메시지 생성
             for (int j = 0; j < MESSAGES_PER_GROUP_ROOM; j++) {
                 User sender = participantsInRoom.get(random.nextInt(participantsInRoom.size()));
                 ChatMessage message = new ChatMessage(
@@ -145,13 +135,11 @@ public class TestDataInitializer implements CommandLineRunner {
         System.out.println(NUM_GROUP_ROOMS + "개의 그룹 채팅방과 " + (NUM_GROUP_ROOMS * GROUP_PARTICIPANTS_PER_ROOM) + "명의 참가자 생성 완료!");
         System.out.println((NUM_GROUP_ROOMS * MESSAGES_PER_GROUP_ROOM) + "개의 그룹 메시지 생성 완료!");
 
-        // K6 테스트를 위한 JSON 파일 생성
         generateRoomIdsJsonFile(oneOnOneRooms, groupRooms);
         generateUserIdsJsonFile(users);
         generateValidCombinationsJsonFile(oneOnOneParticipants, groupParticipants);
     }
 
-    // 데이터베이스 초기화를 위한 private 메서드
     private void clearAllData() {
         chatMessageRepository.deleteAllInBatch();
         chatParticipantRepository.deleteAllInBatch();
