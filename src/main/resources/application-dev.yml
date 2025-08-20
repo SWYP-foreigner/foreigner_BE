@@ -35,6 +35,15 @@ oauth:
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
 
+  apple:
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
+    private-key-pem: |-
+      ${APPLE_PRIVATE_KEY_PEM}
+
+
 swagger:
   server-url: https://dev.ko-ri.cloud
 

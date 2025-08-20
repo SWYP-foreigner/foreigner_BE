@@ -19,22 +19,43 @@ configurations {
 	}
 }
 
-repositories {
-	mavenCentral()
+repositories { mavenCentral() }
+
+ext {
+	// Boot 3.5.x ↔ Cloud 2025.0.x (호환 BOM)
+	set('springCloudVersion', '2025.0.0')
 }
 
 dependencies {
+	// --- Spring ---
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	//implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	runtimeOnly   'org.postgresql:postgresql'
+
+	// --- OpenAPI(UI) ---
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
+
+	// --- OpenFeign ---
+	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+	// x-www-form-urlencoded 인코딩 (필수)
+	implementation 'io.github.openfeign.form:feign-form:3.8.0'
+	implementation 'io.github.openfeign.form:feign-form-spring:3.8.0'
+
+	// --- JWT (권장: jackson 모듈 포함) ---
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9"
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+	runtimeOnly   'io.jsonwebtoken:jjwt-impl:0.11.5'
+	runtimeOnly   'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+	// --- Lombok / Test ---
 	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
@@ -51,6 +72,13 @@ dependencies {
 	testImplementation 'org.mockito:mockito-inline:5.2.0'
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
 
+}
+
+dependencyManagement {
+	imports {
+		// ★ Cloud BOM 반드시 포함 (없으면 @FeignClient 인식 안 됨)
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
 }
 
 tasks.named('test') {
