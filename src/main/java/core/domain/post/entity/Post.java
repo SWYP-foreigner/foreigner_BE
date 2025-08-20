@@ -56,7 +56,7 @@ public class Post {
     private Boolean anonymous;
 
     @Column(name = "check_count", nullable = false)
-    private Long checkCount;
+    private Long checkCount = 0L;
 
     public Post(PostWriteRequest request, User author, Board board) {
         this.author = author;
