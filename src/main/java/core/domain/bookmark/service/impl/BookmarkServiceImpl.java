@@ -1,9 +1,33 @@
 package core.domain.bookmark.service.impl;
 
+import core.domain.bookmark.dto.BookmarkCursorPageResponse;
+import core.domain.bookmark.dto.BookmarkListResponse;
+import core.domain.bookmark.entity.Bookmark;
+import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.bookmark.service.BookmarkService;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.entity.Post;
+import core.domain.post.repository.PostRepository;
+import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
+import core.global.enums.ErrorCode;
+import core.global.enums.LikeType;
+import core.global.exception.BusinessException;
+import core.global.enums.ImageType;
+import core.global.image.repository.ImageRepository;
+import core.global.like.repository.LikeRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class BookmarkServiceImpl implements BookmarkService {
 
     private final BookmarkRepository bookmarkRepository;
