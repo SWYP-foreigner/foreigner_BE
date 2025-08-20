@@ -1,5 +1,6 @@
 package core.domain.post.dto;
 
+import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -15,6 +16,9 @@ public record PostDetailResponse(
 
         @Schema(description = "작성자 표시명(익명이면 '익명')", example = "익명")
         String userName,
+
+        @Schema(description = "카테고리", example = "NEWS")
+        BoardCategory boardCategory,
 
         @Schema(description = "작성 시각 (UTC)", type = "string", format = "date-time", example = "2025-08-13T09:41:00Z")
         Instant createdTime,
