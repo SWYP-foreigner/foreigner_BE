@@ -79,7 +79,7 @@ jobs:
             SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
 
             SPRING_REDIS_HOST=${{ secrets.REDIS_HOST }}
-            SPRING_REDIS_PORT=${{ secrets.REDIS_PROT }}
+            SPRING_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
             MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
