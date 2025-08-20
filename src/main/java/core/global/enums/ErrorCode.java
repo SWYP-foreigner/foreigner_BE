@@ -12,25 +12,23 @@ public enum ErrorCode {
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
     POST_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 삭제할 권한이 없습니다."),
-    NOT_AVAILABLE_ANONYMOUS(HttpStatus.BAD_REQUEST, "익명이 허용되지 않는 카테고리입니다."),
+    NOT_AVAILABLE_ANONYMOUS(HttpStatus.CONFLICT, "익명이 허용되지 않는 카테고리입니다."),
     INVALID_BOARD_CATEGORY(HttpStatus.BAD_REQUEST, "유효하지 않은 카테고리입니다."),
-    NOT_AVAILABLE_WRITE(HttpStatus.BAD_REQUEST, "쓰기가 불가능한 카테고리입니다."),
+    NOT_AVAILABLE_WRITE(HttpStatus.CONFLICT, "쓰기가 불가능한 카테고리입니다."),
 
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
-    INVALID_PARENT_COMMENT(HttpStatus.NOT_FOUND, "대댓글하려는 댓글이 적합하지 않습니다."),
+    INVALID_PARENT_COMMENT(HttpStatus.BAD_REQUEST, "대댓글하려는 댓글이 적합하지 않습니다."),
     INVALID_COMMENT_INPUT(HttpStatus.BAD_REQUEST, "댓글 입력값이 잘못됐습니다."),
     COMMENT_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 댓글을 삭제할 권한이 없습니다."),
     COMMENT_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 댓글을 수정할 권한이 없습니다."),
-    COMMENT_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "삭제된 댓글입니다."),
+    COMMENT_ALREADY_DELETED(HttpStatus.GONE, "삭제된 댓글입니다."),
 
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
 
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
 
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
-    INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
-
 
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
 
@@ -44,9 +42,9 @@ public enum ErrorCode {
     USER_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
     INVALID_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "로그인 되어있지 않습니다."),
 
-    LIKE_NOT_FOUND(HttpStatus.BAD_REQUEST, "좋아요가 존재하지 않습니다."),
-    LIKE_ALREADY_EXIST(HttpStatus.BAD_REQUEST, "좋아요가 이미 존재합니다."),
-    BOOKMARK_ALREADY_EXIST(HttpStatus.BAD_REQUEST, "북마크가 이미 존재합니다."),
+    LIKE_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요가 존재하지 않습니다."),
+    LIKE_ALREADY_EXIST(HttpStatus.CONFLICT, "좋아요가 이미 존재합니다."),
+    BOOKMARK_ALREADY_EXIST(HttpStatus.CONFLICT, "북마크가 이미 존재합니다."),
     BOOKMARK_NOT_FOUND(HttpStatus.NOT_FOUND, "북마크가 존재하지 않습니다.");
 
 

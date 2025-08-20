@@ -27,4 +27,24 @@ public class BookmarkController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/posts/{postId}/bookmarks/me")
+    public ResponseEntity<ApiResponse<?>> removeBookmark(
+            Authentication authentication,
+            @PathVariable Long postId
+    ) {
+        bookmarkService.removeBookmark(authentication.getName(), postId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/my/bookmarks")
+    public ResponseEntity<ApiResponse<BookmarkCursorPageResponse<BookmarkListResponse>>> getMyBookmarks(
+            Authentication authentication,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Long cursorId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookmarkService.getMyBookmarks("authentication.getName()", size, cursorId)
+        ));
+    }
+
 }
