@@ -1,6 +1,6 @@
 package core.domain.chat.dto;
 
-import org.springframework.data.annotation.Id;
+/*import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -23,4 +23,4 @@ public class ChatMessageDoc {
         this.content = content;
         this.createdAt = Instant.now();
     }
-}
+}*/
