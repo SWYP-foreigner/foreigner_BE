@@ -1,5 +1,6 @@
 package core.global.image.entity;
 
+import core.global.enums.ImageType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

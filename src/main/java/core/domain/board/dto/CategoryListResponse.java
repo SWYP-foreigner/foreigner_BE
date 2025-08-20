@@ -1,4 +1,4 @@
-package core.domain.board.service.impl;
+package core.domain.board.dto;
 
 import core.global.enums.BoardCategory;
 

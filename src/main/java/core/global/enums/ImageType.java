@@ -1,4 +1,4 @@
-package core.global.image.entity;
+package core.global.enums;
 
 public enum ImageType {
     POST, USER

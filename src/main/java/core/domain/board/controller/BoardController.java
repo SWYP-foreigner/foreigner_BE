@@ -3,7 +3,7 @@ package core.domain.board.controller;
 import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
 import core.domain.board.service.BoardService;
-import core.domain.board.service.impl.CategoryListResponse;
+import core.domain.board.dto.CategoryListResponse;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.enums.SortOption;
