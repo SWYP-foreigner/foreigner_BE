@@ -1,9 +1,6 @@
 package core.domain.comment.service.impl;
 
-import core.domain.comment.dto.CommentUpdateRequest;
-import core.domain.comment.dto.CommentWriteRequest;
-import core.domain.comment.dto.CommentResponse;
-import core.domain.comment.dto.CommentCursorPageResponse;
+import core.domain.comment.dto.*;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.comment.service.CommentService;
@@ -15,7 +12,7 @@ import core.global.enums.ErrorCode;
 import core.global.enums.LikeType;
 import core.global.enums.SortOption;
 import core.global.exception.BusinessException;
-import core.global.image.entity.ImageType;
+import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
 import io.micrometer.common.lang.Nullable;
@@ -191,6 +188,17 @@ public class CommentServiceImpl implements CommentService {
             commentRepository.delete(comment);
             cleanupIfNoChildren(comment.getParent());
         }
+    }
+
+    @Override
+    public UserCommentsSliceResponse getMyCommentList(String name, Long lastCommentId, int size) {
+        List<UserCommentItem> items = commentRepository.findMyCommentsForCursor(name, lastCommentId, PageRequest.of(0, size + 1));
+
+        boolean hasNext = items.size() > size;
+        List<UserCommentItem> page = hasNext ? items.subList(0, size) : items;
+        Long nextCursor = page.isEmpty() ? null : page.getLast().commentId();
+
+        return new UserCommentsSliceResponse(page, nextCursor, hasNext);
     }
 
 

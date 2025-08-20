@@ -1,9 +1,6 @@
 package core.domain.comment.controller;
 
-import core.domain.comment.dto.CommentResponse;
-import core.domain.comment.dto.CommentUpdateRequest;
-import core.domain.comment.dto.CommentWriteRequest;
-import core.domain.comment.dto.CommentCursorPageResponse;
+import core.domain.comment.dto.*;
 import core.domain.comment.service.CommentService;
 import core.global.dto.ApiResponse;
 import core.global.enums.SortOption;
@@ -115,4 +112,28 @@ public class CommentController {
                 .body(ApiResponse.success("댓글 삭제 완료"));
     }
 
+
+    @Operation(summary = "나의 댓글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "성공",
+            content = @Content(schema = @Schema(implementation = UserCommentItem.class))
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @GetMapping("/my/comments")
+    public ResponseEntity<ApiResponse<UserCommentsSliceResponse>> getMyPostList(
+            Authentication authentication,
+            @RequestParam(required = false) Long lastCommentId,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        commentService.getMyCommentList("authentication.getName()", lastCommentId, size)
+                ));
+    }
 }

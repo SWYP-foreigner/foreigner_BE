@@ -1,9 +1,6 @@
 package core.domain.comment.service;
 
-import core.domain.comment.dto.CommentUpdateRequest;
-import core.domain.comment.dto.CommentWriteRequest;
-import core.domain.comment.dto.CommentResponse;
-import core.domain.comment.dto.CommentCursorPageResponse;
+import core.domain.comment.dto.*;
 import core.global.enums.SortOption;
 import jakarta.validation.Valid;
 
@@ -17,4 +14,6 @@ public interface CommentService {
     void updateComment(String name, Long postId, @Valid CommentUpdateRequest request);
 
     void deleteComment(String name, Long postId);
+
+    UserCommentsSliceResponse getMyCommentList(String name, Long lastCommentId, int size);
 }
