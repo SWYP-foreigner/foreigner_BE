@@ -2,10 +2,7 @@ package core.domain.post.service;
 
 import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
-import core.domain.post.dto.PostUpdateRequest;
-import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
-import core.domain.post.dto.PostDetailResponse;
-import core.domain.post.dto.PostWriteRequest;
+import core.domain.post.dto.*;
 import core.global.enums.SortOption;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -28,7 +25,7 @@ public interface PostService {
 
     void removeLike(String name, @Positive Long postId);
 
-    PostDetailResponse getMyPostList(@Positive Long postId);
+    UserPostsSliceResponse getMyPostList(String name, Instant cursorCreatedAt, @Positive Long postId, int size);
 
     CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
 }

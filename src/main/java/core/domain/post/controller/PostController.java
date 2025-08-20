@@ -1,10 +1,7 @@
 package core.domain.post.controller;
 
-import core.domain.post.dto.PostDetailResponse;
-import core.domain.post.dto.PostUpdateRequest;
-import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
-import core.domain.post.dto.PostWriteRequest;
-import core.domain.post.service.CommentWriteAnonymousAvailableResponse;
+import core.domain.post.dto.*;
+import core.domain.post.dto.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,11 +12,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @RequestMapping("/api/v1")
 @RestController
@@ -117,26 +117,29 @@ public class PostController {
     }
 
 
-//    @Operation(summary = "나의 게시글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
-//    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-//            responseCode = "200",
-//            description = "성공",
-//            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
-//    )
-//    @ApiResponses({
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
-//    })
-//    @GetMapping("/my/posts")
-//    public ResponseEntity<ApiResponse<PostDetailResponse>> getMyPostList(
-//            Authentication authentication
-//    ) {
-//
-//        return ResponseEntity.ok(ApiResponse.success(
-//                postService.getMyPostList()
-//        ));
-//    }
+    @Operation(summary = "나의 게시글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "성공",
+            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @GetMapping("/my/posts")
+    public ResponseEntity<ApiResponse<UserPostsSliceResponse>> getMyPostList(
+            Authentication authentication,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorCreatedAt,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                postService.getMyPostList("authentication.getName()", cursorCreatedAt, cursorId, size)
+        ));
+    }
 
 
     @Operation(summary = "게시글 좋아요 설정", description = "좋아요 설정합니다.")
@@ -158,7 +161,6 @@ public class PostController {
                 .status(HttpStatus.NO_CONTENT)
                 .body(ApiResponse.success("좋아요 설정"));
     }
-
 
 
     @Operation(summary = "익명 댓글 쓰기 가능 여부", description = "선택한 보드에서 익명 작성이 가능한지 반환합니다.")

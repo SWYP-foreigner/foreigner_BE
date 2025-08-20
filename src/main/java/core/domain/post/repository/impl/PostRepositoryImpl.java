@@ -1,20 +1,20 @@
 package core.domain.post.repository.impl;
 
-import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.*;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.board.dto.BoardResponse;
+import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
-import core.domain.post.dto.PostDetailIntermediate;
 import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.UserPostResponse;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QUser;
 import core.global.enums.LikeType;
-import core.global.image.entity.ImageType;
+import core.global.enums.ImageType;
 import core.global.image.entity.QImage;
 import core.global.like.entity.QLike;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+
+import static com.querydsl.core.group.GroupBy.groupBy;
+import static com.querydsl.core.types.Projections.list;
 
 @Repository
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final QPost post = QPost.post;
     private static final QUser user = QUser.user;
     private static final QLike like = QLike.like;
+    private static final QBoard board = QBoard.board;
     private static final QComment comment = QComment.comment;
     private static final QImage image = QImage.image;
     private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
@@ -57,24 +61,13 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .and(cursorId != null ? post.id.lt(cursorId) : Expressions.TRUE.isFalse())
                 );
 
-        Expression<String> authorNameExpr =
-                new CaseBuilder()
-                        .when(post.anonymous.isTrue()).then("익명")
-                        .otherwise(user.name);
+        Expression<String> authorNameExpr = getAuthorName();
 
-        Expression<String> preview =
-                Expressions.stringTemplate("substring({0}, 1, 200)", post.content);
+        Expression<String> preview = preview200();
 
-        Expression<Long> likeCountExpr =
-                JPAExpressions.select(like.count())
-                        .from(like)
-                        .where(like.type.eq(LIKE_TYPE_POST)
-                                .and(like.relatedId.eq(post.id)));
+        Expression<Long> likeCountExpr = likeCountExpr();
 
-        Expression<Long> commentCountExpr =
-                JPAExpressions.select(comment.count())
-                        .from(comment)
-                        .where(comment.post.eq(post));
+        Expression<Long> commentCountExpr = commentCountExpr();
 
         QImage u = new QImage("u");
         Expression<String> userImageUrlExpr =
@@ -86,21 +79,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                         .and(u.relatedId.eq(user.id))
                         );
 
-        QImage pi1 = new QImage("pi1");
-        QImage pi2 = new QImage("pi2");
-        Expression<String> contentThumbnailUrlExpr =
-                JPAExpressions
-                        .select(pi2.url)
-                        .from(pi2)
-                        .where(pi2.id.eq(
-                                JPAExpressions
-                                        .select(pi1.id.min())
-                                        .from(pi1)
-                                        .where(
-                                                pi1.imageType.eq(IMAGE_TYPE_POST)
-                                                        .and(pi1.relatedId.eq(post.id))
-                                        )
-                        ));
+        Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
         return query
                 .select(Projections.constructor(
@@ -108,6 +87,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.id,
                         preview,
                         authorNameExpr,
+                        board.category,
                         post.createdAt,
                         likeCountExpr,
                         commentCountExpr,
@@ -118,6 +98,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
+                .join(post.board, board)
                 .where(allOf(boardFilter, search, ltCursor))
                 .orderBy(post.createdAt.desc())
                 .limit(Math.min(size, 50) + 1L)
@@ -141,16 +122,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
 
         // ── 집계
-        Expression<Long> likeCountSub =
-                JPAExpressions.select(like.count())
-                        .from(like)
-                        .where(like.type.eq(LIKE_TYPE_POST)
-                                .and(like.relatedId.eq(post.id)));
+        Expression<Long> likeCountSub = likeCountExpr();
 
-        Expression<Long> commentCountSub =
-                JPAExpressions.select(comment.count())
-                        .from(comment)
-                        .where(comment.post.eq(post));
+        Expression<Long> commentCountSub = commentCountExpr();
 
         NumberExpression<Long> likes = Expressions.numberTemplate(Long.class, "({0})", likeCountSub);
         NumberExpression<Long> comments = Expressions.numberTemplate(Long.class, "({0})", commentCountSub);
@@ -186,14 +160,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     .or(score.eq(cursorScore).and(tieBreaker));
         }
 
-        Expression<String> authorNameExpr =
-                new CaseBuilder()
-                        .when(post.anonymous.isTrue()).then("익명")
-                        .otherwise(user.name);
+        Expression<String> authorNameExpr = getAuthorName();
 
-        Expression<String> preview =
-                Expressions.stringTemplate("substring({0}, 1, 200)", post.content);
-
+        Expression<String> preview = preview200();
 
         // Images
         QImage u = new QImage("u");
@@ -204,19 +173,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .where(u.imageType.eq(IMAGE_TYPE_USER)
                                 .and(u.relatedId.eq(user.id)));
 
-        QImage pi1 = new QImage("pi1");
-        QImage pi2 = new QImage("pi2");
-        Expression<String> contentThumbnailUrlExpr =
-                JPAExpressions
-                        .select(pi2.url)
-                        .from(pi2)
-                        .where(pi2.id.eq(
-                                JPAExpressions
-                                        .select(pi1.id.min())
-                                        .from(pi1)
-                                        .where(pi1.imageType.eq(IMAGE_TYPE_POST)
-                                                .and(pi1.relatedId.eq(post.id)))
-                        ));
+        Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
         return query
                 .select(Projections.constructor(
@@ -224,6 +181,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.id,
                         preview,
                         authorNameExpr,
+                        board.category,
                         post.createdAt,
                         likes,
                         comments,
@@ -234,6 +192,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
+                .join(post.board, board)
                 .where(allOf(boardFilter, sinceFilter, search, ltCursor))
                 .orderBy(
                         score.desc(),
@@ -246,86 +205,134 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     @Override
     public PostDetailResponse findPostDetail(Long postId) {
-        QImage u = new QImage("u");
+        QImage userImage = new QImage("u");
 
-        // 1) 필요한 Expression 정의 (서브쿼리 포함)
-        Expression<Long> likeCountExpr = JPAExpressions.select(like.count())
-                .from(like)
-                .where(like.type.eq(LIKE_TYPE_POST)
-                        .and(like.relatedId.eq(post.id)));
-
-        Expression<Long> commentCountExpr = JPAExpressions.select(comment.count())
-                .from(comment)
-                .where(comment.post.eq(post));
-
-        StringExpression userNameExpr = new CaseBuilder()
-                .when(post.anonymous.isTrue()).then("익명")
-                .otherwise(user.name);
+        Expression<Long> likeCountExpr = likeCountExpr();
+        Expression<Long> commentCountExpr = commentCountExpr();
+        StringExpression userNameExpr = getAuthorName();
 
         Expression<String> userImageUrlExpr = new CaseBuilder()
                 .when(post.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
                 .otherwise(
-                        JPAExpressions.select(u.url)
-                                .from(u)
-                                .where(u.imageType.eq(IMAGE_TYPE_USER)
-                                        .and(u.relatedId.eq(user.id)))
+                        JPAExpressions.select(userImage.url)
+                                .from(userImage)
+                                .where(
+                                        userImage.imageType.eq(IMAGE_TYPE_USER)
+                                                .and(userImage.relatedId.eq(user.id))
+                                )
                 );
 
-        // 2) 한 번에 평평한 결과로 가져오기 (이미지 조인으로 행이 늘어날 수 있음)
-        List<Tuple> rows = query
-                .select(
-                        post.id,
-                        post.content,
-                        userNameExpr,
-                        post.createdAt,
-                        likeCountExpr,
-                        commentCountExpr,
-                        post.checkCount,
-                        userImageUrlExpr,
-                        image.url
-                )
+        Map<Long, PostDetailResponse> result = query
                 .from(post)
                 .join(post.author, user)
+                .join(post.board, board)
                 .leftJoin(image).on(
                         image.imageType.eq(IMAGE_TYPE_POST)
                                 .and(image.relatedId.eq(post.id))
                 )
                 .where(post.id.eq(postId))
                 .orderBy(image.id.asc())
+                .transform(groupBy(post.id).as(
+                        // 그룹별 DTO 조립
+                        Projections.constructor(PostDetailResponse.class,
+                                post.id,
+                                post.content,
+                                userNameExpr,
+                                post.createdAt,
+                                likeCountExpr,
+                                commentCountExpr,
+                                post.checkCount,
+                                userImageUrlExpr,
+                                list(image.url),
+                                board.category
+                        )
+                ));
+
+        return result.get(postId);
+    }
+
+    @Override
+    public List<UserPostResponse> findMyPostsFirstByName(String name, int limitPlusOne) {
+        return query
+                .select(Projections.constructor(
+                        UserPostResponse.class,
+                        preview200(),
+                        post.createdAt,
+                        likeCountExpr(),
+                        commentCountExpr(),
+                        post.checkCount,
+                        firstPostImageUrlExpr()
+                ))
+                .from(post)
+                .join(post.author, user)
+                .where(user.name.eq(name))
+                .orderBy(post.createdAt.desc(), post.id.desc())
+                .limit(limitPlusOne)
                 .fetch();
+    }
 
-        if (rows.isEmpty()) {
-            return null;
-        }
+    @Override
+    public List<UserPostResponse> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
+        BooleanExpression ltCursor = post.createdAt.lt(cursorCreatedAt)
+                .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
 
-        // 3) 스칼라 필드는 첫 행에서 추출
-        Tuple t0 = rows.getFirst();
-        Long              id           = t0.get(post.id);
-        String            content      = t0.get(post.content);
-        String            userName     = t0.get(userNameExpr);
-        java.time.Instant createdTime  = t0.get(post.createdAt);
-        Long              likeCount    = t0.get(likeCountExpr);
-        Long              commentCount = t0.get(commentCountExpr);
-        Long              viewCount    = t0.get(post.checkCount);
-        String            userImageUrl = t0.get(userImageUrlExpr);
+        return query
+                .select(Projections.constructor(
+                        UserPostResponse.class,
+                        preview200(),
+                        post.createdAt,
+                        likeCountExpr(),
+                        commentCountExpr(),
+                        post.checkCount,
+                        firstPostImageUrlExpr()
+                ))
+                .from(post)
+                .join(post.author, user)
+                .where(user.name.eq(name).and(ltCursor))
+                .orderBy(post.createdAt.desc(), post.id.desc())
+                .limit(limitPlusOne)
+                .fetch();
+    }
 
-        // 4) 이미지 URL은 자바에서 수집(정렬 유지 + 중복 제거)
-        List<String> contentImageUrls = rows.stream()
-                .map(r -> r.get(image.url))
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
 
-        return new PostDetailResponse(
-                id,
-                content,
-                userName,
-                createdTime,
-                likeCount,
-                commentCount,
-                viewCount,
-                userImageUrl,
-                contentImageUrls
-        );
+    private StringExpression getAuthorName() {
+        return new CaseBuilder()
+                .when(post.anonymous.isTrue()).then("익명")
+                .otherwise(user.name);
+    }
+
+    private Expression<String> preview200() {
+        return Expressions.stringTemplate("substring({0}, 1, 200)", post.content);
+    }
+
+    private Expression<String> firstPostImageUrlExpr() {
+        QImage pi1 = new QImage("pi1");
+        QImage pi2 = new QImage("pi2");
+
+        return JPAExpressions
+                .select(pi2.url)
+                .from(pi2)
+                .where(pi2.id.eq(
+                        JPAExpressions
+                                .select(pi1.id.min())
+                                .from(pi1)
+                                .where(
+                                        pi1.imageType.eq(IMAGE_TYPE_POST)
+                                                .and(pi1.relatedId.eq(post.id))
+                                )
+                ));
+    }
+
+    private Expression<Long> commentCountExpr() {
+        return JPAExpressions.select(comment.count())
+                .from(comment)
+                .where(comment.post.eq(post));
+    }
+
+    private Expression<Long> likeCountExpr() {
+        return JPAExpressions.select(like.count())
+                .from(like)
+                .where(like.type.eq(LIKE_TYPE_POST)
+                        .and(like.relatedId.eq(post.id)));
     }
 }

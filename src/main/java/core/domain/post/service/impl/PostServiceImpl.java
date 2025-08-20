@@ -4,12 +4,10 @@ import core.domain.board.dto.BoardCursorPageResponse;
 import core.domain.board.dto.BoardResponse;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.post.dto.PostDetailResponse;
-import core.domain.post.dto.PostUpdateRequest;
-import core.domain.post.dto.PostWriteRequest;
+import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
-import core.domain.post.service.CommentWriteAnonymousAvailableResponse;
+import core.domain.post.dto.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -19,7 +17,7 @@ import core.global.enums.LikeType;
 import core.global.enums.SortOption;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
-import core.global.image.entity.ImageType;
+import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
@@ -32,6 +30,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -253,8 +252,22 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PostDetailResponse getMyPostList(Long postId) {
-        return null;
+    @Transactional(readOnly = true)
+    public UserPostsSliceResponse getMyPostList(String name, Instant cursorCreatedAt, Long cursorId, int size) {
+        int pageSize = Math.min(Math.max(size, 1), 50);
+
+        List<UserPostResponse> rows = (cursorId == null)
+                ? postRepository.findMyPostsFirstByName(name, pageSize + 1)
+                : postRepository.findMyPostsNextByName(name, cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, pageSize + 1);
+
+        boolean hasNext = rows.size() > pageSize;
+        if (hasNext) rows = rows.subList(0, pageSize);
+
+        Instant nextCreatedAt = rows.isEmpty() ? null : rows.get(rows.size() - 1).createdAt();
+        Long    nextId        = null; // ← UserPostResponse에 id가 없다면 커서로 id를 쓸 수 없으니,
+        //    필요 시 record에 postId를 한 칸 추가하세요.
+
+        return new UserPostsSliceResponse(rows, nextId, hasNext);
     }
 
     @Override
