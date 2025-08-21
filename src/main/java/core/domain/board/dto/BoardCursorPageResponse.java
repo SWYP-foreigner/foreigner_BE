@@ -1,14 +1,27 @@
 package core.domain.board.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
+@Schema(name = "BoardCursorPageResponse", description = "게시판 커서 기반 페이지 공통 응답")
 public record BoardCursorPageResponse<T>(
+        @Schema(description = "항목 리스트(제네릭)", requiredMode = Schema.RequiredMode.REQUIRED)
         List<T> items,
+
+        @Schema(description = "다음 페이지 존재 여부", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
         boolean hasNext,
+
+        @Schema(description = "다음 커서 createdAt(최신 정렬에서 사용, 없으면 null)",
+                type = "string", format = "date-time", example = "2025-08-20T12:33:00Z", nullable = true)
         Instant nextCursorCreatedAt,
+
+        @Schema(description = "다음 커서 ID(없으면 null)", example = "120", nullable = true)
         Long nextCursorId,
+
+        @Schema(description = "다음 커서 점수(인기 정렬에서 사용, 없으면 null)", example = "123456", nullable = true)
         Long nextCursorScore
 ) {
     // LATEST용
