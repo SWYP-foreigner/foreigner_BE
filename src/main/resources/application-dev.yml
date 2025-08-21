@@ -1,14 +1,18 @@
 spring:
-  config:
-    activate:
-      on-profile: dev
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
 
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: create
@@ -42,6 +46,28 @@ oauth:
     redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
+
+ncp:
+  s3:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET}
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+cloud:
+  openfeign:
+    client:
+      config:
+        default:
+          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+          readTimeout: ${FEIGN_READ_TIMEOUT}
+          loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 
 springdoc:
