@@ -2,13 +2,19 @@ spring:
   config:
     activate:
       on-profile: local
-
-
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
 
   jpa:
     hibernate:
@@ -32,6 +38,7 @@ cloud:
           readTimeout: ${FEIGN_READ_TIMEOUT}
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
+
 oauth:
   google:
     android:
@@ -45,7 +52,6 @@ oauth:
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
 
-
   apple:
     team-id: ${APPLE_TEAM_ID}
     key-id: ${APPLE_KEY_ID}
@@ -53,7 +59,13 @@ oauth:
     redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
-      
+ncp:
+  s3:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET}
 
 springdoc:
   api-docs:
