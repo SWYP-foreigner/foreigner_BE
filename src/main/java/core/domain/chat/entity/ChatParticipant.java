@@ -1,7 +1,6 @@
 package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
-import core.global.enums.ChatParticipantStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,34 +31,10 @@ public class ChatParticipant {
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
 
-    @Enumerated(EnumType.STRING)
-    private ChatParticipantStatus status;
+    @Column(name = "is_blocked")
+    private Boolean blocked;
 
-    @Column(name = "last_left_at")
-    private Instant lastLeftAt;
-
-    public ChatParticipant(ChatRoom chatRoom, User user) {
-        this.chatRoom = chatRoom;
-        this.user = user;
-        this.status = ChatParticipantStatus.ACTIVE;
-        this.joinedAt = Instant.now();
-    }
-    public void delete() {
-        this.status = ChatParticipantStatus.LEFT;
-    }
-
-
-    public void leave() {
-        this.status = ChatParticipantStatus.LEFT;
-        this.lastLeftAt = Instant.now();
-    }
-
-    public void reJoin() {
-        this.status = ChatParticipantStatus.ACTIVE;
-        this.lastLeftAt = null;
-    }
-    public void setLastReadMessageId(Long messageId) {
-        this.lastReadMessageId = messageId;
-    }
+    @Column(name = "is_deleted")
+    private Boolean deleted;
 }
 

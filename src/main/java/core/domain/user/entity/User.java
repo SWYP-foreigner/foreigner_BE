@@ -1,7 +1,6 @@
 package core.domain.user.entity;
 
 
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.user.dto.UserUpdateDTO;
 import core.global.enums.Sex;
 import jakarta.persistence.*;
@@ -11,10 +10,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-
 
 
 @Entity
@@ -71,13 +68,8 @@ public class User {
     @Column(name = "email", nullable = true)
     private String email;
 
-
     @Column(name = "profile_image_url")
     private String profileImageUrl; // NCP S3 업로드 결과 URL 저장
-
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ChatParticipant> chatParticipants;
 
     @Builder
     public User(String firstName,
@@ -133,7 +125,5 @@ public class User {
 
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
-        this.updatedAt = Instant.now();
-
     }
 }
