@@ -11,10 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
+import java.util.List;
 
 
 @Entity
@@ -28,18 +25,15 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(name = "first_name", nullable = true)
-    private String firstName;
-
-    @Column(name = "last_name", nullable = true)
-    private String lastName;
+    @Column(name = "name", nullable = true)
+    private String name;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "SEX", nullable = true)
     private Sex sex;
 
-    @Column(name = "birth_date", nullable = true)
-    private LocalDate birthDate;
+    @Column(name = "age", nullable = true)
+    private Integer age;
 
     @Column(name = "nationality", nullable = true)
     private String nationality;
@@ -70,33 +64,15 @@ public class User {
 
     @Column(name = "email", nullable = true)
     private String email;
-
-
-    @Column(name = "profile_image_url")
-    private String profileImageUrl; // NCP S3 업로드 결과 URL 저장
-
-
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> chatParticipants;
-
     @Builder
-    public User(String firstName,
-                String lastName,
-                Sex sex,
-                LocalDate birthDate,
-                String nationality,
-                String introduction,
-                String visitPurpose,
-                String languages,
-                String hobby,
-                String provider,
-                String socialId,
-                String email,
-                String profileImageUrl) {
-        this.firstName = firstName;
-        this.lastName = lastName;
+    public User(String name, Sex sex, Integer age, String nationality,
+                String introduction, String visitPurpose, String languages,
+                String hobby, String provider, String socialId, String email) {
+        this.name = name;
         this.sex = sex;
-        this.birthDate = birthDate;
+        this.age = age;
         this.nationality = nationality;
         this.introduction = introduction;
         this.visitPurpose = visitPurpose;
@@ -105,35 +81,36 @@ public class User {
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
-        this.profileImageUrl = profileImageUrl;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
     public void updateProfile(UserUpdateDTO dto) {
-        // 문자열은 trim 후 비어있으면 무시
-        if (notBlank(dto.getFirstname())) this.firstName = dto.getFirstname().trim();
-        if (notBlank(dto.getLastname()))  this.lastName  = dto.getLastname().trim();
-
-        if (dto.getSex() != null) this.sex = dto.getSex();
-        if (dto.getBirthDate() != null) this.birthDate = dto.getBirthDate();
-
-        if (notBlank(dto.getNationality()))   this.nationality   = dto.getNationality().trim();
-        if (notBlank(dto.getIntroduction()))  this.introduction  = dto.getIntroduction().trim();
-        if (notBlank(dto.getVisitPurpose()))  this.visitPurpose  = dto.getVisitPurpose().trim();
-        if (notBlank(dto.getLanguages()))     this.languages     = dto.getLanguages().trim();
-        if (notBlank(dto.getHobby()))         this.hobby         = dto.getHobby().trim();
-
-        // 이미지 URL(또는 업로드 후 받은 공개 URL) 반영
-        if (notBlank(dto.getProfileImageUrl())) {
-            this.profileImageUrl = dto.getProfileImageUrl().trim();
+        if (dto.getName() != null && !dto.getName().trim().isEmpty()) {
+            this.name = dto.getName().trim();
         }
-        // updatedAt은 @PreUpdate로 자동 갱신되지만,
-        // 트랜잭션 내 즉시 값이 필요하면 아래 한 줄을 유지해도 됩니다.
-        this.updatedAt = Instant.now();
-    }
+        if (dto.getSex() != null) {
+            this.sex = dto.getSex();
+        }
+        if (dto.getAge() != null) {
+            this.age = dto.getAge();
+        }
+        if (dto.getNationality() != null && !dto.getNationality().trim().isEmpty()) {
+            this.nationality = dto.getNationality().trim();
+        }
+        if (dto.getIntroduction() != null && !dto.getIntroduction().trim().isEmpty()) {
+            this.introduction = dto.getIntroduction().trim();
+        }
+        if (dto.getVisitPurpose() != null && !dto.getVisitPurpose().trim().isEmpty()) {
+            this.visitPurpose = dto.getVisitPurpose().trim();
+        }
+        if (dto.getLanguages() != null && !dto.getLanguages().trim().isEmpty()) {
+            this.languages = dto.getLanguages().trim();
+        }
+        if (dto.getHobby() != null && !dto.getHobby().trim().isEmpty()) {
+            this.hobby = dto.getHobby().trim();
+        }
 
-    private boolean notBlank(String s) {
-        return s != null && !s.trim().isEmpty();
         this.updatedAt = Instant.now();
-
     }
 }
