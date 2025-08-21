@@ -70,32 +70,25 @@ jobs:
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             
             cat > .env <<'EOF'
-            POSTGRES_DB=${{ secrets.DB_NAME }}
-            POSTGRES_USER=${{ secrets.DB_USER }}
-            POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-            
-            SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${{ secrets.DB_NAME }}
-            SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
-            SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
+            # --- PostgreSQL (application.yml 참조명) ---
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USERNAME=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
-            SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
-            SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
-            SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            # --- MongoDB (루트 계정 & admin authSource) ---
             MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
             MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
             MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
-            
-            MONGO_APP_USERNAME=${{ secrets.MONGO_APP_USERNAME }}
-            MONGO_APP_PASSWORD=${{ secrets.MONGO_APP_PASSWORD }}
-            SPRING_DATA_MONGODB_URI=mongodb://${{ secrets.MONGO_APP_USERNAME }}:${{ secrets.MONGO_APP_PASSWORD }}@mongo:27017/${{ secrets.MONGO_INITDB_DATABASE }}?authSource=${{ secrets.MONGO_INITDB_DATABASE }}
 
-            SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
-            
+            # --- Redis ---
+            SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
+            SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
+            SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+            # --- JWT ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-            SPRING_PROFILES_ACTIVE=dev
-            SPRING_JPA_HIBERNATE_DDL_AUTO=update
-            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
-            
+
+            # --- OAuth: Google ---
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
             IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
@@ -103,6 +96,23 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
+
+            # --- OAuth: Apple ---
+            APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
+            APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
+            APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
+            APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
+            # PEM은 GitHub Secret에 멀티라인 그대로 저장해 두고, 여기로 그대로 주입
+            APPLE_PRIVATE_KEY_PEM=${{ secrets.APPLE_PRIVATE_KEY_PEM }}
+
+            # --- NCP Object Storage ---
+            NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
+            NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
+            NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
+
+            # --- 추가(필요시): 스프링 프로필/옵션 ---
+            SPRING_PROFILES_ACTIVE=dev
+            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m            
             EOF
             
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
