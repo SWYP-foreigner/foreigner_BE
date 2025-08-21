@@ -127,8 +127,6 @@ public class UserController {
      * 권장: Authorization Code + PKCE 플로우
      */
     @PostMapping("apple/doLogin")
-    @Operation(summary = "애플 로그인")
-    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
         AppleLoginResult result = service.loginWithAuthorizationCodeOnly(
                 req.getAuthorizationCode(),
@@ -142,10 +140,7 @@ public class UserController {
     /**
      * refresh token 갱신
      */
-
     @PostMapping("apple/refresh")
-    @Operation(summary = "애플 토큰 갱신")
-    @ApiResponse(responseCode = "200", description = "토큰 갱신")
     public ResponseEntity<AppleTokenResponse> refresh(@RequestBody AppleRefreshRequest req) {
         return ResponseEntity.ok(service.refresh(req.getRefreshToken()));
     }
@@ -154,8 +149,6 @@ public class UserController {
      * revoke (연동 해제)
      */
     @PostMapping("apple/revoke")
-    @Operation(summary = "애플 연동 해제")
-    @ApiResponse(responseCode = "200", description = "탈퇴")
     public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
         service.revoke(req.getRefreshToken());
         return ResponseEntity.noContent().build();

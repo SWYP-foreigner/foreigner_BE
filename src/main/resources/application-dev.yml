@@ -1,4 +1,8 @@
 spring:
+  config:
+    activate:
+      on-profile: dev
+
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
@@ -47,13 +51,14 @@ oauth:
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
 
-ncp:
-  s3:
-    access-key: ${NCP_ACCESS_KEY}
-    secret-key: ${NCP_SECRET_KEY}
-    region: kr-standard
-    endpoint: https://kr.object.ncloudstorage.com
-    bucket: ${NCP_BUCKET}
+  ncp:
+    s3:
+      access-key: ${NCP_ACCESS_KEY}
+      secret-key: ${NCP_SECRET_KEY}
+      region: kr-standard
+      endpoint: https://kr.object.ncloudstorage.com
+      bucket: ${NCP_BUCKET}
+
 
   servlet:
     multipart:
@@ -69,6 +74,13 @@ cloud:
           readTimeout: ${FEIGN_READ_TIMEOUT}
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
+ncp:
+  s3:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET}
 
 springdoc:
   api-docs:
