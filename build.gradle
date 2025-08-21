@@ -46,12 +46,21 @@ dependencies {
 	runtimeOnly   'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly   'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
+
 	// --- Lombok / Test ---
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+
+	implementation platform("com.amazonaws:aws-java-sdk-bom:1.12.689")
+	implementation "com.amazonaws:aws-java-sdk-s3"
+
+	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
+	// ...나머지 동일
+
 }
 
 dependencyManagement {
