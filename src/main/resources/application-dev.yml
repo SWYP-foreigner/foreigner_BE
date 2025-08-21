@@ -1,8 +1,4 @@
 spring:
-  config:
-    activate:
-      on-profile: dev
-
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
