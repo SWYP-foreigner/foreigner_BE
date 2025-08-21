@@ -1,6 +1,10 @@
 spring:
+  config:
+    activate:
+      on-profile: dev
+
   datasource:
-    url: jdbc:postgresql://db:5432/${DB_NAME}
+    url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -12,6 +16,7 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
       password: ${SPRING_DATA_REDIS_PASSWORD}
+
   jpa:
     hibernate:
       ddl-auto: create
@@ -45,20 +50,6 @@ oauth:
     redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
-
-ncp:
-  s3:
-    access-key: ${NCP_ACCESS_KEY}
-    secret-key: ${NCP_SECRET_KEY}
-    region: kr-standard
-    endpoint: https://kr.object.ncloudstorage.com
-    bucket: ${NCP_BUCKET_NAME}
-
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-
 
 
 springdoc:
