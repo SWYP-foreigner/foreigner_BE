@@ -12,6 +12,6 @@ import java.util.Set;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User>findBySocialId(String socialId);
     Optional<User> findByName(String username);
-
+    Optional<User> findByEmail(String email);   // ✅ 필수
     long countByIdIn(Set<Long> allParticipantIds);
 }

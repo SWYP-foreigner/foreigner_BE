@@ -18,7 +18,9 @@ public enum ErrorCode {
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND,"팔로워를 찾을 수 없습니다."),
 
-
+    PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST,"프로필에 사진 한 장 등록은 필수입니다."),
+    PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST,"프로필은 한장만 등록 가능합니다."),
+    FILE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST,"이미지 파일이 안 올라갔습니다."),
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
 
     INVALID_USER_UPDATE_REQUEST(HttpStatus.BAD_REQUEST, "프로필 업데이트가 처리되지 않았습니다."),

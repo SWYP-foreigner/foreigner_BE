@@ -58,36 +58,44 @@ jobs:
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
+            # set -euo pipefail: 스크립트 실행 중 에러가 발생하면 즉시 종료
             set -euo pipefail
+            
+            # Docker와 Docker Compose가 서버에 설치되어 있는지 확인합니다.
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-
+            
+            # 애플리케이션 파일을 위한 디렉토리를 생성하고 이동합니다.
             mkdir -p ~/foreigner
             cd ~/foreigner
-
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin            
             
+            # Docker Hub에 로그인합니다.
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            
+            # 빌드된 이미지의 태그를 정의합니다.
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             
-            cat > .env <<'EOF'
-            # --- PostgreSQL (application.yml 참조명) ---
+            # .env 파일을 생성합니다.
+            # EOF를 따옴표 없이 사용하여 GitHub Secrets 변수들이 올바르게 확장되도록 했습니다.
+            cat > .env <<EOF
+            # --- PostgreSQL ---
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-            # --- MongoDB (루트 계정 & admin authSource) ---
+            
+            # --- MongoDB ---
             MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
             MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
             MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
-
+            
             # --- Redis ---
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
+            
             # --- JWT ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-
+            
             # --- OAuth: Google ---
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
@@ -96,33 +104,38 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
-
+            
             # --- OAuth: Apple ---
             APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
-            # PEM은 GitHub Secret에 멀티라인 그대로 저장해 두고, 여기로 그대로 주입
-            APPLE_PRIVATE_KEY_PEM=${{ secrets.APPLE_PRIVATE_KEY_PEM }}
-
+            APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
+            
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
-
-            # --- 추가(필요시): 스프링 프로필/옵션 ---
+            
+            # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m            
+            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
             EOF
             
+            # 동적으로 생성된 이미지 태그를 .env 파일에 추가합니다.
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             
+            # .env 파일의 권한을 600(소유자만 읽고 쓰기 가능)으로 설정합니다.
             chmod 600 .env || true
             echo "Using IMAGE=${IMAGE}"
             
+            # 최신 Docker 이미지를 다운로드합니다.
             docker compose pull
+            # Docker Compose로 컨테이너를 실행합니다.
             docker compose up -d --remove-orphans
             
+            # 컨테이너 상태, 로그 등을 확인하고 사용되지 않는 이미지를 정리합니다.
             docker compose ps
             docker compose logs --since=5m || true
             docker image prune -f || true
+          

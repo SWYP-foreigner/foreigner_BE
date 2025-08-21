@@ -1,5 +1,4 @@
-package core.global.controller;
-
+package core.domain.user.controller;
 
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;

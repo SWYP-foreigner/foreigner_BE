@@ -53,6 +53,12 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+
+	implementation platform("com.amazonaws:aws-java-sdk-bom:1.12.689")
+	implementation "com.amazonaws:aws-java-sdk-s3"
+
+	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
 }
 
 dependencyManagement {

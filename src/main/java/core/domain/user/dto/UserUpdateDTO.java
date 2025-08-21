@@ -1,19 +1,21 @@
 package core.domain.user.dto;
 
 
-import core.global.enums.Sex;
 import lombok.Builder;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 @Builder
 public class UserUpdateDTO {
-    private String name;
-    private Sex sex;
-    private Integer age;
-    private String nationality;
+    private String firstname;
+    private String lastname;
+    private String gender;
+    private String birthday;
+    private String country;
     private String introduction;
-    private String visitPurpose;
-    private String languages;
-    private String hobby;
+    private String purpose;
+    private List<String> language;
+    private List<String> hobby;
 }
