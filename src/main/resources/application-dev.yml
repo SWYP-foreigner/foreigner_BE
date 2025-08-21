@@ -8,6 +8,14 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
 
   jpa:
     hibernate:
@@ -34,6 +42,21 @@ oauth:
       client-id: ${WEB_CLIENT_ID}
       client-secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI}
+
+  apple:
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
+    private-key-pem: |-
+      ${APPLE_PRIVATE_KEY_PEM}
+ncp:
+  s3:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET}
 
 springdoc:
   api-docs:

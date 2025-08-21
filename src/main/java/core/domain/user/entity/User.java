@@ -1,6 +1,7 @@
 package core.domain.user.entity;
 
 
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.user.dto.UserUpdateDTO;
 import core.global.enums.Sex;
 import jakarta.persistence.*;
@@ -10,7 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
-
+import java.util.List;
 
 
 @Entity
@@ -63,7 +64,8 @@ public class User {
 
     @Column(name = "email", nullable = true)
     private String email;
-
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ChatParticipant> chatParticipants;
     @Builder
     public User(String name, Sex sex, Integer age, String nationality,
                 String introduction, String visitPurpose, String languages,
@@ -109,6 +111,6 @@ public class User {
             this.hobby = dto.getHobby().trim();
         }
 
-        this.updatedAt = Instant.now(); // 수정 시각 갱신
+        this.updatedAt = Instant.now();
     }
 }
