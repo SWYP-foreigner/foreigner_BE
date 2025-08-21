@@ -27,7 +27,6 @@ public class User {
     @Column(name = "last_name", nullable = true)
     private String lastName;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "SEX", nullable = true)
     private String sex;
 
