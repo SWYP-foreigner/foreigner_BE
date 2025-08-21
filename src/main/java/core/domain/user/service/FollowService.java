@@ -24,7 +24,7 @@ public class FollowService {
 
     @Transactional
     public void follow(String requesterUsername, Long targetUserId) {
-        User follower = userRepository.findByName(requesterUsername)
+        User follower = userRepository.findByUsername(requesterUsername)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -52,7 +52,7 @@ public class FollowService {
         User follower = userRepository.findById(fromUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        User targetUser = userRepository.findByName(toUserName)
+        User targetUser = userRepository.findByUsername(toUserName)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // PENDING 상태인 팔로우 요청을 찾습니다.
@@ -65,7 +65,7 @@ public class FollowService {
 
     @Transactional
     public void unfollow(String followerName, Long targetUserId) {
-        User follower = userRepository.findByName(followerName)
+        User follower = userRepository.findByUsername(followerName)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         User targetUser = userRepository.findById(targetUserId)
@@ -80,7 +80,7 @@ public class FollowService {
 
     @Transactional(readOnly = true)
     public List<FollowDTO> getFollowingListByStatus(String followingName, FollowStatus status) {
-        User user = userRepository.findByName(followingName)
+        User user = userRepository.findByUsername(followingName)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         return followRepository.findByUserAndStatus(user, status).stream()
