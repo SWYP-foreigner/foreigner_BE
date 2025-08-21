@@ -8,6 +8,15 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+
+    spring:
+      redis:
+        host: ${SPRING_REDIS_HOST}
+        port: ${SPRING_REDIS_PORT}
+        password: ${SPRING_REDIS_PASSWORD}
 
   jpa:
     hibernate:
