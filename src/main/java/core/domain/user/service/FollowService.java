@@ -87,10 +87,9 @@ public class FollowService {
                 .map(Follow::getFollowing)
                 .map(following -> new FollowDTO(
                         following.getId(),
-                        following.getName(),
-                        following.getAge(),
-                        following.getNationality(),
-                        following.getSex()
+                        following.getFirstName(),
+                        following.getCountry(),
+                        String.valueOf(following.getSex())
                 ))
                 .collect(Collectors.toList());
     }

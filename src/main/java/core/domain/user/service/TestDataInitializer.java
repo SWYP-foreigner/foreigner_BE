@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -53,20 +54,23 @@ public class TestDataInitializer implements CommandLineRunner {
         List<User> users = new ArrayList<>();
         for (int i = 1; i <= NUM_USERS; i++) {
             User user = new User(
+                    "User"+i,
                     "User" + i,
-                    i % 2 == 0 ? Sex.MALE : Sex.FEMALE,
-                    20 + (i % 30),
+                    i % 2 == 0 ? "MALE" : "FEMALE", // Sex 대신 Gender 사용
+                    "30/07/2025",
                     "TestNation",
                     "Test user " + i,
                     "Testing",
-                    "English",
-                    "None",
+                    "English", // String 대신 List<String> 사용
+                    "None", // String 대신 List<String> 사용
                     "test",
                     "test" + i,
-                    "user" + i + "@example.com"
+                    "user" + i + "@example.com",
+                    null
             );
             users.add(user);
         }
+
         userRepository.saveAll(users);
         System.out.println(NUM_USERS + "명의 테스트 유저 생성 완료!");
         List<ChatRoom> oneOnOneRooms = new ArrayList<>();
@@ -91,7 +95,7 @@ public class TestDataInitializer implements CommandLineRunner {
                 ChatMessage message = new ChatMessage(
                         room,
                         sender,
-                        "1대1 메시지 #" + (j + 1) + " from " + sender.getName()
+                        "1대1 메시지 #" + (j + 1) + " from " + sender.getLastName()
                 );
                 oneOnOneMessages.add(message);
             }
@@ -124,7 +128,7 @@ public class TestDataInitializer implements CommandLineRunner {
                 ChatMessage message = new ChatMessage(
                         groupRoom,
                         sender,
-                        "그룹 메시지 #" + (j + 1) + " from " + sender.getName()
+                        "그룹 메시지 #" + (j + 1) + " from " + sender.getLastName()
                 );
                 groupMessages.add(message);
             }

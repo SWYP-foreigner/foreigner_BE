@@ -9,8 +9,7 @@ import lombok.Data;
 public class FollowDTO {
     private Long id;
     private String username;
-    private  Integer age;
     private String nationality;
-    private Sex sex;
+    private String sex;
 
 }
