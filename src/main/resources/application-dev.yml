@@ -1,8 +1,4 @@
 spring:
-  config:
-    activate:
-      on-profile: dev
-
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USERNAME}
@@ -14,9 +10,9 @@ spring:
 
     spring:
       redis:
-        host: ${SPRING_REDIS_HOST}
-        port: ${SPRING_REDIS_PORT}
-        password: ${SPRING_REDIS_PASSWORD}
+        host: ${SPRING_DATA_REDIS_HOST}
+        port: ${SPRING_DATA_REDIS_PORT}
+        password: ${SPRING_DATA_REDIS_PASSWORD}
 
   jpa:
     hibernate:
