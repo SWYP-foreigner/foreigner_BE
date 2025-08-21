@@ -3,27 +3,19 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: 1111
+    url: jdbc:postgresql://localhost:5432/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-
   data:
     mongodb:
-      uri: mongodb://my_mongo_user:my_mongo_password@mongo:27017/my_mongodb?authSource=admin
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
 
     redis:
-      host: localhost
-      port: 6379
-      password: my_redis_password
-  cloud:
-    openfeign:
-      client:
-        config:
-          default:
-            connectTimeout: 5000
-            readTimeout: 10000
-            loggerLevel: basic
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
   jpa:
     hibernate:
       ddl-auto: create
@@ -34,50 +26,55 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
-  # JWT 토큰 생성에 사용될 시크릿 키를 직접 명시
-  secret:  b2F1dGhzZXJ2ZXJzZWNyZXRhY2Nlc3N0b2tlbm9hdXRoc2VydmVyc2VjcmV0YWNjZXNzdG9rZW5vYXV0aHNlcnZlcnNlY3JldGFjY2Vzc3Rva2Vu
+  secret: ${JWT_SECRET}
   expiration: 3600000
+
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+            readTimeout: ${FEIGN_READ_TIMEOUT}
+            loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 cloud:
   openfeign:
     client:
       config:
         default:
-          connectTimeout: 5000
-          readTimeout: 10000
-          loggerLevel: basic
+          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+          readTimeout: ${FEIGN_READ_TIMEOUT}
+          loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 
 oauth:
   google:
     android:
-      client-id: "your_android_client_id"
-      redirect-uri: "your_android_redirect_uri"
+      client-id: ${ANDROID_CLIENT_ID}
+      redirect-uri: ${ANDROID_REDIRECT_URI}
     ios:
-      client-id: "your_ios_client_id"
-      redirect-uri: "your_ios_redirect_uri"
+      client-id: ${IOS_CLIENT_ID}
+      redirect-uri: ${IOS_REDIRECT_URI}
     web:
-      client-id: "your_web_client_id"
-      client-secret: "your_web_client_secret"
-      redirect-uri: "your_web_redirect_uri"
+      client-id: ${WEB_CLIENT_ID}
+      client-secret: ${WEB_CLIENT_SECRET}
+      redirect-uri: ${WEB_REDIRECT_URI}
 
   apple:
-    team-id: "your_apple_team_id"
-    key-id: "your_apple_key_id"
-    client-id: "your_apple_client_id"
-    redirect-uri: "your_apple_redirect_uri"
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
-      -----BEGIN PRIVATE KEY-----
-      YOUR_APPLE_PRIVATE_KEY_HERE
-      -----END PRIVATE KEY-----
-
+      ${APPLE_PRIVATE_KEY_PEM}
 ncp:
   s3:
-    access-key: "YOUR_NCP_ACCESS_KEY"
-    secret-key: "YOUR_NCP_SECRET_KEY"
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
-    bucket: "YOUR_NCP_BUCKET"
+    bucket: ${NCP_BUCKET}
 
 springdoc:
   api-docs:
