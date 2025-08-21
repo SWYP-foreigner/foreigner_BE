@@ -60,6 +60,7 @@ oauth:
     redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
+
 ncp:
   s3:
     access-key: ${NCP_ACCESS_KEY}
