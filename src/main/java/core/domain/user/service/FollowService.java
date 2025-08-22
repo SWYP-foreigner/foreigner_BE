@@ -62,7 +62,7 @@ public class FollowService {
                 .findByUserAndFollowingAndStatus(fromUser, toUser, FollowStatus.PENDING)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND));
 
-        follow.accept(); // 엔티티 메서드에서 status = ACCEPTED 등 처리
+        follow.accept();
     }
 
     /** 현재 로그인 사용자가 targetUserId 언팔 */

@@ -69,7 +69,7 @@ ncp:
     secret-key: ${NCP_SECRET_KEY}
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
-    bucket: ${NCP_BUCKET_NAME}
+    bucket: ${NCP_BUCKET}
 
 springdoc:
   api-docs:
