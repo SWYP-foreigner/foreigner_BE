@@ -11,7 +11,10 @@ import java.time.Instant;
 
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"provider", "social_id"})
+})
 @Getter
 @NoArgsConstructor
 @Setter

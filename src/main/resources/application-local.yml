@@ -1,7 +1,10 @@
+
 spring:
   config:
     activate:
       on-profile: local
+
+
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username: ${DB_USER}
@@ -38,15 +41,6 @@ jwt:
             readTimeout: ${FEIGN_READ_TIMEOUT}
             loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
-cloud:
-  openfeign:
-    client:
-      config:
-        default:
-          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
-          readTimeout: ${FEIGN_READ_TIMEOUT}
-          loggerLevel: ${FEIGN_LOGGER_LEVEL}
-
 
 oauth:
   google:
@@ -68,6 +62,7 @@ oauth:
     redirect-uri: ${APPLE_REDIRECT_URI}
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
+
 ncp:
   s3:
     access-key: ${NCP_ACCESS_KEY}
