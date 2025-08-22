@@ -10,6 +10,7 @@ import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,20 +22,22 @@ import java.util.stream.Collectors;
 public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
-
-    @Transactional
-    public void follow(String requesterUsername, Long targetUserId) {
-        User follower = userRepository.findByUsername(requesterUsername)
+    /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
+    public void follow(Authentication auth, Long targetUserId) {
+        String email = auth.getName(); // JWT subject=email 가정
+        User follower = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        // 중복/상태 체크
         Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
         if (existing != null) {
-            // 멱등성 보장: 이미 PENDING이면 조용히 통과, ACCEPTED면 에러
             switch (existing.getStatus()) {
-                case PENDING -> { return; }
-                case ACCEPTED -> { throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS); }
+                case PENDING  -> { return; } // 이미 신청중이면 무시
+                case ACCEPTED -> throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
             }
         }
 
@@ -47,25 +50,26 @@ public class FollowService {
         followRepository.save(follow);
     }
 
-    @Transactional
-    public void acceptFollow(Long fromUserId, String toUserName) {
-        User follower = userRepository.findById(fromUserId)
+    /** 상대(fromUserId)가 보낸 팔로우 요청을 '현재 로그인 사용자'가 수락 */
+    public void acceptFollow(Authentication auth, Long fromUserId) {
+        String toEmail = auth.getName();
+        User toUser = userRepository.findByEmail(toEmail)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        User targetUser = userRepository.findByUsername(toUserName)
+        User fromUser = userRepository.findById(fromUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // PENDING 상태인 팔로우 요청을 찾습니다.
-        Follow follow = followRepository.findByUserAndFollowingAndStatus(follower, targetUser, FollowStatus.PENDING)
+        Follow follow = followRepository
+                .findByUserAndFollowingAndStatus(fromUser, toUser, FollowStatus.PENDING)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND));
 
-        // 상태를 ACCEPTED로 변경하는 메서드 호출
-        follow.accept();
+        follow.accept(); // 엔티티 메서드에서 status = ACCEPTED 등 처리
     }
 
-    @Transactional
-    public void unfollow(String followerName, Long targetUserId) {
-        User follower = userRepository.findByUsername(followerName)
+    /** 현재 로그인 사용자가 targetUserId 언팔 */
+    public void unfollow(Authentication auth, Long targetUserId) {
+        String email = auth.getName();
+        User follower = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         User targetUser = userRepository.findById(targetUserId)
@@ -77,29 +81,35 @@ public class FollowService {
         followRepository.delete(follow);
     }
 
-
+    /** 내(현재 로그인 사용자)가 팔로우한 목록(=following) 중 특정 상태만 조회 */
     @Transactional(readOnly = true)
-    public List<FollowDTO> getFollowingListByStatus(String followingName, FollowStatus status) {
-        User user = userRepository.findByUsername(followingName)
+    public List<FollowDTO> getMyFollowingByStatus(Authentication auth, FollowStatus status) {
+        String email = auth.getName();
+        User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        return followRepository.findByUserAndStatus(user, status).stream()
+        return followRepository.findByUserAndStatus(me, status).stream()
                 .map(Follow::getFollowing)
-                .map(following -> new FollowDTO(
-                        following.getId(),
-                        following.getFirstName(),
-                        following.getCountry(),
-                        String.valueOf(following.getSex())
+                .map(u -> new FollowDTO(
+                        u.getId(),
+                        u.getFirstName()+u.getLastName(),
+                        u.getCountry(),
+                        u.getSex()
                 ))
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    @Transactional
-    public void declineFollow(Long fromUserId, Long toUserId) {
-        // PENDING 상태의 팔로우 요청을 찾아옵니다.
-        Follow followRequest = followRepository.findByUser_IdAndFollowing_IdAndStatus(fromUserId, toUserId, FollowStatus.PENDING)
+    /** 상대(fromUserId)가 나에게 보낸 요청 거절 */
+    public void declineFollow(Authentication auth, Long fromUserId) {
+        String toEmail = auth.getName();
+        User toUser = userRepository.findByEmail(toEmail)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Follow followReq = followRepository
+                .findByUser_IdAndFollowing_IdAndStatus(fromUserId, toUser.getId(), FollowStatus.PENDING)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND));
-        // 팔로우 요청을 삭제합니다.
-        followRepository.delete(followRequest);
+
+        followRepository.delete(followReq);
     }
+
 }

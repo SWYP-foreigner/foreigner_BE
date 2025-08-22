@@ -1,4 +1,5 @@
-package core.domain.user.controller;
+package core.global.controller;
+
 
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -63,7 +64,7 @@ public class UserController {
 
         log.info("[GoogleLogin] 요청 수신 - AccessToken: {}", req.getAccessToken());
 
-        // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
+             // 이 엔드포인트는 토큰 교환 과정을 건너뛰고 바로 사용자 프로필 조회를 시작합니다.
         GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
         log.info("[GoogleLogin] 구글 프로필 조회 완료 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
 
@@ -194,14 +195,14 @@ public class UserController {
     public ResponseEntity<User> setupUserProfileForTest(@PathVariable Long userId,
                                                         @RequestBody UserUpdateDTO userUpdateDTO,
                                                         @RequestPart(value = "image", required = false)
-                                                        @Parameter(
-                                                                description = "업로드할 이미지 파일",
-                                                                content = @Content(
-                                                                        mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                                                                        schema = @Schema(type = "string", format = "binary")
-                                                                )
-                                                        )
-                                                        MultipartFile image) {
+                                                            @Parameter(
+                                                                    description = "업로드할 이미지 파일",
+                                                                    content = @Content(
+                                                                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                                                                            schema = @Schema(type = "string", format = "binary")
+                                                                    )
+                                                            )
+                                                            MultipartFile image) {
         User updatedUser = userService.setupUserProfile(userId, userUpdateDTO,image);
         return ResponseEntity.ok(updatedUser);
     }
