@@ -57,7 +57,6 @@ public class MyPageController {
         return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 수락되었습니다."));
     }
 
-    // 이부분 JPA 라 코드 줄이기가 좀
     @Operation(summary = "팔로우 요청 거절", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
     public ResponseEntity<ApiResponse<String>> declineFollowRequest(
@@ -102,7 +101,6 @@ public class MyPageController {
     }
 
 
-    // 계정삭제 계정 로그아웃
 
 
 

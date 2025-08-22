@@ -1,6 +1,5 @@
 package core.domain.user.controller;
 
-import core.domain.user.entity.User;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
