@@ -6,8 +6,8 @@ spring:
 
 
   datasource:
-    url: jdbc:postgresql://db:5432/${DB_NAME}
-    username: ${DB_USERNAME}
+    url: jdbc:postgresql://localhost:5432/${DB_NAME}
+    username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   data:
@@ -32,14 +32,14 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000
 
-cloud:
-  openfeign:
-    client:
-      config:
-        default:
-          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
-          readTimeout: ${FEIGN_READ_TIMEOUT}
-          loggerLevel: ${FEIGN_LOGGER_LEVEL}
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+            readTimeout: ${FEIGN_READ_TIMEOUT}
+            loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 
 oauth:
