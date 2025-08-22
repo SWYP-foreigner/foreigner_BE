@@ -30,7 +30,7 @@ public class GoogleService {
     @Value("${oauth.google.web.redirect-uri}")
     private String webRedirectUri;
 
-    // application.yml에서 안드로이드 클라이언트 정보를 주입받습니다.
+
     @Value("${oauth.google.android.client-id}")
     private String androidClientId;
     @Value("${oauth.google.android.redirect-uri}")
@@ -75,7 +75,7 @@ public class GoogleService {
         String clientId;
         String redirectUri;
 
-        // 플랫폼에 따라 클라이언트 ID와 리디렉션 URI를 선택합니다.
+
         switch (platform) {
             case ANDROID -> {
                 clientId = androidClientId;

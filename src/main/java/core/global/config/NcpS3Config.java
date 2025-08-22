@@ -25,8 +25,8 @@ public class NcpS3Config {
         return AmazonS3ClientBuilder.standard()
                 .withEndpointConfiguration(
                         new AwsClientBuilder.EndpointConfiguration(
-                                props.getEndpoint(),   // https://kr.object.ncloudstorage.com
-                                props.getRegion()      // kr-standard
+                                props.getEndpoint(),
+                                props.getRegion()
                         )
                 )
                 .withPathStyleAccessEnabled(true) // NCP는 필수

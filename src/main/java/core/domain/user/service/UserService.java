@@ -38,7 +38,7 @@ public class UserService {
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-        // (중복 이메일 체크, unique 제약 등도 로그)
+
         User u = new User();
         u.setSocialId(socialId);
         u.setEmail(email);
@@ -60,7 +60,7 @@ public class UserService {
         User user = userRepository.findByEmail(loginEmail)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 단일 이미지가 넘어오면 업로드 → URL을 DTO에 주입
+
         if (image != null && !image.isEmpty()) {
 
             try {
@@ -70,8 +70,8 @@ public class UserService {
             }
         }
 
-        user.updateProfile(dto); // 부분 업데이트(+ updatedAt은 엔티티에서 처리)
-        return user;             // dirty checking
+        user.updateProfile(dto);
+        return user;
     }
 
     @Transactional
@@ -79,7 +79,6 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 이미지가 왔으면 1장 처리 + 타입 검증 + 업로드
         if (image != null && !image.isEmpty()) {
 
             try {
@@ -89,9 +88,8 @@ public class UserService {
             }
         }
 
-        // 개별 세터 나열 대신 엔티티 메서드로 일괄 반영
         user.updateProfile(dto);
-        return user; // 영속 상태 → 더티체킹으로 DB 반영
+        return user;
     }
 
 
