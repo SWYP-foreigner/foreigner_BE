@@ -74,28 +74,14 @@ public class UserService {
         return user;
     }
 
+
     @Transactional
-    public User createUserProfile(UserUpdateDTO dto, @Nullable MultipartFile image) {
-        // 1) 새 유저 엔티티 만들고 프로필 필드 채우기
+    public User createUserProfile(UserUpdateDTO dto) {
         User user = User.builder().build();
-        user.updateProfile(dto);
-
-        // 2) 먼저 저장해서 userId 발급
-        user = userRepository.save(user);
-
-        // 3) 이미지가 있으면 업로드 후 URL 저장
-        if (image != null && !image.isEmpty()) {
-            try {
-                String url = imageStorage.uploadProfileImage(image, user.getId());
-                user.setProfileImageUrl(url);
-            } catch (IOException e) {
-                throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
-            }
-        }
-
-        // 4) URL이 바뀌었을 수 있으니 최종 저장된 엔티티 반환 (JPA dirty checking으로도 반영됨)
-        return user;
+        user.updateProfile(dto);     // DTO 값 반영
+        return userRepository.save(user);
     }
+
 
     @Transactional
     public User setupUserNameProfile(String loginName, UserUpdateDTO dto, @Nullable List<MultipartFile> image) {

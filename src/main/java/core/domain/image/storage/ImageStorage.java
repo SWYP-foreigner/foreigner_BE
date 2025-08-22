@@ -6,7 +6,10 @@ import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import core.domain.image.dto.NcpS3Props;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,35 +24,37 @@ public class ImageStorage {
 
     private final AmazonS3 s3;
     private final NcpS3Props props;
+    @Value("${ncp.s3.bucket}")
+    private String bucketName;
 
-    /** 단일 이미지 업로드 → 퍼블릭 URL 반환 */
-    public String uploadProfileImage(MultipartFile file, Long userId) throws IOException {
-        if (file == null || file.isEmpty()) return null;
+    /**
+     * 프로필 이미지를 S3에 업로드하고, 저장된 URL을 반환합니다.
+     * @param image 업로드할 이미지 파일
+     * @param userId 이미지 소유자의 ID
+     * @return S3에 저장된 이미지의 공개 URL
+     * @throws IOException 파일 처리 중 오류 발생 시
+     */
+    public String uploadProfileImage(MultipartFile image, Long userId) throws IOException {
+        String originalFilename = image.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isEmpty()) {
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
+        }
 
-        // 키 규칙: <prefix>/user-<id>/<timestamp>-<uuid>.<ext>
-        String original = file.getOriginalFilename() == null ? "file" : file.getOriginalFilename();
-        String ext = original.contains(".") ? original.substring(original.lastIndexOf('.') + 1) : "bin";
-        String key = String.format("%s/user-%d/%d-%s.%s",
-                props.getPrefix(), userId, Instant.now().toEpochMilli(), UUID.randomUUID(), ext);
+        String s3FileName = "user-profiles/" + userId + "/" + UUID.randomUUID() + "-" + originalFilename;
 
-        ObjectMetadata meta = new ObjectMetadata();
-        meta.setContentType(file.getContentType());
-        meta.setContentLength(file.getSize());
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType(image.getContentType());
+        metadata.setContentLength(image.getSize());
 
-        PutObjectRequest req = new PutObjectRequest(
-                props.getBucket(),
-                key,
-                file.getInputStream(),
-                meta
-        ).withCannedAcl(CannedAccessControlList.PublicRead); // 공개 URL이 필요할 때
+        try {
+            s3.putObject(new PutObjectRequest(bucketName, s3FileName, image.getInputStream(), metadata));
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
+        }
 
-        s3.putObject(req);
-
-        URL url = s3.getUrl(props.getBucket(), key); // NCP + path-style에서 정상 동작
-        return url.toString();
+        return s3.getUrl(bucketName, s3FileName).toString();
     }
 
-    /** 키로 삭제 (URL을 저장했다면, 키만 따로 컬럼에 보관해두는 것도 좋음) */
     public void deleteByKey(String key) {
         s3.deleteObject(props.getBucket(), key);
     }

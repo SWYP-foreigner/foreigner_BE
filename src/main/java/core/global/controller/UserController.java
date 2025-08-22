@@ -188,22 +188,13 @@ public class UserController {
      * JWT 인증 없이 userId를 직접 경로 변수로 받습니다.
      * 실제 운영 환경에서는 사용하지 않는 것이 좋습니다.
      */
-    @PostMapping(value = "/profile/Testsetup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "프로필 최초 생성(테스트)", description = "userId 없이 새 유저를 만들고 프로필/이미지를 저장합니다.")
+    // JSON만 받는 버전
+    @PostMapping(value = "/Testsetup", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "프로필 최초 생성(테스트) - JSON 전용",
+            description = "userId 없이 JSON 바디만으로 새 유저 프로필을 생성합니다.")
     @ApiResponse(responseCode = "200", description = "프로필 생성 성공")
-    public ResponseEntity<User> setupUserProfile(
-            @RequestPart("profile") UserUpdateDTO userUpdateDTO,   // JSON 파트 이름: profile
-            @RequestPart(value = "image", required = false)
-            @Parameter(
-                    description = "업로드할 이미지 파일",
-                    content = @Content(
-                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                            schema = @Schema(type = "string", format = "binary")
-                    )
-            )
-            MultipartFile image) {
-
-        User created = userService.createUserProfile(userUpdateDTO, image);
+    public ResponseEntity<User> setupUserProfileJson(@RequestBody UserUpdateDTO userUpdateDTO) {
+        User created = userService.createUserProfile(userUpdateDTO);
         return ResponseEntity.ok(created);
     }
 
