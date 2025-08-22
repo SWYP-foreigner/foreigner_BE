@@ -1,13 +1,13 @@
 package core.domain.bookmark.service;
 
-import core.domain.bookmark.dto.BookmarkCursorPageResponse;
-import core.domain.bookmark.dto.BookmarkListResponse;
+import core.domain.bookmark.dto.BookmarkItem;
+import core.global.pagination.CursorPageResponse;
 
 public interface BookmarkService {
     void addBookmark(String name, Long postId);
 
     void removeBookmark(String name, Long postId);
 
-    BookmarkCursorPageResponse<BookmarkListResponse> getMyBookmarks(String name, int size, Long cursorId);
+    CursorPageResponse<BookmarkItem> getMyBookmarks(String name, int size, String cursor);
 
 }

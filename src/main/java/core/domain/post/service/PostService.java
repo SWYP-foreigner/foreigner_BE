@@ -1,17 +1,15 @@
 package core.domain.post.service;
 
-import core.domain.board.dto.BoardCursorPageResponse;
-import core.domain.board.dto.BoardResponse;
+import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.*;
 import core.global.enums.SortOption;
+import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
-import java.time.Instant;
-
 public interface PostService {
 
-    BoardCursorPageResponse<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorScore, int size);
+    CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size);
 
     PostDetailResponse getPostDetail(Long postId);
 
@@ -25,7 +23,7 @@ public interface PostService {
 
     void removeLike(String name, @Positive Long postId);
 
-    UserPostsSliceResponse getMyPostList(String name, Instant cursorCreatedAt, @Positive Long postId, int size);
+    CursorPageResponse<UserPostItem> getMyPostList(String name, String cursor, int size);
 
     CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
 }

@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 @Schema(name = "BookmarkListResponse", description = "북마크 상세 항목 응답")
-public record BookmarkListResponse(
+public record BookmarkItem(
         @Schema(description = "북마크 ID", example = "100")
         Long bookmarkId,
 

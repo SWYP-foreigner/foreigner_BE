@@ -2,12 +2,11 @@ package core.domain.comment.service;
 
 import core.domain.comment.dto.*;
 import core.global.enums.SortOption;
+import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 
-import java.time.Instant;
-
 public interface CommentService {
-    CommentCursorPageResponse<CommentResponse> getCommentList(Long postId, Integer size, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorLikeCount);
+    CursorPageResponse<CommentItem> getCommentList(Long postId, Integer size, SortOption sort, String cursor);
 
     void writeComment(String name, Long postId, CommentWriteRequest request);
 
@@ -15,5 +14,5 @@ public interface CommentService {
 
     void deleteComment(String name, Long postId);
 
-    UserCommentsSliceResponse getMyCommentList(String name, Long lastCommentId, int size);
+    CursorPageResponse<UserCommentItem> getMyCommentList(String username, int size, String cursor);
 }

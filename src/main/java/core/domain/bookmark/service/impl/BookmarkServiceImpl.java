@@ -1,7 +1,6 @@
 package core.domain.bookmark.service.impl;
 
-import core.domain.bookmark.dto.BookmarkCursorPageResponse;
-import core.domain.bookmark.dto.BookmarkListResponse;
+import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.entity.Bookmark;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.bookmark.service.BookmarkService;
@@ -11,11 +10,13 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.exception.BusinessException;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,8 +44,15 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Transactional(readOnly = true)
     @Override
-    public BookmarkCursorPageResponse<BookmarkListResponse> getMyBookmarks(String username, int size, Long cursorId) {
+    public CursorPageResponse<BookmarkItem> getMyBookmarks(String username, int size, String  cursor) {
         Pageable pageable = PageRequest.of(0, size + 1);
+
+        Long cursorId = null;
+        var payload = CursorCodec.decode(cursor);
+        Object idObj = payload.get("id");
+        if (idObj instanceof Number n) cursorId = n.longValue();
+
+
         Slice<Bookmark> slice = (cursorId == null)
                 ? bookmarkRepository.findByUserNameOrderByIdDesc(username, pageable)
                 : bookmarkRepository.findByUserNameAndIdLessThanOrderByIdDesc(username, cursorId, pageable);
@@ -56,7 +64,7 @@ public class BookmarkServiceImpl implements BookmarkService {
         }
 
         if (content.isEmpty()) {
-            return new BookmarkCursorPageResponse<>(List.of(), null, false);
+            return new CursorPageResponse<>(List.of(), false, null);
         }
 
 
@@ -85,17 +93,18 @@ public class BookmarkServiceImpl implements BookmarkService {
                         Collectors.mapping(row -> (String) row[1], Collectors.toList())
                 ));
 
-        List<BookmarkListResponse> items = new ArrayList<>(content.size());
+        List<BookmarkItem> items = new ArrayList<>(content.size());
         for (Bookmark b : content) {
             items.add(toResponse(b, likeMap, commentMap, userImageMap, postImagesMap));
         }
 
-        Long nextCursor = hasNext ? content.getLast().getId() : null;
+        Long lastId = content.get(content.size() - 1).getId();
+        String nextCursor = hasNext ? CursorCodec.encodeId(lastId) : null;
 
-        return new BookmarkCursorPageResponse<>(items, nextCursor, hasNext);
+        return new CursorPageResponse<>(items, hasNext, nextCursor);
     }
 
-    private BookmarkListResponse toResponse(
+    private BookmarkItem toResponse(
             Bookmark b,
             Map<Long, Long> likeMap,
             Map<Long, Long> commentMap,
@@ -118,7 +127,7 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         List<String> postImages = postImagesMap.getOrDefault(postId, List.of());
 
-        return new BookmarkListResponse(
+        return new BookmarkItem(
                 b.getId(),
                 authorName,
                 safeTrim(p.getContent()),

@@ -1,15 +1,12 @@
 package core.domain.board.dto;
 
 import core.global.enums.BoardCategory;
-import io.swagger.v3.oas.annotations.OpenAPIDefinition;
-import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.servers.Server;
 
 import java.time.Instant;
 
 @Schema(name = "BoardResponse", description = "게시글 카드 응답")
-public record BoardResponse(
+public record BoardItem(
         @Schema(description = "게시글 ID", example = "123")
         Long postId,
 

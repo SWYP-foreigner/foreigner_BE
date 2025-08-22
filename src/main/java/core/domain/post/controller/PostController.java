@@ -1,25 +1,23 @@
 package core.domain.post.controller;
 
 import core.domain.post.dto.*;
-import core.domain.post.dto.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
-import core.global.dto.ApiResponse;
+import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.Instant;
 
 @RequestMapping("/api/v1")
 @RestController
@@ -45,12 +43,12 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @GetMapping("/posts/{postId}")
-    public ResponseEntity<ApiResponse<PostDetailResponse>> getPostDetail(
+    public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> getPostDetail(
             Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable @Positive Long postId) {
 
-        return ResponseEntity.ok(ApiResponse.success(
+        return ResponseEntity.ok(core.global.dto.ApiResponse.success(
                 postService.getPostDetail(postId)
         ));
     }
@@ -64,7 +62,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
     })
     @PostMapping("/boards/{boardId}/posts")
-    public ResponseEntity<ApiResponse<?>> writePost(
+    public ResponseEntity<core.global.dto.ApiResponse<?>> writePost(
             Authentication authentication,
             @PathVariable @Positive Long boardId,
             @Valid @RequestBody PostWriteRequest writeRequest) {
@@ -72,7 +70,7 @@ public class PostController {
         postService.writePost(authentication.getName(), boardId, writeRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("게시글 작성 완료"));
+                .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
     }
 
     @Operation(summary = "게시글 수정", description = "게시글을 수정합니다.")
@@ -85,7 +83,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "충돌", content = @Content)
     })
     @PutMapping("/posts/{postId}")
-    public ResponseEntity<ApiResponse<?>> updatePost(
+    public ResponseEntity<core.global.dto.ApiResponse<?>> updatePost(
             Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
             @Valid @RequestBody PostUpdateRequest updateRequest) {
@@ -93,7 +91,7 @@ public class PostController {
         postService.updatePost(authentication.getName(), postId, updateRequest);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(ApiResponse.success("게시글 수정 완료"));
+                .body(core.global.dto.ApiResponse.success("게시글 수정 완료"));
     }
 
     @Operation(summary = "게시글 삭제", description = "게시글을 삭제합니다.")
@@ -104,7 +102,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @DeleteMapping("/posts/{postId}")
-    public ResponseEntity<ApiResponse<?>> deletePost(
+    public ResponseEntity<core.global.dto.ApiResponse<?>> deletePost(
             Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
@@ -113,32 +111,67 @@ public class PostController {
 
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(ApiResponse.success("게시글 삭제 완료"));
+                .body(core.global.dto.ApiResponse.success("게시글 삭제 완료"));
     }
 
 
-    @Operation(summary = "나의 게시글 리스트 조회", description = "나의 게시글 리스트를 반환합니다.")
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-            responseCode = "200",
-            description = "성공",
-            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
+    @Operation(
+            summary = "나의 게시글 리스트 조회",
+            description = """
+                      - 정렬: createdAt DESC, postId DESC
+                      - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
+                    
+                      요청 예시
+                      1) 첫 페이지:
+                         GET /api/v1/boards/my/posts?size=20
+                      2) 다음 페이지:
+                         GET /api/v1/boards/my/posts?size=20&cursor=eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ
+                    """
     )
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+            @ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(
+                                    name = "성공 예시",
+                                    value = """
+                                                {
+                                                  "success": true,
+                                                  "data": {
+                                                    "items": [
+                                                      { "postId": 123, "title": "제목", "contentPreview": "내용...", "authorName": "익명",
+                                                        "createdAt": "2025-08-13T07:20:35Z", "likeCount": 10, "commentCount": 2, "viewCount": 345, "score": 123456 },
+                                                      { "postId": 122, "title": "다음 글", "contentPreview": "내용...", "authorName": "홍길동",
+                                                        "createdAt": "2025-08-13T07:19:10Z", "likeCount": 0, "commentCount": 0, "viewCount": 12, "score": 2345 }
+                                                    ],
+                                                    "hasNext": true,
+                                                    "nextCursor": "eyJ0IjoiMjAyNS0wOC0xM1QwNzoxOToxMFoiLCJpZCI6MTIyfQ"
+                                                  }
+                                                }
+                                            """
+                            )
+                    )
+            ),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content(
+                    examples = @ExampleObject(value = "{ \"code\": \"INVALID_CURSOR\", \"message\": \"cursor 형식이 올바르지 않습니다.\" }")
+            )),
+            @ApiResponse(responseCode = "404", description = "보드 없음", content = @Content(
+                    examples = @ExampleObject(value = "{ \"code\": \"BOARD_NOT_FOUND\", \"message\": \"요청한 게시판을 찾을 수 없습니다.\" }")
+            ))
     })
     @GetMapping("/my/posts")
-    public ResponseEntity<ApiResponse<UserPostsSliceResponse>> getMyPostList(
-            Authentication authentication,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant cursorCreatedAt,
-            @RequestParam(required = false) Long cursorId,
-            @RequestParam(defaultValue = "20") int size
+    public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserPostItem>>> getMyPostList(
+            @Parameter(hidden = true) Authentication authentication,
+            @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
+                    example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
+            @RequestParam(required = false) String cursor
     ) {
-
-        return ResponseEntity.ok(ApiResponse.success(
-                postService.getMyPostList("authentication.getName()", cursorCreatedAt, cursorId, size)
-        ));
+        return ResponseEntity.ok(
+                core.global.dto.ApiResponse.success(
+                        postService.getMyPostList(authentication.getName(), cursor, size)
+                )
+        );
     }
 
 
@@ -151,7 +184,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @PutMapping("/posts/{postId}/likes/me")
-    public ResponseEntity<ApiResponse<?>> addLike(
+    public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
             Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
@@ -159,7 +192,7 @@ public class PostController {
         postService.addLike(authentication.getName(), postId);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(ApiResponse.success("좋아요 설정"));
+                .body(core.global.dto.ApiResponse.success("좋아요 설정"));
     }
 
 
@@ -192,14 +225,14 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @DeleteMapping("/posts/{postId}/likes/me")
-    public ResponseEntity<ApiResponse<?>> unlike(
+    public ResponseEntity<core.global.dto.ApiResponse<?>> unlike(
             Authentication authentication,
             @PathVariable @Positive Long postId
     ) {
         postService.removeLike(authentication.getName(), postId);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
-                .body(ApiResponse.success("좋아요 해제"));
+                .body(core.global.dto.ApiResponse.success("좋아요 해제"));
     }
 
 }

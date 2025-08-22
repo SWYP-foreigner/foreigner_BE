@@ -1,6 +1,9 @@
 package core.domain.comment.service.impl;
 
-import core.domain.comment.dto.*;
+import core.domain.comment.dto.CommentItem;
+import core.domain.comment.dto.CommentUpdateRequest;
+import core.domain.comment.dto.CommentWriteRequest;
+import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.comment.service.CommentService;
@@ -9,12 +12,14 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.enums.SortOption;
 import core.global.exception.BusinessException;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -41,86 +46,100 @@ public class CommentServiceImpl implements CommentService {
     private final LikeRepository likeRepository;
 
 
-    @Override
     @Transactional(readOnly = true)
-    public CommentCursorPageResponse<CommentResponse> getCommentList(Long postId, Integer size, SortOption sort, @Nullable Instant cursorCreatedAt,
-                                                                     @Nullable Long cursorId,
-                                                                     @Nullable Long cursorLikeCount) {
-        Sort sortSpec = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
-        Pageable pageable = PageRequest.of(0, size, sortSpec);
+    @Override
+    public CursorPageResponse<CommentItem> getCommentList(
+            Long postId, Integer size, SortOption sort, @Nullable String cursor
+    ) {
+        final int pageSize = Math.min(Math.max(size == null ? 20 : size, 1), 100);
+
+
+        Instant cursorCreatedAt = null;
+        Long cursorId = null;
+        Long cursorLikeCount = null;
+
+        Map<String, Object> c = CursorCodec.decode(cursor);
+        if (c.get("t") instanceof String ts && !ts.isBlank()) {
+            cursorCreatedAt = Instant.parse(ts);
+        }
+        if (c.get("id") instanceof Number n1) {
+            cursorId = n1.longValue();
+        }
+        if (c.get("lc") instanceof Number n2) {
+            cursorLikeCount = n2.longValue();
+        }
+
+        Pageable pageableLatest = PageRequest.of(0, pageSize, Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.desc("id")
+        ));
+        Pageable pageablePopular = PageRequest.of(0, pageSize);
 
         Slice<Comment> slice;
-
         if (sort == SortOption.POPULAR) {
-//             인기순: ORDER BY는 쿼리 안에서 서브쿼리로 처리하므로 Pageable의 sort는 의미 없음
-            pageable = PageRequest.of(0, size);
-            if (cursorCreatedAt == null || cursorId == null || cursorLikeCount == null) {
-                // 초기 로드
-                slice = commentRepository.findPopularByPostId(postId, LikeType.COMMENT, pageable);
-            } else {
-                // 커서 로드
-                slice = commentRepository.findPopularByCursor(
-                        postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageable
-                );
-            }
+            slice = (cursorId == null || cursorLikeCount == null || cursorCreatedAt == null)
+                    ? commentRepository.findPopularByPostId(postId, LikeType.COMMENT, pageablePopular)
+                    : commentRepository.findPopularByCursor(
+                    postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
+            );
         } else {
-            if (cursorCreatedAt == null || cursorId == null) {
-                slice = commentRepository.findByPostId(postId, pageable);
-            } else {
-                slice = commentRepository.findCommentByCursor(postId, cursorCreatedAt, cursorId, pageable);
-            }
+            slice = (cursorId == null || cursorCreatedAt == null)
+                    ? commentRepository.findByPostId(postId, pageableLatest)
+                    : commentRepository.findCommentByCursor(postId, cursorCreatedAt, cursorId, pageableLatest);
         }
 
-        List<Comment> comments = slice.getContent();
-        if (comments.isEmpty()) {
-            return new CommentCursorPageResponse<>(List.of(), false, null, null, null);
+        List<Comment> rows = slice.getContent();
+        if (rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
         }
 
-        List<Long> commentIds = comments.stream().map(Comment::getId).toList();
+        // 4) 보조 데이터(좋아요 수, 유저 이미지) 일괄 조회
+        List<Long> commentIds = rows.stream().map(Comment::getId).toList();
 
         Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
                 .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
 
-
-        List<Long> authorIds = comments.stream()
-                .map(c -> (c.getAuthor() != null) ? c.getAuthor().getId() : null)
+        List<Long> authorIds = rows.stream()
+                .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
 
-        Map<Long, String> userImageMap = imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
-                .collect(Collectors.toMap(
-                        r -> (Long) r[0],
-                        r -> (String) r[1]
-                ));
+        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
+                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
+                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
 
-
-        List<CommentResponse> items = comments.stream()
-                .map(c -> {
-                    long likeCount = likeCountMap.getOrDefault(c.getId(), 0L);
-                    String userImage = (c.getAuthor() != null)
-                            ? userImageMap.get(c.getAuthor().getId())
-                            : null;
-                    return CommentResponse.from(c, likeCount, userImage);
+        List<CommentItem> items = rows.stream()
+                .map(cmt -> {
+                    long lc = likeCountMap.getOrDefault(cmt.getId(), 0L);
+                    String userImage = (cmt.getAuthor() != null) ? userImageMap.get(cmt.getAuthor().getId()) : null;
+                    return CommentItem.from(cmt, lc, userImage);
                 })
                 .toList();
 
-        Comment last = comments.getLast();
-        Long nextCursorLikeCount = (sort == SortOption.POPULAR)
-                ? likeCountMap.getOrDefault(last.getId(), 0L)
-                : null;
+        // 5) nextCursor 생성
+        Comment last = rows.get(rows.size() - 1);
+        String nextCursor;
+        if (sort == SortOption.POPULAR) {
+            long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
+            nextCursor = CursorCodec.encode(Map.of(
+                    "lc", lastLc,
+                    "t", last.getCreatedAt().toString(), // 동률 안정성
+                    "id", last.getId()
+            ));
+        } else {
+            nextCursor = CursorCodec.encode(Map.of(
+                    "t", last.getCreatedAt().toString(),
+                    "id", last.getId()
+            ));
+        }
 
-        return new CommentCursorPageResponse<>(
-                items,
-                slice.hasNext(),
-                last.getCreatedAt(),
-                last.getId(),
-                nextCursorLikeCount
-        );
+        return new CursorPageResponse<>(items, slice.hasNext(), nextCursor);
     }
 
 
     @Override
+    @Transactional
     public void writeComment(String name, Long postId, CommentWriteRequest request) {
         User user = userRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -169,7 +188,6 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
-
     @Override
     @Transactional
     public void deleteComment(String name, Long commentId) {
@@ -191,14 +209,32 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public UserCommentsSliceResponse getMyCommentList(String name, Long lastCommentId, int size) {
-        List<UserCommentItem> items = commentRepository.findMyCommentsForCursor(name, lastCommentId, PageRequest.of(0, size + 1));
+    @Transactional(readOnly = true)
+    public CursorPageResponse<UserCommentItem> getMyCommentList(String username, int size, String cursor) {
+        final int pageSize = Math.min(Math.max(size, 1), 50);
 
-        boolean hasNext = items.size() > size;
-        List<UserCommentItem> page = hasNext ? items.subList(0, size) : items;
-        Long nextCursor = page.isEmpty() ? null : page.getLast().commentId();
+        Long lastId = null;
+        var payload = CursorCodec.decode(cursor);
+        Object idObj = payload.get("id");
+        if (idObj instanceof Number n) lastId = n.longValue();
 
-        return new UserCommentsSliceResponse(page, nextCursor, hasNext);
+        List<UserCommentItem> rows = commentRepository.findMyCommentsForCursor(
+                username,
+                lastId,
+                PageRequest.of(0, pageSize + 1)
+        );
+
+        boolean hasNext = rows.size() > pageSize;
+        List<UserCommentItem> items = hasNext ? rows.subList(0, pageSize) : rows;
+
+        if (items.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
+        UserCommentItem last = items.get(items.size() - 1);
+        String nextCursor = hasNext ? CursorCodec.encodeId(last.commentId()) : null;
+
+        return new CursorPageResponse<>(items, hasNext, nextCursor);
     }
 
 

@@ -5,11 +5,11 @@ import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.*;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import core.domain.board.dto.BoardResponse;
+import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
 import core.domain.post.dto.PostDetailResponse;
-import core.domain.post.dto.UserPostResponse;
+import core.domain.post.dto.UserPostItem;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QUser;
@@ -43,11 +43,11 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private final JPAQueryFactory query;
 
     @Override
-    public List<BoardResponse> findLatestPosts(Long boardId,
-                                               Instant cursorCreatedAt,
-                                               Long cursorId,
-                                               int size,
-                                               String q) {
+    public List<BoardItem> findLatestPosts(Long boardId,
+                                           Instant cursorCreatedAt,
+                                           Long cursorId,
+                                           int size,
+                                           String q) {
 
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
         BooleanExpression search = (q == null || q.isBlank())
@@ -83,7 +83,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         return query
                 .select(Projections.constructor(
-                        BoardResponse.class,
+                        BoardItem.class,
                         post.id,
                         preview,
                         authorNameExpr,
@@ -115,7 +115,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public List<BoardResponse> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
+    public List<BoardItem> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
         BooleanExpression sinceFilter = (since == null) ? null : post.createdAt.goe(since);
@@ -177,7 +177,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         return query
                 .select(Projections.constructor(
-                        BoardResponse.class,
+                        BoardItem.class,
                         post.id,
                         preview,
                         authorNameExpr,
@@ -252,10 +252,10 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public List<UserPostResponse> findMyPostsFirstByName(String name, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsFirstByName(String name, int limitPlusOne) {
         return query
                 .select(Projections.constructor(
-                        UserPostResponse.class,
+                        UserPostItem.class,
                         preview200(),
                         post.createdAt,
                         likeCountExpr(),
@@ -272,13 +272,13 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public List<UserPostResponse> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
         BooleanExpression ltCursor = post.createdAt.lt(cursorCreatedAt)
                 .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
 
         return query
                 .select(Projections.constructor(
-                        UserPostResponse.class,
+                        UserPostItem.class,
                         preview200(),
                         post.createdAt,
                         likeCountExpr(),

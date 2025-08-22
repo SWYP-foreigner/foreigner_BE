@@ -1,13 +1,14 @@
 package core.domain.bookmark.controller;
 
-import core.domain.bookmark.dto.BookmarkCursorPageResponse;
-import core.domain.bookmark.dto.BookmarkListResponse;
+import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.service.BookmarkService;
-import core.global.dto.ApiResponse;
+import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -53,22 +54,57 @@ public class BookmarkController {
     }
 
     @Operation(
-            summary = "내 북마크 목록 조회(커서 페이지)",
-            description = "로그인 사용자의 북마크 목록을 커서 기반 페이징으로 조회합니다."
+            summary = "내 북마크 목록",
+            description = """
+          - 정렬: bookmarkId DESC
+          - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
+          
+          요청 예시
+          1) 첫 페이지:
+             GET /api/v1/boards/my/bookmarks?size=20
+          
+          2) 다음 페이지:
+             GET /api/v1/boards/my/bookmarks?size=20&cursor=eyJpZCI6NTQ5fQ
+        """
     )
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-            responseCode = "200",
-            description = "성공",
-            content = @Content(schema = @Schema(implementation = ApiResponse.class))
-    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "성공", content = @Content(
+                    mediaType = "application/json",
+                    examples = @ExampleObject(
+                            value = """
+                        {
+                          "success": true,
+                          "data": {
+                            "items": [
+                              {
+                                "bookmarkId": 555,
+                                "authorName": "익명",
+                                "content": "내용 프리뷰...",
+                                "likeCount": 10,
+                                "commentCount": 2,
+                                "checkCount": 3,
+                                "isMarked": true,
+                                "userImage": "https://...",
+                                "postImages": ["https://.../1.png","https://.../2.png"]
+                              }
+                            ],
+                            "hasNext": true,
+                            "nextCursor": "eyJpZCI6NTQ5fQ"
+                          }
+                        }
+                        """
+                    )
+            ))
+    })
     @GetMapping("/my/bookmarks")
-    public ResponseEntity<ApiResponse<BookmarkCursorPageResponse<BookmarkListResponse>>> getMyBookmarks(
+    public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BookmarkItem>>> getMyBookmarks(
             @Parameter(hidden = true) Authentication authentication,
-            @Parameter(description = "페이지 크기", example = "20") @RequestParam(defaultValue = "20") int size,
-            @Parameter(description = "이전 페이지의 마지막 ID(커서)", example = "100") @RequestParam(required = false) Long cursorId
+            @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJpZCI6NTQ5fQ")
+            @RequestParam(required = false) String cursor
     ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                bookmarkService.getMyBookmarks(authentication.getName(), size, cursorId)
+        return ResponseEntity.ok(core.global.dto.ApiResponse.success(
+                bookmarkService.getMyBookmarks(authentication.getName(), size, cursor)
         ));
     }
 }

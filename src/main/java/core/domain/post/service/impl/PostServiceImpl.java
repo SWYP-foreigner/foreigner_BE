@@ -1,26 +1,23 @@
 package core.domain.post.service.impl;
 
-import core.domain.board.dto.BoardCursorPageResponse;
-import core.domain.board.dto.BoardResponse;
+import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
-import core.domain.post.dto.CommentWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.BoardCategory;
-import core.global.enums.ErrorCode;
-import core.global.enums.LikeType;
-import core.global.enums.SortOption;
+import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
+import core.global.pagination.CursorPages;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +42,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
-    public BoardCursorPageResponse<BoardResponse> getPostList(Long boardId, SortOption sort, Instant cursorCreatedAt, Long cursorId, Long cursorScore, int size) {
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String  cursor, int size) {
         final Long resolvedBoardId =
                 (boardId == 1L) ? null : boardId;
 
@@ -55,25 +52,47 @@ public class PostServiceImpl implements PostService {
 
         int pageSize = Math.min(Math.max(size, 1), 50);
 
-        List<BoardResponse> rows;
+        Map<String, Object> c = CursorCodec.decode(cursor);
+
+        Instant cursorCreatedAt = null;
+        Long cursorId = null;
+        Long cursorScore = null;
+
         switch (sort) {
             case LATEST -> {
-                rows = postRepository.findLatestPosts(
+                Object t = c.get("t");
+                if (t instanceof String ts && !ts.isBlank()) {
+                    cursorCreatedAt = Instant.parse(ts);
+                }
+                // id
+                Object idObj = c.get("id");
+                if (idObj instanceof Number n) cursorId = n.longValue();
+
+                List<BoardItem> rows = postRepository.findLatestPosts(
                         resolvedBoardId,
                         truncateToMillis(cursorCreatedAt),
                         cursorId,
                         pageSize,
-                        null
+                        null // 정렬/필터 추가 파라미터 있으면 그대로 사용
                 );
-                return BoardCursorPageResponse.ofLatest(
+
+                return CursorPages.ofLatest(
                         rows, pageSize,
-                        BoardResponse::createdAt,
-                        BoardResponse::postId
+                        BoardItem::createdAt,
+                        BoardItem::postId
                 );
             }
             case POPULAR -> {
+                Object scObj = c.get("sc");
+                if (scObj instanceof Number n) cursorScore = n.longValue();
+                // id
+                Object idObj = c.get("id");
+                if (idObj instanceof Number n) cursorId = n.longValue();
+
+                // 인기 글의 기준 기간(예: 최근 10일)
                 Instant since = Instant.now().minus(Duration.ofDays(10));
-                rows = postRepository.findPopularPosts(
+
+                List<BoardItem> rows = postRepository.findPopularPosts(
                         resolvedBoardId,
                         since,
                         cursorScore,
@@ -81,15 +100,34 @@ public class PostServiceImpl implements PostService {
                         pageSize,
                         null
                 );
-                return BoardCursorPageResponse.ofPopular(
+
+                return CursorPages.ofPopular(
                         rows, pageSize,
-                        BoardResponse::score,
-                        BoardResponse::postId
+                        BoardItem::score,
+                        BoardItem::postId
                 );
             }
             default -> {
-                rows = postRepository.findLatestPosts(resolvedBoardId, truncateToMillis(cursorCreatedAt), cursorId, pageSize, null);
-                return BoardCursorPageResponse.ofLatest(rows, pageSize, BoardResponse::createdAt, BoardResponse::postId);
+                Object t = c.get("t");
+                if (t instanceof String ts && !ts.isBlank()) {
+                    cursorCreatedAt = Instant.parse(ts);
+                }
+                Object idObj = c.get("id");
+                if (idObj instanceof Number n) cursorId = n.longValue();
+
+                List<BoardItem> rows = postRepository.findLatestPosts(
+                        resolvedBoardId,
+                        truncateToMillis(cursorCreatedAt),
+                        cursorId,
+                        pageSize,
+                        null
+                );
+
+                return CursorPages.ofLatest(
+                        rows, pageSize,
+                        BoardItem::createdAt,
+                        BoardItem::postId
+                );
             }
         }
     }
@@ -253,21 +291,38 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserPostsSliceResponse getMyPostList(String name, Instant cursorCreatedAt, Long cursorId, int size) {
-        int pageSize = Math.min(Math.max(size, 1), 50);
+    public CursorPageResponse<UserPostItem> getMyPostList(String username, String cursor, int size) {
+        final int pageSize = Math.min(Math.max(size, 1), 50);
 
-        List<UserPostResponse> rows = (cursorId == null)
-                ? postRepository.findMyPostsFirstByName(name, pageSize + 1)
-                : postRepository.findMyPostsNextByName(name, cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, pageSize + 1);
+        Instant cursorCreatedAt = null;
+        Long cursorId = null;
+        var payload = CursorCodec.decode(cursor);
+        if (payload.get("t") instanceof String ts && !ts.isBlank()) cursorCreatedAt = Instant.parse(ts);
+        if (payload.get("id") instanceof Number n) cursorId = n.longValue();
+
+        List<UserPostItem> rows = (cursorId == null || cursorCreatedAt == null)
+                ? postRepository.findMyPostsFirstByName(username, pageSize + 1)
+                : postRepository.findMyPostsNextByName(username,
+                cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS),
+                cursorId,
+                pageSize + 1);
 
         boolean hasNext = rows.size() > pageSize;
         if (hasNext) rows = rows.subList(0, pageSize);
 
-        Instant nextCreatedAt = rows.isEmpty() ? null : rows.get(rows.size() - 1).createdAt();
-        Long    nextId        = null; // ← UserPostResponse에 id가 없다면 커서로 id를 쓸 수 없으니,
-        //    필요 시 record에 postId를 한 칸 추가하세요.
+        if (rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
 
-        return new UserPostsSliceResponse(rows, nextId, hasNext);
+        UserPostItem last = rows.get(rows.size() - 1);
+        String nextCursor = hasNext
+                ? CursorCodec.encode(Map.of(
+                "t", last.createdAt().toString(),
+                "id", last.postId()
+        ))
+                : null;
+
+        return new CursorPageResponse<>(rows, hasNext, nextCursor);
     }
 
     @Override

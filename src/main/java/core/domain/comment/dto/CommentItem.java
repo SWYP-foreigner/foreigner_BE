@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 @Schema(name = "CommentResponse", description = "댓글 상세 응답")
-public record CommentResponse(
+public record CommentItem(
         @Schema(description = "댓글 ID", example = "10", nullable = true)
         Long commentId,
 
@@ -29,11 +29,11 @@ public record CommentResponse(
         @Schema(description = "삭제 여부", example = "false")
         Boolean deleted
 ) {
-    public static CommentResponse from(Comment c,
-                                       long likeCount,
-                                       @Nullable String userImageUrl) {
+    public static CommentItem from(Comment c,
+                                   long likeCount,
+                                   @Nullable String userImageUrl) {
         if (c.isDeleted()) {
-            return new CommentResponse(
+            return new CommentItem(
                     null,
                     null,
                     "삭제된 댓글입니다.",
@@ -43,7 +43,7 @@ public record CommentResponse(
                     true
             );
         }
-        return new CommentResponse(
+        return new CommentItem(
                 c.getId(),
                 (c.getAuthor() != null) ? c.getAuthor().getName() : null,
                 c.getContent(),

@@ -5,7 +5,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 @Schema(name = "UserPostResponse", description = "사용자가 작성한 게시글 응답 DTO")
-public record UserPostResponse(
+public record UserPostItem(
+        @Schema(description = "게시글 ID", example = "1")
+        String postId,
+
         @Schema(description = "게시글 내용", example = "오늘 다녀온 맛집 공유해요!")
         String content,
 
