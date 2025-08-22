@@ -32,7 +32,6 @@ public class FollowService {
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 중복/상태 체크
         Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
         if (existing != null) {
             switch (existing.getStatus()) {
