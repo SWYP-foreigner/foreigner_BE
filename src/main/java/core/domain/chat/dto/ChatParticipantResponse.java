@@ -18,7 +18,7 @@ public record ChatParticipantResponse(
         return new ChatParticipantResponse(
                 participant.getId(),
                 participant.getUser().getId(),
-                participant.getUser().getName(),
+                participant.getUser().getLastName(),
                 participant.getJoinedAt(),
                 participant.getLastLeftAt(),
                 participant.getLastReadMessageId(),

@@ -30,16 +30,16 @@ public class GoogleService {
     @Value("${oauth.google.web.redirect-uri}")
     private String webRedirectUri;
 
-//    // application.yml에서 안드로이드 클라이언트 정보를 주입받습니다.
-//    @Value("${oauth.google.android.client-id}")
-//    private String androidClientId;
-//    @Value("${oauth.google.android.redirect-uri}")
-//    private String androidRedirectUri;
-//
-//    @Value("${oauth.google.ios.client-id}")
-//    private String iosClientId;
-//    @Value("${oauth.google.ios.redirect-uri}")
-//    private String iosRedirectUri;
+
+    @Value("${oauth.google.android.client-id}")
+    private String androidClientId;
+    @Value("${oauth.google.android.redirect-uri}")
+    private String androidRedirectUri;
+
+    @Value("${oauth.google.ios.client-id}")
+    private String iosClientId;
+    @Value("${oauth.google.ios.redirect-uri}")
+    private String iosRedirectUri;
 
     // HTTP 통신을 위한 RestClient 인스턴스를 생성합니다.
     private final RestClient restClient = RestClient.create();
@@ -71,39 +71,39 @@ public class GoogleService {
      * @param platform     요청을 보낸 클라이언트의 플랫폼 (ANDROID)
      * @return 구글로부터 받은 Access Token 정보 (AccessTokenDto)
      */
-//    public AccessTokenDto exchangeCodeWithPkce(String code, String codeVerifier, DeviceType platform) {
-//        String clientId;
-//        String redirectUri;
-//
-//        // 플랫폼에 따라 클라이언트 ID와 리디렉션 URI를 선택합니다.
-//        switch (platform) {
-//            case ANDROID -> {
-//                clientId = androidClientId;
-//                redirectUri = androidRedirectUri;
-//            }
-//            case IOS -> {
-//                clientId = iosClientId;
-//                redirectUri = iosRedirectUri;
-//            }
-//            default ->throw new BusinessException(ErrorCode.PLACE_NOT_FOUND);
-//        }
-//
-//        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-//        formData.add("grant_type", "authorization_code");
-//        formData.add("code", code);
-//        formData.add("client_id", clientId);
-//        formData.add("code_verifier", codeVerifier);
-//        formData.add("redirect_uri", redirectUri);
-//
-//        ResponseEntity<AccessTokenDto> response = restClient.post()
-//                .uri("https://oauth2.googleapis.com/token")
-//                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-//                .body(formData)
-//                .retrieve()
-//                .toEntity(AccessTokenDto.class);
-//
-//        return response.getBody();
-//    }
+    public AccessTokenDto exchangeCodeWithPkce(String code, String codeVerifier, DeviceType platform) {
+        String clientId;
+        String redirectUri;
+
+
+        switch (platform) {
+            case ANDROID -> {
+                clientId = androidClientId;
+                redirectUri = androidRedirectUri;
+            }
+            case IOS -> {
+                clientId = iosClientId;
+                redirectUri = iosRedirectUri;
+            }
+            default ->throw new BusinessException(ErrorCode.PLACE_NOT_FOUND);
+        }
+
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("grant_type", "authorization_code");
+        formData.add("code", code);
+        formData.add("client_id", clientId);
+        formData.add("code_verifier", codeVerifier);
+        formData.add("redirect_uri", redirectUri);
+
+        ResponseEntity<AccessTokenDto> response = restClient.post()
+                .uri("https://oauth2.googleapis.com/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(formData)
+                .retrieve()
+                .toEntity(AccessTokenDto.class);
+
+        return response.getBody();
+    }
 
     /**
      * Access Token을 사용하여 구글 OIDC(OpenID Connect)의 userinfo 엔드포인트에서

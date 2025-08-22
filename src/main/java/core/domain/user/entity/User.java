@@ -1,9 +1,6 @@
 package core.domain.user.entity;
 
-
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.user.dto.UserUpdateDTO;
-import core.global.enums.Sex;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,11 +8,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
-import java.util.List;
 
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"provider", "social_id"})
+})
 @Getter
 @NoArgsConstructor
 @Setter
@@ -25,27 +24,32 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(name = "name", nullable = true)
-    private String name;
+    @Column(name = "username")
+    private String username;
 
-    @Enumerated(EnumType.STRING)
+    @Column(name = "first_name", nullable = true)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = true)
+    private String lastName;
+
     @Column(name = "SEX", nullable = true)
-    private Sex sex;
+    private String sex;
 
-    @Column(name = "age", nullable = true)
-    private Integer age;
+    @Column(name = "birth_date", nullable = true)
+    private String birthdate;
 
     @Column(name = "nationality", nullable = true)
-    private String nationality;
+    private String country;
 
     @Column(name = "introduction", length = 40, nullable = true)
     private String introduction;
 
     @Column(name = "visit_purpose", length = 40, nullable = true)
-    private String visitPurpose;
+    private String purpose;
 
     @Column(name = "languages", nullable = true)
-    private String languages;
+    private String language;
 
     @Column(name = "hobby", nullable = true)
     private String hobby;
@@ -64,53 +68,62 @@ public class User {
 
     @Column(name = "email", nullable = true)
     private String email;
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ChatParticipant> chatParticipants;
+
+    @Column(name = "profile_image_url")
+    private String profileImageUrl; // NCP S3 업로드 결과 URL 저장
+
     @Builder
-    public User(String name, Sex sex, Integer age, String nationality,
-                String introduction, String visitPurpose, String languages,
-                String hobby, String provider, String socialId, String email) {
-        this.name = name;
+    public User(String firstName,
+                String lastName,
+                String sex,
+                String birthdate,
+                String country,
+                String introduction,
+                String purpose,
+                String language,
+                String hobby,
+                String provider,
+                String socialId,
+                String email,
+                String profileImageUrl) {
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.sex = sex;
-        this.age = age;
-        this.nationality = nationality;
+        this.birthdate = birthdate;
+        this.country = country;
         this.introduction = introduction;
-        this.visitPurpose = visitPurpose;
-        this.languages = languages;
+        this.purpose = purpose;
+        this.language = language;
         this.hobby = hobby;
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
-        this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
+        this.profileImageUrl = profileImageUrl;
     }
 
     public void updateProfile(UserUpdateDTO dto) {
-        if (dto.getName() != null && !dto.getName().trim().isEmpty()) {
-            this.name = dto.getName().trim();
+        if (notBlank(dto.getFirstname())) this.firstName = dto.getFirstname().trim();
+        if (notBlank(dto.getLastname()))  this.lastName  = dto.getLastname().trim();
+
+        if (dto.getGender() != null) this.sex = dto.getGender();
+        if (dto.getBirthday() != null) this.birthdate = dto.getBirthday();
+
+        if (notBlank(dto.getCountry())) this.country = dto.getCountry().trim();
+        if (notBlank(dto.getIntroduction())) this.introduction = dto.getIntroduction().trim();
+        if (notBlank(dto.getPurpose())) this.purpose = dto.getPurpose().trim();
+
+        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
+            this.language = String.join(",", dto.getLanguage());
         }
-        if (dto.getSex() != null) {
-            this.sex = dto.getSex();
-        }
-        if (dto.getAge() != null) {
-            this.age = dto.getAge();
-        }
-        if (dto.getNationality() != null && !dto.getNationality().trim().isEmpty()) {
-            this.nationality = dto.getNationality().trim();
-        }
-        if (dto.getIntroduction() != null && !dto.getIntroduction().trim().isEmpty()) {
-            this.introduction = dto.getIntroduction().trim();
-        }
-        if (dto.getVisitPurpose() != null && !dto.getVisitPurpose().trim().isEmpty()) {
-            this.visitPurpose = dto.getVisitPurpose().trim();
-        }
-        if (dto.getLanguages() != null && !dto.getLanguages().trim().isEmpty()) {
-            this.languages = dto.getLanguages().trim();
-        }
-        if (dto.getHobby() != null && !dto.getHobby().trim().isEmpty()) {
-            this.hobby = dto.getHobby().trim();
+        if (dto.getHobby() != null && !dto.getHobby().isEmpty()) {
+            this.hobby = String.join(",", dto.getHobby());
         }
 
+
         this.updatedAt = Instant.now();
+    }
+
+    private boolean notBlank(String s) {
+        return s != null && !s.trim().isEmpty();
     }
 }

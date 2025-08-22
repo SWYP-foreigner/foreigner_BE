@@ -1,10 +1,6 @@
 spring:
-  config:
-    activate:
-      on-profile: dev
-
   datasource:
-    url: jdbc:postgresql://localhost:5432/${DB_NAME}
+    url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -12,11 +8,10 @@ spring:
     mongodb:
       uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
 
-    spring:
-      redis:
-        host: ${SPRING_REDIS_HOST}
-        port: ${SPRING_REDIS_PORT}
-        password: ${SPRING_REDIS_PASSWORD}
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
 
   jpa:
     hibernate:
@@ -30,6 +25,16 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000
+
+cloud:
+  openfeign:
+    client:
+      config:
+        default:
+          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+          readTimeout: ${FEIGN_READ_TIMEOUT}
+          loggerLevel: ${FEIGN_LOGGER_LEVEL}
+
 
 oauth:
   google:
@@ -52,6 +57,13 @@ oauth:
     private-key-pem: |-
       ${APPLE_PRIVATE_KEY_PEM}
 
+ncp:
+  s3:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET_NAME}
 
 swagger:
   server-url: https://dev.ko-ri.cloud

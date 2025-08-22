@@ -147,7 +147,7 @@ public class ChatController {
                 .map(p -> new ChatParticipantResponse(
                         p.getId(),
                         p.getUser().getId(),
-                        p.getUser().getName(),
+                        p.getUser().getLastName(),
                         p.getJoinedAt(),
                         p.getLastLeftAt(),
                         p.getLastReadMessageId(),
