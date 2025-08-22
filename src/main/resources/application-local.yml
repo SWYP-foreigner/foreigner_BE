@@ -5,83 +5,70 @@ spring:
       on-profile: local
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: 1111
+    url: jdbc:postgresql://db:5432/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  data:
-    mongodb:
-      # 로컬 몽고 (루트/루트, DB: myapp) — 필요에 맞게 수정
-      uri: mongodb://root:root@localhost:27017/myapp?authSource=admin
-
-    redis:
-      host: localhost
-      port: 6379
-      password:
 
 jwt:
-  secret:  b2F1dGhzZXJ2ZXJzZWNyZXRhY2Nlc3N0b2tlbm9hdXRoc2VydmVyc2VjcmV0YWNjZXNzdG9rZW5vYXV0aHNlcnZlcnNlY3JldGFjY2Vzc3Rva2Vu
+  secret: ${JWT_SECRET}
   expiration: 3600000
 
-oauth:
-  google:
-    android:
-      client-id: "1234567890-androidclientid.apps.googleusercontent.com"
-      redirect-uri: "com.myapp.android://oauth2redirect/google"
-    ios:
-      client-id: "1234567890-iosclientid.apps.googleusercontent.com"
-      redirect-uri: "com.myapp.ios://oauth2redirect/google"
-    web:
-      client-id: "1234567890-webclientid.apps.googleusercontent.com"
-      client-secret: "web_client_secret_dummy_change_me"
-      redirect-uri: "http://localhost:8080/oauth2/callback/google"
-
-  apple:
-    team-id: "ABCDE12345"
-    key-id: "XYZ9876543"
-    client-id: "com.myapp.service"   # Apple Services ID
-    redirect-uri: "http://localhost:8080/oauth2/callback/apple"
-    private-key-pem: |-
-      -----BEGIN PRIVATE KEY-----
-      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7dummYy9DUMMY
-      dUMMyFakeBase64ForLocalDevOnlyz8kqH8r9qJxP2y5q1n1x1PpQm0v8qfW8Y0b
-      nk1o8n5r2y8d1Tgk3mQ7b4l7mWvZb8oM3iBx6n0c5r9K0f0gV2Xz9p9Qp9x0mV7B
-      u3z6sZb0n9ZpQy2Y0m0A1p2Q2g0B7m8K4p5f6A7B8C9D0E1F2G3H4I5J6K7L8M9N
-      O0P1Q2R3S4T5U6V7W8X9Y0Z1AAABBBCCCDDDEEEFFF1112223334445556667778
-      999000localdevonlyDoNotUseInProdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-      -----END PRIVATE KEY-----
 cloud:
   openfeign:
     client:
       config:
         default:
-          connectTimeout: 5000
-          readTimeout: 10000
-          loggerLevel: BASIC
+          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+          readTimeout: ${FEIGN_READ_TIMEOUT}
+          loggerLevel: ${FEIGN_LOGGER_LEVEL}
+
+
+oauth:
+  google:
+    android:
+      client-id: ${ANDROID_CLIENT_ID}
+      redirect-uri: ${ANDROID_REDIRECT_URI}
+    ios:
+      client-id: ${IOS_CLIENT_ID}
+      redirect-uri: ${IOS_REDIRECT_URI}
+    web:
+      client-id: ${WEB_CLIENT_ID}
+      client-secret: ${WEB_CLIENT_SECRET}
+      redirect-uri: ${WEB_REDIRECT_URI}
+
+  apple:
+    team-id: ${APPLE_TEAM_ID}
+    key-id: ${APPLE_KEY_ID}
+    client-id: ${APPLE_CLIENT_ID}
+    redirect-uri: ${APPLE_REDIRECT_URI}
+    private-key-pem: |-
+      ${APPLE_PRIVATE_KEY_PEM}
 
 ncp:
   s3:
-    access-key: "NCPAKIA1234567890ABCD"
-    secret-key: "ncpSecretKey_1234567890abcdefGHIJKLmnop"
-    region: "kr-standard"
-    endpoint: "https://kr.object.ncloudstorage.com"
-    bucket: "myapp-dev-bucket"
-
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-
-
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: ${NCP_BUCKET_NAME}
 
 springdoc:
   api-docs:
