@@ -188,8 +188,8 @@ public class UserController {
      * JWT 인증 없이 userId를 직접 경로 변수로 받습니다.
      * 실제 운영 환경에서는 사용하지 않는 것이 좋습니다.
      */
-    @PostMapping(value = "/profileTestsetup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "프로필 최초 생성", description = "userId 없이 새 유저를 만들고 프로필/이미지를 저장합니다.")
+    @PostMapping(value = "/profile/Testsetup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "프로필 최초 생성(테스트)", description = "userId 없이 새 유저를 만들고 프로필/이미지를 저장합니다.")
     @ApiResponse(responseCode = "200", description = "프로필 생성 성공")
     public ResponseEntity<User> setupUserProfile(
             @RequestPart("profile") UserUpdateDTO userUpdateDTO,   // JSON 파트 이름: profile
