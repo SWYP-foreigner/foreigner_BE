@@ -1,5 +1,6 @@
 package core.domain.comment.service.impl;
 
+import core.domain.chat.service.ForbiddenWordService;
 import core.domain.comment.dto.*;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
@@ -8,12 +9,14 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.enums.SortOption;
 import core.global.exception.BusinessException;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -29,6 +32,7 @@ import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
@@ -45,6 +51,7 @@ class CommentServiceImplTest {
     private UserRepository userRepository;
     private ImageRepository imageRepository;
     private LikeRepository likeRepository;
+    private ForbiddenWordService forbiddenWordService;
 
     private CommentService service;
 
@@ -55,9 +62,12 @@ class CommentServiceImplTest {
         userRepository = mock(UserRepository.class);
         imageRepository = mock(ImageRepository.class);
         likeRepository = mock(LikeRepository.class);
+        forbiddenWordService = mock(ForbiddenWordService.class);
+        // writeComment 경로에서 호출됨
+        lenient().when(forbiddenWordService.containsForbiddenWord(any())).thenReturn(false);
 
         service = new CommentServiceImpl(
-                commentRepository, postRepository, userRepository, imageRepository, likeRepository
+                commentRepository, postRepository, userRepository, imageRepository, likeRepository, forbiddenWordService
         );
     }
 
@@ -92,7 +102,7 @@ class CommentServiceImplTest {
     class GetCommentListLatest {
 
         @Test
-        @DisplayName("초기 로드: 최신순 페이지 반환 및 next 커서 설정")
+        @DisplayName("초기 로드: 최신순 페이지 반환 및 nextCursor(t,id) 생성")
         void latest_initial() {
             // given
             Long postId = 10L;
@@ -106,7 +116,7 @@ class CommentServiceImplTest {
             Comment c2 = mockComment(102L, t1, author, post, false, null);
 
             Slice<Comment> slice = new SliceImpl<>(
-                    List.of(c1, c2), PageRequest.of(0, 2), false
+                    List.of(c1, c2), PageRequest.of(0, 2), false // hasNext=false
             );
 
             given(commentRepository.findByPostId(eq(postId), any(Pageable.class)))
@@ -114,25 +124,30 @@ class CommentServiceImplTest {
 
             // 좋아요수, 유저이미지
             given(likeRepository.countByRelatedIds(eq(LikeType.COMMENT), eq(List.of(101L, 102L))))
-                    .willReturn(List.<Object[]>of(new Object[]{101L, 3L})); // 102는 0으로 처리
+                    .willReturn(List.<Object[]>of(new Object[]{101L, 3L})); // 102는 0 처리
 
             given(imageRepository.findUrlByRelatedIds(eq(ImageType.USER), eq(List.of(1L))))
                     .willReturn(List.<Object[]>of(new Object[]{1L, "u1.png"}));
 
             // when
-            CommentCursorPageResponse<CommentResponse> resp = service.getCommentList(
-                    postId, 2, SortOption.LATEST, null, null, null
+            CursorPageResponse<CommentItem> resp = service.getCommentList(
+                    postId, 2, SortOption.LATEST, null
             );
 
             // then
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.hasNext()).isFalse();
-            assertThat(resp.nextCursorCreatedAt()).isEqualTo(t1);  // 마지막 요소 c2
-            assertThat(resp.nextCursorId()).isEqualTo(102L);
-            assertThat(resp.nextCursorLikeCount()).isNull(); // LATEST는 null
+
+            // nextCursor는 hasNext와 무관하게 생성됨 → decode하여 검증
+            assertThat(resp.nextCursor()).isNotNull();
+            Map<String, Object> decoded = CursorCodec.decode(resp.nextCursor());
+            assertThat(decoded.get("t")).isEqualTo(t1.toString()); // 마지막 요소 c2 기준
+            Object idObj = decoded.get("id");
+            long idVal = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
+            assertThat(idVal).isEqualTo(102L);
 
             // like/userImage 매핑 검증(부분)
-            CommentResponse last = resp.items().get(1);
+            CommentItem last = resp.items().get(1);
             assertThat(last.likeCount()).isEqualTo(0L);
         }
     }
@@ -142,7 +157,7 @@ class CommentServiceImplTest {
     class GetCommentListPopular {
 
         @Test
-        @DisplayName("커서 로드: 인기순 페이지 반환 및 next likeCount 커서 설정")
+        @DisplayName("커서 로드: 인기순 페이지 + nextCursor(lc,t,id) 생성")
         void popular_with_cursor() {
             // given
             Long postId = 10L;
@@ -150,13 +165,21 @@ class CommentServiceImplTest {
             Post post = mockPost(postId);
 
             Instant base = Instant.parse("2025-08-20T12:00:00Z");
+            // 커서 기준(lc=50, t=base, id=999) 이후 페이지
+            String cursor = CursorCodec.encode(Map.of(
+                    "lc", 50L,
+                    "t", base.toString(),
+                    "id", 999L
+            ));
+
             Comment c1 = mockComment(201L, base.plusSeconds(60), author, post, false, null);
             Comment c2 = mockComment(202L, base, author, post, false, null);
 
+            // hasNext=true 케이스
             Slice<Comment> slice = new SliceImpl<>(List.of(c1, c2), PageRequest.of(0, 2), true);
 
             given(commentRepository.findPopularByCursor(
-                    eq(postId), eq(LikeType.COMMENT), eq(50L), any(Instant.class), eq(999L), any(Pageable.class)
+                    eq(postId), eq(LikeType.COMMENT), eq(50L), eq(base), eq(999L), any(Pageable.class)
             )).willReturn(slice);
 
             given(likeRepository.countByRelatedIds(eq(LikeType.COMMENT), eq(List.of(201L, 202L))))
@@ -166,17 +189,24 @@ class CommentServiceImplTest {
                     .willReturn(List.<Object[]>of(new Object[]{1L, "img.png"}));
 
             // when
-            CommentCursorPageResponse<CommentResponse> resp = service.getCommentList(
-                    postId, 2, SortOption.POPULAR,
-                    base, 999L, 50L
+            CursorPageResponse<CommentItem> resp = service.getCommentList(
+                    postId, 2, SortOption.POPULAR, cursor
             );
 
             // then
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.hasNext()).isTrue();
-            assertThat(resp.nextCursorCreatedAt()).isEqualTo(base);
-            assertThat(resp.nextCursorId()).isEqualTo(202L);
-            assertThat(resp.nextCursorLikeCount()).isEqualTo(60L);
+
+            assertThat(resp.nextCursor()).isNotNull();
+            Map<String, Object> decoded = CursorCodec.decode(resp.nextCursor());
+            // 마지막 요소 c2(202L)의 likeCount=60, createdAt=base
+            Object lcObj = decoded.get("lc");
+            long lcVal = (lcObj instanceof Number n) ? n.longValue() : Long.parseLong((String) lcObj);
+            Object idObj = decoded.get("id");
+            long idVal = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
+            assertThat(lcVal).isEqualTo(60L);
+            assertThat(decoded.get("t")).isEqualTo(base.toString());
+            assertThat(idVal).isEqualTo(202L);
         }
     }
 
@@ -385,7 +415,7 @@ class CommentServiceImplTest {
     class GetMyCommentListTests {
 
         @Test
-        @DisplayName("size+1 로 조회하여 hasNext/page/nextCursor 계산")
+        @DisplayName("size+1 로 조회하여 hasNext/trim/nextCursor(String) 계산")
         void my_comments_cursor_paging() {
             // given
             int size = 2;
@@ -397,12 +427,17 @@ class CommentServiceImplTest {
                     .willReturn(List.of(i1, i2, i3));
 
             // when
-            UserCommentsSliceResponse resp = service.getMyCommentList("alice", null, size);
+            CursorPageResponse<UserCommentItem> resp = service.getMyCommentList("alice", size, null);
 
             // then
             assertThat(resp.items()).containsExactly(i1, i2);
             assertThat(resp.hasNext()).isTrue();
-            assertThat(resp.nextCursor()).isEqualTo(12L);
+            assertThat(resp.nextCursor()).isNotNull();
+
+            Map<String, Object> decoded = CursorCodec.decode(resp.nextCursor());
+            Object idObj = decoded.get("id");
+            long idVal = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
+            assertThat(idVal).isEqualTo(12L);
         }
     }
 }

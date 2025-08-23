@@ -1,7 +1,6 @@
 package core.domain.bookmark.service.impl;
 
-import core.domain.bookmark.dto.BookmarkCursorPageResponse;
-import core.domain.bookmark.dto.BookmarkListResponse;
+import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.entity.Bookmark;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.comment.repository.CommentRepository;
@@ -9,11 +8,13 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.exception.BusinessException;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,42 +45,33 @@ class BookmarkServiceImplTest {
     private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
     private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
     private static final LikeType LIKE_TYPE_POST = LikeType.POST;
-    @Mock
-    private BookmarkRepository bookmarkRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private PostRepository postRepository;
-    @Mock
-    private LikeRepository likeRepository;
-    @Mock
-    private CommentRepository commentRepository;
-    @Mock
-    private ImageRepository imageRepository;
+
+    @Mock private BookmarkRepository bookmarkRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private PostRepository postRepository;
+    @Mock private LikeRepository likeRepository;
+    @Mock private CommentRepository commentRepository;
+    @Mock private ImageRepository imageRepository;
+
     @InjectMocks
     private BookmarkServiceImpl sut;
 
     private User user(Long id, String name) {
         User u = new User();
-        // 필요 시 리플렉션/세터 등 프로젝트 방식에 따라 세팅
-        // 예: u.setId(id); u.setName(name);
         try {
             var f1 = User.class.getDeclaredField("id");
             f1.setAccessible(true);
             f1.set(u, id);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             var m = User.class.getMethod("setName", String.class);
             m.invoke(u, name);
         } catch (Exception e) {
-            // 세터가 없으면 필드 강제 세팅
             try {
                 var f2 = User.class.getDeclaredField("name");
                 f2.setAccessible(true);
                 f2.set(u, name);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         return u;
     }
@@ -89,44 +82,37 @@ class BookmarkServiceImplTest {
             var f = Post.class.getDeclaredField("id");
             f.setAccessible(true);
             f.set(p, id);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             var f = Post.class.getDeclaredField("content");
             f.setAccessible(true);
             f.set(p, content);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             var f = Post.class.getDeclaredField("author");
             f.setAccessible(true);
             f.set(p, author);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             var f = Post.class.getDeclaredField("anonymous");
             f.setAccessible(true);
             f.set(p, anonymous);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         try {
             var f = Post.class.getDeclaredField("checkCount");
             f.setAccessible(true);
             f.set(p, checkCount);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         return p;
     }
 
     private Bookmark bookmark(Long id, User u, Post p) {
         Bookmark b = Bookmark.createBookmark(u, p);
-        // createBookmark 내부에서 id를 세팅하지 않는다면 테스트 편의상 강제 세팅
         try {
             var f = Bookmark.class.getDeclaredField("id");
             f.setAccessible(true);
             f.set(b, id);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         return b;
     }
 
@@ -135,7 +121,7 @@ class BookmarkServiceImplTest {
     class GetMyBookmarks {
 
         @Test
-        @DisplayName("첫 페이지에서 size+1로 조회되면 hasNext=true, nextCursor가 마지막 id로 반환된다")
+        @DisplayName("첫 페이지에서 size+1로 조회되면 hasNext=true, nextCursor에 마지막 id가 인코딩되어 반환된다")
         void firstPageSuccessWithNextCursor() {
             // given
             String username = "alice";
@@ -150,7 +136,7 @@ class BookmarkServiceImplTest {
 
             Bookmark b1 = bookmark(1001L, alice, p1);
             Bookmark b2 = bookmark(1000L, alice, p2);
-            Bookmark b3 = bookmark(999L, alice, p3);
+            Bookmark b3 = bookmark(999L,  alice, p3);
 
             List<Bookmark> pageContent = List.of(b1, b2, b3);
             Pageable pageable = PageRequest.of(0, size + 1);
@@ -159,8 +145,7 @@ class BookmarkServiceImplTest {
             given(bookmarkRepository.findByUserNameOrderByIdDesc(eq(username), any(Pageable.class)))
                     .willReturn(slice);
 
-            // 집계/이미지 mock
-            // 집계/이미지 mock - '표시할 아이템(size개)'의 ID만 스텁
+            // 집계/이미지 mock (표시되는 size개의 postId만 스텁: 101,102)
             given(likeRepository.countByRelatedIds(eq(LIKE_TYPE_POST), eq(List.of(101L, 102L))))
                     .willReturn(List.<Object[]>of(new Object[]{101L, 3L}));
 
@@ -176,19 +161,24 @@ class BookmarkServiceImplTest {
             given(imageRepository.findFirstUrlByRelatedIds(eq(IMAGE_TYPE_USER), eq(List.of(20L))))
                     .willReturn(List.<Object[]>of(new Object[]{20L, "https://img/user/bob.png"}));
 
-
             // when
-            BookmarkCursorPageResponse<BookmarkListResponse> res =
+            CursorPageResponse<BookmarkItem> res =
                     sut.getMyBookmarks(username, size, null);
 
             // then
             assertThat(res.items()).hasSize(2);
             assertThat(res.hasNext()).isTrue();
-            // 정렬은 id desc이므로 last는 b2(1000L)
-            assertThat(res.nextCursorId()).isEqualTo(1000L);
+            assertThat(res.nextCursor()).isNotNull();
+
+            // nextCursor → decode 후 id 확인 (Number 또는 String 모두 대응)
+            Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
+            Object idObj = decoded.get("id");
+            long decodedId = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
+            // 정렬 id desc이므로 last는 b2(1000L)
+            assertThat(decodedId).isEqualTo(1000L);
 
             // 아이템 검증(일부)
-            BookmarkListResponse i0 = res.items().get(0);
+            BookmarkItem i0 = res.items().get(0);
             assertThat(i0.content()).contains("첫 번째 포스트");
             assertThat(i0.likeCount()).isEqualTo(3L);
             assertThat(i0.commentCount()).isEqualTo(2L);
@@ -212,22 +202,23 @@ class BookmarkServiceImplTest {
                     .willReturn(emptySlice);
 
             // when
-            BookmarkCursorPageResponse<BookmarkListResponse> res =
+            CursorPageResponse<BookmarkItem> res =
                     sut.getMyBookmarks(username, size, null);
 
             // then
             assertThat(res.items()).isEmpty();
             assertThat(res.hasNext()).isFalse();
-            assertThat(res.nextCursorId()).isNull();
+            assertThat(res.nextCursor()).isNull();
         }
 
         @Test
         @DisplayName("다음 페이지 호출 시 cursor 이후로 이어서 조회된다")
-        void nextPageByCursorId() {
+        void nextPageByCursor() {
             // given
             String username = "alice";
             int size = 2;
-            long cursor = 1000L;
+            long cursorId = 1000L;
+            String cursor = CursorCodec.encodeId(cursorId);
 
             User alice = user(10L, username);
             User bob = user(20L, "bob");
@@ -238,12 +229,12 @@ class BookmarkServiceImplTest {
             Bookmark b3 = bookmark(999L, alice, p3);
             Bookmark b4 = bookmark(998L, alice, p4);
 
-            // 이번에는 size+1이 아닌 정확히 size로 반환 → hasNext=false
+            // size만 반환 → hasNext=false
             List<Bookmark> pageContent = List.of(b3, b4);
             Pageable pageable = PageRequest.of(0, size + 1);
             Slice<Bookmark> slice = new SliceImpl<>(pageContent, pageable, false);
 
-            given(bookmarkRepository.findByUserNameAndIdLessThanOrderByIdDesc(eq(username), eq(cursor), any(Pageable.class)))
+            given(bookmarkRepository.findByUserNameAndIdLessThanOrderByIdDesc(eq(username), eq(cursorId), any(Pageable.class)))
                     .willReturn(slice);
 
             given(likeRepository.countByRelatedIds(eq(LIKE_TYPE_POST), eq(List.of(103L, 104L))))
@@ -256,13 +247,13 @@ class BookmarkServiceImplTest {
                     .willReturn(List.<Object[]>of(new Object[]{103L, "https://img/post/103-1.png"}));
 
             // when
-            BookmarkCursorPageResponse<BookmarkListResponse> res =
+            CursorPageResponse<BookmarkItem> res =
                     sut.getMyBookmarks(username, size, cursor);
 
             // then
             assertThat(res.items()).hasSize(2);
             assertThat(res.hasNext()).isFalse();
-            assertThat(res.nextCursorId()).isNull();
+            assertThat(res.nextCursor()).isNull();
             assertThat(res.items().get(0).postImages()).containsExactly("https://img/post/103-1.png");
         }
     }

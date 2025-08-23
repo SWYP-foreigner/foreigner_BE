@@ -8,13 +8,16 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.BoardCategory;
+import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
-import core.global.enums.ImageType;
 import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
+import core.domain.chat.service.ForbiddenWordService;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,35 +29,30 @@ import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class PostServiceImplTest {
 
-    @Mock
-    private PostRepository postRepository;
-    @Mock
-    private BoardRepository boardRepository;
-    @Mock
-    private LikeRepository likeRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private ImageRepository imageRepository;
+    @Mock private PostRepository postRepository;
+    @Mock private BoardRepository boardRepository;
+    @Mock private LikeRepository likeRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private ImageRepository imageRepository;
+    @Mock private ForbiddenWordService forbiddenWordService;
 
     @InjectMocks
     private PostServiceImpl service;
 
-    /**
-     * Get PostDetail
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Get PostDetail
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("getPostDetail - 조회수 증가(changeCheckCount) 호출 및 상세 조회 위임")
     void getPostDetail_success() {
@@ -82,13 +80,17 @@ class PostServiceImplTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Write Post
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Write Post
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("writePost - boardId=1이면 쓰기 불가")
     void writePost_board1_forbidden() {
         PostWriteRequest req = mock(PostWriteRequest.class);
+
+        // 불필요한 스텁 금지: boardId==1에서 바로 예외 발생하므로 금칙어 체크까지 가지 않음
+        // given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
+
         assertThatThrownBy(() -> service.writePost("alice", 1L, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
@@ -101,10 +103,13 @@ class PostServiceImplTest {
         Long boardId = 10L;
         Board board = mock(Board.class);
         given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
-        given(board.getCategory()).willReturn(BoardCategory.ACTIVITY); // 예: 익명 불가 카테고리
+        given(board.getCategory()).willReturn(BoardCategory.ACTIVITY); // 익명 불가
 
         PostWriteRequest req = mock(PostWriteRequest.class);
         given(req.isAnonymous()).willReturn(true);
+
+        // 불필요한 스텁 금지: 익명 정책 위반에서 예외 발생하므로 금칙어 체크까지 가지 않음
+        // given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
 
         assertThatThrownBy(() -> service.writePost("alice", boardId, req))
                 .isInstanceOf(BusinessException.class)
@@ -120,31 +125,28 @@ class PostServiceImplTest {
         given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
         given(board.getCategory()).willReturn(BoardCategory.FREE_TALK); // 익명 허용
 
+        // write 경로에서는 금칙어 체크가 실제 호출되므로 스텁 필요
+        given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
+
         User user = mock(User.class);
         given(userRepository.findByName("alice")).willReturn(Optional.of(user));
 
-        // 요청 DTO는 mock으로 필요한 값만
         PostWriteRequest req = mock(PostWriteRequest.class);
         given(req.isAnonymous()).willReturn(true);
         given(req.imageUrls()).willReturn(List.of(" https://a.jpg ", "", "https://b.png"));
 
-        // Post 생성은 서비스 내에서 new Post(request,user,board)
-        // save 시점에서 any(Post.class)로 수락
         willAnswer(inv -> inv.getArgument(0)).given(postRepository).save(any(Post.class));
 
         service.writePost("alice", boardId, req);
 
         then(postRepository).should().save(any(Post.class));
 
-        // saveAll 호출 여부와 개수(빈 문자열 제외)
         ArgumentCaptor<List<Image>> captor = ArgumentCaptor.forClass(List.class);
         then(imageRepository).should().saveAll(captor.capture());
 
         List<Image> saved = captor.getValue();
         assertThat(saved).hasSize(2);
-        // url 정리(trim) 확인
         assertThat(saved.stream().map(Image::getUrl)).containsExactly("https://a.jpg", "https://b.png");
-        // position 0,1 부여 여부는 엔티티 내부 로직이라 여기서는 개수/정렬만 간접 검증
     }
 
     @Test
@@ -154,6 +156,9 @@ class PostServiceImplTest {
         Board board = mock(Board.class);
         given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
         given(board.getCategory()).willReturn(BoardCategory.QNA);
+
+        // 이 경로도 금칙어 체크가 먼저 호출됨
+        given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
 
         PostWriteRequest req = mock(PostWriteRequest.class);
         given(req.isAnonymous()).willReturn(false);
@@ -166,9 +171,9 @@ class PostServiceImplTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Update Post
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Update Post
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("updatePost - 작성자와 동일 이름이면 (현재 코드 기준) 수정 금지 예외 발생")
     void updatePost_forbidden_when_sameAuthorName() {
@@ -192,20 +197,17 @@ class PostServiceImplTest {
     void updatePost_success_editContent_and_images() {
         Long postId = 9L;
 
-        // 작성자 이름이 다르면 (현재 코드 기준) 통과
         Post post = mock(Post.class);
         User author = mock(User.class);
         given(author.getName()).willReturn("bob"); // 호출자는 "alice"
         given(post.getAuthor()).willReturn(author);
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
 
-        // 업데이트 요청
         PostUpdateRequest req = mock(PostUpdateRequest.class);
         given(req.content()).willReturn("NEW CONTENT");
         given(req.removedImages()).willReturn(List.of("old1"));
         given(req.images()).willReturn(List.of("new1", "new2"));
 
-        // 기존 이미지 1개 (url=old1)
         Image img = mock(Image.class);
         given(img.getUrl()).willReturn("old1");
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
@@ -213,19 +215,11 @@ class PostServiceImplTest {
 
         service.updatePost("alice", postId, req);
 
-        // 내용 변경
         then(post).should().changeContent("NEW CONTENT");
-
-        // 삭제 호출
         then(imageRepository).should()
                 .deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, List.of("old1"));
-
-        // 기존 생존자 position 재정렬
         then(img).should().changePosition(0);
-
-        // 신규 이미지 2개 저장
-        then(imageRepository).should(times(2))
-                .save(any(Image.class));
+        then(imageRepository).should(times(2)).save(any(Image.class));
     }
 
     @Test
@@ -239,9 +233,9 @@ class PostServiceImplTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Delete Post
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Delete Post
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("deletePost - 권한 없음")
     void deletePost_forbidden() {
@@ -272,7 +266,6 @@ class PostServiceImplTest {
         Image i2 = mock(Image.class);
         given(i1.getUrl()).willReturn("u1");
         given(i2.getUrl()).willReturn("u2");
-
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
                 .willReturn(List.of(i1, i2));
 
@@ -294,7 +287,7 @@ class PostServiceImplTest {
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
 
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
-                .willReturn(Collections.emptyList());
+                .willReturn(List.of());
 
         service.deletePost("alice", postId);
 
@@ -303,9 +296,9 @@ class PostServiceImplTest {
         then(postRepository).should().delete(post);
     }
 
-    /**
-     * Add Like
-     */
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Add/Remove Like
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("addLike - 이미 좋아요가 있으면 예외")
     void addLike_alreadyExists() {
@@ -317,10 +310,6 @@ class PostServiceImplTest {
                 .extracting("status")
                 .isEqualTo(HttpStatus.CONFLICT);
     }
-
-    /**
-     * Get My Posts
-     */
 
     @Test
     @DisplayName("addLike - 정상 저장")
@@ -345,66 +334,78 @@ class PostServiceImplTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // 1) 첫 페이지: size+1 반환 → hasNext=true, rows trim, nextId=null
+    // getMyPostList — CursorPageResponse(items, hasNext, nextCursor)
     // ─────────────────────────────────────────────────────────────────────────────
     @Test
-    @DisplayName("getMyPostList - 첫 페이지(size+1) → hasNext=true, rows trim, nextId=null")
-    void firstPage_hasNext_true_trimmed() {
+    @DisplayName("getMyPostList - 첫 페이지(size+1) → hasNext=true, items trim, nextCursor 생성")
+    void firstPage_hasNext_true_trimmed_withNextCursor() {
         int size = 3;
-        UserPostResponse r1 = mock(UserPostResponse.class);
-        UserPostResponse r2 = mock(UserPostResponse.class);
-        UserPostResponse r3 = mock(UserPostResponse.class);
-        UserPostResponse r4 = mock(UserPostResponse.class); // size+1
+        UserPostItem r1 = mock(UserPostItem.class);
+        UserPostItem r2 = mock(UserPostItem.class);
+        UserPostItem r3 = mock(UserPostItem.class); // 마지막(트림 후 기준)
+        UserPostItem r4 = mock(UserPostItem.class); // size+1
 
-        // trim 후 마지막 요소 r3의 createdAt만 접근하므로 r3만 세팅
-        given(r3.createdAt()).willReturn(Instant.now().minusSeconds(10));
+        Instant lastCreated = Instant.now().minusSeconds(10);
+        long lastId = 345L;
+
+        given(r3.createdAt()).willReturn(lastCreated);
+        given(r3.postId()).willReturn(String.valueOf(lastId));
 
         given(postRepository.findMyPostsFirstByName("alice", size + 1))
                 .willReturn(List.of(r1, r2, r3, r4));
 
-        UserPostsSliceResponse res = service.getMyPostList("alice", null, null, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", null, size);
 
         assertThat(res.hasNext()).isTrue();
-        assertThat(res.nextCursor()).isNull();
+        assertThat(res.items()).hasSize(size);
+        assertThat(res.nextCursor()).isNotNull();
+
+        Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
+        assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
+        assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
+
         then(postRepository).should().findMyPostsFirstByName("alice", size + 1);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // 2) 첫 페이지: size 이하 반환 → hasNext=false, trim 없음, nextId=null
-    // ─────────────────────────────────────────────────────────────────────────────
     @Test
-    @DisplayName("getMyPostList - 첫 페이지(size 이하) → hasNext=false, trim 없음, nextId=null")
+    @DisplayName("getMyPostList - 첫 페이지(size 이하) → hasNext=false, trim 없음, nextCursor=null")
     void firstPage_hasNext_false_notTrimmed() {
         int size = 3;
-        UserPostResponse r1 = mock(UserPostResponse.class);
-        UserPostResponse r2 = mock(UserPostResponse.class);
+        UserPostItem r1 = mock(UserPostItem.class);
+        UserPostItem r2 = mock(UserPostItem.class);
 
-        // 마지막 요소의 createdAt 접근은 hasNext=false이면 호출 안 됨(안 세팅해도 됨)
         given(postRepository.findMyPostsFirstByName("alice", size + 1))
                 .willReturn(List.of(r1, r2)); // size 이하
 
-        UserPostsSliceResponse res = service.getMyPostList("alice", null, null, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", "", size);
 
         assertThat(res.hasNext()).isFalse();
+        assertThat(res.items()).hasSize(2);
         assertThat(res.nextCursor()).isNull();
+
         then(postRepository).should().findMyPostsFirstByName("alice", size + 1);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // 3) 다음 페이지: size+1 반환 → hasNext=true, rows trim, nextId=null
-    // ─────────────────────────────────────────────────────────────────────────────
     @Test
-    @DisplayName("getMyPostList - 다음 페이지(size+1) → hasNext=true, rows trim, nextId=null")
-    void nextPage_hasNext_true_trimmed() {
+    @DisplayName("getMyPostList - 다음 페이지(size+1) → hasNext=true, items trim, nextCursor 생성")
+    void nextPage_hasNext_true_trimmed_withNextCursor() {
         int size = 2;
         Instant cursorCreatedAt = Instant.now();
         Long cursorId = 123L;
+        String cursor = CursorCodec.encode(Map.of(
+                "t", cursorCreatedAt.toString(),
+                "id", cursorId
+        ));
 
-        UserPostResponse r1 = mock(UserPostResponse.class);
-        UserPostResponse r2 = mock(UserPostResponse.class);
-        UserPostResponse r3 = mock(UserPostResponse.class); // size+1
+        UserPostItem r1 = mock(UserPostItem.class);
+        UserPostItem r2 = mock(UserPostItem.class); // 트림 후 마지막
+        UserPostItem r3 = mock(UserPostItem.class); // size+1
 
-        given(r2.createdAt()).willReturn(Instant.now().minusSeconds(5)); // trim 후 마지막
+        Instant lastCreated = Instant.now().minusSeconds(5);
+        long lastId = 777L;
+
+        given(r2.createdAt()).willReturn(lastCreated);
+        given(r2.postId()).willReturn(String.valueOf(lastId));
 
         given(postRepository.findMyPostsNextByName(
                 eq("alice"),
@@ -413,25 +414,32 @@ class PostServiceImplTest {
                 eq(size + 1)))
                 .willReturn(List.of(r1, r2, r3));
 
-        UserPostsSliceResponse res = service.getMyPostList("alice", cursorCreatedAt, cursorId, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", cursor, size);
 
         assertThat(res.hasNext()).isTrue();
-        assertThat(res.nextCursor()).isNull();
+        assertThat(res.items()).hasSize(size);
+        assertThat(res.nextCursor()).isNotNull();
+
+        Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
+        assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
+        assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
+
         then(postRepository).should().findMyPostsNextByName(
                 "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // 4) 다음 페이지: size 이하 반환 → hasNext=false, trim 없음, nextId=null
-    // ─────────────────────────────────────────────────────────────────────────────
     @Test
-    @DisplayName("getMyPostList - 다음 페이지(size 이하) → hasNext=false, trim 없음, nextId=null")
+    @DisplayName("getMyPostList - 다음 페이지(size 이하) → hasNext=false, trim 없음, nextCursor=null")
     void nextPage_hasNext_false_notTrimmed() {
         int size = 2;
         Instant cursorCreatedAt = Instant.now();
         Long cursorId = 123L;
+        String cursor = CursorCodec.encode(Map.of(
+                "t", cursorCreatedAt.toString(),
+                "id", cursorId
+        ));
 
-        UserPostResponse r1 = mock(UserPostResponse.class);
+        UserPostItem r1 = mock(UserPostItem.class);
 
         given(postRepository.findMyPostsNextByName(
                 eq("alice"),
@@ -440,15 +448,19 @@ class PostServiceImplTest {
                 eq(size + 1)))
                 .willReturn(List.of(r1)); // size 이하
 
-        UserPostsSliceResponse res = service.getMyPostList("alice", cursorCreatedAt, cursorId, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", cursor, size);
 
         assertThat(res.hasNext()).isFalse();
+        assertThat(res.items()).hasSize(1);
         assertThat(res.nextCursor()).isNull();
+
         then(postRepository).should().findMyPostsNextByName(
                 "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
     }
 
-
+    // ─────────────────────────────────────────────────────────────────────────────
+    // isAnonymousAvailable
+    // ─────────────────────────────────────────────────────────────────────────────
     @Test
     @DisplayName("isAnonymousAvailable - 게시글의 익명 작성 가능 여부 반환")
     void isAnonymousAvailable_success() {
