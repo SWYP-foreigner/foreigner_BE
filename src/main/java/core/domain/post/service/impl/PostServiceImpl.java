@@ -3,6 +3,7 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.chat.service.ForbiddenWordService;
 import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -39,6 +40,7 @@ public class PostServiceImpl implements PostService {
     private final LikeRepository likeRepository;
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
+    private final ForbiddenWordService forbiddenWordService;
 
     @Override
     @Transactional(readOnly = true)
@@ -161,6 +163,10 @@ public class PostServiceImpl implements PostService {
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
         validateChatRoomPolicy(board.getCategory(), request.link());
+
+        if (forbiddenWordService.containsForbiddenWord(request.content())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
+        }
 
         User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

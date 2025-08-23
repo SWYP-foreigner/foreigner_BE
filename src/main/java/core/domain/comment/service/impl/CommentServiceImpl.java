@@ -1,5 +1,6 @@
 package core.domain.comment.service.impl;
 
+import core.domain.chat.service.ForbiddenWordService;
 import core.domain.comment.dto.CommentItem;
 import core.domain.comment.dto.CommentUpdateRequest;
 import core.domain.comment.dto.CommentWriteRequest;
@@ -44,7 +45,7 @@ public class CommentServiceImpl implements CommentService {
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
     private final LikeRepository likeRepository;
-
+    private final ForbiddenWordService forbiddenWordService;
 
     @Transactional(readOnly = true)
     @Override
@@ -141,6 +142,10 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public void writeComment(String name, Long postId, CommentWriteRequest request) {
+        if (forbiddenWordService.containsForbiddenWord(request.comment())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
+        }
+
         User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
