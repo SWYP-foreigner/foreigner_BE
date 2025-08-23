@@ -1,4 +1,4 @@
-package core.domain.image.dto;
+package core.global.image.dto;
 
 import lombok.Getter;
 import lombok.Setter;

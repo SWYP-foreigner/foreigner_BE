@@ -161,7 +161,7 @@ public class PostServiceImpl implements PostService {
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
 
-        User user = userRepository.findByName(name)
+        User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
@@ -273,7 +273,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
         }
 
-        User user = userRepository.findByName(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         likeRepository.save(Like.builder()

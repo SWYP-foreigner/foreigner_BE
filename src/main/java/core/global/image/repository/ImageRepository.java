@@ -65,4 +65,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     """)
     void deleteByImageTypeAndRelatedId(@Param("imageType") ImageType imageType,
                                        @Param("relatedId") Long relatedId);
+
+    void deleteByUrl(String url);
+
 }

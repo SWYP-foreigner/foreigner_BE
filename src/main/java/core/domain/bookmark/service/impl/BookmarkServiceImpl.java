@@ -157,7 +157,7 @@ public class BookmarkServiceImpl implements BookmarkService {
             throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
         }
 
-        User user = userRepository.findByName(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Post post = postRepository.findById(postId).
                 orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));

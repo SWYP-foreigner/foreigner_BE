@@ -29,11 +29,7 @@ public enum ErrorCode {
 
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
-
-    FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST,"이미 팔로우 한 대상입니다."),
-    USERSPOT_IS_ALREADY_CREATED(HttpStatus.BAD_REQUEST, "이미 존재하는 나만의 장소입니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
-    FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND,"팔로워를 찾을 수 없습니다."),
     IMAGE_FILE_UPLOAD_TYPE_ERROR(HttpStatus.BAD_REQUEST,"이미지 파일이 아니라 다른 파일입니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST,"프로필에 사진 한 장 등록은 필수입니다."),
     PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST,"프로필은 한장만 등록 가능합니다."),

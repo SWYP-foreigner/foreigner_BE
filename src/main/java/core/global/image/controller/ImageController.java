@@ -1,8 +1,8 @@
-package core.domain.image.controller;
+package core.global.image.controller;
 
-import core.domain.image.dto.PresignRequest;
-import core.domain.image.dto.PresignResponse;
-import core.domain.image.service.NcpS3Service;
+import core.global.image.dto.PresignRequest;
+import core.global.image.dto.PresignResponse;
+import core.global.image.service.NcpS3Service;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;

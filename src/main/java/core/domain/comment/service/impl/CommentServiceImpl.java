@@ -141,7 +141,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public void writeComment(String name, Long postId, CommentWriteRequest request) {
-        User user = userRepository.findByName(name)
+        User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post post = postRepository.findById(postId)

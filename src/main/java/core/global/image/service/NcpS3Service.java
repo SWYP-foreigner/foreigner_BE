@@ -1,10 +1,10 @@
-package core.domain.image.service;
+package core.global.image.service;
 
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import core.domain.image.dto.PresignResponse;
+import core.global.image.dto.PresignResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
