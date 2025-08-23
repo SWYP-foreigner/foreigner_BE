@@ -8,16 +8,11 @@ import core.global.dto.ApiResponse;
 import core.global.enums.FollowStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -80,27 +75,32 @@ public class MyPageController {
     }
 
 
-    @Operation(summary="마이 프로필 수정", description = "내 프로필 내용을 수정합니다.")
-    @PatchMapping("/users/")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK, 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않은 요청입니다.")
-    })
-    public ResponseEntity<ApiResponse<String>> updateProfile(
-            Authentication authentication,  @RequestBody UserUpdateDTO dto,
-            @Parameter(
-                    description = "업로드할 이미지 파일",
-                    content = @Content(
-                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                            schema = @Schema(type = "string", format = "binary")
-                    )
-            )
-            MultipartFile multipartFiles) {
-        userService.updateUser(authentication.getName(),dto, multipartFiles );
-        return ResponseEntity.ok(ApiResponse.success("프로필이 성공적으로 수정되었습니다."));
+    @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
+    @Operation(
+            summary = "마이 프로필 수정(인증된 사용자)",
+            description = "SecurityContext 의 인증 객체에서 사용자 정보를 가져와 프로필을 부분 수정합니다."
+    )
+    public ResponseEntity<UserUpdateDTO> editProfile(
+            @RequestBody UserUpdateDTO dto
+    ) {
+        UserUpdateDTO response = userService.updateUserProfile(dto);
+        return ResponseEntity.ok(response);
     }
 
 
+
+    @PatchMapping(value = "/profile/test/edit", consumes = "application/json", produces = "application/json")
+    @Operation(
+            summary = "프로필 수정(로그인 없이, 헤더에 이메일 넣어서 테스트)",
+            description = "X-User-Email 헤더의 이메일로 사용자를 식별하여 프로필을 부분 수정(PATCH)합니다."
+    )
+    public ResponseEntity<UserUpdateDTO> editProfileForTest(
+            @RequestHeader(value = "X-User-Email") String email,   // 수정은 명확히 required 로
+            @RequestBody UserUpdateDTO dto
+    ) {
+        UserUpdateDTO response = userService.updateUserProfileTest(email, dto);
+        return ResponseEntity.ok(response);
+    }
 
 
 
