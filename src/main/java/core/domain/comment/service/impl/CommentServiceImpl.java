@@ -146,7 +146,7 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        User user = userRepository.findByUsername(name)
+        User user = userRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post post = postRepository.findById(postId)

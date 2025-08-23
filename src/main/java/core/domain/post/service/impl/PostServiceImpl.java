@@ -168,7 +168,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        User user = userRepository.findByUsername(name)
+        User user = userRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
@@ -290,7 +290,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
         }
 
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByName(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         likeRepository.save(Like.builder()
