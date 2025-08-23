@@ -23,6 +23,9 @@ public record PostDetailResponse(
         @Schema(description = "작성 시각 (UTC)", type = "string", format = "date-time", example = "2025-08-13T09:41:00Z")
         Instant createdTime,
 
+        @Schema(description = "채팅방 링크", example = "https://ko-ri.cloud/chatroom/10")
+        String link,
+
         @Schema(description = "좋아요 수", example = "12")
         Long likeCount,
 
@@ -33,9 +36,13 @@ public record PostDetailResponse(
         Long viewCount,
 
         @Schema(description = "작성자 프로필 이미지 URL", example = "https://cdn.example.com/u/123/avatar.png")
-        String userImageUrl,                 // ← 소문자 시작으로 교정
+        String userImageUrl,
 
         @Schema(description = "본문 내 이미지 URL 목록",
                 example = "[\"https://cdn.example.com/p/1.png\",\"https://cdn.example.com/p/2.jpg\"]")
-        List<String> contentImageUrls        // ← 복수형으로 교정
-) { }
+        List<String> contentImageUrls,
+
+        @Schema(description = "이미지 수", example = "3")
+        Integer imageCount
+) {
+}

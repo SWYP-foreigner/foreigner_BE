@@ -160,6 +160,7 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
+        validateChatRoomPolicy(board.getCategory(), request.link());
 
         User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -188,6 +189,16 @@ public class PostServiceImpl implements PostService {
                 imageRepository.saveAll(images);
             }
         }
+    }
+
+    private void validateChatRoomPolicy(BoardCategory category, String link) {
+        final boolean allowAnonymous =
+                category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
+
+        if (!allowAnonymous && !link.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_AVAILABLE_LINK);
+        }
+
     }
 
     private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {

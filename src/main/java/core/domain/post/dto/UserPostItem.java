@@ -25,5 +25,8 @@ public record UserPostItem(
         Long viewCount,
 
         @Schema(description = "게시글 대표 이미지 URL", example = "https://cdn.example.com/p/123.jpg", nullable = true)
-        String imageUrl
+        String imageUrl,
+
+        @Schema(description = "콘텐츠 이미지 갯수 ", nullable = true, example = "2")
+        Integer imageCount
 ) {}

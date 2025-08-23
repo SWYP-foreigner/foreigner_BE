@@ -37,6 +37,9 @@ public record BoardItem(
         @Schema(description = "콘텐츠 이미지 URL(없으면 null)", nullable = true, example = "https://cdn.example.com/p/123.jpg")
         String contentImageUrl,
 
+        @Schema(description = "콘텐츠 이미지 갯수 ", nullable = true, example = "2")
+        Integer imageCount,
+
         @Schema(description = "인기 점수(인기 정렬 시 커서용, 없으면 null)", nullable = true, example = "987654321")
         Long score
 ) { }

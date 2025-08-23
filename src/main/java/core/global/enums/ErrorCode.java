@@ -30,10 +30,10 @@ public enum ErrorCode {
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
-    IMAGE_FILE_UPLOAD_TYPE_ERROR(HttpStatus.BAD_REQUEST,"이미지 파일이 아니라 다른 파일입니다."),
-    PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST,"프로필에 사진 한 장 등록은 필수입니다."),
-    PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST,"프로필은 한장만 등록 가능합니다."),
-    FILE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST,"이미지 파일이 안 올라갔습니다."),
+    IMAGE_FILE_UPLOAD_TYPE_ERROR(HttpStatus.BAD_REQUEST, "이미지 파일이 아니라 다른 파일입니다."),
+    PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),
+    PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST, "프로필은 한장만 등록 가능합니다."),
+    FILE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "이미지 파일이 안 올라갔습니다."),
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
     IMAGE_FILE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "이미지 파일 크기 에 문제가 발생했습니다."),
     INVALID_USER_UPDATE_REQUEST(HttpStatus.BAD_REQUEST, "프로필 업데이트가 처리되지 않았습니다."),
@@ -53,9 +53,10 @@ public enum ErrorCode {
     CHAT_ROOM_JOIN_FAILED(HttpStatus.BAD_REQUEST, "채팅방에 들어가지 못했습니다."),
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
     CHAT_PARTICIPANT_MINIMUM(HttpStatus.BAD_REQUEST, "채팅방에는 최소 1명(개설자)이 포함되어야 합니다."),
-    CHAT_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자 중 존재하지 않는 사용자가 있습니다.");
+    CHAT_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자 중 존재하지 않는 사용자가 있습니다."),
+    NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다.");
 
-    private final HttpStatus  errorCode;
+    private final HttpStatus errorCode;
     private final String message;
 
 }

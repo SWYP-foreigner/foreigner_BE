@@ -21,6 +21,9 @@ public record PostWriteRequest(
         @NotNull(message = "익명 여부는 필수입니다.")
         Boolean isAnonymous,
 
+        @Schema(description = "채팅방 링크", example = "https://ko-ri.cloud/chatroom/10")
+        String link,
+
         @Schema(description = "이미지 URL 목록 (최대 5개)",
                 example = "[\"https://cdn.example.com/p/1.png\",\"https://cdn.example.com/p/2.jpg\"]")
         @Size(max = 5, message = "이미지는 최대 5개까지 첨부 가능합니다.")
@@ -29,7 +32,5 @@ public record PostWriteRequest(
                 @URL(message = "유효한 URL 형식이 아닙니다.")
                         String
                 > imageUrls
-
-//    List<String> fileUrls,
 
 ) { }
