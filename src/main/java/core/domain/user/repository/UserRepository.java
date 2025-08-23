@@ -20,4 +20,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
 
     long countByIdIn(Set<Long> allParticipantIds);
+
+    @Query("SELECT u FROM User u WHERE u.firstName = :firstName AND u.lastName = :lastName")
+    Optional<User> findByFirstAndLastName(@Param("firstName") String firstName,
+                                          @Param("lastName") String lastName);
 }

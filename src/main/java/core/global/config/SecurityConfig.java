@@ -31,6 +31,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                "/api/v1/images/presign",
                                 "/auth/google/callback",
                                 "/auth/google/exchange",
                                 "/api/v1/users/**",
@@ -44,7 +45,12 @@ public class SecurityConfig {
                                 "/api/v1/member/google/TestdoLogin",
                                 "/api/v1/member/google/doLogin",
                                 "/api/v1/member/google/callback",
-                                "/health"
+                                "/health",
+                                "/api/v1/member/profile/**",
+                               "/api/v1/member/profile/setup",
+                               "/api/v1/member/profile/test/**",
+                                "/api/v1/mypage/profile/edit",
+                                "/api/v1/mypage/profile/test/edit"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

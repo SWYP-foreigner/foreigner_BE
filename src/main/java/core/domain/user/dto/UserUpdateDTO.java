@@ -18,4 +18,5 @@ public class UserUpdateDTO {
     private String purpose;
     private List<String> language;
     private List<String> hobby;
+    private String imageKey; // S3 이미지 키
 }
