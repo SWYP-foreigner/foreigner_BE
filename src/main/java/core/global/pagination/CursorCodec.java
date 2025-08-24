@@ -38,7 +38,6 @@ public final class CursorCodec {
         }
     }
 
-    // 헬퍼들 (필요 시 사용)
     public static String encodeLatest(Instant t, Long id) {
         Map<String, Object> m = new HashMap<>();
         m.put("t", t == null ? null : t.toString());

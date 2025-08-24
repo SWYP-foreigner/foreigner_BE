@@ -66,7 +66,6 @@ public class PostServiceImpl implements PostService {
                 if (t instanceof String ts && !ts.isBlank()) {
                     cursorCreatedAt = Instant.parse(ts);
                 }
-                // id
                 Object idObj = c.get("id");
                 if (idObj instanceof Number n) cursorId = n.longValue();
 
@@ -75,7 +74,7 @@ public class PostServiceImpl implements PostService {
                         truncateToMillis(cursorCreatedAt),
                         cursorId,
                         pageSize,
-                        null // 정렬/필터 추가 파라미터 있으면 그대로 사용
+                        null
                 );
 
                 return CursorPages.ofLatest(
@@ -87,7 +86,6 @@ public class PostServiceImpl implements PostService {
             case POPULAR -> {
                 Object scObj = c.get("sc");
                 if (scObj instanceof Number n) cursorScore = n.longValue();
-                // id
                 Object idObj = c.get("id");
                 if (idObj instanceof Number n) cursorId = n.longValue();
 

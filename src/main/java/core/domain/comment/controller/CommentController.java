@@ -190,7 +190,7 @@ public class CommentController {
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        commentService.getMyCommentList(authentication.getName(), size, cursor) // ✅ 오타 수정
+                        commentService.getMyCommentList(authentication.getName(), size, cursor)
                 )
         );
     }

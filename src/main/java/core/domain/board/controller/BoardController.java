@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Board") // ✅ 태그를 클래스 레벨에서 한 번만 지정
+@Tag(name = "Board")
 @RestController
 @RequestMapping("/api/v1/boards")
 public class BoardController {
