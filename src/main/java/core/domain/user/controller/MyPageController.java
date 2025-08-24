@@ -135,7 +135,6 @@ public class MyPageController {
     ) {
         Long currentUserId = getCurrentUserIdOrNull();
         if (currentUserId == null) {
-            // 로그인 필수라면 예외로 처리
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
