@@ -1,5 +1,6 @@
 package core.domain.post.repository.impl;
 
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.*;
@@ -13,6 +14,7 @@ import core.domain.post.dto.UserPostItem;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QUser;
+import core.global.enums.BoardCategory;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.image.entity.QImage;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.querydsl.core.group.GroupBy.groupBy;
 import static com.querydsl.core.types.Projections.list;
@@ -133,14 +136,21 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         // ── 최신성(나이 시간)
         NumberExpression<Double> ageHours =
-                Expressions.numberTemplate(Double.class,
-                        "EXTRACT(EPOCH FROM (NOW() - {0})) / 3600.0", post.createdAt);
+                Expressions.numberTemplate(
+                        Double.class,
+                        "(extract(epoch from current_timestamp) - extract(epoch from {0})) / 3600.0",
+                        post.createdAt
+                );
 
         NumberExpression<Double> recencyFactor =
                 Expressions.numberTemplate(Double.class, "EXP(-({0} / 24.0))", ageHours);
 
         NumberExpression<Long> recencyPoints =
-                Expressions.numberTemplate(Long.class, "CAST(ROUND(1000 * {0}, 0) AS BIGINT)", recencyFactor);
+                Expressions.numberTemplate(
+                        Long.class,
+                        "cast(round(1000 * exp(-(({0}) / 24.0)), 0) as long)",
+                        ageHours
+                );
 
         // ── 최종 점수(정수)
         NumberExpression<Long> score =
@@ -224,9 +234,34 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 )
                 );
 
-        Expression<Integer> imageCountExpr = image.id.countDistinct().intValue();
+        QImage image = QImage.image;
+        QImage image2 = new QImage("image2");
 
-        Map<Long, PostDetailResponse> result = query
+        Expression<Integer> imageCountExpr =
+                JPAExpressions.select(image2.id.count().intValue())
+                        .from(image2)
+                        .where(
+                                image2.imageType.eq(IMAGE_TYPE_POST)
+                                        .and(image2.relatedId.eq(post.id))
+                        );
+
+        Expression<String> linkExpr = Expressions.constant("CHAT LINK");
+
+        List<Tuple> rows = query
+                .select(
+                        post.id,
+                        post.content,
+                        userNameExpr,
+                        board.category,
+                        post.createdAt,
+                        linkExpr,
+                        likeCountExpr,
+                        commentCountExpr,
+                        post.checkCount,
+                        userImageUrlExpr,
+                        image.url,
+                        imageCountExpr
+                )
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
@@ -236,24 +271,46 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 )
                 .where(post.id.eq(postId))
                 .orderBy(image.id.asc())
-                .transform(groupBy(post.id).as(
-                        // 그룹별 DTO 조립
-                        Projections.constructor(PostDetailResponse.class,
-                                post.id,
-                                post.content,
-                                userNameExpr,
-                                board.category,
-                                post.createdAt,
-                                likeCountExpr,
-                                commentCountExpr,
-                                post.checkCount,
-                                userImageUrlExpr,
-                                list(image.url),
-                                imageCountExpr
-                        )
-                ));
+                .fetch();
 
-        return result.get(postId);
+        if (rows.isEmpty()) {
+            return null;
+        }
+
+        // 첫 행에서 단건 필드 뽑기
+        Tuple t0 = rows.get(0);
+
+        Long id               = t0.get(post.id);
+        String content        = t0.get(post.content);
+        String userName       = t0.get(userNameExpr);
+        BoardCategory cat     = t0.get(board.category);
+        Instant createdAt     = t0.get(post.createdAt);
+        String link           = t0.get(linkExpr);
+        Long likeCount        = t0.get(likeCountExpr);
+        Long commentCount     = t0.get(commentCountExpr);
+        Long viewCount        = t0.get(post.checkCount);
+        String userImageUrl   = t0.get(userImageUrlExpr);
+        Integer imageCount    = t0.get(imageCountExpr);
+
+        List<String> contentImageUrls = rows.stream()
+                .map(r -> r.get(image.url))
+                .filter(Objects::nonNull)
+                .toList();
+
+        return new PostDetailResponse(
+                id,
+                content,
+                userName,
+                cat,
+                createdAt,
+                link,
+                likeCount,
+                commentCount,
+                viewCount,
+                userImageUrl,
+                contentImageUrls,
+                imageCount
+        );
     }
 
     @Override
@@ -261,6 +318,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
+                        post.id,
                         preview200(),
                         post.createdAt,
                         likeCountExpr(),
@@ -285,6 +343,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
+                        post.id,
                         preview200(),
                         post.createdAt,
                         likeCountExpr(),

@@ -143,19 +143,13 @@ public class CommentController {
     @Operation(
             summary = "댓글 목록 조회",
             description = """
-          - 정렬: LATEST(기본) | POPULAR
           - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
           
           요청 예시
-          (LATEST) 첫 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20&sort=LATEST
-          (LATEST) 다음 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20&sort=LATEST&cursor=eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9
-          
-          (POPULAR) 첫 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20&sort=POPULAR
-          (POPULAR) 다음 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20&sort=POPULAR&cursor=eyJsYyI6MzAsInQiOiIyMDI1LTA4LTAxVDEyOjM0OjU2WiIsImlkIjo5ODc2NX0
+          첫 페이지:
+            GET /api/v1/boards/posts/123/comments?size=20
+          다음 페이지:
+            GET /api/v1/boards/posts/123/comments?size=20&cursor=eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9
         """
     )
     @ApiResponses({
@@ -183,7 +177,6 @@ public class CommentController {
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserCommentItem>>> getMyCommentList(
             @Parameter(hidden = true) Authentication authentication,
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
-            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
                     example = "eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9")
             @RequestParam(required = false) String cursor
