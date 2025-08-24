@@ -65,6 +65,10 @@ ncp:
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET_NAME}
 
+swagger:
+  server-url: https://dev.ko-ri.cloud
+
+
 springdoc:
   api-docs:
     enabled: true

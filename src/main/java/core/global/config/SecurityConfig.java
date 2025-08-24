@@ -1,6 +1,7 @@
 package core.global.config;
 
 
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,7 +51,11 @@ public class SecurityConfig {
                                "/api/v1/member/profile/setup",
                                "/api/v1/member/profile/test/**",
                                 "/api/v1/mypage/profile/edit",
-                                "/api/v1/mypage/profile/test/edit"
+                                "/api/v1/mypage/profile/test/edit",
+                                "/health",
+                                "/api/v1/board/*",
+                                "/swagger-ui/**", "/v3/api-docs/**", "/health", "/actuator/health"
+
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

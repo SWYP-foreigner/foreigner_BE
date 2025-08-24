@@ -1,9 +1,7 @@
-
 spring:
   config:
     activate:
       on-profile: local
-
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
@@ -70,6 +68,9 @@ ncp:
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET}
+
+swagger:
+  server-url: http://localhost:8080
 
 springdoc:
   api-docs:

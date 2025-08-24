@@ -2,15 +2,15 @@ package core.domain.user.service;
 
 
 import com.amazonaws.services.s3.AmazonS3;
-import core.domain.image.entity.Image;
-import core.domain.image.repository.ImageRepository;
-import core.domain.image.storage.ImageStorage;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.UserCreateDto;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
+import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -43,7 +42,6 @@ public class UserService {
 
     private final AmazonS3 amazonS3;
     private final UserRepository userRepository;
-    private final ImageStorage imageStorage;
     private final ImageRepository imageRepository;
 
     public User create(UserCreateDto memberCreateDto){
@@ -130,7 +128,7 @@ public class UserService {
             /**
              * 이미지 USER 로 들어가서 찾음
              */
-            Image profileImage = new Image("USER", user.getId(), newKey);
+            Image profileImage = Image.of(ImageType.USER, user.getId(), newKey,1);
             imageRepository.save(profileImage);
         }
 
@@ -156,7 +154,7 @@ public class UserService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByName(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         return UserUpdateDTO.builder()
@@ -176,7 +174,7 @@ public class UserService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
 
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByName(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (user.getProfileImageUrl() != null) {
@@ -316,7 +314,7 @@ public class UserService {
             }
 
             user.setProfileImageUrl(newKey);
-            imageRepository.save(new Image("USER", user.getId(), newKey));
+            imageRepository.save(Image.of(ImageType.USER, user.getId(), newKey,1));
         }
 
         user.setUpdatedAt(Instant.now());
@@ -382,7 +380,7 @@ public class UserService {
             }
 
             user.setProfileImageUrl(newKey);
-            imageRepository.save(new Image("USER", user.getId(), newKey));
+            imageRepository.save(Image.of(ImageType.USER, user.getId(), newKey,1));
         }
 
         user.setUpdatedAt(Instant.now());
