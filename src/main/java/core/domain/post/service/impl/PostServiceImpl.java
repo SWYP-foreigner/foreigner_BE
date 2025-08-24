@@ -44,97 +44,107 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String  cursor, int size) {
-        final Long resolvedBoardId =
-                (boardId == 1L) ? null : boardId;
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+        final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
             throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
         }
 
-        int pageSize = Math.min(Math.max(size, 1), 50);
+        final int pageSize = Math.min(Math.max(size, 1), 50);
+        final Map<String, Object> c = safeDecode(cursor);
 
-        Map<String, Object> c = CursorCodec.decode(cursor);
+        return switch (sort) {
+            case POPULAR -> handlePopular(resolvedBoardId, c, pageSize);
+            case LATEST -> handleLatest(resolvedBoardId, c, pageSize);
+            default -> handleLatest(resolvedBoardId, c, pageSize);
+        };
+    }
 
-        Instant cursorCreatedAt = null;
-        Long cursorId = null;
-        Long cursorScore = null;
+    // ------- 정렬 핸들러 -------
 
-        switch (sort) {
-            case LATEST -> {
-                Object t = c.get("t");
-                if (t instanceof String ts && !ts.isBlank()) {
-                    cursorCreatedAt = Instant.parse(ts);
-                }
-                Object idObj = c.get("id");
-                if (idObj instanceof Number n) cursorId = n.longValue();
+    private CursorPageResponse<BoardItem> handleLatest(Long boardId, Map<String, Object> c, int pageSize) {
+        var k = parseLatest(c); // t,id
+        List<BoardItem> rows = postRepository.findLatestPosts(
+                boardId,
+                truncateToMillis(k.t),
+                k.id,
+                pageSize + 1,
+                null
+        );
+        return CursorPages.ofLatest(
+                rows, pageSize,
+                BoardItem::createdAt,
+                BoardItem::postId
+        );
+    }
 
-                List<BoardItem> rows = postRepository.findLatestPosts(
-                        resolvedBoardId,
-                        truncateToMillis(cursorCreatedAt),
-                        cursorId,
-                        pageSize,
-                        null
-                );
+    private CursorPageResponse<BoardItem> handlePopular(Long boardId, Map<String, Object> c, int pageSize) {
+        var k = parsePopular(c); // sc,id
+        Instant since = popularSince();
+        List<BoardItem> rows = postRepository.findPopularPosts(
+                boardId,
+                since,
+                k.sc,
+                k.id,
+                pageSize + 1,
+                null
+        );
+        return CursorPages.ofPopular(
+                rows, pageSize,
+                BoardItem::score,
+                BoardItem::postId
+        );
+    }
 
-                return CursorPages.ofLatest(
-                        rows, pageSize,
-                        BoardItem::createdAt,
-                        BoardItem::postId
-                );
-            }
-            case POPULAR -> {
-                Object scObj = c.get("sc");
-                if (scObj instanceof Number n) cursorScore = n.longValue();
-                Object idObj = c.get("id");
-                if (idObj instanceof Number n) cursorId = n.longValue();
+    // ------- 커서 파싱 -------
 
-                // 인기 글의 기준 기간(예: 최근 10일)
-                Instant since = Instant.now().minus(Duration.ofDays(10));
+    private static final class LatestKey {
+        final Instant t; final Long id;
+        LatestKey(Instant t, Long id) { this.t = t; this.id = id; }
+    }
 
-                List<BoardItem> rows = postRepository.findPopularPosts(
-                        resolvedBoardId,
-                        since,
-                        cursorScore,
-                        cursorId,
-                        pageSize,
-                        null
-                );
+    private static final class PopularKey {
+        final Long sc; final Long id;
+        PopularKey(Long sc, Long id) { this.sc = sc; this.id = id; }
+    }
 
-                return CursorPages.ofPopular(
-                        rows, pageSize,
-                        BoardItem::score,
-                        BoardItem::postId
-                );
-            }
-            default -> {
-                Object t = c.get("t");
-                if (t instanceof String ts && !ts.isBlank()) {
-                    cursorCreatedAt = Instant.parse(ts);
-                }
-                Object idObj = c.get("id");
-                if (idObj instanceof Number n) cursorId = n.longValue();
+    private LatestKey parseLatest(Map<String, Object> c) {
+        Instant t = null; Long id = null;
+        Object ts = c.get("t");
+        if (ts instanceof String s && !s.isBlank()) t = Instant.parse(s);
+        Object idObj = c.get("id");
+        if (idObj instanceof Number n) id = n.longValue();
+        return new LatestKey(t, id);
+    }
 
-                List<BoardItem> rows = postRepository.findLatestPosts(
-                        resolvedBoardId,
-                        truncateToMillis(cursorCreatedAt),
-                        cursorId,
-                        pageSize,
-                        null
-                );
+    private PopularKey parsePopular(Map<String, Object> c) {
+        Long sc = null, id = null;
+        Object scObj = c.get("sc");
+        if (scObj instanceof Number n) sc = n.longValue();
+        Object idObj = c.get("id");
+        if (idObj instanceof Number n) id = n.longValue();
+        return new PopularKey(sc, id);
+    }
 
-                return CursorPages.ofLatest(
-                        rows, pageSize,
-                        BoardItem::createdAt,
-                        BoardItem::postId
-                );
-            }
+    // ------- 유틸 -------
+
+    private Map<String, Object> safeDecode(String cursor) {
+        try {
+            return CursorCodec.decode(cursor);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_CURSOR);
         }
+    }
+
+    private Instant popularSince() {
+        return Instant.now().minus(Duration.ofDays(10));
     }
 
     private Instant truncateToMillis(Instant i) {
         return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
+
 
     @Override
     @Transactional
@@ -160,7 +170,9 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
-        validateChatRoomPolicy(board.getCategory(), request.link());
+
+        // 채팅 링크 TODO
+//        validateChatRoomPolicy(board.getCategory(), request.link());
 
         if (forbiddenWordService.containsForbiddenWord(request.content())) {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
@@ -220,7 +232,7 @@ public class PostServiceImpl implements PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        if (name.equals(post.getAuthor().getName())) {
+        if (!name.equals(post.getAuthor().getName())) {
             throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
         }
 

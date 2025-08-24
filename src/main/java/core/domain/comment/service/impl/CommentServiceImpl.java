@@ -179,7 +179,7 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
-        if (name.equals(comment.getAuthor().getName())) {
+        if (!name.equals(comment.getAuthor().getName())) {
             throw new BusinessException(ErrorCode.COMMENT_EDIT_FORBIDDEN);
         }
 
