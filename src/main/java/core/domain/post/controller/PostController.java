@@ -2,7 +2,7 @@ package core.domain.post.controller;
 
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
-import core.domain.post.service.impl.PostWriteForChatRequest;
+import core.domain.post.dto.PostWriteForChatRequest;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -2,7 +2,7 @@ package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.*;
-import core.domain.post.service.impl.PostWriteForChatRequest;
+import core.domain.post.dto.PostWriteForChatRequest;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;

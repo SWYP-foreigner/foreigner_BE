@@ -12,8 +12,8 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
-import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
+import core.global.image.service.ImageService;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
@@ -22,15 +22,18 @@ import core.global.pagination.CursorPages;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
@@ -41,6 +44,7 @@ public class PostServiceImpl implements PostService {
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
     private final ForbiddenWordService forbiddenWordService;
+    private final ImageService imageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -99,18 +103,9 @@ public class PostServiceImpl implements PostService {
 
     // ------- 커서 파싱 -------
 
-    private static final class LatestKey {
-        final Instant t; final Long id;
-        LatestKey(Instant t, Long id) { this.t = t; this.id = id; }
-    }
-
-    private static final class PopularKey {
-        final Long sc; final Long id;
-        PopularKey(Long sc, Long id) { this.sc = sc; this.id = id; }
-    }
-
     private LatestKey parseLatest(Map<String, Object> c) {
-        Instant t = null; Long id = null;
+        Instant t = null;
+        Long id = null;
         Object ts = c.get("t");
         if (ts instanceof String s && !s.isBlank()) t = Instant.parse(s);
         Object idObj = c.get("id");
@@ -127,8 +122,6 @@ public class PostServiceImpl implements PostService {
         return new PopularKey(sc, id);
     }
 
-    // ------- 유틸 -------
-
     private Map<String, Object> safeDecode(String cursor) {
         try {
             return CursorCodec.decode(cursor);
@@ -141,10 +134,11 @@ public class PostServiceImpl implements PostService {
         return Instant.now().minus(Duration.ofDays(10));
     }
 
+    // ------- 유틸 -------
+
     private Instant truncateToMillis(Instant i) {
         return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
-
 
     @Override
     @Transactional
@@ -175,30 +169,11 @@ public class PostServiceImpl implements PostService {
 
         final Post post = getPost(name, request, board);
 
-        if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
-            List<Image> images = new ArrayList<>();
-            int position = 0;
-
-            for (String url : request.imageUrls()) {
-                if (!StringUtils.hasText(url)) continue;
-
-                images.add(
-                        Image.of(
-                                ImageType.POST,
-                                post.getId(),
-                                url.trim(),
-                                position++
-                        )
-                );
-            }
-
-            if (!images.isEmpty()) {
-                imageRepository.saveAll(images);
-            }
-        }
+        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
     }
 
     @Override
+    @Transactional
     public void writePostForChat(String name, Long roomId, PostWriteForChatRequest request) {
         Board board = boardRepository.findByCategory(BoardCategory.ACTIVITY)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
@@ -207,33 +182,9 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-        User user = userRepository.findByName(name)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        final Post post = getPost(name, request, board);
 
-        final Post post = new Post(request, user, board);
-        postRepository.save(post);
-
-        if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
-            List<Image> images = new ArrayList<>();
-            int position = 0;
-
-            for (String url : request.imageUrls()) {
-                if (!StringUtils.hasText(url)) continue;
-
-                images.add(
-                        Image.of(
-                                ImageType.POST,
-                                post.getId(),
-                                url.trim(),
-                                position++
-                        )
-                );
-            }
-
-            if (!images.isEmpty()) {
-                imageRepository.saveAll(images);
-            }
-        }
+        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
     }
 
     private void validatePostForbiddenWord(String content) {
@@ -252,7 +203,16 @@ public class PostServiceImpl implements PostService {
 
     }
 
-    private Post getPost(String name, PostWriteRequest request, Board board) {
+    private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
+        final boolean allowAnonymous =
+                category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
+
+        if (!allowAnonymous && isAnonymous) {
+            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
+        }
+    }
+
+    private Post getPost(String name, PostWriteForChatRequest request, Board board) {
         User user = userRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -261,13 +221,13 @@ public class PostServiceImpl implements PostService {
         return post;
     }
 
-    private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
-        final boolean allowAnonymous =
-                category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
+    private Post getPost(String name, PostWriteRequest request, Board board) {
+        User user = userRepository.findByName(name)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (!allowAnonymous && isAnonymous) {
-            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
-        }
+        final Post post = new Post(request, user, board);
+        postRepository.save(post);
+        return post;
     }
 
     @Override
@@ -284,33 +244,7 @@ public class PostServiceImpl implements PostService {
             post.changeContent(request.content());
         }
 
-        final List<String> toAdd = request.images() != null ? request.images() : List.of();
-        final List<String> toRemove = request.removedImages() != null ? request.removedImages() : List.of();
-        if (toAdd.isEmpty() && toRemove.isEmpty()) return;
-
-        if (!toRemove.isEmpty()) {
-            imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, toRemove);
-        }
-
-        List<Image> survivors = imageRepository
-                .findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
-
-        int pos = 0;
-        Set<String> survivorUrls = new HashSet<>();
-        for (Image img : survivors) {
-            img.changePosition(pos++);
-            survivorUrls.add(img.getUrl());
-        }
-
-        if (!toAdd.isEmpty()) {
-            for (String url : toAdd) {
-                if (survivorUrls.contains(url)) continue;
-                Image created = Image.of(ImageType.POST, postId, url, pos++);
-                imageRepository.save(created);
-            }
-        }
-
-        // 스토리지 수정 고려
+        imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
     }
 
     @Override
@@ -323,17 +257,16 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.POST_DELETE_FORBIDDEN);
         }
 
-        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
-        List<String> urls = images.stream().map(Image::getUrl).toList();
-
-        if (!urls.isEmpty()) {
-            imageRepository.deleteByImageTypeAndRelatedId(ImageType.POST, postId);
+        String folderPrefix = "posts/post/" + postId;
+        try {
+            imageService.deleteFolder(folderPrefix);
+        } catch (BusinessException ex) {
+            log.warn("S3 폴더 삭제 실패(prefix={}): {}", folderPrefix, ex.getMessage());
         }
 
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.POST, postId);
+
         postRepository.delete(post);
-
-        // 스토리지 삭제
-
     }
 
     @Override
@@ -402,5 +335,25 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
         return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
+    }
+
+    private static final class LatestKey {
+        final Instant t;
+        final Long id;
+
+        LatestKey(Instant t, Long id) {
+            this.t = t;
+            this.id = id;
+        }
+    }
+
+    private static final class PopularKey {
+        final Long sc;
+        final Long id;
+
+        PopularKey(Long sc, Long id) {
+            this.sc = sc;
+            this.id = id;
+        }
     }
 }

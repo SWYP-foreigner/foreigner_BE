@@ -24,7 +24,6 @@ public enum ErrorCode {
     COMMENT_ALREADY_DELETED(HttpStatus.GONE, "삭제된 댓글입니다."),
 
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
-
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
 
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
@@ -56,7 +55,9 @@ public enum ErrorCode {
     CHAT_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자 중 존재하지 않는 사용자가 있습니다."),
     NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),
     FORBIDDEN_WORD_DETECTED(HttpStatus.BAD_REQUEST, "사용할 수 없는 단어가 포함되었습니다."),
-    INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서값입니다.");
+    INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서값입니다."),
+    IMAGE_FILE_DELETE_FAILED(HttpStatus.BAD_REQUEST, "이미지 삭제를 실패했습니다."),
+    IMAGE_FOLDER_DELETE_FAILED(HttpStatus.BAD_REQUEST, "폴더 삭제에 실패했습니다.");
 
     private final HttpStatus errorCode;
     private final String message;
