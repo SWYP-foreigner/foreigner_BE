@@ -44,6 +44,10 @@ dependencies {
 	implementation 'io.github.openfeign.form:feign-form-spring:3.8.0'
 
 	// --- JWT (권장: jackson 모듈 포함) ---
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9"
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	runtimeOnly   'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly   'io.jsonwebtoken:jjwt-jackson:0.11.5'
@@ -53,6 +57,13 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+
+	implementation "com.querydsl:querydsl-core:5.1.0"
+	implementation "com.querydsl:querydsl-jpa:5.1.0:jakarta"
+	annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"
+	annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+
+
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 
@@ -60,6 +71,11 @@ dependencies {
 	implementation "com.amazonaws:aws-java-sdk-s3"
 
 	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	testImplementation 'org.mockito:mockito-inline:5.2.0'
+	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
+
 }
 
 dependencyManagement {
@@ -71,4 +87,8 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+test {
+	jvmArgs += ["-XX:+EnableDynamicAgentLoading"]
 }

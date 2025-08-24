@@ -1,0 +1,71 @@
+package core.global.image.repository;
+
+import core.global.image.entity.Image;
+import core.global.enums.ImageType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.Collection;
+import java.util.List;
+
+public interface ImageRepository extends JpaRepository<Image, Long> {
+    @Query("""
+    select i.relatedId, i.url
+    from Image i
+    where i.imageType = :imageType
+      and i.relatedId in :commentIds
+    """)
+    List<Object[]> findUrlByRelatedIds(
+            @Param("imageType") ImageType imageType,
+            @Param("commentIds") List<Long> commentIds
+    );
+
+    @Query("""
+        select i.relatedId, i.url
+        from Image i
+        where i.id in (
+            select min(i2.id)
+            from Image i2
+            where i2.imageType = :imageType
+              and i2.relatedId in :relatedIds
+            group by i2.relatedId
+        )
+    """)
+    List<Object[]> findFirstUrlByRelatedIds(@Param("imageType") ImageType imageType,
+                                            @Param("relatedIds") List<Long> relatedIds);
+
+    @Query("""
+        select i.relatedId, i.url
+        from Image i
+        where i.imageType = :imageType
+          and i.relatedId in :relatedIds
+        order by i.id asc
+    """)
+    List<Object[]> findAllUrlsByRelatedIds(@Param("imageType") ImageType imageType,
+                                           @Param("relatedIds") List<Long> relatedIds);
+
+    List<Image> findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType imageType, Long relatedId);
+
+    @Modifying
+    @Query("""
+        delete from Image i
+        where i.imageType = :imageType
+          and i.relatedId  = :relatedId
+          and i.url in :urls
+    """)
+    void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, Collection<String> urls);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        delete from Image i
+         where i.imageType = :imageType
+           and i.relatedId  = :relatedId
+    """)
+    void deleteByImageTypeAndRelatedId(@Param("imageType") ImageType imageType,
+                                       @Param("relatedId") Long relatedId);
+
+    void deleteByUrl(String url);
+
+}
