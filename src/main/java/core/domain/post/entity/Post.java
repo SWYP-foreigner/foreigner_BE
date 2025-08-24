@@ -2,6 +2,7 @@ package core.domain.post.entity;
 
 import core.domain.board.entity.Board;
 import core.domain.post.dto.PostWriteRequest;
+import core.domain.post.service.impl.PostWriteForChatRequest;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -63,6 +64,14 @@ public class Post {
         this.board = board;
         this.content = request.content();
         this.anonymous = request.isAnonymous() != null ? request.isAnonymous() : false;
+        this.checkCount = 0L;
+    }
+
+    public Post(PostWriteForChatRequest request, User user, Board board) {
+        this.author=user;
+        this.board = board;
+        this.content = request.content();
+        this.anonymous = false;
         this.checkCount = 0L;
     }
 

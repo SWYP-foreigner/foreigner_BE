@@ -2,6 +2,7 @@ package core.domain.post.controller;
 
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
+import core.domain.post.service.impl.PostWriteForChatRequest;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -68,6 +69,26 @@ public class PostController {
             @Valid @RequestBody PostWriteRequest writeRequest) {
 
         postService.writePost(authentication.getName(), boardId, writeRequest);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
+    }
+
+    @Operation(summary = "채팅 게시글 작성", description = "채팅 링크에서 넘어와서 본문/이미지/익명 여부를 포함해 게시글을 작성합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
+    })
+    @PostMapping("/chat/rooms/{roomId}/share")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> writePostForChat(
+            Authentication authentication,
+            @PathVariable @Positive Long roomId,
+            @Valid @RequestBody PostWriteForChatRequest writeRequest) {
+
+        postService.writePostForChat(authentication.getName(), roomId, writeRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
