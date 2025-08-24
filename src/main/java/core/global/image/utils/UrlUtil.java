@@ -59,7 +59,7 @@ public final class UrlUtil {
                                      String uploadSessionId, String filename) {
         String clean = trimSlashes(filename);
         String cat = imageType.name().toLowerCase();
-        return "images/" + cat + "/" + ownerKey + "/" + uploadSessionId + "/" + clean;
+        return "temp/" + cat + "/" + ownerKey + "/" + uploadSessionId + "/" + clean;
     }
 
 

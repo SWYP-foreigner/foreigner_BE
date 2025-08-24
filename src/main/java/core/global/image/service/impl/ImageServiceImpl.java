@@ -51,10 +51,10 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public List<PresignedUrlResponse> generatePresignedUrls(String username, PresignedUrlRequest request) {
         if (request.files() == null || request.files().isEmpty()) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
         if (request.uploadSessionId() == null || request.uploadSessionId().isBlank()) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
 
@@ -144,10 +144,7 @@ public class ImageServiceImpl implements ImageService {
             // S3에서도 삭제 시도
             for (String key : removeKeys) {
                 try {
-                    s3Client.deleteObject(DeleteObjectRequest.builder()
-                            .bucket(bucket)
-                            .key(key)
-                            .build());
+                    s3Client.deleteObject(b -> b.bucket(bucket).key(key));
                 } catch (SdkException e) {
                     // 실패 시 로그만 남기고 무시 (DB와 불일치 허용)
                     log.warn("이미지 삭제 실패: key={}, err={}", key, e.getMessage());
@@ -170,16 +167,21 @@ public class ImageServiceImpl implements ImageService {
         List<Image> toSave = new ArrayList<>();
         for (String raw : adds) {
             String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw);
+            boolean staging = isStagingKey(key);
+            boolean exists = staging && existsOnS3(key);
 
-            // 이미 존재하면 스킵
-            if (survivorKeys.contains(key)) continue;
+            log.info("[POST IMG] postId={}, inRaw={}, normKey={}, staging={}, exists={}",
+                    postId, raw, key, staging, exists);
 
-            // temp/*면 최종 경로로 COPY 후 원본 삭제
+            if (survivorKeys.contains(key)) {
+                log.info("[POST IMG] skip (already attached): key={}", key);
+                continue;
+            }
+
             String finalKey = ensureFinalKey("posts/post/" + postId, pos, key);
             Image created = Image.of(ImageType.POST, postId, finalKey, pos++);
             toSave.add(created);
         }
-
         // 4) 추가된 엔티티 저장
         if (!toSave.isEmpty()) {
             imageRepository.saveAll(toSave);
@@ -189,27 +191,43 @@ public class ImageServiceImpl implements ImageService {
 
     private boolean isStagingKey(String key) {
         String k = UrlUtil.trimSlashes(key);
-        return k.startsWith("images/");
+        return k.startsWith("temp/");
     }
 
     private String ensureFinalKey(String basePrefix, int order, String srcKey) {
         String base = basePrefix.endsWith("/") ? basePrefix.substring(0, basePrefix.length() - 1) : basePrefix;
 
-        if (isStagingKey(srcKey)) {
-            String basename = srcKey.substring(srcKey.lastIndexOf('/') + 1);
-            String dstKey = "%s/%03d_%s".formatted(base, order, basename);
-            try {
-                s3Client.copyObject(b -> b
-                        .sourceBucket(bucket).sourceKey(srcKey)
-                        .destinationBucket(bucket).destinationKey(dstKey));
-                s3Client.deleteObject(b -> b.bucket(bucket).key(srcKey));
-            } catch (SdkException e) {
-                throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
-            }
-            return dstKey;
+        try {
+            s3Client.headObject(b -> b.bucket(bucket).key(srcKey));
+        } catch (S3Exception e) {
+            log.warn("[POST IMG] source not found for copy. key={}, status={}", srcKey, e.statusCode());
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        } catch (SdkException e) {
+            log.warn("[POST IMG] headObject failed. key={}, err={}", srcKey, e.getMessage());
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-        return srcKey;
+        // 2) 스테이징 여부 확인 (images/로 시작하면 스테이징)
+        if (!isStagingKey(srcKey)) {
+            log.info("[POST IMG] already final. key={}", srcKey);
+            return srcKey;
+        }
+
+        String basename = srcKey.substring(srcKey.lastIndexOf('/') + 1);
+        String dstKey = "%s/%03d_%s".formatted(base, order, basename);
+
+        // 3) 복사 + 삭제
+        try {
+            log.info("[POST IMG] copy: src={} -> dst={}", srcKey, dstKey);
+            s3Client.copyObject(b -> b
+                    .sourceBucket(bucket).sourceKey(srcKey)
+                    .destinationBucket(bucket).destinationKey(dstKey));
+            s3Client.deleteObject(b -> b.bucket(bucket).key(srcKey));
+        } catch (SdkException e) {
+            log.warn("[POST IMG] copy/delete failed. src={}, dst={}, err={}", srcKey, dstKey, e.getMessage());
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        return dstKey;
     }
 
     private boolean existsOnS3(String key) {
@@ -290,7 +308,7 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, requestedKeyOrUrl);
@@ -317,7 +335,7 @@ public class ImageServiceImpl implements ImageService {
                         .destinationBucket(bucket).destinationKey(dstKey));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
             } catch (SdkException e) {
-                throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+                throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
             finalKey = dstKey;
         }
@@ -369,10 +387,10 @@ public class ImageServiceImpl implements ImageService {
         try {
             head = s3Client.headObject(b -> b.bucket(bucket).key(key));
         } catch (SdkException e) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
         long size = head.contentLength();
-        if (size <= 0 || size > maxBytes) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_FAILED);
+        if (size <= 0 || size > maxBytes) throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
         if (!ct.startsWith("image/")) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
     }
