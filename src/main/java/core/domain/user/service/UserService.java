@@ -401,5 +401,93 @@ public class UserService {
                 .imageKey(user.getProfileImageUrl())
                 .build();
     }
+    /**
+     * 첫번째 이름 두번째 이름으로도 검색이 되도록 만듬
+     * @param
+     * @return
+     */
 
+    @Transactional(readOnly = true)
+    public List<UserUpdateDTO> findUserByName(String firstName, String lastName) {
+        List<User> users;
+
+        if (firstName != null && !firstName.isBlank() &&
+                lastName != null && !lastName.isBlank()) {
+            users = userRepository.findByFirstAndLastNameList(firstName, lastName);
+        } else if (firstName != null && !firstName.isBlank()) {
+            users = userRepository.findByFirstName(firstName);
+        } else if (lastName != null && !lastName.isBlank()) {
+            users = userRepository.findByLastName(lastName);
+        } else {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        if (users.isEmpty()) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return users.stream()
+                .map(user -> UserUpdateDTO.builder()
+                        .firstname(user.getFirstName())
+                        .lastname(user.getLastName())
+                        .gender(user.getSex())
+                        .birthday(user.getBirthdate())
+                        .country(user.getCountry())
+                        .introduction(user.getIntroduction())
+                        .purpose(user.getPurpose())
+                        .language(parseCsvToList(user.getLanguage()))
+                        .hobby(parseCsvToList(user.getHobby()))
+                        .imageKey(null)
+                        .build()
+                ).toList();
+    }
+
+
+
+
+    @Transactional(readOnly = true)
+    public List<UserUpdateDTO> findUserByNameExcludingSelf(String firstName, String lastName, Long excludeUserId) {
+        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        List<User> users;
+        if (notBlank(firstName) && notBlank(lastName)) {
+            users = userRepository.findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(firstName.trim(), lastName.trim(), excludeUserId);
+        } else if (notBlank(firstName)) {
+            users = userRepository.findByFirstNameIgnoreCaseAndIdNot(firstName.trim(), excludeUserId);
+        } else {
+            users = userRepository.findByLastNameIgnoreCaseAndIdNot(lastName.trim(), excludeUserId);
+        }
+
+        if (users.isEmpty()) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return users.stream().map(this::toDto).toList();
+    }
+
+
+    private UserUpdateDTO toDto(User user) {
+        return UserUpdateDTO.builder()
+                .firstname(user.getFirstName())
+                .lastname(user.getLastName())
+                .gender(user.getSex())
+                .birthday(user.getBirthdate())
+                .country(user.getCountry())
+                .introduction(user.getIntroduction())
+                .purpose(user.getPurpose())
+                .language(parseCsvToList(user.getLanguage()))
+                .hobby(parseCsvToList(user.getHobby()))
+                .imageKey(null)
+                .build();
+    }
+
+    private List<String> parseCsvToList(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+    }
 }

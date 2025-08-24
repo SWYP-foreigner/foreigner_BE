@@ -2,16 +2,22 @@ package core.domain.user.controller;
 
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.entity.CustomUserDetails;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
+import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
+import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/mypage")
 @RequiredArgsConstructor
+@Slf4j
 public class MyPageController {
 
 
@@ -103,6 +110,48 @@ public class MyPageController {
     }
 
 
+    @GetMapping("profile/find/test")
+    @Operation(
+            summary = "친구리스트에서 이름(FirstName과 LastName) 을 통한 검색(테스트 버전) ",
+            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열해 줍니다."
+    )
+    public ResponseEntity<List<UserUpdateDTO>> findProfileTest(
+            @RequestParam(required = false) String firstName,
+            @RequestParam(required = false) String lastName
+    ) {
+        log.info("일단 확인");
+        List<UserUpdateDTO> response = userService.findUserByName(firstName, lastName);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("profile/find")
+    @Operation(
+            summary = "친구리스트에서 이름(FirstName과 LastName)을 통한 검색",
+            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열. (현재 로그인 사용자 제외)"
+    )
+    public ResponseEntity<List<UserUpdateDTO>> findProfile(
+            @RequestParam(required = false) String firstName,
+            @RequestParam(required = false) String lastName
+    ) {
+        Long currentUserId = getCurrentUserIdOrNull();
+        if (currentUserId == null) {
+            // 로그인 필수라면 예외로 처리
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        List<UserUpdateDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName, currentUserId);
+        return ResponseEntity.ok(response);
+    }
+
+    private Long getCurrentUserIdOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+         if (principal instanceof CustomUserDetails cud) {
+             return cud.getId();
+         }
+        return null;
+    }
 
 }
 

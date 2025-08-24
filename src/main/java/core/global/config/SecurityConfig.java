@@ -50,7 +50,9 @@ public class SecurityConfig {
                                "/api/v1/member/profile/setup",
                                "/api/v1/member/profile/test/**",
                                 "/api/v1/mypage/profile/edit",
-                                "/api/v1/mypage/profile/test/edit"
+                                "/api/v1/mypage/profile/test/edit",
+                                "/api/v1/mypage/profile/find",
+                                "/api/v1/mypage/profile/find/test"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
