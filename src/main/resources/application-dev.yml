@@ -73,3 +73,10 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+google:
+  cloud:
+    project:
+      id: ${GCP_PROJECT_ID}
+    translate:
+      api-key: ${GCP_TRANSLATE_API_KEY}

@@ -1,14 +1,17 @@
 package core.domain.chat.service;
 
-
-import com.google.cloud.translate.v3.LocationName;
-import com.google.cloud.translate.v3.TranslateTextRequest;
-import com.google.cloud.translate.v3.TranslateTextResponse;
-import com.google.cloud.translate.v3.TranslationServiceClient;
+import com.google.cloud.translate.v3.*;
+import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.AccessToken;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,6 +20,9 @@ public class TranslationService {
 
     @Value("${google.cloud.project.id}")
     private String projectId;
+
+    @Value("${google.cloud.translate.api-key}")
+    private String apiKey;
 
     /**
      * 지정된 언어로 메시지 목록을 번역합니다.
@@ -30,25 +36,38 @@ public class TranslationService {
             return messages;
         }
 
-        try (TranslationServiceClient client = TranslationServiceClient.create()) {
-            LocationName parent = LocationName.of(projectId, "global");
+        try {
+            Credentials credentials = GoogleCredentials.create(new AccessToken(apiKey, new Date(Long.MAX_VALUE)));
 
-            TranslateTextRequest request = TranslateTextRequest.newBuilder()
-                    .setParent(parent.toString())
-                    .setMimeType("text/plain")
-                    .setTargetLanguageCode(targetLanguage)
-                    .addAllContents(messages)
+            TranslationServiceSettings settings = TranslationServiceSettings.newBuilder()
+                    .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                     .build();
 
-            TranslateTextResponse response = client.translateText(request);
+            try (TranslationServiceClient client = TranslationServiceClient.create(settings)) {
+                LocationName parent = LocationName.of(projectId, "global");
 
-            return response.getTranslationsList().stream()
-                    .map(translation -> translation.getTranslatedText())
-                    .collect(Collectors.toList());
+                TranslateTextRequest request = TranslateTextRequest.newBuilder()
+                        .setParent(parent.toString())
+                        .setMimeType("text/plain")
+                        .setTargetLanguageCode(targetLanguage)
+                        .addAllContents(messages)
+                        .build();
+
+                TranslateTextResponse response = client.translateText(request);
+
+                return response.getTranslationsList().stream()
+                        .map(Translation::getTranslatedText)
+                        .collect(Collectors.toList());
+            }
 
         } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("번역 서비스 오류가 발생했습니다.", e);
+            throw new BusinessException(
+                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL,
+                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    e
+            );
         }
+
     }
 }
