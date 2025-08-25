@@ -99,32 +99,28 @@ public class UserController {
     }
 
 
-    @PostMapping("/google/AppLogin")
-    @Operation(summary = "구글 앱 로그인 API", description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
+    @PostMapping("/google/app-login")
+    @Operation(summary = "구글 앱 로그인 API", description = "React Native 앱에서 받은 인증 코드를 사용합니다.")
     @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<?> googleLogin(
             @Parameter(description = "구글 로그인 요청 데이터", required = true)
             @RequestBody GoogleLoginReq req) {
 
-
-        AccessTokenDto accessTokenDto = googleService.exchangeCodeWithPkce(req.getCode(), req.getCodeVerifier(), req.getPlatform());
-
+        AccessTokenDto accessTokenDto = googleService.exchangeCode(req.getCode());
 
         GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
-
 
         User originalUser = userService.getUserBySocialId(profile.getSub());
         if (originalUser == null) {
             originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
         }
 
-
         String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
-
 
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("id", originalUser.getId());
         loginInfo.put("token", jwtToken);
+
         return new ResponseEntity<>(loginInfo, HttpStatus.OK);
     }
 

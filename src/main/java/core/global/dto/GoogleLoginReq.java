@@ -13,7 +13,4 @@ import lombok.NoArgsConstructor;
 @Builder
 public class GoogleLoginReq {
     private String code;
-    private String codeVerifier;
-    private DeviceType platform;
-
 }

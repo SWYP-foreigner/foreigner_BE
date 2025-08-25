@@ -8,7 +8,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Slf4j
-@Component // <-- 4. 스프링 빈으로 등록합니다.
+@Component
 public class PlainWebSocketHandler extends TextWebSocketHandler {
 
     @Override

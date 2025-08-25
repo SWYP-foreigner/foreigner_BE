@@ -22,7 +22,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
         config.setApplicationDestinationPrefixes("/app");
     }
 
-    // Plain WebSocket 핸들러 등록
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(new PlainWebSocketHandler(), "/plain-ws/chat")
