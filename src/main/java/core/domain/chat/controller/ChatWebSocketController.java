@@ -3,6 +3,7 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.service.ChatService;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController; // 제거
 
 @Controller
@@ -82,5 +84,23 @@ public class ChatWebSocketController {
         } catch (Exception e) {
             log.error("메시지 읽음 처리 실패", e);
         }
+    }
+
+    @Operation(summary = "메시지 전송", description = "STOMP 실제 엔드포인트: /app/chat.sendMessage\n구독 채널: /topic/rooms/{roomId}")
+    @GetMapping("/docs/chat/sendMessage")
+    public SendMessageRequest sendMessageExample() {
+        return new SendMessageRequest(1L, 2L, "안녕하세요");
+    }
+
+    @Operation(summary = "타이핑 이벤트", description = "STOMP 실제 엔드포인트: /app/chat.typing\n구독 채널: /topic/chatrooms/{roomId}")
+    @GetMapping("/docs/chat/typing")
+    public TypingEvent typingExample() {
+        return new TypingEvent(1L, "이용준", 3L,true);
+    }
+
+    @Operation(summary = "메시지 읽음 처리", description = "STOMP 실제  엔드포인트: /app/chat.markAsRead\n구독 채널: /topic/rooms/{roomId}/read-status")
+    @GetMapping("/docs/chat/markAsRead")
+    public MarkAsReadRequest readExample() {
+        return new MarkAsReadRequest(1L, 2L, 99L);
     }
 }

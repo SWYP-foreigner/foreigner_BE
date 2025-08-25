@@ -91,14 +91,13 @@ public class UserController {
 
         } catch (Exception e) {
             log.error("--- [구글 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
-            // 클라이언트에게 좀 더 명확한 에러 응답을 반환하도록 수정할 수 있습니다.
             return new ResponseEntity<>("로그인 실패: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
 
     /**
-     * 권장: Authorization Code + PKCE 플로우
+
      */
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
