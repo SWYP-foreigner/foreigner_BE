@@ -47,43 +47,6 @@ public class UserController {
         return "Received code: " + code + ", state: " + state;
     }
 
-    @PostMapping("/google/doLogin")
-    @Operation(summary = "구글 로그인(웹 API)",
-            description = "Swagger에서 테스트할 수 있도록 앱 인증 코드를 사용합니다.")
-    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
-    public ResponseEntity<?> googleTestLogin(
-            @Parameter(description = "구글 Access Token", required = true)
-            @RequestBody GoogleTestReq req) {
-
-        log.info("[GoogleLogin] 요청 수신 - AccessToken: {}", req.getAccessToken());
-
-
-        GoogleProfileDto profile = googleService.getGoogleProfile(req.getAccessToken());
-        log.info("[GoogleLogin] 구글 프로필 조회 완료 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
-
-
-        User originalUser = userService.getUserBySocialId(profile.getSub());
-        if (originalUser == null) {
-            log.info("[GoogleLogin] 신규 사용자 생성 - sub: {}, email: {}", profile.getSub(), profile.getEmail());
-            originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
-        } else {
-            log.info("[GoogleLogin] 기존 사용자 로그인 - userId: {}, email: {}", originalUser.getId(), originalUser.getEmail());
-        }
-
-
-        String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
-        log.info("[GoogleLogin] JWT 토큰 생성 완료 - email: {}", originalUser.getEmail());
-
-
-        Map<String, Object> loginInfo = new HashMap<>();
-        loginInfo.put("id", originalUser.getId());
-        loginInfo.put("token", jwtToken);
-
-        log.info("[GoogleLogin] 로그인 성공 - userId: {}, email: {}", originalUser.getId(), originalUser.getEmail());
-
-        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
-    }
-
 
     @PostMapping("/google/app-login")
     @Operation(summary = "구글 앱 로그인 API", description = "React Native 앱에서 받은 인증 코드를 사용합니다.")
