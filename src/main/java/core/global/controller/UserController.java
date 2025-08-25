@@ -86,7 +86,7 @@ public class UserController {
             loginInfo.put("token", jwtToken);
             log.info("5. 로그인 프로세스 완료. 사용자 ID와 JWT 토큰을 반환합니다.");
             log.info("--- [구글 앱 로그인] API 요청 처리 성공 ---");
-
+            log.info("JWT 토큰 생성 완료. 토큰 길이: {}, 토큰 일부: {}", jwtToken.length(), jwtToken.substring(0, 20) + "...");
             return new ResponseEntity<>(loginInfo, HttpStatus.OK);
 
         } catch (Exception e) {

@@ -50,10 +50,8 @@ public class AppleAuthService {
             String redirectUriOrNull,
             String rawNonce
     ) {
-        // 1) client_secret (서버가 p8으로 ES256 서명한 JWT)
         String clientSecret = clientSecretProvider.createClientSecret();
 
-        // 2) /auth/token 교환 (grant_type=authorization_code)
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("code", authorizationCode);
@@ -68,16 +66,13 @@ public class AppleAuthService {
 
         AppleTokenResponse token = appleClient.findAppleToken(form);
         if (token.getError() != null) {
-            // 예: invalid_grant, invalid_client 등
             throw new IllegalStateException("Apple token error: " + token.getError());
         }
 
-        // 3) id_token 검증(서명/JWK + iss/aud/exp + nonce)
         Map<String, String> header = tokenParser.parseHeader(token.getIdToken());
         PublicKey publicKey = keyGenerator.generate(header, appleClient.getApplePublicKeys());
         Claims claims = tokenParser.extractClaims(token.getIdToken(), publicKey);
 
-        // 3-1) 발급자/대상 검증
         if (!"https://appleid.apple.com".equals(claims.getIssuer())) {
             throw new IllegalArgumentException("invalid iss");
         }
@@ -85,7 +80,6 @@ public class AppleAuthService {
             throw new IllegalArgumentException("invalid aud");
         }
 
-        // 3-2) nonce 검증: id_token(nonce) == sha256(rawNonce)
         if (rawNonce != null && !rawNonce.isBlank()) {
             String nonceInToken = claims.get("nonce", String.class);
             String rawNonceSha256 = sha256Hex(rawNonce);
@@ -94,7 +88,6 @@ public class AppleAuthService {
             }
         }
 
-        // 사용자 정보 구성(이메일은 최초 동의시에만 있을 수 있음)
         AppleUserInfo user = new AppleUserInfo(
                 claims.getSubject(),
                 claims.get("email", String.class),
