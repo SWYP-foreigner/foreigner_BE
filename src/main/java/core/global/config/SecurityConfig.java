@@ -33,34 +33,21 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/images/presign",
-                                "/auth/google/callback",
-                                "/auth/google/exchange",
-                                "/api/v1/users/**",
-                                "/member/create", "/member/doLogin",
-                                "/member/google/doLogin", "/member/apple/doLogin",
-                                "/oauth2/**",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health",
-                                "/swagger-resources/**",
-                                "/swagger-ui.html",
-                                "/member/google/TestdoLogin",
-                                "/api/v1/member/google/TestdoLogin",
-                                "/api/v1/member/google/doLogin",
-                                "/api/v1/member/google/callback",
                                 "/health",
+                                "/actuator/health",
+                                "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/swagger-ui.html",
+
+                                "/api/v1/member/google/**",
+                                "/api/v1/member/apple/**",
                                 "/api/v1/member/profile/**",
-                               "/api/v1/member/profile/setup",
-                               "/api/v1/member/profile/test/**",
-                                "/api/v1/mypage/profile/edit",
-                                "/api/v1/mypage/profile/test/edit",
-                                "/health",
+                                "/api/v1/mypage/profile/**",
                                 "/api/v1/board/*",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/health", "/actuator/health"
+                                "/api/v1/users/**"
 
                         ).permitAll()
 
                         .anyRequest().authenticated()
                 );
-        http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
