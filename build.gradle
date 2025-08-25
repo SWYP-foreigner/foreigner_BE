@@ -66,16 +66,18 @@ dependencies {
 
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-
-	implementation platform("com.amazonaws:aws-java-sdk-bom:1.12.689")
-	implementation "com.amazonaws:aws-java-sdk-s3"
-
 	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	testImplementation 'org.mockito:mockito-inline:5.2.0'
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
 
+	implementation 'software.amazon.awssdk:s3:2.25.39'
+
+	implementation 'software.amazon.awssdk:auth:2.25.39'
+	implementation 'software.amazon.awssdk:regions:2.25.39'
+
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 }
 
 dependencyManagement {

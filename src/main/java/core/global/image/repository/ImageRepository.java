@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("""
@@ -46,7 +47,13 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     List<Object[]> findAllUrlsByRelatedIds(@Param("imageType") ImageType imageType,
                                            @Param("relatedIds") List<Long> relatedIds);
 
-    List<Image> findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType imageType, Long relatedId);
+    @Query("select i from Image i " +
+           "where i.imageType = :type and i.relatedId = :relatedId " +
+           "order by i.orderIndex asc")
+    List<Image> findByImageTypeAndRelatedIdOrderByPositionAsc(
+            @Param("type") ImageType type,
+            @Param("relatedId") Long relatedId
+    );
 
     @Modifying
     @Query("""
@@ -66,6 +73,10 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     void deleteByImageTypeAndRelatedId(@Param("imageType") ImageType imageType,
                                        @Param("relatedId") Long relatedId);
 
-    void deleteByUrl(String url);
+    void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, List<String> urls);
+
+    List<Image> findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
+
+    Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
 }

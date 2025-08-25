@@ -2,6 +2,7 @@ package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.*;
+import core.domain.post.dto.PostWriteForChatRequest;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
@@ -16,6 +17,8 @@ public interface PostService {
     void addLike(String username, Long boardId);
 
     void writePost(String name, @Positive Long boardId, PostWriteRequest request);
+
+    void writePostForChat(String name, Long roomId, PostWriteForChatRequest request);
 
     void updatePost(String name, @Positive Long boardId, @Valid PostUpdateRequest updateRequest);
 
