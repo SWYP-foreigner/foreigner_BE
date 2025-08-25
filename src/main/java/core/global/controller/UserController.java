@@ -92,22 +92,45 @@ public class UserController {
             @Parameter(description = "구글 로그인 요청 데이터", required = true)
             @RequestBody GoogleLoginReq req) {
 
-        AccessTokenDto accessTokenDto = googleService.exchangeCode(req.getCode());
+        log.info("--- [구글 앱 로그인] API 요청 수신 ---");
+        log.info("요청 데이터: {}", req);
+        log.info("앱으로부터 받은 인증 코드: {}", req.getCode());
 
-        GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
+        try {
+            log.info("1. 구글과 인증 코드를 교환하여 액세스 토큰을 받는 중...");
+            AccessTokenDto accessTokenDto = googleService.exchangeCode(req.getCode());
+            log.info("액세스 토큰 교환 성공. 받은 토큰: {}", accessTokenDto.getAccess_token());
 
-        User originalUser = userService.getUserBySocialId(profile.getSub());
-        if (originalUser == null) {
-            originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
+            log.info("2. 받은 액세스 토큰으로 구글 사용자 프로필 정보를 조회하는 중...");
+            GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
+            log.info("사용자 프로필 조회 성공. 사용자 ID(sub): {}, 이메일: {}", profile.getSub(), profile.getEmail());
+
+            log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
+            User originalUser = userService.getUserBySocialId(profile.getSub());
+            if (originalUser == null) {
+                log.info("새로운 사용자입니다. 소셜 ID: {}, 이메일: {} 로 계정 생성", profile.getSub(), profile.getEmail());
+                originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
+                log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", originalUser.getId());
+            } else {
+                log.info("기존 사용자 발견. 사용자 ID: {}", originalUser.getId());
+            }
+
+            log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
+            String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
+
+            Map<String, Object> loginInfo = new HashMap<>();
+            loginInfo.put("id", originalUser.getId());
+            loginInfo.put("token", jwtToken);
+            log.info("5. 로그인 프로세스 완료. 사용자 ID와 JWT 토큰을 반환합니다.");
+            log.info("--- [구글 앱 로그인] API 요청 처리 성공 ---");
+
+            return new ResponseEntity<>(loginInfo, HttpStatus.OK);
+
+        } catch (Exception e) {
+            log.error("--- [구글 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
+            // 클라이언트에게 좀 더 명확한 에러 응답을 반환하도록 수정할 수 있습니다.
+            return new ResponseEntity<>("로그인 실패: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
-
-        Map<String, Object> loginInfo = new HashMap<>();
-        loginInfo.put("id", originalUser.getId());
-        loginInfo.put("token", jwtToken);
-
-        return new ResponseEntity<>(loginInfo, HttpStatus.OK);
     }
 
 
