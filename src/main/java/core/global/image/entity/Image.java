@@ -31,27 +31,27 @@ public class Image {
     @Column(name = "url", length = 150, nullable = false)
     private String url;
 
-    @Column(name = "position", nullable = false)
-    private Integer position;
+    @Column(name = "order_index", nullable = false)
+    private Integer orderIndex;
 
     @Builder
-    private Image(ImageType imageType, Long relatedId, String url, Integer position) {
+    private Image(ImageType imageType, Long relatedId, String url, Integer orderIndex) {
         this.imageType = imageType;
         this.relatedId = relatedId;
         this.url = url;
-        this.position = position;
+        this.orderIndex = orderIndex;
     }
 
-    public static Image of(ImageType type, Long relatedId, String url, int position) {
+    public static Image of(ImageType type, Long relatedId, String url, int orderIndex) {
         return Image.builder()
                 .imageType(type)
                 .relatedId(relatedId)
                 .url(url)
-                .position(position)
+                .orderIndex(orderIndex)
                 .build();
     }
 
     public void changePosition(int position) {
-        this.position = position;
+        this.orderIndex = position;
     }
 }

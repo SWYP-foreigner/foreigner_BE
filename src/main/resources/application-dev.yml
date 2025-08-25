@@ -68,7 +68,6 @@ ncp:
 swagger:
   server-url: https://dev.ko-ri.cloud
 
-
 springdoc:
   api-docs:
     enabled: true

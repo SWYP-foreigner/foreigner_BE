@@ -69,9 +69,6 @@ public class User {
     @Column(name = "email", nullable = true)
     private String email;
 
-    @Column(name = "profile_image_url")
-    private String profileImageUrl; // NCP S3 업로드 결과 URL 저장
-
     @Builder
     public User(String firstName,
                 String lastName,
@@ -84,8 +81,7 @@ public class User {
                 String hobby,
                 String provider,
                 String socialId,
-                String email,
-                String profileImageUrl) {
+                String email) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.sex = sex;
@@ -98,7 +94,6 @@ public class User {
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
-        this.profileImageUrl = profileImageUrl;
     }
 
     public void updateProfile(UserUpdateDTO dto) {

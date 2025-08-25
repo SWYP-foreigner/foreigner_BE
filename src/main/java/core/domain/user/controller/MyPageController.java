@@ -89,21 +89,6 @@ public class MyPageController {
 
 
 
-    @PatchMapping(value = "/profile/test/edit", consumes = "application/json", produces = "application/json")
-    @Operation(
-            summary = "프로필 수정(로그인 없이, 헤더에 이메일 넣어서 테스트)",
-            description = "X-User-Email 헤더의 이메일로 사용자를 식별하여 프로필을 부분 수정(PATCH)합니다."
-    )
-    public ResponseEntity<UserUpdateDTO> editProfileForTest(
-            @RequestHeader(value = "X-User-Email") String email,   // 수정은 명확히 required 로
-            @RequestBody UserUpdateDTO dto
-    ) {
-        UserUpdateDTO response = userService.updateUserProfileTest(email, dto);
-        return ResponseEntity.ok(response);
-    }
-
-
-
 }
 
 
