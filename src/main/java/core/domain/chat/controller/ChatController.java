@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.ForbiddenWordService;
+import core.domain.chat.service.TranslationService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.ApiResponse;
@@ -38,12 +39,14 @@ public class ChatController {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
-    public ChatController(ChatService chatService, UserRepository userRepository, ChatRoomRepository chatRoomRepository, ChatParticipantRepository chatParticipantRepository, ChatMessageRepository chatMessageRepository) {
+    private final TranslationService translationService;
+    public ChatController(ChatService chatService, UserRepository userRepository, ChatRoomRepository chatRoomRepository, ChatParticipantRepository chatParticipantRepository, ChatMessageRepository chatMessageRepository, TranslationService translationService) {
         this.chatService = chatService;
         this.userRepository = userRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.translationService = translationService;
     }
 
     /**
@@ -104,31 +107,28 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+
     /**
-     *  @author 김승환
-     * @apiNote 채팅방 메시지를 무한 스크롤로 조회합니다.
-     * 재참여한 사용자의 경우, 재참여 시점 이후의 메시지만 반환합니다.
+     * @apiNote 채팅방 메시지를 무한 스크롤로 조회하고, 선택적으로 번역된 메시지를 반환합니다.
      *
-     * @param roomId 채팅방 ID
-     * @param userId 조회하는 사용자의 ID. (TODO: JWT 토큰에서 추출)
-     * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용).
+     * @param roomId          채팅방 ID
+     * @param userId          조회하는 사용자의 ID.
+     * @param lastMessageId   마지막으로 조회된 메시지 ID (무한 스크롤용).
+     * @param translate       메시지 번역 요청 여부 (기본값: false)
      * @return 메시지 목록
      */
     @Operation(summary = "채팅방 메시지 조회 (무한 스크롤)")
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
-                                                                               @PathVariable Long roomId,
-                                                                               @RequestParam(required = false) Long lastMessageId,
-                                                                               @RequestParam Long userId
+            @PathVariable Long roomId,
+            @RequestParam(required = false) Long lastMessageId,
+            @RequestParam Long userId,
+            @RequestParam(required = false, defaultValue = "false") boolean translate
     ) {
-        List<ChatMessage> messages = chatService.getMessages(roomId, userId, lastMessageId);
-
-        List<ChatMessageResponse> responses = messages.stream()
-                .map(ChatMessageResponse::fromEntity)
-                .toList();
-
+        List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId, translate);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
+
 
     /**
      *  @author 김승환
@@ -209,23 +209,42 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    /**
-     * 특정 채팅방의 메시지를 키워드로 검색합니다.
-     *
-     * @param roomId          채팅방 ID
-     * @param userId          검색하는 사용자 ID
-     * @param search          검색 키워드
-     * @return                검색 결과 메시지 목록
-     * todo: @RequestParam String search가 한글로 올 시 인코딩 오류로 400을 뱉음
-     */
-    @Operation(summary = "메시지 키워드 검색 (무겁게 수행)")
+    @Operation(summary = "메시지 키워드 검색 (무겁게 수행)", description = "todo: @RequestParam String search가 한글로 올 시 인코딩 오류로 400을 뱉음")
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
-            @RequestParam  Long roomId,
+            @RequestParam Long roomId,
             @RequestParam Long userId,
-            @RequestParam String search
+            @RequestParam String search,
+            @RequestParam(required = false, defaultValue = "false") boolean translate
     ) {
         List<ChatMessage> messages = chatService.searchMessages(roomId, userId, search);
+
+        if (translate) {
+            User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            String targetLanguage = user.getLanguage();
+
+            if (targetLanguage != null && !targetLanguage.isEmpty()) {
+                List<String> originalContents = messages.stream().map(ChatMessage::getContent).collect(Collectors.toList());
+                List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+                List<ChatMessageResponse> responses = messages.stream()
+                        .map(message -> {
+                            int index = messages.indexOf(message);
+                            String translatedContent = translatedContents.get(index);
+                            return new ChatMessageResponse(
+                                    message.getId(),
+                                    message.getChatRoom().getId(),
+                                    message.getSender().getId(),
+                                    translatedContent,
+                                    message.getSentAt(),
+                                    message.getContent()
+                            );
+                        }).collect(Collectors.toList());
+                return ResponseEntity.ok(ApiResponse.success(responses));
+            }
+        }
+
+
         List<ChatMessageResponse> response = messages.stream()
                 .map(ChatMessageResponse::fromEntity)
                 .collect(Collectors.toList());
