@@ -109,6 +109,8 @@ jobs:
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
+
+            SERVER_URL=${{secrets.SERVER_URL}}
             
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
