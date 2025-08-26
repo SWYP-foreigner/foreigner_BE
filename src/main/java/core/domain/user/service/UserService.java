@@ -11,6 +11,8 @@ import core.global.image.service.ImageService;
 import core.global.image.service.impl.ImageServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
@@ -224,7 +226,86 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public UserUpdateDTO updateUserProfile(UserUpdateDTO dto) {
-        return null;
+        // 1) 인증 체크 & 이메일 추출
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
+                ? jwtAuth.getToken().getClaim("email")
+                : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        // 2) 사용자 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 3) 부분 업데이트 (null/공백 무시)
+        if (notBlank(dto.getFirstname()))    user.setFirstName(dto.getFirstname().trim());
+        if (notBlank(dto.getLastname()))     user.setLastName(dto.getLastname().trim());
+        if (dto.getGender() != null)         user.setSex(dto.getGender());
+        if (dto.getBirthday() != null)       user.setBirthdate(dto.getBirthday());
+        if (notBlank(dto.getCountry()))      user.setCountry(dto.getCountry().trim());
+
+        if (notBlank(dto.getIntroduction())) {
+            String v = dto.getIntroduction().trim();
+            user.setIntroduction(v.length() > 40 ? v.substring(0, 40) : v); // 컬럼 길이 보호
+        }
+        if (notBlank(dto.getPurpose())) {
+            String v = dto.getPurpose().trim();
+            user.setPurpose(v.length() > 40 ? v.substring(0, 40) : v);
+        }
+
+        if (dto.getLanguage() != null) {
+            String csv = dto.getLanguage().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setLanguage(csv);
+        }
+        if (dto.getHobby() != null) {
+            String csv = dto.getHobby().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setHobby(csv);
+        }
+
+        user.setUpdatedAt(Instant.now());
+
+        // 4) 이미지 업서트 (User 엔티티엔 저장 X)
+        String finalImageKey = null;
+        if (notBlank(dto.getImageKey())) {
+            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
+        }
+
+        userRepository.save(user);
+
+        // 5) 대표 이미지 키 조회 (요청에 키 없었으면 기존 값 유지)
+        if (finalImageKey == null) {
+            finalImageKey = imageService.getUserProfileKey(user.getId());
+        }
+
+        // 6) 응답 DTO
+        return UserUpdateDTO.builder()
+                .firstname(user.getFirstName())
+                .lastname(user.getLastName())
+                .gender(user.getSex())
+                .birthday(user.getBirthdate())
+                .country(user.getCountry())
+                .introduction(user.getIntroduction())
+                .purpose(user.getPurpose())
+                .language(stringToList(user.getLanguage()))
+                .hobby(stringToList(user.getHobby()))
+                .imageKey(finalImageKey)
+                .build();
     }
 }
