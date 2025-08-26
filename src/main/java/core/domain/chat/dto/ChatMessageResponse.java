@@ -3,21 +3,22 @@ package core.domain.chat.dto;
 import core.domain.chat.entity.ChatMessage;
 
 import java.time.Instant;
-
 public record ChatMessageResponse(
-        Long messageId,
+        Long id,
         Long roomId,
         Long senderId,
         String content,
-        Instant sentAt
+        Instant sentAt,
+        String originalContent
 ) {
-    public static ChatMessageResponse fromEntity(ChatMessage entity) {
+    public static ChatMessageResponse fromEntity(ChatMessage message) {
         return new ChatMessageResponse(
-                entity.getId(),
-                entity.getChatRoom().getId(),
-                entity.getSender().getId(),
-                entity.getContent(),
-                entity.getSentAt()
+                message.getId(),
+                message.getChatRoom().getId(),
+                message.getSender().getId(),
+                message.getContent(),
+                message.getSentAt(),
+                null
         );
     }
 }

@@ -12,7 +12,11 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
       password: ${SPRING_DATA_REDIS_PASSWORD}
-
+      key:
+        prefix:
+          refreshToken: "refreshToken:"
+          blacklist: "blacklist:"
+          accessToken: "access_token"
   jpa:
     hibernate:
       ddl-auto: create
@@ -24,7 +28,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 3600000
+  access-expiration: 30
+  refresh-expiration: 10080
+
 
 cloud:
   openfeign:
@@ -73,3 +79,10 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+google:
+  cloud:
+    project:
+      id: ${GCP_PROJECT_ID}
+    translate:
+      api-key: ${GCP_TRANSLATE_API_KEY}

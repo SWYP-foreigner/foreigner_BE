@@ -1,6 +1,7 @@
 package core.domain.chat.service;
 
 
+import core.domain.chat.dto.ChatMessageResponse;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
@@ -36,10 +37,11 @@ public class ChatService {
     private static final int MESSAGE_PAGE_SIZE = 20;
     private static final int MESSAGE_SEARCH_PAGE_SIZE = 20;
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
+    private final TranslationService translationService;
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository) {
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -47,6 +49,7 @@ public class ChatService {
         this.userRepository = userRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageReadStatusRepository = chatMessageReadStatusRepository;
+        this.translationService = translationService;
     }
     public List<ChatRoom> getMyChatRooms(Long userId) {
         List<ChatParticipant> participants = chatParticipantRepository.findByUserIdExplicit(userId);
@@ -153,22 +156,21 @@ public class ChatService {
     }
 
     /**
-     * 채팅방 메시지 목록을 조회합니다.
-     * 무한 스크롤과 재참여 로직을 포함합니다.
+            * @apiNote 채팅방 메시지를 무한 스크롤로 조회하는 핵심 로직입니다.
+     * 이 메서드는 항상 ChatMessage 엔티티 목록을 반환합니다.
      *
-     * @param roomId 채팅방 ID
-     * @param userId 메시지를 조회하는 사용자 ID
-     * @param lastMessageId 무한 스크롤을 위한 마지막 메시지 ID
-     * @return 조회된 메시지 목록
+             * @param roomId 채팅방 ID
+     * @param userId 조회하는 사용자 ID
+     * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
+     * @return ChatMessage 엔티티 목록
      */
     @Transactional(readOnly = true)
-    public List<ChatMessage> getMessages(Long roomId, Long userId, Long lastMessageId) {
+    public List<ChatMessage> getRawMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
         if (participant.getStatus() == ChatParticipantStatus.LEFT && participant.getLastLeftAt() != null) {
             Instant lastLeftAt = participant.getLastLeftAt();
-
 
             if (lastMessageId != null) {
                 return chatMessageRepository.findByChatRoomIdAndSentAtAfterAndIdBefore(
@@ -181,9 +183,7 @@ public class ChatService {
                         PageRequest.of(0, MESSAGE_PAGE_SIZE, Sort.by("sentAt").descending())
                 );
             }
-        }
-
-        else {
+        } else {
             if (lastMessageId != null) {
                 return chatMessageRepository.findByChatRoomIdAndIdBefore(
                         roomId, lastMessageId,
@@ -199,34 +199,66 @@ public class ChatService {
     }
 
     /**
-     * 특정 채팅방의 메시지 목록을 조회합니다.
+     * @apiNote 채팅방 메시지를 조회하고, 번역 요청에 따라 ChatMessageResponse 목록을 반환합니다.
+     * 이 메서드가 컨트롤러에서 호출되는 주된 엔드포인트가 됩니다.
      *
      * @param roomId 채팅방 ID
-     * @param userId 메시지를 조회하는 사용자 ID
-     * @return 조회된 메시지 목록
+     * @param userId 조회하는 사용자 ID
+     * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
+     * @param translate 메시지 번역 요청 여부
+     * @return ChatMessageResponse 목록
      */
     @Transactional(readOnly = true)
-    public List<ChatMessage> getChatMessages(Long roomId, Long userId, Long lastMessageId, int limit) {
-        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+    public List<ChatMessageResponse> getMessages(
+            Long roomId,
+            Long userId,
+            Long lastMessageId,
+            boolean translate
+    ) {
+        List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
-        if (participant.getStatus() == ChatParticipantStatus.LEFT && participant.getLastLeftAt() != null) {
-            if (lastMessageId != null) {
-                return chatMessageRepository.findByChatRoomIdAndIdBeforeAndSentAtAfterOrderBySentAtDesc(
-                        roomId, lastMessageId, participant.getLastLeftAt(), PageRequest.of(0, limit));
+        if (translate) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+            String targetLanguage = user.getLanguage();
+            if (targetLanguage == null || targetLanguage.isEmpty()) {
+                return messages.stream()
+                        .map(ChatMessageResponse::fromEntity)
+                        .toList();
             }
-            return chatMessageRepository.findByChatRoomIdAndSentAtAfterOrderBySentAtDesc(
-                    roomId, participant.getLastLeftAt(), PageRequest.of(0, limit));
+
+            List<String> originalContents = messages.stream()
+                    .map(ChatMessage::getContent)
+                    .collect(Collectors.toList());
+            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+            return messages.stream()
+                    .map(message -> {
+                        int index = messages.indexOf(message);
+                        String translatedContent = translatedContents.get(index);
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                message.getSender().getId(),
+                                translatedContent,
+                                message.getSentAt(),
+                                message.getContent()
+                        );
+                    }).toList();
+        } else {
+            return messages.stream()
+                    .map(message -> new ChatMessageResponse(
+                            message.getId(),
+                            message.getChatRoom().getId(),
+                            message.getSender().getId(),
+                            message.getContent(),
+                            message.getSentAt(),
+                            null
+                    )).toList();
         }
-
-        if (lastMessageId != null) {
-            return chatMessageRepository.findByChatRoomIdAndIdBeforeOrderBySentAtDesc(
-                    roomId, lastMessageId, PageRequest.of(0, limit));
-        }
-
-
-        return chatMessageRepository.findByChatRoomIdOrderBySentAtDesc(roomId, PageRequest.of(0, limit));
     }
+
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
