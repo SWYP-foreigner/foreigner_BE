@@ -1,5 +1,7 @@
 package core.global.config;
 
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import core.global.service.RedisService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -72,17 +74,19 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         String auth = request.getHeader("Authorization");
 
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            log.warn("인증 정보가 없습니다. 요청을 차단합니다. URI = {}", request.getRequestURI());
+            throw new BusinessException(ErrorCode.JWT_TOKEN_NOT_FOUND);
+        }
+
         try {
             if (auth != null && auth.startsWith("Bearer ")) {
                 String jwt = auth.substring(7);
 
-                // ✅ 블랙리스트 체크
                 if (redisService.isBlacklisted(jwt)) {
                     log.warn("블랙리스트에 등록된 토큰입니다. 요청 차단.");
-                    throw new RuntimeException("Blacklisted token");
+                    throw new BusinessException(ErrorCode.JWT_TOKEN_BLACKLISTED);
                 }
-
-                // ✅ JWT 파싱 및 검증
                 Claims claims = Jwts.parserBuilder()
                         .setSigningKey(signingKey())
                         .build()
@@ -110,21 +114,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         }catch (io.jsonwebtoken.ExpiredJwtException e) {
             log.warn("액세스 토큰이 만료되었습니다: {}", e.getMessage());
             SecurityContextHolder.clearContext();
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write(
-                    "{\"error\":\"token_expired\", \"message\":\"액세스 토큰이 만료되었습니다.\"}"
-            );
-
-        }
-        catch (Exception e) {
+            throw new BusinessException(ErrorCode.JWT_TOKEN_EXPIRED);
+        } catch (Exception e) {
             log.error("JWT 필터 처리 중 예외 발생: {}", e.getMessage(), e);
             SecurityContextHolder.clearContext();
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write(
-                    String.format("{\"error\":\"invalid_token\", \"message\":\"%s\"}", e.getMessage())
-            );
+            throw new BusinessException(ErrorCode.JWT_TOKEN_INVALID);
         }
     }
 }
