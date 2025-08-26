@@ -28,6 +28,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.id != :meId")
     Page<User> findCandidatesExcluding(Long meId, Pageable pageable);
-
-    Optional<User> getUserByUserId(String email);
+    Optional<User> getUserById(Long id);
 }

@@ -131,11 +131,11 @@ public class UserController {
             return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
         }
 
-        String email = jwtTokenProvider.getEmailFromToken(refreshToken);
-        Optional<User> userOptional = userrepository.getUserByUserId(email);
+        Long UserId  = jwtTokenProvider.getUserIdFromAccessToken(refreshToken);
+        Optional<User> userOptional = userrepository.getUserById(UserId);
 
         if (userOptional.isEmpty()) {
-            log.error("토큰의 ID({})로 사용자를 찾을 수 없음", email);
+            log.error("토큰의 ID({})로 사용자를 찾을 수 없음", UserId);
             return new ResponseEntity<>(ApiResponse.fail("User not found"), HttpStatus.NOT_FOUND);
         }
 
