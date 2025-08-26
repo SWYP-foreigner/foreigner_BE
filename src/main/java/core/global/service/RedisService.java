@@ -12,11 +12,10 @@ import java.util.concurrent.TimeUnit;
 public class RedisService {
 
     private final StringRedisTemplate redisTemplate;
-
-    @Value("${redis.key.prefix.refreshToken}")
+    @Value("${spring.data.redis.key.prefix.refreshToken}")
     private String refreshTokenPrefix;
 
-    @Value("${redis.key.prefix.blacklist}")
+    @Value("${spring.data.redis.key.prefix.blacklist}")
     private String blacklistPrefix;
 
     /**
