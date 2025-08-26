@@ -176,25 +176,6 @@ public class UserController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * refresh token 갱신
-     */
-
-    @PostMapping("/apple/refresh")
-    @Operation(summary = "애플 토큰 갱신")
-    public ResponseEntity<AppleTokenResponse> refresh(@RequestBody AppleRefreshRequest req) {
-        return ResponseEntity.ok(service.refresh(req.getRefreshToken()));
-    }
-
-    /**
-     * revoke (연동 해제)
-     */
-    @PostMapping("/apple/revoke")
-    @Operation(summary = "애플 연동 해제")
-    public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
-        service.revoke(req.getRefreshToken());
-        return ResponseEntity.noContent().build();
-    }
 
     @PatchMapping("/profile/setup")
     public ResponseEntity<UserUpdateDTO> updateProfile(@RequestBody UserUpdateDTO dto) {
@@ -217,5 +198,24 @@ public class UserController {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
     }
+    @DeleteMapping
+    @Operation(summary = "회원 탈퇴", description = "현재 사용자의 계정을 탈퇴 처리합니다.")
+    public ResponseEntity<ApiResponse<Void>> deleteAccount(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return new ResponseEntity<>(ApiResponse.fail("Authorization header missing"), HttpStatus.UNAUTHORIZED);
+        }
+        String accessToken = authHeader.substring(7);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
 
+
+        userService.deleteUser(userId);
+
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 탈퇴 완료.", userId);
+        return ResponseEntity.noContent().build();
+    }
 }
