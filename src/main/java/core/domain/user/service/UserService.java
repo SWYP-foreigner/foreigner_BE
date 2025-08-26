@@ -55,12 +55,6 @@ public class UserService {
     }
 
 
-    @Transactional
-    public User createUserProfile(UserUpdateDTO dto) {
-        User user = User.builder().build();
-        user.updateProfile(dto);     // DTO 값 반영
-        return userRepository.save(user);
-    }
 
 
 
@@ -69,18 +63,12 @@ public class UserService {
         User user = userRepository.findByFirstAndLastName(dto.getFirstname(), dto.getLastname())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 일반 프로필 필드 갱신
-        // (firstname, lastname, gender, birthday, country, introduction, purpose, language, hobby 등)
-        // ... 기존 그대로 ...
-
-        // ✅ 이미지: 요청에 imageKey가 있으면 upsert (User는 아무 것도 저장하지 않음)
         if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
             imageService.upsertUserProfileImage(user.getId(), dto.getImageKey());
         }
 
         userRepository.save(user);
 
-        // 조회 시엔 imageService에서 가져와 DTO에 채워줌
         String profileKey = imageService.getUserProfileKey(user.getId());
 
         return UserUpdateDTO.builder()
@@ -99,7 +87,6 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserUpdateDTO getUserProfile() {
-        // 인증 사용자 조회
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByName(username)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -128,7 +115,6 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         imageService.deleteUserProfileImage(user.getId());
-        // User에는 아무 것도 저장하지 않음
     }
 
 

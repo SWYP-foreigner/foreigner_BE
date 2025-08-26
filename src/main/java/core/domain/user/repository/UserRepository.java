@@ -23,4 +23,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE u.firstName = :firstName AND u.lastName = :lastName")
     Optional<User> findByFirstAndLastName(@Param("firstName") String firstName,
                                           @Param("lastName") String lastName);
+
+    Optional<User> getUserByUserId(String email);
 }

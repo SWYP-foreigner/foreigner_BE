@@ -1,6 +1,8 @@
 package core.global.config;
 
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -11,60 +13,55 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
     private final Key SECRET_KEY;
-    private final int accessTokenExpiration;
-    private final int refreshTokenExpiration;
+    private final long accessTokenExpiration;
+    private final long refreshTokenExpiration;
 
     public JwtTokenProvider(
-            @Value("${jwt.secret}") String secretKey,
-            @Value("${jwt.access-expiration}") int accessTokenExpiration,
-            @Value("${jwt.refresh-expiration}") int refreshTokenExpiration
+            @Value("${jwt.secret}") String secretKeyBase64,
+            @Value("${jwt.access-expiration}") long accessTokenExpiration,
+            @Value("${jwt.refresh-expiration}") long refreshTokenExpiration
     ) {
-        this.SECRET_KEY = new SecretKeySpec(
-                java.util.Base64.getDecoder().decode(secretKey),
-                SignatureAlgorithm.HS512.getJcaName()
-        );
-        this.accessTokenExpiration = accessTokenExpiration;
-        this.refreshTokenExpiration = refreshTokenExpiration;
+        this.SECRET_KEY = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
+        this.accessTokenExpiration = accessTokenExpiration * 60 * 1000L;
+        this.refreshTokenExpiration = refreshTokenExpiration * 60 * 1000L;
     }
 
     /**
-     * 액세스 토큰 생성
+     * 액세스 토큰을 생성합니다.
      * userId와 email을 Claims에 포함시킵니다.
      */
     public String createAccessToken(Long userId, String email) {
         Claims claims = Jwts.claims().setSubject(email);
-        claims.put("id", userId); // userId를 Claims에 추가
+        claims.put("id", userId);
         Date now = new Date();
+        Date expiration = new Date(now.getTime() + accessTokenExpiration);
+
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + accessTokenExpiration * 60 * 1000L))
-                .signWith(SECRET_KEY)
+                .setExpiration(expiration)
+                .signWith(SECRET_KEY, SignatureAlgorithm.HS512)
                 .compact();
     }
 
-    /** 리프레시 토큰 생성 */
-    public String createRefreshToken(String email) {
+    /**
+     * 리프레시 토큰을 생성합니다.
+     * userId를 Claims와 Subject에 포함시킵니다.
+     */
+    public String createRefreshToken(Long userId) {
+        Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
         Date now = new Date();
+        Date expiration = new Date(now.getTime() + refreshTokenExpiration);
         return Jwts.builder()
-                .setSubject(email)
+                .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + refreshTokenExpiration * 60 * 1000L))
-                .signWith(SECRET_KEY)
+                .setExpiration(expiration)
+                .signWith(SECRET_KEY, SignatureAlgorithm.HS512)
                 .compact();
     }
-
-    /** 토큰 검증 */
-    public boolean validateToken(String token) {
-        try {
-            Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /** 이메일(subject) 추출 */
+    /**
+     * 토큰에서 이메일(subject)을 추출합니다.
+     */
     public String getEmailFromToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(SECRET_KEY)
@@ -75,7 +72,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * 액세스 토큰에서 userId 추출
+     * 액세스 토큰에서 사용자 ID를 추출합니다.
      */
     public Long getUserIdFromAccessToken(String token) {
         return Jwts.parserBuilder()
@@ -86,7 +83,22 @@ public class JwtTokenProvider {
                 .get("id", Long.class);
     }
 
-    /** 만료시간 추출 */
+    /**
+     * 토큰의 유효성을 검증합니다.
+     * @return 유효하면 true, 아니면 false
+     */
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 토큰의 만료 시간을 추출합니다.
+     */
     public Date getExpiration(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(SECRET_KEY)
@@ -94,5 +106,16 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getExpiration();
+    }
+    /**
+     * 리프레시 토큰에서 사용자 ID를 추출합니다.
+     */
+    public Long getUserIdFromRefreshToken(String token) {
+        return Long.valueOf(Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject());
     }
 }

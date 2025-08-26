@@ -1,6 +1,6 @@
 package core.global.config;
 
-import core.global.service.TokenService;
+import core.global.service.RedisService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -35,7 +35,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     @Value("${jwt.secret}")
     private String secretKeyBase64;
 
-    private final TokenService tokenService; // Redis 연동 서비스
+    private final RedisService redisService; // Redis 연동 서비스
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
@@ -77,7 +77,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 String jwt = auth.substring(7);
 
                 // ✅ 블랙리스트 체크
-                if (tokenService.isBlacklisted(jwt)) {
+                if (redisService.isBlacklisted(jwt)) {
                     log.warn("블랙리스트에 등록된 토큰입니다. 요청 차단.");
                     throw new RuntimeException("Blacklisted token");
                 }
@@ -92,15 +92,9 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 String subject = claims.getSubject();
                 log.debug("토큰 검증 성공. subject = {}", subject);
 
-                // ✅ 권한 설정
-                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                Object role = claims.get("role");
-                if (role != null) {
-                    authorities.add(new SimpleGrantedAuthority(
-                            role.toString().startsWith("ROLE_") ? role.toString() : "ROLE_" + role));
-                }
 
-                // ✅ SecurityContext에 Authentication 등록
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
                 User principal = new User(subject, "", authorities);
                 Authentication authentication =
                         new UsernamePasswordAuthenticationToken(principal, jwt, authorities);

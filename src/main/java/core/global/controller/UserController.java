@@ -2,6 +2,7 @@ package core.global.controller;
 
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Tag(name = "User", description = "사용자 관련 API")
 @RestController
@@ -36,7 +38,7 @@ public class UserController {
     private final GoogleService googleService;
     private final AppleAuthService service;
     private final RedisService redisService;
-
+    private final UserRepository userrepository;
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
                                     @RequestParam(required = false) String state) {
@@ -77,7 +79,7 @@ public class UserController {
             }
             log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
             String accessToken = jwtTokenProvider.createAccessToken(originalUser.getId(), originalUser.getEmail());
-            String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getEmail());
+            String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getId());
 
             Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
 
@@ -117,7 +119,48 @@ public class UserController {
         log.info("사용자 {} 로그아웃 처리 완료.", userId);
         return ResponseEntity.noContent().build();
     }
+    @PostMapping("/refresh")
+    @Operation(summary = "토큰 재발급 API", description = "리프레시 토큰으로 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.")
+    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@RequestBody TokenRefreshRequest request) {
+        log.info("--- [토큰 재발급] 요청 수신 ---");
+        String refreshToken = request.refreshToken();
 
+
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 리프레시 토큰 요청: {}", refreshToken);
+            return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
+        }
+
+        String email = jwtTokenProvider.getEmailFromToken(refreshToken);
+        Optional<User> userOptional = userrepository.getUserByUserId(email);
+
+        if (userOptional.isEmpty()) {
+            log.error("토큰의 ID({})로 사용자를 찾을 수 없음", email);
+            return new ResponseEntity<>(ApiResponse.fail("User not found"), HttpStatus.NOT_FOUND);
+        }
+
+        User user = userOptional.get();
+
+        String storedRefreshToken = redisService.getRefreshToken(user.getId());
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", user.getId());
+            redisService.deleteRefreshToken(user.getId());
+            return new ResponseEntity<>(ApiResponse.fail("Refresh token mismatch or blacklisted"), HttpStatus.UNAUTHORIZED);
+        }
+        redisService.deleteRefreshToken(user.getId());
+        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+
+        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(user.getId(), newRefreshToken, expirationMillis);
+
+        log.info("--- [토큰 재발급] 완료. 사용자 ID: {} ---", user.getId());
+
+        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
+    }
     /**
      *
      */
