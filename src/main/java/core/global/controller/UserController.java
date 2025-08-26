@@ -6,7 +6,8 @@ import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.image.service.ImageService;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,11 +16,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -34,6 +41,12 @@ public class UserController {
     private final JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
     private final AppleAuthService service;
+    // ✅ SDK v2 사용: S3Client 주입
+    private final S3Client s3Client;
+
+    // ✅ 버킷 이름 주입 (application.yml: ncp.s3.bucket)
+    @Value("${ncp.s3.bucket}")
+    private String bucketName;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -91,13 +104,14 @@ public class UserController {
 
         } catch (Exception e) {
             log.error("--- [구글 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
+            // 클라이언트에게 좀 더 명확한 에러 응답을 반환하도록 수정할 수 있습니다.
             return new ResponseEntity<>("로그인 실패: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
 
     /**
-
+     * 권장: Authorization Code + PKCE 플로우
      */
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
@@ -135,17 +149,53 @@ public class UserController {
     }
 
     @PatchMapping("/profile/setup")
+    @Operation(summary = "프로필 최종 반영(저장)", description = "사용자 프로필을 업데이트하고 S3 이미지 키를 저장합니다.")
+    @ApiResponse(responseCode = "200", description = "프로필 업데이트 성공")
     public ResponseEntity<UserUpdateDTO> updateProfile(@RequestBody UserUpdateDTO dto) {
+        if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
+            validateS3Image(dto.getImageKey()); // ✅ v2용 검증
+        }
         UserUpdateDTO response = userService.setupUserProfile(dto);
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/image")
-    public ResponseEntity<Void> deleteProfileImage() {
-        userService.deleteProfileImage();
-        return ResponseEntity.noContent().build();
-    }
+    /**
+     * ✅ SDK v2 기반 S3 이미지 검증
+     *  - 존재 여부: HeadObject 호출이 404면 존재하지 않음
+     *  - 용량 제한: 0 < size <= 10MB
+     *  - MIME 타입: image/*
+     */
+    private void validateS3Image(String imageKey) {
+        if (imageKey == null || imageKey.isBlank()) {
+            throw new IllegalArgumentException("imageKey is blank");
+        }
 
+        HeadObjectResponse head;
+        try {
+            head = s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(imageKey)
+                    .build());
+        } catch (S3Exception e) {
+            // 404(Not Found) 포함
+            if (e.statusCode() == 404) {
+                throw new IllegalArgumentException("S3 object not found for key: " + imageKey);
+            }
+            // 그 외 S3 오류는 그대로 래핑/전파
+            throw e;
+        }
+
+        long size = head.contentLength() == null ? -1L : head.contentLength();
+        if (size <= 0 || size > 10L * 1024 * 1024) {
+            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+        }
+
+        String contentType = head.contentType();
+        log.info("S3 contentType: {}", contentType);
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+        }
+    }
     /**
      * 사용자 프로필 조회
      */
@@ -156,6 +206,19 @@ public class UserController {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * 프로필 이미지 삭제
+     */
+    @DeleteMapping("/image")
+    @Operation(summary = "프로필 이미지 삭제", description = "현재 사용자의 프로필 이미지를 삭제합니다.")
+    @ApiResponse(responseCode = "204", description = "이미지 삭제 성공")
+    public ResponseEntity<Void> deleteProfileImage() {
+        userService.deleteProfileImage();
+        return ResponseEntity.noContent().build();
+    }
+
+
 
 
 
