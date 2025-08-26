@@ -7,6 +7,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+
 public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
@@ -49,7 +51,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/swagger-resources/**",
             "/swagger-ui.html"
     );
-
+    @PostConstruct
+    public void init() {
+        log.info("JwtTokenFilter 빈이 성공적으로 생성되었습니다.");
+    }
     /** JWT 서명 키 */
     private SecretKey signingKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
