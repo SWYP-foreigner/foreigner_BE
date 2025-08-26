@@ -25,7 +25,7 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
-
+    EMAIL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "이메일이 이용 가능하지 않습니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),

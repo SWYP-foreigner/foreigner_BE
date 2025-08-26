@@ -42,7 +42,9 @@ public class SecurityConfig {
                                 "/api/v1/member/profile/**",
                                 "/api/v1/mypage/profile/**",
                                 "/api/v1/board/*",
-                                "/api/v1/users/**"
+                                "/api/v1/users/**",
+                                "/auth/test-login",   // [임시] 테스트 로그인 허용
+                                "/auth/me"           // [임시] 인증 확인 허용
 
                         ).permitAll()
 
