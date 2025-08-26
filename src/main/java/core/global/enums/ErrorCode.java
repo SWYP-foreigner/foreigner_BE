@@ -62,7 +62,7 @@ public enum ErrorCode {
     IMAGE_FILE_DELETE_FAILED(HttpStatus.BAD_REQUEST, "이미지 삭제를 실패했습니다."),
     IMAGE_FOLDER_DELETE_FAILED(HttpStatus.BAD_REQUEST, "폴더 삭제에 실패했습니다."),
 
-
+    EXPIRE_ACCESS_TOKEN(HttpStatus.BAD_REQUEST, "액세스토큰이 만료되었습니다."),
     TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다.");
     private final HttpStatus errorCode;
     private final String message;

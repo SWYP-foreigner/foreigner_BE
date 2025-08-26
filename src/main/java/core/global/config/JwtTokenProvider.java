@@ -1,9 +1,6 @@
 package core.global.config;
 
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -13,25 +10,89 @@ import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
-    private final String secretKey;
-    private final int expiration;
-    private Key SECRET_KEY;
+    private final Key SECRET_KEY;
+    private final int accessTokenExpiration;
+    private final int refreshTokenExpiration;
 
-    public JwtTokenProvider(@Value("${jwt.secret}") String secretKey, @Value("${jwt.expiration}") int expiration) {
-        this.secretKey = secretKey;
-        this.expiration = expiration;
-        this.SECRET_KEY = new SecretKeySpec(java.util.Base64.getDecoder().decode(secretKey), SignatureAlgorithm.HS512.getJcaName());
+    public JwtTokenProvider(
+            @Value("${jwt.secret}") String secretKey,
+            @Value("${jwt.access-expiration}") int accessTokenExpiration,
+            @Value("${jwt.refresh-expiration}") int refreshTokenExpiration
+    ) {
+        this.SECRET_KEY = new SecretKeySpec(
+                java.util.Base64.getDecoder().decode(secretKey),
+                SignatureAlgorithm.HS512.getJcaName()
+        );
+        this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
     }
 
-    public String createToken(String email){
+    /**
+     * 액세스 토큰 생성
+     * userId와 email을 Claims에 포함시킵니다.
+     */
+    public String createAccessToken(Long userId, String email) {
         Claims claims = Jwts.claims().setSubject(email);
+        claims.put("id", userId); // userId를 Claims에 추가
         Date now = new Date();
-        String token = Jwts.builder()
+        return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime()+ expiration*60*1000L))
+                .setExpiration(new Date(now.getTime() + accessTokenExpiration * 60 * 1000L))
                 .signWith(SECRET_KEY)
                 .compact();
-        return token;
+    }
+
+    /** 리프레시 토큰 생성 */
+    public String createRefreshToken(String email) {
+        Date now = new Date();
+        return Jwts.builder()
+                .setSubject(email)
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + refreshTokenExpiration * 60 * 1000L))
+                .signWith(SECRET_KEY)
+                .compact();
+    }
+
+    /** 토큰 검증 */
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /** 이메일(subject) 추출 */
+    public String getEmailFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
+
+    /**
+     * 액세스 토큰에서 userId 추출
+     */
+    public Long getUserIdFromAccessToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("id", Long.class);
+    }
+
+    /** 만료시간 추출 */
+    public Date getExpiration(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getExpiration();
     }
 }

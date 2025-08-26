@@ -1,6 +1,5 @@
 package core.global.controller;
 
-
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
@@ -9,20 +8,22 @@ import core.global.dto.*;
 import core.global.image.service.ImageService;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
+import core.global.service.RedisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
-
 
 @Tag(name = "User", description = "사용자 관련 API")
 @RestController
@@ -34,24 +35,21 @@ public class UserController {
     private final JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
     private final AppleAuthService service;
+    private final RedisService redisService;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
                                     @RequestParam(required = false) String state) {
-
         System.out.println("Google Login Response received!");
         System.out.println("Authorization Code: " + code);
         System.out.println("State: " + state);
-
-
         return "Received code: " + code + ", state: " + state;
     }
 
-
     @PostMapping("/google/app-login")
     @Operation(summary = "구글 앱 로그인 API", description = "React Native 앱에서 받은 인증 코드를 사용합니다.")
-    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
-    public ResponseEntity<?> googleLogin(
+
+    public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(
             @Parameter(description = "구글 로그인 요청 데이터", required = true)
             @RequestBody GoogleLoginReq req) {
 
@@ -77,31 +75,54 @@ public class UserController {
             } else {
                 log.info("기존 사용자 발견. 사용자 ID: {}", originalUser.getId());
             }
-
             log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
-            String jwtToken = jwtTokenProvider.createToken(originalUser.getEmail());
+            String accessToken = jwtTokenProvider.createAccessToken(originalUser.getId(), originalUser.getEmail());
+            String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getEmail());
 
-            Map<String, Object> loginInfo = new HashMap<>();
-            loginInfo.put("id", originalUser.getId());
-            loginInfo.put("token", jwtToken);
+            Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
+
+            long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+
+            redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
+
+            // DTO 객체를 생성하여 반환
+            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken);
+
             log.info("5. 로그인 프로세스 완료. 사용자 ID와 JWT 토큰을 반환합니다.");
             log.info("--- [구글 앱 로그인] API 요청 처리 성공 ---");
-            log.info("JWT 토큰 생성 완료. 토큰 길이: {}, 토큰 일부: {}", jwtToken.length(), jwtToken.substring(0, 20) + "...");
-            return new ResponseEntity<>(loginInfo, HttpStatus.OK);
+            log.info("AccessToken 생성 완료. 길이: {}, 앞부분: {}", accessToken.length(), accessToken.substring(0, 20) + "...");
+            log.info("RefreshToken 생성 완료. 길이: {}, 앞부분: {}", refreshToken.length(), refreshToken.substring(0, 20) + "...");
+
+            return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {
             log.error("--- [구글 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
-            return new ResponseEntity<>("로그인 실패: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            ApiResponse<LoginResponseDto> errorResponse = ApiResponse.fail("로그인 실패: " + e.getMessage());
+            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
+    @PostMapping("/logout")
+    @Operation(summary = "로그아웃 API", description = "현재 사용자의 액세스 토큰을 블랙리스트에 등록하고, 리프레시 토큰을 삭제합니다.")
+    public ResponseEntity<Void> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        String accessToken = authHeader.substring(7);
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+
+        redisService.blacklistAccessToken(accessToken, expiration);
+
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료.", userId);
+        return ResponseEntity.noContent().build();
+    }
 
     /**
-
+     *
      */
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
-    @ApiResponse(responseCode = "200", description = "로그인 성공 및 토큰 발급")
     public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
         AppleLoginResult result = service.loginWithAuthorizationCodeOnly(
                 req.getAuthorizationCode(),
@@ -118,7 +139,6 @@ public class UserController {
 
     @PostMapping("/apple/refresh")
     @Operation(summary = "애플 토큰 갱신")
-    @ApiResponse(responseCode = "200", description = "토큰 갱신")
     public ResponseEntity<AppleTokenResponse> refresh(@RequestBody AppleRefreshRequest req) {
         return ResponseEntity.ok(service.refresh(req.getRefreshToken()));
     }
@@ -128,7 +148,6 @@ public class UserController {
      */
     @PostMapping("/apple/revoke")
     @Operation(summary = "애플 연동 해제")
-    @ApiResponse(responseCode = "200", description = "탈퇴")
     public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
         service.revoke(req.getRefreshToken());
         return ResponseEntity.noContent().build();
@@ -151,13 +170,9 @@ public class UserController {
      */
     @GetMapping("/profile/setting")
     @Operation(summary = "프로필 조회", description = "현재 사용자의 프로필 정보를 조회합니다.")
-    @ApiResponse(responseCode = "200", description = "프로필 조회 성공")
     public ResponseEntity<UserUpdateDTO> getProfile() {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
     }
-
-
-
 
 }
