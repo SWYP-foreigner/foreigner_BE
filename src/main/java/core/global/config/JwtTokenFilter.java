@@ -34,7 +34,6 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@EnableWebSecurity
 public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")

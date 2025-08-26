@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -25,6 +26,7 @@ import java.util.List;
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
+@EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
