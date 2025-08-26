@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,7 +34,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-
+@EnableWebSecurity
 public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
@@ -43,14 +44,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    private static final List<String> EXCLUDE_URLS = List.of(
-            "/api/v1/member/google/app-login",
-            "/api/v1/member/google/callback",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/swagger-resources/**",
-            "/swagger-ui.html"
-    );
+
     @PostConstruct
     public void init() {
         log.info("JwtTokenFilter 빈이 성공적으로 생성되었습니다.");
@@ -58,15 +52,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     /** JWT 서명 키 */
     private SecretKey signingKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
-    }
-
-    /** 특정 요청은 필터링 제외 */
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        boolean isExcluded = EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
-        log.debug("필터링 여부 확인: {}, 제외 여부 = {}", requestUri, isExcluded);
-        return isExcluded;
     }
 
     /** JWT 필터 실행 */

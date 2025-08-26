@@ -40,17 +40,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/images/presign",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/swagger-ui.html",
-
                                 "/api/v1/member/google/**",
                                 "/api/v1/member/apple/**",
                                 "/api/v1/member/profile/**",
                                 "/api/v1/mypage/profile/**",
                                 "/api/v1/board/*",
                                 "/api/v1/users/**",
-                                "/auth/test-login",   // [임시] 테스트 로그인 허용
-                                "/auth/me"           // [임시] 인증 확인 허용
-
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/swagger-ui.html"
                         ).permitAll()
 
                         .anyRequest().authenticated()
