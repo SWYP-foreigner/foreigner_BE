@@ -33,8 +33,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/images/presign",
-                                "/health",
-                                "/actuator/health",
                                 "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/swagger-ui.html",
 
                                 "/api/v1/member/google/**",
