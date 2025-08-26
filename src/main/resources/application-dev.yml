@@ -86,3 +86,9 @@ google:
       id: ${GCP_PROJECT_ID}
     translate:
       api-key: ${GCP_TRANSLATE_API_KEY}
+
+logging:
+  level:
+    root: INFO
+    core.global.config.JwtTokenFilter: DEBUG
+    org.springframework.security: DEBUG
