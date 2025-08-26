@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/images/presign",
-                                "/api/v1/member/google/**",
+                                "/api/v1/member/google/app-login",
                                 "/api/v1/member/apple/**",
                                 "/api/v1/member/profile/**",
                                 "/api/v1/mypage/profile/**",
