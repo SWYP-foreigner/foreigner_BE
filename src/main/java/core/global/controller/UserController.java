@@ -186,12 +186,14 @@ public class UserController {
     }
 
     @PatchMapping("/profile/setup")
+    @Operation(summary = "프로필 이미지 셋업", description = "현재 사용자의 프로필 정보를 세팅합니다.")
     public ResponseEntity<UserUpdateDTO> updateProfile(@RequestBody UserUpdateDTO dto) {
         UserUpdateDTO response = userService.setupUserProfile(dto);
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/image")
+    @Operation(summary = "프로필 이미지 삭제", description = "현재 사용자의 프로필 정보를 삭제합니다.")
     public ResponseEntity<Void> deleteProfileImage() {
         userService.deleteProfileImage();
         return ResponseEntity.noContent().build();

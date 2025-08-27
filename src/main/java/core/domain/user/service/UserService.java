@@ -142,6 +142,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(finalImageKey)
+                .email(user.getEmail())
                 .build();
     }
 
@@ -177,6 +178,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(profileKey)
+                .email(user.getEmail())
                 .build();
     }
 
@@ -263,7 +265,10 @@ public class UserService {
                     .collect(Collectors.joining(","));
             if (!csv.isEmpty()) user.setHobby(csv);
         }
-
+        if(dto.getEmail()!=null){
+            String v= dto.getEmail().trim();
+            user.setEmail(v);
+        }
         user.setUpdatedAt(Instant.now());
 
         String finalImageKey = null;
@@ -289,6 +294,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(finalImageKey)
+                .email(email)
                 .build();
     }
     @Transactional
