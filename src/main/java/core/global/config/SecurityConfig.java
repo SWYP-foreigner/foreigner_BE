@@ -55,9 +55,6 @@ public class SecurityConfig {
                 );
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // AuthenticationEntryPoint 등록
-        http.exceptionHandling(e -> e.authenticationEntryPoint(unauthorizedHandler()));
-
         return http.build();
     }
 
