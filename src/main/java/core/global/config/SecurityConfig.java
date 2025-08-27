@@ -51,7 +51,6 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error",
                                 "/api/v1/mypage/profile/find",
-                                "/auth/me",
                                 "/api/v1/mypage/**",
                                 "/error/**"
                         ).permitAll()
