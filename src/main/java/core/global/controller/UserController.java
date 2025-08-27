@@ -161,9 +161,7 @@ public class UserController {
         TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
-    /**
-     *
-     */
+
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
     public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
@@ -176,15 +174,6 @@ public class UserController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * refresh token 갱신
-     */
-
-    @PostMapping("/apple/refresh")
-    @Operation(summary = "애플 토큰 갱신")
-    public ResponseEntity<AppleTokenResponse> refresh(@RequestBody AppleRefreshRequest req) {
-        return ResponseEntity.ok(service.refresh(req.getRefreshToken()));
-    }
 
     /**
      * revoke (연동 해제)
@@ -218,6 +207,13 @@ public class UserController {
     public ResponseEntity<UserUpdateDTO> getProfile() {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/withdraw")
+    @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
+    public ResponseEntity<Void> withdraw(HttpServletRequest request) {
+        userService.deleteUser(request);
+        return ResponseEntity.noContent().build();
     }
 
 }
