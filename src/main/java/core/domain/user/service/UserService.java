@@ -152,6 +152,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(finalImageKey)
+                .email(user.getEmail())
                 .build();
     }
 
@@ -188,6 +189,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(profileKey)
+                .email(user.getEmail())
                 .build();
     }
 
@@ -278,7 +280,10 @@ public class UserService {
                     .collect(Collectors.joining(","));
             if (!csv.isEmpty()) user.setHobby(csv);
         }
-
+        if(dto.getEmail()!=null){
+            String v= dto.getEmail().trim();
+            user.setEmail(v);
+        }
         user.setUpdatedAt(Instant.now());
 
         // 4) 이미지 업서트 (User 엔티티엔 저장 X)
@@ -306,6 +311,7 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(finalImageKey)
+                .email(email)
                 .build();
     }
 
