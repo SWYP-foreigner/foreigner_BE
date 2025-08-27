@@ -161,9 +161,7 @@ public class UserController {
         TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
-    /**
-     *
-     */
+
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
     public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
