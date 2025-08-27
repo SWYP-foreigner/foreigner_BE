@@ -4,11 +4,14 @@ package core.domain.user.service;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.config.JwtTokenProvider;
 import core.global.dto.UserCreateDto;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import core.global.image.service.ImageService;
 import core.global.image.service.impl.ImageServiceImpl;
+import core.global.service.RedisService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -33,7 +36,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ImageService imageService;
-
+    private final RedisService redisService;
+    private final JwtTokenProvider jwtTokenProvider;
     public User create(UserCreateDto memberCreateDto){
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -307,6 +311,30 @@ public class UserService {
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(finalImageKey)
                 .build();
+    }
+
+    @Transactional
+    public void deleteUser(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("토큰이 유효하지 않습니다.");
+        }
+        String accessToken = authHeader.substring(7);
+
+        // 토큰에서 유저 ID 추출
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
+        userRepository.delete(user);
+
+        // 2. Redis에서 Refresh Token 삭제
+        redisService.deleteRefreshToken(userId);
+
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
     }
 
 }
