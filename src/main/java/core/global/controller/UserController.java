@@ -69,7 +69,7 @@ public class UserController {
             log.info("사용자 프로필 조회 성공. 사용자 ID(sub): {}, 이메일: {}", profile.getSub(), profile.getEmail());
 
             log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
-            User originalUser = userService.getUserBySocialId(profile.getSub());
+            User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), "GOOGLE");
             if (originalUser == null) {
                 log.info("새로운 사용자입니다. 소셜 ID: {}, 이메일: {} 로 계정 생성", profile.getSub(), profile.getEmail());
                 originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
@@ -87,7 +87,6 @@ public class UserController {
 
             redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
 
-            // DTO 객체를 생성하여 반환
             LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken);
 
             log.info("5. 로그인 프로세스 완료. 사용자 ID와 JWT 토큰을 반환합니다.");

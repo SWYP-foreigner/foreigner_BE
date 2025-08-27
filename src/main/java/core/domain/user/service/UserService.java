@@ -58,11 +58,10 @@ public class UserService {
         return saved;
     }
 
-    public User getUserBySocialId(String socialId) {
-        log.debug("getUserBySocialId: {}", socialId);
-        return userRepository.findBySocialId(socialId).orElse(null);
+    public User getUserBySocialIdAndProvider(String socialId, String provider) {
+        log.debug("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
+        return userRepository.findByProviderAndSocialId(provider, socialId).orElse(null);
     }
-
 
 
     @Transactional
