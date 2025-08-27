@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -29,4 +30,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE u.id != :meId")
     Page<User> findCandidatesExcluding(Long meId, Pageable pageable);
     Optional<User> getUserById(Long id);
+
+
+    List<User> findByFirstNameIgnoreCaseAndIdNot(String firstName, Long excludeId);
+    List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
+    List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);
+
+
 }
