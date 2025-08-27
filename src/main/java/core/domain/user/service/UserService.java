@@ -1,6 +1,7 @@
 package core.domain.user.service;
 
 
+import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -23,10 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -329,72 +327,84 @@ public class UserService {
         redisService.blacklistAccessToken(accessToken, expiration);
     }
 
-
+    /**
+     *  두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
+     * @param firstName
+     * @param lastName
+     * @return
+     */
     @Transactional(readOnly = true)
-    public List<UserUpdateDTO> findUserByNameExcludingSelf(String firstName, String lastName) {
-        Long currentUserId = getCurrentUserIdOrThrow();
+    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName) {
+        String email = getCurrentEmailOrThrow();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
+
+        if ((firstName == null || firstName.isBlank()) &&
+                (lastName  == null || lastName.isBlank())) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
+        Long meId = user.getId();
+
+        String fn = firstName == null ? null : firstName.trim();
+        String ln = lastName  == null ? null : lastName.trim();
+
         List<User> users;
-        if (notBlank(firstName) && notBlank(lastName)) {
-            users = userRepository.findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(
-                    firstName.trim(), lastName.trim(), currentUserId);
-        } else if (notBlank(firstName)) {
-            users = userRepository.findByFirstNameIgnoreCaseAndIdNot(firstName.trim(), currentUserId);
-        } else {
-            users = userRepository.findByLastNameIgnoreCaseAndIdNot(lastName.trim(), currentUserId);
+        if (notBlank(fn) && notBlank(ln)) {
+            users = userRepository
+                    .findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(fn, ln, meId);
+        } else if (notBlank(fn)) {
+            users = userRepository
+                    .findByFirstNameIgnoreCaseAndIdNot(fn, meId);
+        } else { // notBlank(ln) 보장됨
+            users = userRepository
+                    .findByLastNameIgnoreCaseAndIdNot(ln, meId);
         }
 
         if (users.isEmpty()) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        return users.stream().map(this::toDto).toList();
+        return users.stream()
+                .filter(u -> !u.getId().equals(meId)) // 안전망
+                .map(this::toSearchDto)
+                .toList();
     }
 
-    private Long getCurrentUserIdOrThrow() {
+    /** 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회) */
+    private String getCurrentEmailOrThrow() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
 
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
-            Jwt jwt = jwtAuth.getToken();
-            Long userId = jwt.getClaim("userId");
-            if (userId != null) return userId;
-
-            String email = jwt.getClaim("email");
+            String email = jwtAuth.getToken().getClaim("email");
             if (email == null || email.isBlank()) {
-                email = jwt.getSubject();
+                email = jwtAuth.getToken().getSubject(); // sub fallback
             }
-            return userRepository.findIdByEmail(email)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            if (email == null || email.isBlank()) {
+                throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+            }
+            return email;
         }
 
-        // UsernamePasswordAuthenticationToken 같은 경우
-        String usernameOrEmail = auth.getName();
-        return userRepository.findIdByEmail(usernameOrEmail)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        String name = auth.getName();
+        if (name == null || name.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        return name;
     }
 
-
-
-    private UserUpdateDTO toDto(User u) {
-        return UserUpdateDTO.builder()
-                .firstname(u.getFirstName())
-                .lastname(u.getLastName())
+    private UserSearchDTO toSearchDto(User u) {
+        return UserSearchDTO.builder()
+                .id(u.getId())
+                .firstName(u.getFirstName())
+                .lastName(u.getLastName())
                 .gender(u.getSex())
-                .birthday(u.getBirthdate())
                 .country(u.getCountry())
-                .introduction(u.getIntroduction())
-                .purpose(u.getPurpose())
-                .language(stringToList(u.getLanguage()))
-                .hobby(stringToList(u.getHobby()))
-                .imageKey(null) // 필요 시 imageService로 조회
-                .email(u.getEmail())
+                 .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
                 .build();
     }
 }

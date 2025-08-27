@@ -35,7 +35,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByFirstNameIgnoreCaseAndIdNot(String firstName, Long excludeId);
     List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
     List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);
-    @Query("select u.id from User u where lower(u.email) = lower(:email)")
-    Optional<Long> findIdByEmail(@Param("email") String email);
+
 
 }
