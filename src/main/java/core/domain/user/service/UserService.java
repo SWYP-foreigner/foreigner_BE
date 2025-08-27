@@ -59,8 +59,8 @@ public class UserService {
     }
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
-        log.debug("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
-        return userRepository.findByProviderAndSocialId(provider, socialId).orElse(null);
+        log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
+        return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
 
 
