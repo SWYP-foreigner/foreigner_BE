@@ -40,7 +40,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
     private String secretKeyBase64;
-    private JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService; // Redis 연동 서비스
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();

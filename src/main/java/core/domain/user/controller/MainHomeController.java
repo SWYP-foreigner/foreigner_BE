@@ -30,12 +30,6 @@ public class MainHomeController {
     }
 
 
-
-
-
-
-
-
     @Operation(summary = "채팅 메시지 보내기", description = "마음에 드는 친구에게 채팅 메시지를 전송합니다.")
     @PostMapping("/chat/{userId}")
     public ResponseEntity<ApiResponse<String>> sendChatMessage(
