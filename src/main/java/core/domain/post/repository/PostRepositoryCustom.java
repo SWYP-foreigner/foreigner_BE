@@ -8,13 +8,13 @@ import java.time.Instant;
 import java.util.List;
 
 public interface PostRepositoryCustom {
-        List<BoardItem> findLatestPosts(Long boardId,
+        List<BoardItem> findLatestPosts(Long userId, Long boardId,
                                         Instant cursorCreatedAt,
                                         Long cursorId,
                                         int size,
                                         String q);
 
-        List<BoardItem> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q);
+        List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q);
 
         PostDetailResponse findPostDetail(Long postId);
 

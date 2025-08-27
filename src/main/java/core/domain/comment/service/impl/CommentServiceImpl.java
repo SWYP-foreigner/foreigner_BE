@@ -48,11 +48,17 @@ public class CommentServiceImpl implements CommentService {
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
             Long postId, Integer size, SortOption sort, @Nullable String cursor
     ) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Long myId = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getId();
+
         final int pageSize = Math.min(Math.max(size == null ? 20 : size, 1), 100);
 
 
@@ -80,14 +86,14 @@ public class CommentServiceImpl implements CommentService {
         Slice<Comment> slice;
         if (sort == SortOption.POPULAR) {
             slice = (cursorId == null || cursorLikeCount == null || cursorCreatedAt == null)
-                    ? commentRepository.findPopularByPostId(postId, LikeType.COMMENT, pageablePopular)
+                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
                     : commentRepository.findPopularByCursor(
-                    postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
+                    myId, postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
             );
         } else {
             slice = (cursorId == null || cursorCreatedAt == null)
-                    ? commentRepository.findByPostId(postId, pageableLatest)
-                    : commentRepository.findCommentByCursor(postId, cursorCreatedAt, cursorId, pageableLatest);
+                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
+                    : commentRepository.findCommentByCursor(myId, postId, cursorCreatedAt, cursorId, pageableLatest);
         }
 
         List<Comment> rows = slice.getContent();
@@ -144,7 +150,7 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public void writeComment(Long postId, CommentWriteRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-    
+
         if (forbiddenWordService.containsForbiddenWord(request.comment())) {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
@@ -178,9 +184,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void updateComment( Long commentId, CommentUpdateRequest request) {
+    public void updateComment(Long commentId, CommentUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-    
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
@@ -200,9 +206,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void deleteComment( Long commentId) {
+    public void deleteComment(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-    
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
@@ -224,7 +230,7 @@ public class CommentServiceImpl implements CommentService {
     @Transactional(readOnly = true)
     public CursorPageResponse<UserCommentItem> getMyCommentList(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-    
+
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
         Long lastId = null;

@@ -29,4 +29,7 @@ public interface PostService {
     CursorPageResponse<UserPostItem> getMyPostList(String cursor, int size);
 
     CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
+
+    void blockUser(@Positive Long postId);
+
 }

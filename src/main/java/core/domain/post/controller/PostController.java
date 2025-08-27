@@ -249,22 +249,22 @@ public class PostController {
     }
 
 
-//    @Operation(summary = "게시글 차단", description = "게시글을 차단합니다.")
-//    @ApiResponses({
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
-//                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
-//    })
-//    @PostMapping("/posts/{postId}/likes/me")
-//    public ResponseEntity<core.global.dto.ApiResponse<?>> unlike(
-//            @PathVariable @Positive Long postId
-//    ) {
-//        postService.removeLike(postId);
-//        return ResponseEntity
-//                .status(HttpStatus.NO_CONTENT)
-//                .body(core.global.dto.ApiResponse.success("좋아요 해제"));
-//    }
+    @Operation(summary = "게시글 차단", description = "게시글을 차단합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @PostMapping("/posts/{postId}/block")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
+            @PathVariable @Positive Long postId
+    ) {
+        postService.blockUser(postId);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("차단 성공"));
+    }
 
 }

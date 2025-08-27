@@ -8,7 +8,9 @@ import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
+import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
@@ -46,31 +48,38 @@ public class PostServiceImpl implements PostService {
     private final ImageRepository imageRepository;
     private final ForbiddenWordService forbiddenWordService;
     private final ImageService imageService;
+    private final BlockRepository blockRepository;
 
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
             throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
         }
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
         final int pageSize = Math.min(Math.max(size, 1), 50);
         final Map<String, Object> c = safeDecode(cursor);
 
         return switch (sort) {
-            case POPULAR -> handlePopular(resolvedBoardId, c, pageSize);
-            case LATEST -> handleLatest(resolvedBoardId, c, pageSize);
-            default -> handleLatest(resolvedBoardId, c, pageSize);
+            case POPULAR -> handlePopular(user.getId(), resolvedBoardId, c, pageSize);
+            case LATEST -> handleLatest(user.getId(), resolvedBoardId, c, pageSize);
+            default -> handleLatest(user.getId(), resolvedBoardId, c, pageSize);
         };
     }
 
     // ------- 정렬 핸들러 -------
 
-    private CursorPageResponse<BoardItem> handleLatest(Long boardId, Map<String, Object> c, int pageSize) {
+    private CursorPageResponse<BoardItem> handleLatest(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
         var k = parseLatest(c); // t,id
         List<BoardItem> rows = postRepository.findLatestPosts(
+                userId,
                 boardId,
                 truncateToMillis(k.t),
                 k.id,
@@ -84,10 +93,11 @@ public class PostServiceImpl implements PostService {
         );
     }
 
-    private CursorPageResponse<BoardItem> handlePopular(Long boardId, Map<String, Object> c, int pageSize) {
-        var k = parsePopular(c); // sc,id
+    private CursorPageResponse<BoardItem> handlePopular(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
+        var k = parsePopular(c);
         Instant since = popularSince();
         List<BoardItem> rows = postRepository.findPopularPosts(
+                userId,
                 boardId,
                 since,
                 k.sc,
@@ -280,7 +290,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void addLike( Long postId) {
+    public void addLike(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
@@ -351,6 +361,29 @@ public class PostServiceImpl implements PostService {
 
         return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
     }
+
+    @Override
+    @Transactional
+    public void blockUser(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User blockedUser = postRepository.findUserByPostId(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!blockedUser.getEmail().equals(email)) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (blockRepository.existsBlocked(me.getId(), blockedUser.getId())) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        blockRepository.save(new BlockUser(me, blockedUser));
+    }
+
 
     private static final class LatestKey {
         final Instant t;
