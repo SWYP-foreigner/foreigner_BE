@@ -14,19 +14,19 @@ public interface PostService {
 
     PostDetailResponse getPostDetail(Long postId);
 
-    void addLike(String username, Long boardId);
+    void addLike(Long boardId);
 
-    void writePost(String name, @Positive Long boardId, PostWriteRequest request);
+    void writePost(@Positive Long boardId, PostWriteRequest request);
 
-    void writePostForChat(String name, Long roomId, PostWriteForChatRequest request);
+    void writePostForChat(Long roomId, PostWriteForChatRequest request);
 
-    void updatePost(String name, @Positive Long boardId, @Valid PostUpdateRequest updateRequest);
+    void updatePost(@Positive Long boardId, @Valid PostUpdateRequest updateRequest);
 
-    void deletePost(String name, @Positive Long postId);
+    void deletePost(@Positive Long postId);
 
-    void removeLike(String name, @Positive Long postId);
+    void removeLike(@Positive Long postId);
 
-    CursorPageResponse<UserPostItem> getMyPostList(String name, String cursor, int size);
+    CursorPageResponse<UserPostItem> getMyPostList(String cursor, int size);
 
     CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
 }

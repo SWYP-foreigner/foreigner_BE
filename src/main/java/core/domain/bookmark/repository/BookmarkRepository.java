@@ -11,13 +11,13 @@ import java.util.Optional;
 
 public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
     @EntityGraph(attributePaths = {"post", "post.author"})
-    Slice<Bookmark> findByUserNameOrderByIdDesc(String userName, Pageable pageable);
+    Slice<Bookmark> findByUserEmailOrderByIdDesc(String email, Pageable pageable);
 
     @EntityGraph(attributePaths = {"post", "post.author"})
-    Slice<Bookmark> findByUserNameAndIdLessThanOrderByIdDesc(String userName, Long id, Pageable pageable);
+    Slice<Bookmark> findByUserEmailAndIdLessThanOrderByIdDesc(String email, Long id, Pageable pageable);
 
-    Optional<Bookmark> findByUserNameAndPostId(String userName, Long postId);
+    Optional<Bookmark> findByUserEmailAndPostId(String email, Long postId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    void deleteByUserNameAndPostId(String username, Long postId);
+    void deleteByUserEmailAndPostId(String email, Long postId);
 }

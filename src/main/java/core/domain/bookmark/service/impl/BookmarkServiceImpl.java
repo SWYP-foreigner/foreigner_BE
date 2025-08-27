@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +45,9 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Transactional(readOnly = true)
     @Override
-    public CursorPageResponse<BookmarkItem> getMyBookmarks(String username, int size, String  cursor) {
+    public CursorPageResponse<BookmarkItem> getMyBookmarks( int size, String  cursor) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Pageable pageable = PageRequest.of(0, size + 1);
 
         Long cursorId = null;
@@ -54,8 +57,8 @@ public class BookmarkServiceImpl implements BookmarkService {
 
 
         Slice<Bookmark> slice = (cursorId == null)
-                ? bookmarkRepository.findByUserNameOrderByIdDesc(username, pageable)
-                : bookmarkRepository.findByUserNameAndIdLessThanOrderByIdDesc(username, cursorId, pageable);
+                ? bookmarkRepository.findByUserEmailOrderByIdDesc(email, pageable)
+                : bookmarkRepository.findByUserEmailAndIdLessThanOrderByIdDesc(email, cursorId, pageable);
 
         List<Bookmark> content = slice.getContent();
         boolean hasNext = content.size() > size;
@@ -151,13 +154,15 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Override
     @Transactional
-    public void addBookmark(String username, Long postId) {
-        Optional<Bookmark> bookmark = bookmarkRepository.findByUserNameAndPostId(username, postId);
+    public void addBookmark( Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Optional<Bookmark> bookmark = bookmarkRepository.findByUserEmailAndPostId(email, postId);
         if (bookmark.isPresent()) {
             throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
         }
 
-        User user = userRepository.findByName(username)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Post post = postRepository.findById(postId).
                 orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -167,8 +172,10 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Override
     @Transactional
-    public void removeBookmark(String username, Long postId) {
-        bookmarkRepository.deleteByUserNameAndPostId(username, postId);
+    public void removeBookmark( Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        bookmarkRepository.deleteByUserEmailAndPostId(email, postId);
     }
 
 

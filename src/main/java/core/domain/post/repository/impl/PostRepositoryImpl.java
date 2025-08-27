@@ -24,11 +24,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-
-import static com.querydsl.core.group.GroupBy.groupBy;
-import static com.querydsl.core.types.Projections.list;
 
 @Repository
 @RequiredArgsConstructor
@@ -314,7 +310,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public List<UserPostItem> findMyPostsFirstByName(String name, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne) {
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
@@ -329,14 +325,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
-                .where(user.name.eq(name))
+                .where(user.email.eq(email))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
                 .fetch();
     }
 
     @Override
-    public List<UserPostItem> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
         BooleanExpression ltCursor = post.createdAt.lt(cursorCreatedAt)
                 .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
 
@@ -354,7 +350,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
-                .where(user.name.eq(name).and(ltCursor))
+                .where(user.email.eq(email).and(ltCursor))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
                 .fetch();

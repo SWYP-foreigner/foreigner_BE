@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface ImageService {
 
-    List<PresignedUrlResponse> generatePresignedUrls(String username, PresignedUrlRequest request);
+    List<PresignedUrlResponse> generatePresignedUrls(PresignedUrlRequest request);
 
     @Transactional
     void saveOrUpdatePostImages(Long postId,

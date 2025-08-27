@@ -17,31 +17,25 @@ import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
-import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
@@ -55,6 +49,8 @@ class CommentServiceImplTest {
 
     private CommentService service;
 
+    private static final String AUTH_EMAIL = "alice@example.com";
+
     @BeforeEach
     void setUp() {
         commentRepository = mock(CommentRepository.class);
@@ -63,15 +59,26 @@ class CommentServiceImplTest {
         imageRepository = mock(ImageRepository.class);
         likeRepository = mock(LikeRepository.class);
         forbiddenWordService = mock(ForbiddenWordService.class);
-        // writeComment 경로에서 호출됨
         lenient().when(forbiddenWordService.containsForbiddenWord(any())).thenReturn(false);
 
         service = new CommentServiceImpl(
                 commentRepository, postRepository, userRepository, imageRepository, likeRepository, forbiddenWordService
         );
+
+        // SecurityContext: 서비스 내부에서 email을 꺼내 쓰므로 세팅 필요
+        Authentication auth = mock(Authentication.class);
+        given(auth.getName()).willReturn(AUTH_EMAIL);
+        SecurityContext sc = mock(SecurityContext.class);
+        given(sc.getAuthentication()).willReturn(auth);
+        SecurityContextHolder.setContext(sc);
     }
 
-    // ===== Helpers =====
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // ---------- Helpers ----------
     private Comment mockComment(long id, Instant createdAt, User author, Post post, boolean deleted, Comment parent) {
         Comment c = mock(Comment.class);
         lenient().when(c.getId()).thenReturn(id);
@@ -83,10 +90,11 @@ class CommentServiceImplTest {
         return c;
     }
 
-    private User mockUser(long id, String name) {
+    private User mockUser(long id, String name, String email) {
         User u = mock(User.class);
         lenient().when(u.getId()).thenReturn(id);
         lenient().when(u.getName()).thenReturn(name);
+        lenient().when(u.getEmail()).thenReturn(email);
         return u;
     }
 
@@ -96,7 +104,7 @@ class CommentServiceImplTest {
         return p;
     }
 
-    // ===== getCommentList =====
+    // ============ getCommentList ============
     @Nested
     @DisplayName("getCommentList - LATEST")
     class GetCommentListLatest {
@@ -104,9 +112,8 @@ class CommentServiceImplTest {
         @Test
         @DisplayName("초기 로드: 최신순 페이지 반환 및 nextCursor(t,id) 생성")
         void latest_initial() {
-            // given
             Long postId = 10L;
-            User author = mockUser(1L, "alice");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Post post = mockPost(postId);
 
             Instant t1 = Instant.parse("2025-08-20T12:00:00Z");
@@ -115,38 +122,28 @@ class CommentServiceImplTest {
             Comment c1 = mockComment(101L, t2, author, post, false, null);
             Comment c2 = mockComment(102L, t1, author, post, false, null);
 
-            Slice<Comment> slice = new SliceImpl<>(
-                    List.of(c1, c2), PageRequest.of(0, 2), false // hasNext=false
-            );
+            Slice<Comment> slice = new SliceImpl<>(List.of(c1, c2), PageRequest.of(0, 2), false);
 
-            given(commentRepository.findByPostId(eq(postId), any(Pageable.class)))
-                    .willReturn(slice);
+            given(commentRepository.findByPostId(eq(postId), any(Pageable.class))).willReturn(slice);
 
-            // 좋아요수, 유저이미지
             given(likeRepository.countByRelatedIds(eq(LikeType.COMMENT), eq(List.of(101L, 102L))))
-                    .willReturn(List.<Object[]>of(new Object[]{101L, 3L})); // 102는 0 처리
+                    .willReturn(List.<Object[]>of(new Object[]{101L, 3L}));
 
             given(imageRepository.findUrlByRelatedIds(eq(ImageType.USER), eq(List.of(1L))))
                     .willReturn(List.<Object[]>of(new Object[]{1L, "u1.png"}));
 
-            // when
-            CursorPageResponse<CommentItem> resp = service.getCommentList(
-                    postId, 2, SortOption.LATEST, null
-            );
+            CursorPageResponse<CommentItem> resp = service.getCommentList(postId, 2, SortOption.LATEST, null);
 
-            // then
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.hasNext()).isFalse();
 
-            // nextCursor는 hasNext와 무관하게 생성됨 → decode하여 검증
             assertThat(resp.nextCursor()).isNotNull();
             Map<String, Object> decoded = CursorCodec.decode(resp.nextCursor());
-            assertThat(decoded.get("t")).isEqualTo(t1.toString()); // 마지막 요소 c2 기준
+            assertThat(decoded.get("t")).isEqualTo(t1.toString());
             Object idObj = decoded.get("id");
             long idVal = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
             assertThat(idVal).isEqualTo(102L);
 
-            // like/userImage 매핑 검증(부분)
             CommentItem last = resp.items().get(1);
             assertThat(last.likeCount()).isEqualTo(0L);
         }
@@ -155,32 +152,24 @@ class CommentServiceImplTest {
     @Nested
     @DisplayName("getCommentList - POPULAR")
     class GetCommentListPopular {
-
         @Test
         @DisplayName("커서 로드: 인기순 페이지 + nextCursor(lc,t,id) 생성")
         void popular_with_cursor() {
-            // given
             Long postId = 10L;
-            User author = mockUser(1L, "alice");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Post post = mockPost(postId);
 
             Instant base = Instant.parse("2025-08-20T12:00:00Z");
-            // 커서 기준(lc=50, t=base, id=999) 이후 페이지
-            String cursor = CursorCodec.encode(Map.of(
-                    "lc", 50L,
-                    "t", base.toString(),
-                    "id", 999L
-            ));
+            String cursor = CursorCodec.encode(Map.of("lc", 50L, "t", base.toString(), "id", 999L));
 
             Comment c1 = mockComment(201L, base.plusSeconds(60), author, post, false, null);
             Comment c2 = mockComment(202L, base, author, post, false, null);
 
-            // hasNext=true 케이스
             Slice<Comment> slice = new SliceImpl<>(List.of(c1, c2), PageRequest.of(0, 2), true);
 
-            given(commentRepository.findPopularByCursor(
-                    eq(postId), eq(LikeType.COMMENT), eq(50L), eq(base), eq(999L), any(Pageable.class)
-            )).willReturn(slice);
+            given(commentRepository.findPopularByCursor(eq(postId), eq(LikeType.COMMENT),
+                    eq(50L), eq(base), eq(999L), any(Pageable.class)))
+                    .willReturn(slice);
 
             given(likeRepository.countByRelatedIds(eq(LikeType.COMMENT), eq(List.of(201L, 202L))))
                     .willReturn(List.of(new Object[]{201L, 70L}, new Object[]{202L, 60L}));
@@ -188,41 +177,32 @@ class CommentServiceImplTest {
             given(imageRepository.findUrlByRelatedIds(eq(ImageType.USER), eq(List.of(1L))))
                     .willReturn(List.<Object[]>of(new Object[]{1L, "img.png"}));
 
-            // when
-            CursorPageResponse<CommentItem> resp = service.getCommentList(
-                    postId, 2, SortOption.POPULAR, cursor
-            );
+            CursorPageResponse<CommentItem> resp = service.getCommentList(postId, 2, SortOption.POPULAR, cursor);
 
-            // then
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.hasNext()).isTrue();
 
-            assertThat(resp.nextCursor()).isNotNull();
             Map<String, Object> decoded = CursorCodec.decode(resp.nextCursor());
-            // 마지막 요소 c2(202L)의 likeCount=60, createdAt=base
-            Object lcObj = decoded.get("lc");
-            long lcVal = (lcObj instanceof Number n) ? n.longValue() : Long.parseLong((String) lcObj);
-            Object idObj = decoded.get("id");
-            long idVal = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
+            long lcVal = (decoded.get("lc") instanceof Number n) ? n.longValue() : Long.parseLong((String) decoded.get("lc"));
+            long idVal = (decoded.get("id") instanceof Number n) ? n.longValue() : Long.parseLong((String) decoded.get("id"));
             assertThat(lcVal).isEqualTo(60L);
             assertThat(decoded.get("t")).isEqualTo(base.toString());
             assertThat(idVal).isEqualTo(202L);
         }
     }
 
-    // ===== writeComment =====
+    // ============ writeComment ============
     @Nested
     @DisplayName("writeComment")
     class WriteComment {
 
         @Test
-        @DisplayName("루트 댓글 정상 저장")
+        @DisplayName("루트 댓글 정상 저장 (컨텍스트 이메일 사용)")
         void write_root_success() {
-            // given
-            User u = mockUser(1L, "alice");
+            User u = mockUser(1L, "alice", AUTH_EMAIL);
             Post p = mockPost(10L);
 
-            given(userRepository.findByName("alice")).willReturn(Optional.of(u));
+            given(userRepository.findByEmail(AUTH_EMAIL)).willReturn(Optional.of(u));
             given(postRepository.findById(10L)).willReturn(Optional.of(p));
 
             Comment created = mock(Comment.class);
@@ -231,10 +211,8 @@ class CommentServiceImplTest {
                 mocked.when(() -> Comment.createRootComment(eq(p), eq(u), eq("hi"), eq(true)))
                         .thenReturn(created);
 
-                // when
-                service.writeComment("alice", 10L, new CommentWriteRequest(null, true, "hi"));
+                service.writeComment(10L, new CommentWriteRequest(null, true, "hi"));
 
-                // then
                 then(commentRepository).should().save(created);
             }
         }
@@ -242,19 +220,17 @@ class CommentServiceImplTest {
         @Test
         @DisplayName("대댓글: 부모가 다른 게시물의 댓글이면 INVALID_PARENT_COMMENT")
         void reply_parent_mismatch() {
-            // given
-            User u = mockUser(1L, "alice");
+            User u = mockUser(1L, "alice", AUTH_EMAIL);
             Post targetPost = mockPost(10L);
             Post otherPost = mockPost(20L);
             Comment parent = mockComment(99L, Instant.now(), u, otherPost, false, null);
 
-            given(userRepository.findByName("alice")).willReturn(Optional.of(u));
+            given(userRepository.findByEmail(AUTH_EMAIL)).willReturn(Optional.of(u));
             given(postRepository.findById(10L)).willReturn(Optional.of(targetPost));
             given(commentRepository.findById(99L)).willReturn(Optional.of(parent));
 
-            // when / then
             assertThatThrownBy(() ->
-                    service.writeComment("alice", 10L, new CommentWriteRequest(99L, true, "hi"))
+                    service.writeComment(10L, new CommentWriteRequest(99L, true, "hi"))
             )
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
@@ -262,22 +238,20 @@ class CommentServiceImplTest {
         }
 
         @Test
-        @DisplayName("루트 댓글: Comment.createRootComment가 IllegalArgumentException 던지면 INVALID_COMMENT_INPUT")
+        @DisplayName("루트 댓글: Comment.createRootComment가 IllegalArgumentException이면 INVALID_COMMENT_INPUT")
         void write_invalid_input() {
-            // given
-            User u = mockUser(1L, "alice");
+            User u = mockUser(1L, "alice", AUTH_EMAIL);
             Post p = mockPost(10L);
 
-            given(userRepository.findByName("alice")).willReturn(Optional.of(u));
+            given(userRepository.findByEmail(AUTH_EMAIL)).willReturn(Optional.of(u));
             given(postRepository.findById(10L)).willReturn(Optional.of(p));
 
             try (MockedStatic<Comment> mocked = mockStatic(Comment.class)) {
                 mocked.when(() -> Comment.createRootComment(any(), any(), any(), anyBoolean()))
                         .thenThrow(new IllegalArgumentException("bad"));
 
-                // when / then
                 assertThatThrownBy(() ->
-                        service.writeComment("alice", 10L, new CommentWriteRequest(null, true, "bad"))
+                        service.writeComment(10L, new CommentWriteRequest(null, true, "bad"))
                 )
                         .isInstanceOf(BusinessException.class)
                         .extracting("status")
@@ -286,23 +260,22 @@ class CommentServiceImplTest {
         }
     }
 
-    // ===== updateComment =====
+    // ============ updateComment ============
     @Nested
     @DisplayName("updateComment")
     class UpdateComment {
 
         @Test
-        @DisplayName("작성자 이름이 동일하면 COMMENT_EDIT_FORBIDDEN (현재 구현 로직 기준)")
-        void forbidden_when_author_matches() {
-            // given
-            User author = mockUser(1L, "alice");
+        @DisplayName("작성자 이메일 불일치면 COMMENT_EDIT_FORBIDDEN")
+        void forbidden_when_author_not_matches() {
+            User author = mockUser(1L, "alice", "owner@example.com");
             Comment c = mock(Comment.class);
             given(c.getAuthor()).willReturn(author);
+            given(c.isDeleted()).willReturn(false);
             given(commentRepository.findById(100L)).willReturn(Optional.of(c));
 
-            // when / then
             assertThatThrownBy(() ->
-                    service.updateComment("alice", 100L, new CommentUpdateRequest("new"))
+                    service.updateComment(100L, new CommentUpdateRequest("new"))
             )
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
@@ -312,16 +285,14 @@ class CommentServiceImplTest {
         @Test
         @DisplayName("삭제된 댓글이면 COMMENT_ALREADY_DELETED")
         void already_deleted() {
-            // given
-            User author = mockUser(1L, "bob");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Comment c = mock(Comment.class);
             given(c.getAuthor()).willReturn(author);
             given(c.isDeleted()).willReturn(true);
             given(commentRepository.findById(100L)).willReturn(Optional.of(c));
 
-            // when / then
             assertThatThrownBy(() ->
-                    service.updateComment("alice", 100L, new CommentUpdateRequest("x"))
+                    service.updateComment(100L, new CommentUpdateRequest("x"))
             )
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
@@ -329,39 +300,34 @@ class CommentServiceImplTest {
         }
 
         @Test
-        @DisplayName("내용 변경 요청 시 changeContent 호출")
+        @DisplayName("작성자 본인이며 삭제되지 않았으면 changeContent 호출")
         void change_content_called() {
-            // given
-            User author = mockUser(1L, "bob");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Comment c = mock(Comment.class);
             given(c.getAuthor()).willReturn(author);
             given(c.isDeleted()).willReturn(false);
             given(commentRepository.findById(100L)).willReturn(Optional.of(c));
 
-            // when
-            service.updateComment("alice", 100L, new CommentUpdateRequest("new"));
+            service.updateComment(100L, new CommentUpdateRequest("new"));
 
-            // then
             then(c).should().changeContent("new");
         }
     }
 
-    // ===== deleteComment =====
+    // ============ deleteComment ============
     @Nested
     @DisplayName("deleteComment")
     class DeleteCommentTests {
 
         @Test
-        @DisplayName("작성자 불일치면 COMMENT_DELETE_FORBIDDEN")
+        @DisplayName("작성자 이메일 불일치면 COMMENT_DELETE_FORBIDDEN")
         void delete_forbidden() {
-            // given
-            User author = mockUser(1L, "alice");
+            User author = mockUser(1L, "alice", "owner@example.com"); // 컨텍스트 이메일과 불일치
             Comment c = mock(Comment.class);
             given(c.getAuthor()).willReturn(author);
             given(commentRepository.findById(300L)).willReturn(Optional.of(c));
 
-            // when / then
-            assertThatThrownBy(() -> service.deleteComment("bob", 300L))
+            assertThatThrownBy(() -> service.deleteComment(300L))
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
                     .isEqualTo(HttpStatus.FORBIDDEN);
@@ -370,66 +336,54 @@ class CommentServiceImplTest {
         @Test
         @DisplayName("자식 살아있으면 소프트 삭제(markDeleted)")
         void soft_delete_when_has_children() {
-            // given
-            User author = mockUser(1L, "alice");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Comment c = mock(Comment.class);
             given(c.getAuthor()).willReturn(author);
             given(commentRepository.findById(300L)).willReturn(Optional.of(c));
             given(commentRepository.existsByParentIdAndDeletedFalse(300L)).willReturn(true);
 
-            // when
-            service.deleteComment("alice", 300L);
+            service.deleteComment(300L);
 
-            // then
-            then(c).should().markDeleted("alice");
+            then(c).should().markDeleted(AUTH_EMAIL);
             then(commentRepository).should(never()).delete(any());
         }
 
         @Test
         @DisplayName("자식 없으면 하드 삭제 후 상위 체인 정리(cleanup)")
         void hard_delete_and_cleanup_chain() {
-            // given
-            User author = mockUser(1L, "alice");
+            User author = mockUser(1L, "alice", AUTH_EMAIL);
             Comment parent = mockComment(200L, Instant.now(), author, mockPost(10L), true, null);
             Comment target = mockComment(300L, Instant.now(), author, mockPost(10L), false, parent);
 
             given(commentRepository.findById(300L)).willReturn(Optional.of(target));
             given(commentRepository.existsByParentIdAndDeletedFalse(300L)).willReturn(false);
-
-            // target 삭제
-            // parent 자식 수 0이면 parent 삭제 -> grand 없음
             given(commentRepository.countByParentId(200L)).willReturn(0L);
 
-            // when
-            service.deleteComment("alice", 300L);
+            service.deleteComment(300L);
 
-            // then
             then(commentRepository).should().delete(target);
             then(commentRepository).should().delete(parent);
         }
     }
 
-    // ===== getMyCommentList =====
+    // ============ getMyCommentList ============
     @Nested
     @DisplayName("getMyCommentList")
     class GetMyCommentListTests {
 
         @Test
-        @DisplayName("size+1 로 조회하여 hasNext/trim/nextCursor(String) 계산")
+        @DisplayName("size+1 조회로 hasNext/trim/nextCursor 계산 (컨텍스트 이메일 사용)")
         void my_comments_cursor_paging() {
-            // given
             int size = 2;
             UserCommentItem i1 = new UserCommentItem(11L, "c1", "hello", Instant.parse("2025-08-20T12:00:00Z"));
             UserCommentItem i2 = new UserCommentItem(12L, "c2", "hello", Instant.parse("2025-08-20T12:01:00Z"));
             UserCommentItem i3 = new UserCommentItem(13L, "c3", "hello", Instant.parse("2025-08-20T12:02:00Z"));
 
-            given(commentRepository.findMyCommentsForCursor(eq("alice"), isNull(), any()))
+            given(commentRepository.findMyCommentsForCursor(eq(AUTH_EMAIL), isNull(), any()))
                     .willReturn(List.of(i1, i2, i3));
 
-            // when
-            CursorPageResponse<UserCommentItem> resp = service.getMyCommentList("alice", size, null);
+            CursorPageResponse<UserCommentItem> resp = service.getMyCommentList(size, null);
 
-            // then
             assertThat(resp.items()).containsExactly(i1, i2);
             assertThat(resp.hasNext()).isTrue();
             assertThat(resp.nextCursor()).isNotNull();

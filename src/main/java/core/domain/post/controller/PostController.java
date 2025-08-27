@@ -45,7 +45,6 @@ public class PostController {
     })
     @GetMapping("/posts/{postId}")
     public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> getPostDetail(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable @Positive Long postId) {
 
@@ -64,11 +63,10 @@ public class PostController {
     })
     @PostMapping("/boards/{boardId}/posts")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writePost(
-            Authentication authentication,
             @PathVariable @Positive Long boardId,
             @Valid @RequestBody PostWriteRequest writeRequest) {
 
-        postService.writePost(authentication.getName(), boardId, writeRequest);
+        postService.writePost( boardId, writeRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
@@ -84,11 +82,10 @@ public class PostController {
     })
     @PostMapping("/chat/rooms/{roomId}/share")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writePostForChat(
-            Authentication authentication,
             @PathVariable @Positive Long roomId,
             @Valid @RequestBody PostWriteForChatRequest writeRequest) {
 
-        postService.writePostForChat(authentication.getName(), roomId, writeRequest);
+        postService.writePostForChat(roomId, writeRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
@@ -105,11 +102,10 @@ public class PostController {
     })
     @PutMapping("/posts/{postId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> updatePost(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
             @Valid @RequestBody PostUpdateRequest updateRequest) {
 
-        postService.updatePost(authentication.getName(), postId, updateRequest);
+        postService.updatePost( postId, updateRequest);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("게시글 수정 완료"));
@@ -124,11 +120,10 @@ public class PostController {
     })
     @DeleteMapping("/posts/{postId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> deletePost(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
 
-        postService.deletePost(authentication.getName(), postId);
+        postService.deletePost(postId);
 
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
@@ -190,7 +185,7 @@ public class PostController {
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        postService.getMyPostList(authentication.getName(), cursor, size)
+                        postService.getMyPostList( cursor, size)
                 )
         );
     }
@@ -206,11 +201,10 @@ public class PostController {
     })
     @PutMapping("/posts/{postId}/likes/me")
     public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
 
-        postService.addLike(authentication.getName(), postId);
+        postService.addLike(postId);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("좋아요 설정"));
@@ -227,7 +221,6 @@ public class PostController {
     })
     @GetMapping("/posts/{postId}/write-options")
     public ResponseEntity<core.global.dto.ApiResponse<CommentWriteAnonymousAvailableResponse>> getWriteOptions(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "10")
             @PathVariable @Positive(message = "postId는 양수여야 합니다.") Long postId) {
 
@@ -247,13 +240,31 @@ public class PostController {
     })
     @DeleteMapping("/posts/{postId}/likes/me")
     public ResponseEntity<core.global.dto.ApiResponse<?>> unlike(
-            Authentication authentication,
             @PathVariable @Positive Long postId
     ) {
-        postService.removeLike(authentication.getName(), postId);
+        postService.removeLike(postId);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("좋아요 해제"));
     }
+
+
+//    @Operation(summary = "게시글 차단", description = "게시글을 차단합니다.")
+//    @ApiResponses({
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+//                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+//            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+//    })
+//    @PostMapping("/posts/{postId}/likes/me")
+//    public ResponseEntity<core.global.dto.ApiResponse<?>> unlike(
+//            @PathVariable @Positive Long postId
+//    ) {
+//        postService.removeLike(postId);
+//        return ResponseEntity
+//                .status(HttpStatus.NO_CONTENT)
+//                .body(core.global.dto.ApiResponse.success("좋아요 해제"));
+//    }
 
 }

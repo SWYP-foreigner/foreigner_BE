@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -156,10 +157,12 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void writePost(String name, @Positive Long boardId, PostWriteRequest request) {
+    public void writePost(@Positive Long boardId, PostWriteRequest request) {
         if (boardId == 1) {
             throw new BusinessException(ErrorCode.NOT_AVAILABLE_WRITE);
         }
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Board board = boardRepository.findById(boardId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
@@ -167,14 +170,16 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-        final Post post = getPost(name, request, board);
+        final Post post = getPost(email, request, board);
 
         imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
     }
 
     @Override
     @Transactional
-    public void writePostForChat(String name, Long roomId, PostWriteForChatRequest request) {
+    public void writePostForChat(Long roomId, PostWriteForChatRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Board board = boardRepository.findByCategory(BoardCategory.ACTIVITY)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
@@ -182,7 +187,7 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-        final Post post = getPost(name, request, board);
+        final Post post = getPost(email, request, board);
 
         imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
     }
@@ -212,8 +217,8 @@ public class PostServiceImpl implements PostService {
         }
     }
 
-    private Post getPost(String name, PostWriteForChatRequest request, Board board) {
-        User user = userRepository.findByName(name)
+    private Post getPost(String email, PostWriteRequest request, Board board) {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
@@ -221,8 +226,8 @@ public class PostServiceImpl implements PostService {
         return post;
     }
 
-    private Post getPost(String name, PostWriteRequest request, Board board) {
-        User user = userRepository.findByName(name)
+    private Post getPost(String email, PostWriteForChatRequest request, Board board) {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
@@ -232,11 +237,13 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void updatePost(String name, Long postId, @Valid PostUpdateRequest request) {
+    public void updatePost(Long postId, @Valid PostUpdateRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        if (!name.equals(post.getAuthor().getName())) {
+        if (!email.equals(post.getAuthor().getEmail())) {
             throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
         }
 
@@ -249,11 +256,13 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void deletePost(String name, Long postId) {
+    public void deletePost(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        if (post.getAuthor() == null || !post.getAuthor().getName().equals(name)) {
+        if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.POST_DELETE_FORBIDDEN);
         }
 
@@ -271,13 +280,15 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void addLike(String username, Long postId) {
-        Optional<Like> existedLike = likeRepository.findLikeByUsernameAndType(username, postId, LikeType.POST);
+    public void addLike( Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
             throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
         }
 
-        User user = userRepository.findByName(username)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         likeRepository.save(Like.builder()
@@ -289,13 +300,17 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void removeLike(String username, Long postId) {
-        likeRepository.deleteByUserNameAndIdAndType(username, postId, LikeType.POST);
+    public void removeLike(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        likeRepository.deleteByUserNameAndIdAndType(email, postId, LikeType.POST);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<UserPostItem> getMyPostList(String username, String cursor, int size) {
+    public CursorPageResponse<UserPostItem> getMyPostList(String cursor, int size) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
         Instant cursorCreatedAt = null;
@@ -305,8 +320,8 @@ public class PostServiceImpl implements PostService {
         if (payload.get("id") instanceof Number n) cursorId = n.longValue();
 
         List<UserPostItem> rows = (cursorId == null || cursorCreatedAt == null)
-                ? postRepository.findMyPostsFirstByName(username, pageSize + 1)
-                : postRepository.findMyPostsNextByName(username,
+                ? postRepository.findMyPostsFirstByEmail(email, pageSize + 1)
+                : postRepository.findMyPostsNextByEmail(email,
                 cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS),
                 cursorId,
                 pageSize + 1);

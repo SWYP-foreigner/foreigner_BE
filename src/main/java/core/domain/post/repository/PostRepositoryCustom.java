@@ -18,8 +18,8 @@ public interface PostRepositoryCustom {
 
         PostDetailResponse findPostDetail(Long postId);
 
-        List<UserPostItem> findMyPostsFirstByName(String name, int limitPlusOne);
+        List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne);
 
-        List<UserPostItem> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
+        List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
 
 }

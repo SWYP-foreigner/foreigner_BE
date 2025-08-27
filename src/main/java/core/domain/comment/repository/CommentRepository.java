@@ -100,12 +100,12 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             select new core.domain.comment.dto.UserCommentItem(c.id, p.content, c.content, c.createdAt)
             from Comment c
             join c.post p
-            where c.author.name = :username
+            where c.author.email = :email
             and (:lastId is null or c.id < :lastId)
             order by c.id desc
             """)
     List<UserCommentItem> findMyCommentsForCursor(
-            @Param("username") String username,
+            @Param("email") String email,
             @Param("lastId") Long lastId,
             Pageable pageable
     );

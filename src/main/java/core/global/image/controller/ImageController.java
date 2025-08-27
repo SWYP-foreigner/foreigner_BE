@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,11 +26,10 @@ public class ImageController {
             description = "uploadSessionId + files[] 기반으로 Presigned URL을 일괄 발급")
     @PostMapping("/presign")
     public ResponseEntity<ApiResponse<List<PresignedUrlResponse>>> getPresignedUrls(
-            Authentication authentication,
             @RequestBody PresignedUrlRequest request
     ) {
         List<PresignedUrlResponse> list =
-                imageService.generatePresignedUrls(authentication.getName(), request);
+                imageService.generatePresignedUrls( request);
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 

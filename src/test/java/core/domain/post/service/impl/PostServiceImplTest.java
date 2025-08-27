@@ -18,14 +18,16 @@ import core.global.like.repository.LikeRepository;
 import core.domain.chat.service.ForbiddenWordService;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,6 +37,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +52,23 @@ class PostServiceImplTest {
 
     @InjectMocks
     private PostServiceImpl service;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // SecurityContext 세팅/정리
+    // ─────────────────────────────────────────────────────────────────────────────
+    @BeforeEach
+    void setUpSecurityContext() {
+        Authentication auth = mock(Authentication.class);
+        given(auth.getName()).willReturn("alice");
+        SecurityContext sc = mock(SecurityContext.class);
+        given(sc.getAuthentication()).willReturn(auth);
+        SecurityContextHolder.setContext(sc);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Get PostDetail
@@ -88,10 +108,7 @@ class PostServiceImplTest {
     void writePost_board1_forbidden() {
         PostWriteRequest req = mock(PostWriteRequest.class);
 
-        // 불필요한 스텁 금지: boardId==1에서 바로 예외 발생하므로 금칙어 체크까지 가지 않음
-        // given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
-
-        assertThatThrownBy(() -> service.writePost("alice", 1L, req))
+        assertThatThrownBy(() -> service.writePost(1L, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.CONFLICT);
@@ -108,10 +125,7 @@ class PostServiceImplTest {
         PostWriteRequest req = mock(PostWriteRequest.class);
         given(req.isAnonymous()).willReturn(true);
 
-        // 불필요한 스텁 금지: 익명 정책 위반에서 예외 발생하므로 금칙어 체크까지 가지 않음
-        // given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
-
-        assertThatThrownBy(() -> service.writePost("alice", boardId, req))
+        assertThatThrownBy(() -> service.writePost(boardId, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.CONFLICT);
@@ -125,7 +139,6 @@ class PostServiceImplTest {
         given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
         given(board.getCategory()).willReturn(BoardCategory.FREE_TALK); // 익명 허용
 
-        // write 경로에서는 금칙어 체크가 실제 호출되므로 스텁 필요
         given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
 
         User user = mock(User.class);
@@ -137,7 +150,7 @@ class PostServiceImplTest {
 
         willAnswer(inv -> inv.getArgument(0)).given(postRepository).save(any(Post.class));
 
-        service.writePost("alice", boardId, req);
+        service.writePost(boardId, req);
 
         then(postRepository).should().save(any(Post.class));
 
@@ -157,7 +170,6 @@ class PostServiceImplTest {
         given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
         given(board.getCategory()).willReturn(BoardCategory.QNA);
 
-        // 이 경로도 금칙어 체크가 먼저 호출됨
         given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
 
         PostWriteRequest req = mock(PostWriteRequest.class);
@@ -165,7 +177,7 @@ class PostServiceImplTest {
 
         given(userRepository.findByName("alice")).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.writePost("alice", boardId, req))
+        assertThatThrownBy(() -> service.writePost(boardId, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.NOT_FOUND);
@@ -186,7 +198,7 @@ class PostServiceImplTest {
 
         PostUpdateRequest req = mock(PostUpdateRequest.class);
 
-        assertThatThrownBy(() -> service.updatePost("alice", postId, req))
+        assertThatThrownBy(() -> service.updatePost(postId, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.FORBIDDEN);
@@ -213,7 +225,7 @@ class PostServiceImplTest {
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
                 .willReturn(List.of(img));
 
-        service.updatePost("alice", postId, req);
+        service.updatePost(postId, req);
 
         then(post).should().changeContent("NEW CONTENT");
         then(imageRepository).should()
@@ -227,7 +239,7 @@ class PostServiceImplTest {
     void updatePost_postNotFound() {
         given(postRepository.findById(99L)).willReturn(Optional.empty());
         PostUpdateRequest req = mock(PostUpdateRequest.class);
-        assertThatThrownBy(() -> service.updatePost("alice", 99L, req))
+        assertThatThrownBy(() -> service.updatePost(99L, req))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.NOT_FOUND);
@@ -246,7 +258,7 @@ class PostServiceImplTest {
         given(post.getAuthor()).willReturn(author);
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
 
-        assertThatThrownBy(() -> service.deletePost("alice", postId))
+        assertThatThrownBy(() -> service.deletePost(postId))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.FORBIDDEN);
@@ -269,7 +281,7 @@ class PostServiceImplTest {
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
                 .willReturn(List.of(i1, i2));
 
-        service.deletePost("alice", postId);
+        service.deletePost(postId);
 
         then(imageRepository).should()
                 .deleteByImageTypeAndRelatedId(ImageType.POST, postId);
@@ -289,7 +301,7 @@ class PostServiceImplTest {
         given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
                 .willReturn(List.of());
 
-        service.deletePost("alice", postId);
+        service.deletePost(postId);
 
         then(imageRepository).should(never())
                 .deleteByImageTypeAndRelatedId(any(), anyLong());
@@ -302,10 +314,10 @@ class PostServiceImplTest {
     @Test
     @DisplayName("addLike - 이미 좋아요가 있으면 예외")
     void addLike_alreadyExists() {
-        given(likeRepository.findLikeByUsernameAndType("alice", 77L, LikeType.POST))
+        given(likeRepository.findLikeByUserEmailAndType("alice", 77L, LikeType.POST))
                 .willReturn(Optional.of(mock(Like.class)));
 
-        assertThatThrownBy(() -> service.addLike("alice", 77L))
+        assertThatThrownBy(() -> service.addLike(77L))
                 .isInstanceOf(BusinessException.class)
                 .extracting("status")
                 .isEqualTo(HttpStatus.CONFLICT);
@@ -314,13 +326,13 @@ class PostServiceImplTest {
     @Test
     @DisplayName("addLike - 정상 저장")
     void addLike_success() {
-        given(likeRepository.findLikeByUsernameAndType("alice", 77L, LikeType.POST))
+        given(likeRepository.findLikeByUserEmailAndType("alice", 77L, LikeType.POST))
                 .willReturn(Optional.empty());
 
         User u = mock(User.class);
         given(userRepository.findByName("alice")).willReturn(Optional.of(u));
 
-        service.addLike("alice", 77L);
+        service.addLike(77L);
 
         then(likeRepository).should().save(any(Like.class));
     }
@@ -328,7 +340,7 @@ class PostServiceImplTest {
     @Test
     @DisplayName("removeLike - 정상 삭제")
     void removeLike_success() {
-        service.removeLike("alice", 77L);
+        service.removeLike(77L);
         then(likeRepository).should()
                 .deleteByUserNameAndIdAndType("alice", 77L, LikeType.POST);
     }
@@ -349,12 +361,12 @@ class PostServiceImplTest {
         long lastId = 345L;
 
         given(r3.createdAt()).willReturn(lastCreated);
-        given(r3.postId()).willReturn(String.valueOf(lastId));
+        given(r3.postId()).willReturn(lastId);
 
-        given(postRepository.findMyPostsFirstByName("alice", size + 1))
+        given(postRepository.findMyPostsFirstByEmail("alice", size + 1))
                 .willReturn(List.of(r1, r2, r3, r4));
 
-        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", null, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList(null, size);
 
         assertThat(res.hasNext()).isTrue();
         assertThat(res.items()).hasSize(size);
@@ -364,7 +376,7 @@ class PostServiceImplTest {
         assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
         assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
 
-        then(postRepository).should().findMyPostsFirstByName("alice", size + 1);
+        then(postRepository).should().findMyPostsFirstByEmail("alice", size + 1);
     }
 
     @Test
@@ -374,16 +386,16 @@ class PostServiceImplTest {
         UserPostItem r1 = mock(UserPostItem.class);
         UserPostItem r2 = mock(UserPostItem.class);
 
-        given(postRepository.findMyPostsFirstByName("alice", size + 1))
+        given(postRepository.findMyPostsFirstByEmail("alice", size + 1))
                 .willReturn(List.of(r1, r2)); // size 이하
 
-        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", "", size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList("", size);
 
         assertThat(res.hasNext()).isFalse();
         assertThat(res.items()).hasSize(2);
         assertThat(res.nextCursor()).isNull();
 
-        then(postRepository).should().findMyPostsFirstByName("alice", size + 1);
+        then(postRepository).should().findMyPostsFirstByEmail("alice", size + 1);
     }
 
     @Test
@@ -405,16 +417,16 @@ class PostServiceImplTest {
         long lastId = 777L;
 
         given(r2.createdAt()).willReturn(lastCreated);
-        given(r2.postId()).willReturn(String.valueOf(lastId));
+        given(r2.postId()).willReturn(lastId);
 
-        given(postRepository.findMyPostsNextByName(
+        given(postRepository.findMyPostsNextByEmail(
                 eq("alice"),
                 eq(cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS)),
                 eq(cursorId),
                 eq(size + 1)))
                 .willReturn(List.of(r1, r2, r3));
 
-        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", cursor, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList(cursor, size);
 
         assertThat(res.hasNext()).isTrue();
         assertThat(res.items()).hasSize(size);
@@ -424,7 +436,7 @@ class PostServiceImplTest {
         assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
         assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
 
-        then(postRepository).should().findMyPostsNextByName(
+        then(postRepository).should().findMyPostsNextByEmail(
                 "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
     }
 
@@ -441,20 +453,20 @@ class PostServiceImplTest {
 
         UserPostItem r1 = mock(UserPostItem.class);
 
-        given(postRepository.findMyPostsNextByName(
+        given(postRepository.findMyPostsNextByEmail(
                 eq("alice"),
                 eq(cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS)),
                 eq(cursorId),
                 eq(size + 1)))
                 .willReturn(List.of(r1)); // size 이하
 
-        CursorPageResponse<UserPostItem> res = service.getMyPostList("alice", cursor, size);
+        CursorPageResponse<UserPostItem> res = service.getMyPostList(cursor, size);
 
         assertThat(res.hasNext()).isFalse();
         assertThat(res.items()).hasSize(1);
         assertThat(res.nextCursor()).isNull();
 
-        then(postRepository).should().findMyPostsNextByName(
+        then(postRepository).should().findMyPostsNextByEmail(
                 "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
     }
 
