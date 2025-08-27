@@ -53,7 +53,11 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/swagger-ui.html",
-                                "/error"
+                                "/error",
+                                "/api/v1/mypage/profile/find",
+                                "/auth/test-login",
+                                "/auth/me",
+                                "/api/v1/mypage/**"
                         ).permitAll()
 
                         .anyRequest().authenticated()

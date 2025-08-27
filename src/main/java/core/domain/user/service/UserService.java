@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -328,4 +329,72 @@ public class UserService {
         redisService.blacklistAccessToken(accessToken, expiration);
     }
 
+
+    @Transactional(readOnly = true)
+    public List<UserUpdateDTO> findUserByNameExcludingSelf(String firstName, String lastName) {
+        Long currentUserId = getCurrentUserIdOrThrow();
+
+        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        List<User> users;
+        if (notBlank(firstName) && notBlank(lastName)) {
+            users = userRepository.findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(
+                    firstName.trim(), lastName.trim(), currentUserId);
+        } else if (notBlank(firstName)) {
+            users = userRepository.findByFirstNameIgnoreCaseAndIdNot(firstName.trim(), currentUserId);
+        } else {
+            users = userRepository.findByLastNameIgnoreCaseAndIdNot(lastName.trim(), currentUserId);
+        }
+
+        if (users.isEmpty()) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return users.stream().map(this::toDto).toList();
+    }
+
+    private Long getCurrentUserIdOrThrow() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+            Long userId = jwt.getClaim("userId");
+            if (userId != null) return userId;
+
+            String email = jwt.getClaim("email");
+            if (email == null || email.isBlank()) {
+                email = jwt.getSubject();
+            }
+            return userRepository.findIdByEmail(email)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        }
+
+        // UsernamePasswordAuthenticationToken 같은 경우
+        String usernameOrEmail = auth.getName();
+        return userRepository.findIdByEmail(usernameOrEmail)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+
+
+    private UserUpdateDTO toDto(User u) {
+        return UserUpdateDTO.builder()
+                .firstname(u.getFirstName())
+                .lastname(u.getLastName())
+                .gender(u.getSex())
+                .birthday(u.getBirthdate())
+                .country(u.getCountry())
+                .introduction(u.getIntroduction())
+                .purpose(u.getPurpose())
+                .language(stringToList(u.getLanguage()))
+                .hobby(stringToList(u.getHobby()))
+                .imageKey(null) // 필요 시 imageService로 조회
+                .email(u.getEmail())
+                .build();
+    }
 }

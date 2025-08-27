@@ -5,13 +5,16 @@ import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
+import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
+import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -84,6 +87,20 @@ public class MyPageController {
             @RequestBody UserUpdateDTO dto
     ) {
         UserUpdateDTO response = userService.updateUserProfile(dto);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/profile/find")
+    @Operation(
+            summary = "친구리스트에서 이름(FirstName과 LastName)을 통한 검색",
+            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열. (현재 로그인 사용자 제외)"
+    )
+    public ResponseEntity<List<UserUpdateDTO>> findProfile(
+            @RequestParam(required = false) String firstName,
+            @RequestParam(required = false) String lastName
+    ) {
+        // 🚀 인증 관련은 서비스에서 처리
+        List<UserUpdateDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
         return ResponseEntity.ok(response);
     }
 
