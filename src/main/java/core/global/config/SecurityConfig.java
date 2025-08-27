@@ -1,10 +1,6 @@
 package core.global.config;
 
-
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import core.global.enums.ErrorCode;
-import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -55,10 +51,12 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error/**"
                         ).permitAll()
-
                         .anyRequest().authenticated()
                 );
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // AuthenticationEntryPoint 등록
+        http.exceptionHandling(e -> e.authenticationEntryPoint(unauthorizedHandler()));
 
         return http.build();
     }
@@ -81,26 +79,14 @@ public class SecurityConfig {
         return (request, response, authException) -> {
             log.error("필터 체인 예외 발생", authException);
 
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            response.setContentType("application/json;charset=UTF-8");
 
-            if (authException.getCause() instanceof BusinessException) {
-                BusinessException be = (BusinessException) authException.getCause();
-                ErrorCode errorCode = be.getErrorCode();
-
-                response.setStatus(errorCode.getErrorCode().value());
-                response.setContentType("application/json;charset=UTF-8");
-
-                ObjectMapper objectMapper = new ObjectMapper();
-                String errorResponse = objectMapper.writeValueAsString(
-                        new ErrorResponseDto(errorCode.getErrorCode().value(), errorCode.getMessage())
-                );
-                response.getWriter().write(errorResponse);
-            } else {
-                response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write(
-                        "{\"error\":\"unauthorized\", \"message\":\"" + authException.getMessage() + "\"}"
-                );
-            }
+            ObjectMapper objectMapper = new ObjectMapper();
+            String errorResponse = objectMapper.writeValueAsString(
+                    new ErrorResponseDto(HttpStatus.UNAUTHORIZED.value(), authException.getMessage())
+            );
+            response.getWriter().write(errorResponse);
         };
     }
 
