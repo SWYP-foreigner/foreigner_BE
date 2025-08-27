@@ -115,8 +115,7 @@ public class ImageServiceImpl implements ImageService {
                 key,
                 presigned.url().toString(),
                 "PUT",
-                clientHeaders,
-                publicUrl
+                clientHeaders
         );
     }
 
