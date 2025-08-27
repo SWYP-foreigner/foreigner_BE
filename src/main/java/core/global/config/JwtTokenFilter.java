@@ -4,6 +4,7 @@ import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import core.global.service.RedisService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -39,10 +40,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
     private String secretKeyBase64;
-
+    private JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService; // Redis 연동 서비스
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     private static final List<String> EXCLUDE_URLS = List.of(
             "/api/v1/member/google/app-login",
@@ -75,55 +77,68 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        log.debug("--- JWT 필터 실행: 요청 URI = {} ---", request.getRequestURI());
+        String authHeader = request.getHeader("Authorization");
 
-        String auth = request.getHeader("Authorization");
-
-        if (auth == null || !auth.startsWith("Bearer ")) {
-            log.warn("인증 정보가 없습니다. 요청을 차단합니다. URI = {}", request.getRequestURI());
-            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_NOT_FOUND.getMessage());
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("Authorization 헤더가 없거나 Bearer 형식이 아님 URI={}", request.getRequestURI());
+            jwtAuthenticationEntryPoint.commence(
+                    request,
+                    response,
+                    new BadCredentialsException(ErrorCode.JWT_TOKEN_NOT_FOUND.getMessage())
+            );
+            return;
         }
 
+        String token = authHeader.substring(7);
+
         try {
-            if (auth != null && auth.startsWith("Bearer ")) {
-                String jwt = auth.substring(7);
-
-                if (redisService.isBlacklisted(jwt)) {
-                    log.warn("블랙리스트에 등록된 토큰입니다. 요청 차단.");
-                    throw new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
-                }
-                Claims claims = Jwts.parserBuilder()
-                        .setSigningKey(signingKey())
-                        .build()
-                        .parseClaimsJws(jwt)
-                        .getBody();
-
-                String subject = claims.getSubject();
-                log.debug("토큰 검증 성공. subject = {}", subject);
-
-
-                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-
-                User principal = new User(subject, "", authorities);
-                Authentication authentication =
-                        new UsernamePasswordAuthenticationToken(principal, jwt, authorities);
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.debug("SecurityContext에 인증 정보 저장 완료.");
-            } else {
-                log.debug("Authorization 헤더 없음 또는 Bearer 형식 아님 → 인증 처리 건너뜀.");
+            if (redisService.isBlacklisted(token)) {
+                log.warn("블랙리스트에 등록된 토큰입니다. URI={}", request.getRequestURI());
+                jwtAuthenticationEntryPoint.commence(
+                        request,
+                        response,
+                        new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage())
+                );
+                return;
             }
+
+            if (!jwtTokenProvider.validateToken(token)) {
+                log.warn("유효하지 않은 JWT 토큰입니다. URI={}", request.getRequestURI());
+                jwtAuthenticationEntryPoint.commence(
+                        request,
+                        response,
+                        new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage())
+                );
+                return;
+            }
+
+            // 토큰에서 정보 추출
+            String email = jwtTokenProvider.getEmailFromToken(token);
+            Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
+
+            User principal = new User(email, "", new ArrayList<>());
+            Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            log.debug("SecurityContext에 인증 정보 저장 완료. userId={}", userId);
 
             chain.doFilter(request, response);
 
-        }catch (io.jsonwebtoken.ExpiredJwtException e) {
-            log.warn("액세스 토큰이 만료되었습니다: {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            log.warn("JWT 토큰 만료: {}", e.getMessage());
             SecurityContextHolder.clearContext();
-            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_EXPIRED.getMessage());
+            jwtAuthenticationEntryPoint.commence(
+                    request,
+                    response,
+                    new BadCredentialsException(ErrorCode.JWT_TOKEN_EXPIRED.getMessage())
+            );
         } catch (Exception e) {
             log.error("JWT 필터 처리 중 예외 발생: {}", e.getMessage(), e);
             SecurityContextHolder.clearContext();
-            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
+            jwtAuthenticationEntryPoint.commence(
+                    request,
+                    response,
+                    new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage())
+            );
         }
     }
 }

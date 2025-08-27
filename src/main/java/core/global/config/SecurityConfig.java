@@ -26,7 +26,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
-
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         log.info("jwtTokenFilter = {}", jwtTokenFilter);
@@ -52,7 +52,10 @@ public class SecurityConfig {
                                 "/error/**"
                         ).permitAll()
                         .anyRequest().authenticated()
+                ) .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint) // 추가
                 );
+
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
