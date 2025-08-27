@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
@@ -80,7 +81,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         if (auth == null || !auth.startsWith("Bearer ")) {
             log.warn("인증 정보가 없습니다. 요청을 차단합니다. URI = {}", request.getRequestURI());
-            throw new BusinessException(ErrorCode.JWT_TOKEN_NOT_FOUND);
+            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_NOT_FOUND.getMessage());
         }
 
         try {
@@ -89,7 +90,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
                 if (redisService.isBlacklisted(jwt)) {
                     log.warn("블랙리스트에 등록된 토큰입니다. 요청 차단.");
-                    throw new BusinessException(ErrorCode.JWT_TOKEN_BLACKLISTED);
+                    throw new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
                 }
                 Claims claims = Jwts.parserBuilder()
                         .setSigningKey(signingKey())
@@ -118,11 +119,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         }catch (io.jsonwebtoken.ExpiredJwtException e) {
             log.warn("액세스 토큰이 만료되었습니다: {}", e.getMessage());
             SecurityContextHolder.clearContext();
-            throw new BusinessException(ErrorCode.JWT_TOKEN_EXPIRED);
+            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_EXPIRED.getMessage());
         } catch (Exception e) {
             log.error("JWT 필터 처리 중 예외 발생: {}", e.getMessage(), e);
             SecurityContextHolder.clearContext();
-            throw new BusinessException(ErrorCode.JWT_TOKEN_INVALID);
+            throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
         }
     }
 }

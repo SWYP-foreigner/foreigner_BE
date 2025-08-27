@@ -74,21 +74,4 @@ public class SecurityConfig {
         return src;
     }
 
-    @Bean
-    public AuthenticationEntryPoint unauthorizedHandler() {
-        return (request, response, authException) -> {
-            log.error("필터 체인 예외 발생", authException);
-
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/json;charset=UTF-8");
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            String errorResponse = objectMapper.writeValueAsString(
-                    new ErrorResponseDto(HttpStatus.UNAUTHORIZED.value(), authException.getMessage())
-            );
-            response.getWriter().write(errorResponse);
-        };
-    }
-
-    public record ErrorResponseDto(int code, String message) {}
 }
