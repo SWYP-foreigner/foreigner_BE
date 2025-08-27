@@ -36,7 +36,7 @@ public class ImageServiceImpl implements ImageService {
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
-    @Value("${ncp.s3.end-point}")
+    @Value("${ncp.s3.endpoint}")
     private String endPoint;
 
     private static String extOf(String key) {

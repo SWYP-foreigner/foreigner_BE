@@ -12,10 +12,14 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
       password: ${SPRING_DATA_REDIS_PASSWORD}
-
+      key:
+        prefix:
+          refreshToken: "refreshToken:"
+          blacklist: "blacklist:"
+          accessToken: "access_token"
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -24,7 +28,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 3600000
+  access-expiration: 30
+  refresh-expiration: 10080
+
 
 cloud:
   openfeign:
@@ -66,10 +72,23 @@ ncp:
     bucket: ${NCP_BUCKET_NAME}
 
 swagger:
-  server-url: https://dev.ko-ri.cloud
+  server-url: ${SERVER_URL}
 
 springdoc:
   api-docs:
     enabled: true
   swagger-ui:
     enabled: true
+
+google:
+  cloud:
+    project:
+      id: ${GCP_PROJECT_ID}
+    translate:
+      api-key: ${GCP_TRANSLATE_API_KEY}
+
+logging:
+  level:
+    root: INFO
+    core.global.config.JwtTokenFilter: DEBUG
+    org.springframework.security: DEBUG

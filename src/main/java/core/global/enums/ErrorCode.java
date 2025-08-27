@@ -25,7 +25,7 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
-
+    EMAIL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "이메일이 이용 가능하지 않습니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
@@ -61,7 +61,14 @@ public enum ErrorCode {
     IMAGE_FILE_UPLOAD_TYPE_ERROR(HttpStatus.BAD_REQUEST, "이미지 파일이 아니라 다른 파일입니다."),
     IMAGE_FILE_DELETE_FAILED(HttpStatus.BAD_REQUEST, "이미지 삭제를 실패했습니다."),
     IMAGE_FOLDER_DELETE_FAILED(HttpStatus.BAD_REQUEST, "폴더 삭제에 실패했습니다."),
-    CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다.");
+    CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
+
+    TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다."),
+
+    JWT_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "인증 정보(JWT)가 필요합니다."),
+    JWT_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "액세스 토큰이 만료되었습니다."),
+    JWT_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
+    JWT_TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "블랙리스트에 등록된 토큰입니다.");
 
     private final HttpStatus errorCode;
     private final String message;

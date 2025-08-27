@@ -20,7 +20,7 @@ public class MainHomeController {
     private final UserService userService;
     private final FollowService followService;
 
-    /* 구글 로그인을 통한 인증 객체 코드 */
+
     @Operation(summary = "팔로우 요청 보내기", description = "마음에 드는 친구에게 팔로우 요청을 전송합니다.")
     @PostMapping("/follow/{userId}")
     public ResponseEntity<ApiResponse<String>> followUser(
@@ -28,12 +28,6 @@ public class MainHomeController {
         followService.follow(authentication, userId);
         return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 전송되었습니다."));
     }
-
-
-
-
-
-
 
 
     @Operation(summary = "채팅 메시지 보내기", description = "마음에 드는 친구에게 채팅 메시지를 전송합니다.")

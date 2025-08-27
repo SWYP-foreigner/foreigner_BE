@@ -4,19 +4,28 @@ package core.domain.user.service;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.config.JwtTokenProvider;
 import core.global.dto.UserCreateDto;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import core.global.image.service.ImageService;
+import core.global.image.service.impl.ImageServiceImpl;
+import core.global.service.RedisService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,7 +36,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ImageService imageService;
-
+    private final RedisService redisService;
+    private final JwtTokenProvider jwtTokenProvider;
     public User create(UserCreateDto memberCreateDto){
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -55,33 +65,71 @@ public class UserService {
     }
 
 
-    @Transactional
-    public User createUserProfile(UserUpdateDTO dto) {
-        User user = User.builder().build();
-        user.updateProfile(dto);     // DTO 값 반영
-        return userRepository.save(user);
-    }
-
-
 
     @Transactional
     public UserUpdateDTO setupUserProfile(UserUpdateDTO dto) {
-        User user = userRepository.findByFirstAndLastName(dto.getFirstname(), dto.getLastname())
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
+                ? jwtAuth.getToken().getClaim("email")
+                : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 일반 프로필 필드 갱신
-        // (firstname, lastname, gender, birthday, country, introduction, purpose, language, hobby 등)
-        // ... 기존 그대로 ...
+        if (notBlank(dto.getFirstname()))    user.setFirstName(dto.getFirstname().trim());
+        if (notBlank(dto.getLastname()))     user.setLastName(dto.getLastname().trim());
+        if (dto.getGender() != null)         user.setSex(dto.getGender());
+        if (dto.getBirthday() != null)       user.setBirthdate(dto.getBirthday()); // 형식 검증이 필요하면 여기서 추가
 
-        // ✅ 이미지: 요청에 imageKey가 있으면 upsert (User는 아무 것도 저장하지 않음)
-        if (dto.getImageKey() != null && !dto.getImageKey().isBlank()) {
-            imageService.upsertUserProfileImage(user.getId(), dto.getImageKey());
+        if (notBlank(dto.getCountry()))      user.setCountry(dto.getCountry().trim());
+
+        if (notBlank(dto.getIntroduction())) {
+            String intro = dto.getIntroduction().trim();
+            user.setIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro); // 컬럼 길이 보호
+        }
+        if (notBlank(dto.getPurpose())) {
+            String purpose = dto.getPurpose().trim();
+            user.setPurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
+        }
+
+        if (dto.getLanguage() != null) {
+            String csv = dto.getLanguage().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setLanguage(csv);
+        }
+        if (dto.getHobby() != null) {
+            String csv = dto.getHobby().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setHobby(csv);
+        }
+
+        user.setUpdatedAt(Instant.now());
+
+        String finalImageKey = null;
+        if (notBlank(dto.getImageKey())) {
+            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
         }
 
         userRepository.save(user);
 
-        // 조회 시엔 imageService에서 가져와 DTO에 채워줌
-        String profileKey = imageService.getUserProfileKey(user.getId());
+
+        if (finalImageKey == null) {
+            finalImageKey = imageService.getUserProfileKey(user.getId());
+        }
 
         return UserUpdateDTO.builder()
                 .firstname(user.getFirstName())
@@ -93,15 +141,28 @@ public class UserService {
                 .purpose(user.getPurpose())
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
-                .imageKey(profileKey)
+                .imageKey(finalImageKey)
+                .email(user.getEmail())
                 .build();
     }
 
+    private boolean notBlank(String s) { return s != null && !s.isBlank(); }
+
+
     @Transactional(readOnly = true)
     public UserUpdateDTO getUserProfile() {
-        // 인증 사용자 조회
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByName(username)
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
+                ? jwtAuth.getToken().getClaim("email")
+                : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String profileKey = imageService.getUserProfileKey(user.getId());
@@ -117,18 +178,28 @@ public class UserService {
                 .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(profileKey)
+                .email(user.getEmail())
                 .build();
     }
 
 
     @Transactional
     public void deleteProfileImage() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByName(username)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
+                ? jwtAuth.getToken().getClaim("email")
+                : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
 
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
-        // User에는 아무 것도 저장하지 않음
     }
 
 
@@ -145,7 +216,116 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public UserUpdateDTO updateUserProfile(UserUpdateDTO dto) {
-        return null;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
+                ? jwtAuth.getToken().getClaim("email")
+                : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (notBlank(dto.getFirstname()))    user.setFirstName(dto.getFirstname().trim());
+        if (notBlank(dto.getLastname()))     user.setLastName(dto.getLastname().trim());
+        if (dto.getGender() != null)         user.setSex(dto.getGender());
+        if (dto.getBirthday() != null)       user.setBirthdate(dto.getBirthday());
+        if (notBlank(dto.getCountry()))      user.setCountry(dto.getCountry().trim());
+
+        if (notBlank(dto.getIntroduction())) {
+            String v = dto.getIntroduction().trim();
+            user.setIntroduction(v.length() > 40 ? v.substring(0, 40) : v); // 컬럼 길이 보호
+        }
+        if (notBlank(dto.getPurpose())) {
+            String v = dto.getPurpose().trim();
+            user.setPurpose(v.length() > 40 ? v.substring(0, 40) : v);
+        }
+
+        if (dto.getLanguage() != null) {
+            String csv = dto.getLanguage().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setLanguage(csv);
+        }
+        if (dto.getHobby() != null) {
+            String csv = dto.getHobby().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.setHobby(csv);
+        }
+        if(dto.getEmail()!=null){
+            String v= dto.getEmail().trim();
+            user.setEmail(v);
+        }
+        user.setUpdatedAt(Instant.now());
+
+        String finalImageKey = null;
+        if (notBlank(dto.getImageKey())) {
+            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
+        }
+
+        userRepository.save(user);
+
+        if (finalImageKey == null) {
+            finalImageKey = imageService.getUserProfileKey(user.getId());
+        }
+
+
+        return UserUpdateDTO.builder()
+                .firstname(user.getFirstName())
+                .lastname(user.getLastName())
+                .gender(user.getSex())
+                .birthday(user.getBirthdate())
+                .country(user.getCountry())
+                .introduction(user.getIntroduction())
+                .purpose(user.getPurpose())
+                .language(stringToList(user.getLanguage()))
+                .hobby(stringToList(user.getHobby()))
+                .imageKey(finalImageKey)
+                .email(email)
+                .build();
     }
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        userRepository.delete(user);
+    }
+
+    @Transactional
+    public void deleteUser(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("토큰이 유효하지 않습니다.");
+        }
+        String accessToken = authHeader.substring(7);
+
+        // 토큰에서 유저 ID 추출
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
+        userRepository.delete(user);
+
+        // 2. Redis에서 Refresh Token 삭제
+        redisService.deleteRefreshToken(userId);
+
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+    }
+
 }

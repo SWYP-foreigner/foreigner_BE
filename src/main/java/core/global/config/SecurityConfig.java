@@ -1,13 +1,16 @@
 package core.global.config;
 
-
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -18,12 +21,15 @@ import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
+@Slf4j
+@EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
-
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("jwtTokenFilter = {}", jwtTokenFilter);
         http
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -33,34 +39,25 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/images/presign",
-                                "/auth/google/callback",
-                                "/auth/google/exchange",
+                                "/api/v1/member/google/app-login",
+                                "/api/v1/member/apple/**",
+                                "/api/v1/member/profile/**",
+                                "/api/v1/mypage/profile/**",
+                                "/api/v1/board/*",
                                 "/api/v1/users/**",
-                                "/member/create", "/member/doLogin",
-                                "/member/google/doLogin", "/member/apple/doLogin",
-                                "/oauth2/**",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/swagger-ui.html",
-                                "/member/google/TestdoLogin",
-                                "/api/v1/member/google/TestdoLogin",
-                                "/api/v1/member/google/doLogin",
-                                "/api/v1/member/google/callback",
-                                "/health",
-                                "/api/v1/member/profile/**",
-                               "/api/v1/member/profile/setup",
-                               "/api/v1/member/profile/test/**",
-                                "/api/v1/mypage/profile/edit",
-                                "/api/v1/mypage/profile/test/edit",
-                                "/health",
-                                "/api/v1/board/*",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/health", "/actuator/health"
-
+                                "/error/**"
                         ).permitAll()
                         .anyRequest().authenticated()
+                ) .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint) // 추가
                 );
 
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
@@ -76,4 +73,5 @@ public class SecurityConfig {
         src.registerCorsConfiguration("/**", c);
         return src;
     }
+
 }
