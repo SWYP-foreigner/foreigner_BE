@@ -3,6 +3,7 @@ package core.global.config;
 // import 생략
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import core.global.dto.ApiErrorResponse;
 import core.global.enums.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private final ObjectMapper objectMapper;
+
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
@@ -49,7 +51,6 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         PrintWriter writer = response.getWriter();
-        // 이미 생성된 objectMapper를 사용
         writer.write(objectMapper.writeValueAsString(errorResponse));
         writer.flush();
     }

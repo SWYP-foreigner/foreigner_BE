@@ -78,11 +78,6 @@ public class SecurityConfig {
         src.registerCorsConfiguration("/**", c);
         return src;
     }
-    @Bean
-    public ObjectMapper objectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        return objectMapper;
-    }
+
 
 }
