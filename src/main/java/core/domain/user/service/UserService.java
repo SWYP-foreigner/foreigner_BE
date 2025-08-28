@@ -60,6 +60,10 @@ public class UserService {
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
+        String trimmedSocialId = socialId.trim();
+        String trimmedProvider = provider.trim();
+        log.info("Trimmed Social ID: '{}', length: {}", trimmedSocialId, trimmedSocialId.length());
+        log.info("Trimmed Provider: '{}', length: {}", trimmedProvider, trimmedProvider.length());
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
 
