@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -207,12 +208,24 @@ public class UserController {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
     }
-
     @DeleteMapping("/withdraw")
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
-        userService.deleteUser(request);
-        return ResponseEntity.noContent().build();
-    }
+        try {
+            Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String authHeader = request.getHeader("Authorization");
+            String accessToken = authHeader.substring(7);
 
+            userService.deleteUser(userId);
+            redisService.deleteRefreshToken(userId);
+            long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+            redisService.blacklistAccessToken(accessToken, expiration);
+
+            log.info("사용자 {} 계정 및 관련 토큰 삭제 완료.", userId);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("회원 탈퇴 처리 중 오류 발생", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
