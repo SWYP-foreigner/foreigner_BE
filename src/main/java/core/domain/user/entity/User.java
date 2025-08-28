@@ -13,8 +13,9 @@ import java.time.Instant;
 @Entity
 @Table(name = "users",
         uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"provider", "social_id"})
-})
+                @UniqueConstraint(columnNames = {"provider", "social_id"}),
+                @UniqueConstraint(columnNames = {"email"})
+        })
 @Getter
 @NoArgsConstructor
 @Setter
@@ -60,7 +61,7 @@ public class User {
     @Column(name = "updated_at",nullable = true)
     private Instant updatedAt;
 
-    @Column(name = "Provider", nullable = true)
+    @Column(name = "provider", nullable = true)
     private String provider;
 
     @Column(name = "social_id", nullable = true)
@@ -68,7 +69,14 @@ public class User {
 
     @Column(name = "email", nullable = true)
     private String email;
+    @Column(name = "password", nullable = true)
+    private String password;
 
+    @Column(name = "agreed_to_push_notification")
+    private boolean agreedToPushNotification = false;
+
+    @Column(name = "agreed_to_terms")
+    private boolean agreedToTerms = false;
     @Builder
     public User(String firstName,
                 String lastName,
