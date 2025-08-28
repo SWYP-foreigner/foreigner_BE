@@ -1,11 +1,13 @@
 package core.global.config;
-// core.global.config.JwtAuthenticationEntryPoint.java
+
+// import 생략
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import core.global.dto.ApiErrorResponse;
 import core.global.enums.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor; // 추가
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
@@ -17,9 +19,10 @@ import java.io.PrintWriter;
 import java.time.LocalDateTime;
 
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
@@ -33,10 +36,9 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             httpStatus = HttpStatus.UNAUTHORIZED.value();
         } else if (ErrorCode.JWT_TOKEN_EXPIRED.getMessage().equals(errorMessage) ||
                 ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage().equals(errorMessage)) {
-            httpStatus = HttpStatus.UNAUTHORIZED.value(); // 403
+            httpStatus = HttpStatus.UNAUTHORIZED.value();
         }
 
-        // 응답 객체 생성
         ApiErrorResponse errorResponse = new ApiErrorResponse(
                 errorMessage,
                 String.valueOf(httpStatus),
@@ -47,6 +49,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         PrintWriter writer = response.getWriter();
+        // 이미 생성된 objectMapper를 사용
         writer.write(objectMapper.writeValueAsString(errorResponse));
         writer.flush();
     }

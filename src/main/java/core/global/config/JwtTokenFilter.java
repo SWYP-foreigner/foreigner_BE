@@ -111,7 +111,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // 토큰에서 정보 추출
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
 
