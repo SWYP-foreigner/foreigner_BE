@@ -1,11 +1,8 @@
 package core.global.config;
 
 import core.global.enums.ErrorCode;
-import core.global.exception.BusinessException;
 import core.global.service.RedisService;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -16,18 +13,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
-
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,8 +34,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     @Value("${jwt.secret}")
     private String secretKeyBase64;
     private final JwtTokenProvider jwtTokenProvider;
-    private final RedisService redisService; // Redis 연동 서비스
-
+    private final RedisService redisService;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
@@ -65,6 +57,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     public void init() {
         log.info("JwtTokenFilter 빈이 성공적으로 생성되었습니다.");
     }
+
     /** JWT 서명 키 */
     private SecretKey signingKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
@@ -77,9 +70,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+        String requestUri = request.getRequestURI();
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Authorization 헤더가 없거나 Bearer 형식이 아님 URI={}", request.getRequestURI());
+            log.warn("Authorization 헤더가 없거나 Bearer 형식이 아님 URI={}", requestUri);
             jwtAuthenticationEntryPoint.commence(
                     request,
                     response,
@@ -92,7 +86,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         try {
             if (redisService.isBlacklisted(token)) {
-                log.warn("블랙리스트에 등록된 토큰입니다. URI={}", request.getRequestURI());
+                log.warn("블랙리스트에 등록된 토큰입니다. URI={}", requestUri);
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
@@ -101,8 +95,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // validateToken 메서드가 ExpiredJwtException을 던지도록 수정되었으므로
+            // 이 블록은 토큰 구조, 서명 등 유효성 문제만 처리합니다.
             if (!jwtTokenProvider.validateToken(token)) {
-                log.warn("유효하지 않은 JWT 토큰입니다. URI={}", request.getRequestURI());
+                log.warn("유효하지 않은 JWT 토큰입니다. URI={}", requestUri);
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,

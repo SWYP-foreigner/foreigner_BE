@@ -88,14 +88,9 @@ public class JwtTokenProvider {
      * @return 유효하면 true, 아니면 false
      */
     public boolean validateToken(String token) {
-        try {
-            Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
+        return true;
     }
-
     /**
      * 토큰의 만료 시간을 추출합니다.
      */
