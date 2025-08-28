@@ -15,9 +15,8 @@ import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -27,6 +26,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,8 @@ class BookmarkServiceImplTest {
     private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
     private static final LikeType LIKE_TYPE_POST = LikeType.POST;
 
+    private static final String AUTH_EMAIL = "alice@example.com";
+
     @Mock private BookmarkRepository bookmarkRepository;
     @Mock private UserRepository userRepository;
     @Mock private PostRepository postRepository;
@@ -56,7 +60,22 @@ class BookmarkServiceImplTest {
     @InjectMocks
     private BookmarkServiceImpl sut;
 
-    private User user(Long id, String name) {
+    @BeforeEach
+    void setUpSecurityContext() {
+        Authentication auth = org.mockito.Mockito.mock(Authentication.class);
+        given(auth.getName()).willReturn(AUTH_EMAIL);
+        SecurityContext sc = org.mockito.Mockito.mock(SecurityContext.class);
+        given(sc.getAuthentication()).willReturn(auth);
+        SecurityContextHolder.setContext(sc);
+    }
+
+    @AfterEach
+    void clearContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // ---------- helpers ----------
+    private User user(Long id, String name, String email) {
         User u = new User();
         try {
             var f1 = User.class.getDeclaredField("id");
@@ -71,6 +90,16 @@ class BookmarkServiceImplTest {
                 var f2 = User.class.getDeclaredField("name");
                 f2.setAccessible(true);
                 f2.set(u, name);
+            } catch (Exception ignored) {}
+        }
+        try {
+            var m2 = User.class.getMethod("setEmail", String.class);
+            m2.invoke(u, email);
+        } catch (Exception e) {
+            try {
+                var f3 = User.class.getDeclaredField("email");
+                f3.setAccessible(true);
+                f3.set(u, email);
             } catch (Exception ignored) {}
         }
         return u;
@@ -116,19 +145,19 @@ class BookmarkServiceImplTest {
         return b;
     }
 
+    // ---------- tests ----------
     @Nested
     @DisplayName("getMyBookmarks")
     class GetMyBookmarks {
 
         @Test
-        @DisplayName("첫 페이지에서 size+1로 조회되면 hasNext=true, nextCursor에 마지막 id가 인코딩되어 반환된다")
+        @DisplayName("첫 페이지 size+1 → hasNext=true, nextCursor=마지막 id")
         void firstPageSuccessWithNextCursor() {
             // given
-            String username = "alice";
             int size = 2;
 
-            User alice = user(10L, username);
-            User bob = user(20L, "bob");
+            User alice = user(10L, "alice", AUTH_EMAIL);
+            User bob = user(20L, "bob", "bob@example.com");
 
             Post p1 = post(101L, "첫 번째 포스트", bob, false, 5L);
             Post p2 = post(102L, "두 번째 포스트", bob, false, 0L);
@@ -142,10 +171,10 @@ class BookmarkServiceImplTest {
             Pageable pageable = PageRequest.of(0, size + 1);
             Slice<Bookmark> slice = new SliceImpl<>(pageContent, pageable, true);
 
-            given(bookmarkRepository.findByUserNameOrderByIdDesc(eq(username), any(Pageable.class)))
+            given(bookmarkRepository.findByUserEmailOrderByIdDesc(eq(AUTH_EMAIL), any(Pageable.class)))
                     .willReturn(slice);
 
-            // 집계/이미지 mock (표시되는 size개의 postId만 스텁: 101,102)
+            // 집계/이미지: 표시 대상은 2개(101, 102)
             given(likeRepository.countByRelatedIds(eq(LIKE_TYPE_POST), eq(List.of(101L, 102L))))
                     .willReturn(List.<Object[]>of(new Object[]{101L, 3L}));
 
@@ -163,21 +192,19 @@ class BookmarkServiceImplTest {
 
             // when
             CursorPageResponse<BookmarkItem> res =
-                    sut.getMyBookmarks(username, size, null);
+                    sut.getMyBookmarks(size, null);
 
             // then
             assertThat(res.items()).hasSize(2);
             assertThat(res.hasNext()).isTrue();
             assertThat(res.nextCursor()).isNotNull();
 
-            // nextCursor → decode 후 id 확인 (Number 또는 String 모두 대응)
             Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
             Object idObj = decoded.get("id");
             long decodedId = (idObj instanceof Number n) ? n.longValue() : Long.parseLong((String) idObj);
-            // 정렬 id desc이므로 last는 b2(1000L)
+            // 정렬 id desc → last는 b2(1000L)
             assertThat(decodedId).isEqualTo(1000L);
 
-            // 아이템 검증(일부)
             BookmarkItem i0 = res.items().get(0);
             assertThat(i0.content()).contains("첫 번째 포스트");
             assertThat(i0.likeCount()).isEqualTo(3L);
@@ -190,38 +217,32 @@ class BookmarkServiceImplTest {
         }
 
         @Test
-        @DisplayName("결과가 비어있으면 빈 목록, hasNext=false, nextCursor=null")
+        @DisplayName("결과 비어있으면 빈 페이지 반환")
         void emptyResult() {
-            // given
-            String username = "alice";
             int size = 20;
             Pageable pageable = PageRequest.of(0, size + 1);
             Slice<Bookmark> emptySlice = new SliceImpl<>(List.of(), pageable, false);
 
-            given(bookmarkRepository.findByUserNameOrderByIdDesc(eq(username), any(Pageable.class)))
+            given(bookmarkRepository.findByUserEmailOrderByIdDesc(eq(AUTH_EMAIL), any(Pageable.class)))
                     .willReturn(emptySlice);
 
-            // when
             CursorPageResponse<BookmarkItem> res =
-                    sut.getMyBookmarks(username, size, null);
+                    sut.getMyBookmarks(size, null);
 
-            // then
             assertThat(res.items()).isEmpty();
             assertThat(res.hasNext()).isFalse();
             assertThat(res.nextCursor()).isNull();
         }
 
         @Test
-        @DisplayName("다음 페이지 호출 시 cursor 이후로 이어서 조회된다")
+        @DisplayName("다음 페이지: cursor 이후로 조회")
         void nextPageByCursor() {
-            // given
-            String username = "alice";
             int size = 2;
             long cursorId = 1000L;
             String cursor = CursorCodec.encodeId(cursorId);
 
-            User alice = user(10L, username);
-            User bob = user(20L, "bob");
+            User alice = user(10L, "alice", AUTH_EMAIL);
+            User bob = user(20L, "bob", "bob@example.com");
 
             Post p3 = post(103L, "세 번째 포스트", bob, false, 1L);
             Post p4 = post(104L, "네 번째 포스트", bob, false, 0L);
@@ -229,12 +250,11 @@ class BookmarkServiceImplTest {
             Bookmark b3 = bookmark(999L, alice, p3);
             Bookmark b4 = bookmark(998L, alice, p4);
 
-            // size만 반환 → hasNext=false
             List<Bookmark> pageContent = List.of(b3, b4);
             Pageable pageable = PageRequest.of(0, size + 1);
             Slice<Bookmark> slice = new SliceImpl<>(pageContent, pageable, false);
 
-            given(bookmarkRepository.findByUserNameAndIdLessThanOrderByIdDesc(eq(username), eq(cursorId), any(Pageable.class)))
+            given(bookmarkRepository.findByUserEmailAndIdLessThanOrderByIdDesc(eq(AUTH_EMAIL), eq(cursorId), any(Pageable.class)))
                     .willReturn(slice);
 
             given(likeRepository.countByRelatedIds(eq(LIKE_TYPE_POST), eq(List.of(103L, 104L))))
@@ -246,11 +266,9 @@ class BookmarkServiceImplTest {
             given(imageRepository.findAllUrlsByRelatedIds(eq(IMAGE_TYPE_POST), eq(List.of(103L, 104L))))
                     .willReturn(List.<Object[]>of(new Object[]{103L, "https://img/post/103-1.png"}));
 
-            // when
             CursorPageResponse<BookmarkItem> res =
-                    sut.getMyBookmarks(username, size, cursor);
+                    sut.getMyBookmarks(size, cursor);
 
-            // then
             assertThat(res.items()).hasSize(2);
             assertThat(res.hasNext()).isFalse();
             assertThat(res.nextCursor()).isNull();
@@ -263,60 +281,51 @@ class BookmarkServiceImplTest {
     class AddBookmark {
 
         @Test
-        @DisplayName("이미 존재하면 BusinessException(status=CONFLICT)")
+        @DisplayName("이미 존재하면 BusinessException(CONFLICT)")
         void duplicate() {
-            // given
-            String username = "alice";
             Long postId = 101L;
-            User alice = user(10L, username);
+            User alice = user(10L, "alice", AUTH_EMAIL);
             Post post = post(postId, "내용", alice, false, 0L);
 
-            given(bookmarkRepository.findByUserNameAndPostId(username, postId))
+            given(bookmarkRepository.findByUserEmailAndPostId(AUTH_EMAIL, postId))
                     .willReturn(Optional.of(bookmark(1001L, alice, post)));
 
-            // when & then
-            assertThatThrownBy(() -> sut.addBookmark(username, postId))
+            assertThatThrownBy(() -> sut.addBookmark(postId))
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
                     .isEqualTo(HttpStatus.CONFLICT);
         }
 
         @Test
-        @DisplayName("사용자 미존재 시 BusinessException(status=NOT_FOUND)")
+        @DisplayName("사용자 미존재 → NOT_FOUND")
         void userNotFound() {
-            // given
-            String username = "noone";
             Long postId = 101L;
 
-            given(bookmarkRepository.findByUserNameAndPostId(username, postId))
+            given(bookmarkRepository.findByUserEmailAndPostId(AUTH_EMAIL, postId))
                     .willReturn(Optional.empty());
-            given(userRepository.findByName(username))
+            given(userRepository.findByEmail(AUTH_EMAIL))
                     .willReturn(Optional.empty());
 
-            // when & then
-            assertThatThrownBy(() -> sut.addBookmark(username, postId))
+            assertThatThrownBy(() -> sut.addBookmark(postId))
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
                     .isEqualTo(HttpStatus.NOT_FOUND);
         }
 
         @Test
-        @DisplayName("게시물 미존재 시 BusinessException(status=NOT_FOUND)")
+        @DisplayName("게시물 미존재 → NOT_FOUND")
         void postNotFound() {
-            // given
-            String username = "alice";
             Long postId = 999L;
-            User alice = user(10L, username);
+            User alice = user(10L, "alice", AUTH_EMAIL);
 
-            given(bookmarkRepository.findByUserNameAndPostId(username, postId))
+            given(bookmarkRepository.findByUserEmailAndPostId(AUTH_EMAIL, postId))
                     .willReturn(Optional.empty());
-            given(userRepository.findByName(username))
+            given(userRepository.findByEmail(AUTH_EMAIL))
                     .willReturn(Optional.of(alice));
             given(postRepository.findById(postId))
                     .willReturn(Optional.empty());
 
-            // when & then
-            assertThatThrownBy(() -> sut.addBookmark(username, postId))
+            assertThatThrownBy(() -> sut.addBookmark(postId))
                     .isInstanceOf(BusinessException.class)
                     .extracting("status")
                     .isEqualTo(HttpStatus.NOT_FOUND);
@@ -325,20 +334,16 @@ class BookmarkServiceImplTest {
         @Test
         @DisplayName("정상 추가")
         void ok() {
-            // given
-            String username = "alice";
             Long postId = 101L;
-            User alice = user(10L, username);
+            User alice = user(10L, "alice", AUTH_EMAIL);
             Post post = post(postId, "내용", alice, false, 0L);
 
-            given(bookmarkRepository.findByUserNameAndPostId(username, postId)).willReturn(Optional.empty());
-            given(userRepository.findByName(username)).willReturn(Optional.of(alice));
+            given(bookmarkRepository.findByUserEmailAndPostId(AUTH_EMAIL, postId)).willReturn(Optional.empty());
+            given(userRepository.findByEmail(AUTH_EMAIL)).willReturn(Optional.of(alice));
             given(postRepository.findById(postId)).willReturn(Optional.of(post));
 
-            // when
-            sut.addBookmark(username, postId);
+            sut.addBookmark(postId);
 
-            // then
             then(bookmarkRepository).should().save(any(Bookmark.class));
         }
     }
@@ -350,15 +355,11 @@ class BookmarkServiceImplTest {
         @Test
         @DisplayName("멱등 삭제 동작")
         void ok() {
-            // given
-            String username = "alice";
             Long postId = 101L;
 
-            // when
-            sut.removeBookmark(username, postId);
+            sut.removeBookmark(postId);
 
-            // then
-            then(bookmarkRepository).should().deleteByUserNameAndPostId(username, postId);
+            then(bookmarkRepository).should().deleteByUserEmailAndPostId(AUTH_EMAIL, postId);
         }
     }
 }

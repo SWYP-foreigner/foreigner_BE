@@ -1,6 +1,9 @@
 package core.domain.comment.controller;
 
-import core.domain.comment.dto.*;
+import core.domain.comment.dto.CommentItem;
+import core.domain.comment.dto.CommentUpdateRequest;
+import core.domain.comment.dto.CommentWriteRequest;
+import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.service.CommentService;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
@@ -15,7 +18,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -66,7 +68,6 @@ public class CommentController {
     })
     @GetMapping("/posts/{postId}/comments")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<CommentItem>>> getCommentList(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
@@ -90,11 +91,10 @@ public class CommentController {
     })
     @PostMapping("/posts/{postId}/comments")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writeComment(
-            Authentication authentication,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
             @Valid @RequestBody CommentWriteRequest request
     ) {
-        commentService.writeComment(authentication.getName(), postId, request);
+        commentService.writeComment(postId, request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("댓글 작성 완료"));
@@ -110,11 +110,10 @@ public class CommentController {
     })
     @PatchMapping("/comments/{commentId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> updateComment(
-            Authentication authentication,
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId,
             @Valid @RequestBody CommentUpdateRequest request
     ) {
-        commentService.updateComment(authentication.getName(), commentId, request);
+        commentService.updateComment(commentId, request);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 수정 완료"));
@@ -130,10 +129,9 @@ public class CommentController {
     })
     @DeleteMapping("/comments/{commentId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> deleteComment(
-            Authentication authentication,
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
-        commentService.deleteComment(authentication.getName(), commentId);
+        commentService.deleteComment( commentId);
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 삭제 완료"));
@@ -175,7 +173,6 @@ public class CommentController {
     })
     @GetMapping("/my/comments")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserCommentItem>>> getMyCommentList(
-            @Parameter(hidden = true) Authentication authentication,
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
                     example = "eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9")
@@ -183,7 +180,7 @@ public class CommentController {
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        commentService.getMyCommentList(authentication.getName(), size, cursor)
+                        commentService.getMyCommentList(size, cursor)
                 )
         );
     }

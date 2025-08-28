@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,11 +48,17 @@ public class CommentServiceImpl implements CommentService {
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
             Long postId, Integer size, SortOption sort, @Nullable String cursor
     ) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Long myId = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getId();
+
         final int pageSize = Math.min(Math.max(size == null ? 20 : size, 1), 100);
 
 
@@ -79,14 +86,14 @@ public class CommentServiceImpl implements CommentService {
         Slice<Comment> slice;
         if (sort == SortOption.POPULAR) {
             slice = (cursorId == null || cursorLikeCount == null || cursorCreatedAt == null)
-                    ? commentRepository.findPopularByPostId(postId, LikeType.COMMENT, pageablePopular)
+                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
                     : commentRepository.findPopularByCursor(
-                    postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
+                    myId, postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
             );
         } else {
             slice = (cursorId == null || cursorCreatedAt == null)
-                    ? commentRepository.findByPostId(postId, pageableLatest)
-                    : commentRepository.findCommentByCursor(postId, cursorCreatedAt, cursorId, pageableLatest);
+                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
+                    : commentRepository.findCommentByCursor(myId, postId, cursorCreatedAt, cursorId, pageableLatest);
         }
 
         List<Comment> rows = slice.getContent();
@@ -141,12 +148,14 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void writeComment(String name, Long postId, CommentWriteRequest request) {
+    public void writeComment(Long postId, CommentWriteRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         if (forbiddenWordService.containsForbiddenWord(request.comment())) {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        User user = userRepository.findByName(name)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post post = postRepository.findById(postId)
@@ -175,11 +184,13 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void updateComment(String name, Long commentId, CommentUpdateRequest request) {
+    public void updateComment(Long commentId, CommentUpdateRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
-        if (!name.equals(comment.getAuthor().getName())) {
+        if (!email.equals(comment.getAuthor().getEmail())) {
             throw new BusinessException(ErrorCode.COMMENT_EDIT_FORBIDDEN);
         }
 
@@ -195,18 +206,20 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void deleteComment(String name, Long commentId) {
+    public void deleteComment(Long commentId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
-        if (comment.getAuthor() == null || !comment.getAuthor().getName().equals(name)) {
+        if (comment.getAuthor() == null || !comment.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.COMMENT_DELETE_FORBIDDEN);
         }
 
         boolean hasAliveChildren = commentRepository.existsByParentIdAndDeletedFalse(commentId);
 
         if (hasAliveChildren) {
-            comment.markDeleted(name);
+            comment.markDeleted(email);
         } else {
             commentRepository.delete(comment);
             cleanupIfNoChildren(comment.getParent());
@@ -215,7 +228,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<UserCommentItem> getMyCommentList(String username, int size, String cursor) {
+    public CursorPageResponse<UserCommentItem> getMyCommentList(int size, String cursor) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
         Long lastId = null;
@@ -224,7 +239,7 @@ public class CommentServiceImpl implements CommentService {
         if (idObj instanceof Number n) lastId = n.longValue();
 
         List<UserCommentItem> rows = commentRepository.findMyCommentsForCursor(
-                username,
+                email,
                 lastId,
                 PageRequest.of(0, pageSize + 1)
         );

@@ -21,4 +21,9 @@ public class BlockUser {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "people_id", nullable = false)
     private User blocked;
+
+    public BlockUser(User me, User blockedUser) {
+        this.user = me;
+        this.blocked = blockedUser;
+    }
 }

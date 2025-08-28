@@ -36,5 +36,4 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
     List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);
 
-
 }

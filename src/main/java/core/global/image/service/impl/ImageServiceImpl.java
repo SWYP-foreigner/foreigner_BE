@@ -13,6 +13,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -49,7 +50,9 @@ public class ImageServiceImpl implements ImageService {
      * ✅ Presigned URL 생성 (일괄)
      */
     @Override
-    public List<PresignedUrlResponse> generatePresignedUrls(String username, PresignedUrlRequest request) {
+    public List<PresignedUrlResponse> generatePresignedUrls( PresignedUrlRequest request) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         if (request.files() == null || request.files().isEmpty()) {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
@@ -60,13 +63,13 @@ public class ImageServiceImpl implements ImageService {
 
         List<PresignedUrlResponse> out = new ArrayList<>(request.files().size());
         for (PresignedUrlRequest.FileSpec f : request.files()) {
-            out.add(generateOne(username, request.imageType(), request.uploadSessionId(), f));
+            out.add(generateOne(email, request.imageType(), request.uploadSessionId(), f));
         }
         return out;
     }
 
     private PresignedUrlResponse generateOne(
-            String username,
+            String email,
             ImageType imageType,
             String uploadSessionId,
             PresignedUrlRequest.FileSpec fileSpec
@@ -76,11 +79,11 @@ public class ImageServiceImpl implements ImageService {
                 ? "image/jpeg"
                 : fileSpec.contentType();
 
-        String key = UrlUtil.buildRawKey(username, imageType, uploadSessionId, filename);
+        String key = UrlUtil.buildRawKey(email, imageType, uploadSessionId, filename);
 
         // 서명에 포함할 메타데이터
         Map<String, String> meta = Map.of(
-                "owner", username,
+                "owner", email,
                 "session", uploadSessionId,
                 "image-type", imageType.name().toLowerCase()
         );
@@ -102,7 +105,7 @@ public class ImageServiceImpl implements ImageService {
         // 클라이언트가 그대로 써야 하는 헤더
         Map<String, String> clientHeaders = new LinkedHashMap<>();
         clientHeaders.put("Content-Type", contentType);
-        clientHeaders.put("x-amz-meta-owner", username);
+        clientHeaders.put("x-amz-meta-owner", email);
         clientHeaders.put("x-amz-meta-session", uploadSessionId);
         clientHeaders.put("x-amz-meta-image-type", imageType.name().toLowerCase());
 
@@ -112,8 +115,7 @@ public class ImageServiceImpl implements ImageService {
                 key,
                 presigned.url().toString(),
                 "PUT",
-                clientHeaders,
-                publicUrl
+                clientHeaders
         );
     }
 

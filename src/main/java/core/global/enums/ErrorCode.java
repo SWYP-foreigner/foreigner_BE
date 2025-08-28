@@ -61,6 +61,7 @@ public enum ErrorCode {
     IMAGE_FILE_UPLOAD_TYPE_ERROR(HttpStatus.BAD_REQUEST, "이미지 파일이 아니라 다른 파일입니다."),
     IMAGE_FILE_DELETE_FAILED(HttpStatus.BAD_REQUEST, "이미지 삭제를 실패했습니다."),
     IMAGE_FOLDER_DELETE_FAILED(HttpStatus.BAD_REQUEST, "폴더 삭제에 실패했습니다."),
+    CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
 
     TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다."),
 

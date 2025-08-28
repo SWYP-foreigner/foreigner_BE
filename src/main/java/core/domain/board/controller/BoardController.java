@@ -7,7 +7,6 @@ import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,10 +15,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -140,7 +137,6 @@ public class BoardController {
     })
     @GetMapping("/{boardId}/posts")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BoardItem>>> getPostList(
-            @Parameter(hidden = true) Authentication authentication,
             @PathVariable Long boardId,
             @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
@@ -184,9 +180,7 @@ public class BoardController {
             @ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
     })
     @GetMapping("/categories")
-    public ResponseEntity<core.global.dto.ApiResponse<List<CategoryListResponse>>> getCategories(
-            Authentication authentication
-    ) {
+    public ResponseEntity<core.global.dto.ApiResponse<List<CategoryListResponse>>> getCategories() {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         boardService.getCategories()
@@ -224,7 +218,6 @@ public class BoardController {
     })
     @GetMapping("/{boardId}/write-options")
     public ResponseEntity<core.global.dto.ApiResponse<PostWriteAnonymousAvailableResponse>> getWriteOptions(
-            Authentication authentication,
             @Parameter(description = "보드 ID", example = "10")
             @PathVariable @Positive(message = "boardId는 양수여야 합니다.") Long boardId
     ) {

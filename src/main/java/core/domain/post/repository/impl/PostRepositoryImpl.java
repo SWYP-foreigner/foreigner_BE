@@ -13,6 +13,7 @@ import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.dto.UserPostItem;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
+import core.domain.user.entity.QBlockUser;
 import core.domain.user.entity.QUser;
 import core.global.enums.BoardCategory;
 import core.global.enums.ImageType;
@@ -24,11 +25,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-
-import static com.querydsl.core.group.GroupBy.groupBy;
-import static com.querydsl.core.types.Projections.list;
 
 @Repository
 @RequiredArgsConstructor
@@ -38,7 +35,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final QLike like = QLike.like;
     private static final QBoard board = QBoard.board;
     private static final QComment comment = QComment.comment;
-    private static final QImage image = QImage.image;
     private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
     private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
     private static final LikeType LIKE_TYPE_POST = LikeType.POST;
@@ -46,7 +42,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private final JPAQueryFactory query;
 
     @Override
-    public List<BoardItem> findLatestPosts(Long boardId,
+    public List<BoardItem> findLatestPosts(Long userId, Long boardId,
                                            Instant cursorCreatedAt,
                                            Long cursorId,
                                            int size,
@@ -84,6 +80,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
+        BooleanExpression visibleToMe = visibleTo(userId);
+
         return query
                 .select(Projections.constructor(
                         BoardItem.class,
@@ -103,23 +101,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor))
+                .where(allOf(boardFilter, search, ltCursor, visibleToMe))
                 .orderBy(post.createdAt.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
     }
 
-    private BooleanExpression allOf(BooleanExpression... exps) {
-        BooleanExpression result = null;
-        for (BooleanExpression e : exps) {
-            if (e == null) continue;
-            result = (result == null) ? e : result.and(e);
-        }
-        return result;
-    }
-
     @Override
-    public List<BoardItem> findPopularPosts(Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
+    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
         BooleanExpression sinceFilter = (since == null) ? null : post.createdAt.goe(since);
@@ -141,9 +130,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         "(extract(epoch from current_timestamp) - extract(epoch from {0})) / 3600.0",
                         post.createdAt
                 );
-
-        NumberExpression<Double> recencyFactor =
-                Expressions.numberTemplate(Double.class, "EXP(-({0} / 24.0))", ageHours);
 
         NumberExpression<Long> recencyPoints =
                 Expressions.numberTemplate(
@@ -186,6 +172,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
+        BooleanExpression visibleToMe = visibleTo(userId);
+
         return query
                 .select(Projections.constructor(
                         BoardItem.class,
@@ -205,7 +193,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, sinceFilter, search, ltCursor))
+                .where(allOf(boardFilter, sinceFilter, search, ltCursor, visibleToMe))
                 .orderBy(
                         score.desc(),
                         post.id.desc()
@@ -314,7 +302,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public List<UserPostItem> findMyPostsFirstByName(String name, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne) {
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
@@ -329,14 +317,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
-                .where(user.name.eq(name))
+                .where(user.email.eq(email))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
                 .fetch();
     }
 
     @Override
-    public List<UserPostItem> findMyPostsNextByName(String name, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
+    public List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne) {
         BooleanExpression ltCursor = post.createdAt.lt(cursorCreatedAt)
                 .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
 
@@ -354,10 +342,43 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 ))
                 .from(post)
                 .join(post.author, user)
-                .where(user.name.eq(name).and(ltCursor))
+                .where(user.email.eq(email).and(ltCursor))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
                 .fetch();
+    }
+
+    private BooleanExpression visibleTo(Long userId) {
+        if (userId == null) return null; // 비로그인
+
+        QBlockUser bu = QBlockUser.blockUser;
+
+        BooleanExpression notMyBlocking = JPAExpressions
+                .selectOne()
+                .from(bu)
+                .where(bu.user.id.eq(userId)
+                        .and(bu.blocked.id.eq(user.id))
+                )
+                .notExists();
+
+        BooleanExpression notTheirBlocking = JPAExpressions
+                .selectOne()
+                .from(bu)
+                .where(bu.user.id.eq(user.id)
+                        .and(bu.blocked.id.eq(userId))
+                )
+                .notExists();
+
+        return notMyBlocking.and(notTheirBlocking);
+    }
+
+    private BooleanExpression allOf(BooleanExpression... exps) {
+        BooleanExpression result = null;
+        for (BooleanExpression e : exps) {
+            if (e == null) continue;
+            result = (result == null) ? e : result.and(e);
+        }
+        return result;
     }
 
     private Expression<Integer> postImageCountExpr() {

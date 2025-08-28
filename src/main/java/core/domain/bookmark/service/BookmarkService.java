@@ -4,10 +4,10 @@ import core.domain.bookmark.dto.BookmarkItem;
 import core.global.pagination.CursorPageResponse;
 
 public interface BookmarkService {
-    void addBookmark(String name, Long postId);
+    void addBookmark(Long postId);
 
-    void removeBookmark(String name, Long postId);
+    void removeBookmark(Long postId);
 
-    CursorPageResponse<BookmarkItem> getMyBookmarks(String name, int size, String cursor);
+    CursorPageResponse<BookmarkItem> getMyBookmarks(int size, String cursor);
 
 }
