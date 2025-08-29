@@ -55,7 +55,8 @@ public class SecurityConfig {
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
                                 "/error/**",
-                                "/ws/**"
+                                "/ws/**",
+                                "/ws"
                         ).permitAll()
                         .anyRequest().authenticated()
                 ) .exceptionHandling(exceptionHandling -> exceptionHandling
