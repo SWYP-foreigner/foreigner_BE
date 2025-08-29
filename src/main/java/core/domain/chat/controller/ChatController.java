@@ -85,7 +85,7 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
             )
     })
-    @GetMapping("/rooms")
+    @PostMapping("/rooms")
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestParam Long userId) {
 
 
