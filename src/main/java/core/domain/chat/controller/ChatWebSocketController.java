@@ -2,9 +2,12 @@ package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
+import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.image.repository.ImageRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -29,8 +32,8 @@ public class ChatWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final SimpMessageSendingOperations template;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
+    private final ImageRepository imageRepository;
 
-    // 추가된 의존성
     private final UserRepository userRepository;
     private final TranslationService translationService;
 
@@ -69,12 +72,16 @@ public class ChatWebSocketController {
             LocalDateTime sentAt = saved.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
             chatService.getParticipants(req.roomId()).forEach(user -> {
                 int unreadCount = chatService.countUnreadMessages(req.roomId(), user.getId());
-                ChatRoomSummaryResponse summary = new ChatRoomSummaryResponse(
-                        saved.getChatRoom().getId(),
+                ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                        saved.getChatRoom(),
+                        user.getUser().getId(),
                         saved.getContent(),
                         sentAt,
-                        unreadCount
+                        unreadCount,
+                        imageRepository
                 );
+
+
                 messagingTemplate.convertAndSend("/topic/user/" + user.getId() + "/rooms", summary);
             });
 
@@ -101,24 +108,28 @@ public class ChatWebSocketController {
      *
      * @param req 읽음 상태 업데이트 요청 (roomId, readerId, lastReadMessageId)
      */
+
     @MessageMapping("/chat.markAsRead")
     public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
         try {
             chatService.markMessagesAsRead(req.roomId(), req.readerId(), req.lastReadMessageId());
 
-            // 기존 읽음 상태 알림
             messagingTemplate.convertAndSend(
                     "/topic/rooms/" + req.roomId() + "/read-status",
                     new ReadStatusResponse(req.roomId(), req.readerId(), req.lastReadMessageId())
             );
 
-            // 추가: 채팅방 리스트 갱신 (읽음 반영된 unreadCount)
+            ChatRoom chatRoom = chatService.getChatRoomById(req.roomId());
+
             int unreadCount = chatService.countUnreadMessages(req.roomId(), req.readerId());
-            ChatRoomSummaryResponse summary = new ChatRoomSummaryResponse(
-                    req.roomId(),
+
+            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                    chatRoom,
+                    req.readerId(),
                     chatService.getLastMessageContent(req.roomId()),
                     chatService.getLastMessageTime(req.roomId()),
-                    unreadCount
+                    unreadCount,
+                    imageRepository
             );
 
             messagingTemplate.convertAndSend("/topic/user/" + req.readerId() + "/rooms", summary);

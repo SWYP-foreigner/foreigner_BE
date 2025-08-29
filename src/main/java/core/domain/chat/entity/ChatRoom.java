@@ -23,7 +23,8 @@ public class ChatRoom {
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
-
+    @Column(name = "room_name")
+    private String roomName;
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> participants = new ArrayList<>();
 

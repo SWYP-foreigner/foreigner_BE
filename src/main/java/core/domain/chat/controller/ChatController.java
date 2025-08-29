@@ -59,7 +59,7 @@ public class ChatController {
         this.translationService = translationService;
     }
 
-    @Operation(summary = "새로운 채팅방 생성", description = "1:1 또는 그룹 채팅방을 생성합니다.")
+    /*@Operation(summary = "새로운 채팅방 생성", description = "1:1 또는 그룹 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
@@ -77,7 +77,7 @@ public class ChatController {
         ChatRoom room = chatService.createRoom(userId, participantIds);
         ChatRoomResponse response = ChatRoomResponse.from(room);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }
+    }*/
 
     @Operation(summary = "자신의 채팅방 리스트 조회")
     @ApiResponses({
@@ -85,14 +85,12 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
             )
     })
-    @GetMapping("/rooms/one_to_one")
-    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms() {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = principal.getUserId();
-        List<ChatRoom> rooms = chatService.getMyChatRooms(userId);
-        List<ChatRoomResponse> responses = rooms.stream()
-                .map(ChatRoomResponse::from)
-                .toList();
+    @GetMapping("/rooms")
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestParam Long userId) {
+
+
+        List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
+
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
