@@ -91,7 +91,6 @@ public class UserController {
 
             LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken);
 
-            log.info(String.valueOf(responseDto.id()));
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {
