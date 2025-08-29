@@ -2,10 +2,22 @@ spring:
   config:
     activate:
       on-profile: local
+  mail:
+    host: ${NCP_MAIL_HOST}         # 네이버 SMTP 서버 주소
+    port: 465                    # 네이버 SMTP 포트 번호
+    username: ${NCP_EMAIL}    # 네이버 이메일
+    password: ${NCP_EMAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true              # 사용자 인증 여부
+          ssl:
+            enable: true
+            trust: smtp.naver.com
 
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
-    username: ${DB_USER}
+    username:  ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   data:

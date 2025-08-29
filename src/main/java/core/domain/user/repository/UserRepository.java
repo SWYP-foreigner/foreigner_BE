@@ -32,6 +32,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> getUserById(Long id);
 
 
+
+    boolean existsByEmail(String email);
+
+    // 이미 너 코드에 쓰고 있던 시그니처 예시
     List<User> findByFirstNameIgnoreCaseAndIdNot(String firstName, Long excludeId);
     List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
     List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);

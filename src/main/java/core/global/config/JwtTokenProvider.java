@@ -113,4 +113,20 @@ public class JwtTokenProvider {
                 .getBody()
                 .getSubject());
     }
+
+    /** ✅ 테스트용: 이메일만 받아 subject 로 넣는 심플 토큰 */
+    public String createToken(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("email must not be blank");
+        }
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + accessTokenExpiration);
+
+        return Jwts.builder()
+                .setSubject(email)          // subject = email
+                .setIssuedAt(now)
+                .setExpiration(expiration)
+                .signWith(SECRET_KEY, SignatureAlgorithm.HS512)
+                .compact();
+    }
 }

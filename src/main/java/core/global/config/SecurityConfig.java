@@ -1,17 +1,15 @@
 package core.global.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -28,7 +26,6 @@ public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         log.info("jwtTokenFilter = {}", jwtTokenFilter);
@@ -54,7 +51,14 @@ public class SecurityConfig {
                                 "/error",
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
-                                "/error/**"
+                                "/error/**",
+                                "/auth/test-login",
+                                "/auth/me",
+                                "/api/v1/member/signup",
+                                "/api/v1/member/doLogin",
+                                "/api/v1/member/verify-code",
+                                "/api/v1/member/signup",
+                                "/api/v1/member/send-verification-email"
                         ).permitAll()
                         .anyRequest().authenticated()
                 ) .exceptionHandling(exceptionHandling -> exceptionHandling
@@ -77,6 +81,11 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);
         return src;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
 

@@ -3,12 +3,11 @@ package core.global.config;
 // import 생략
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import core.global.dto.ApiErrorResponse;
 import core.global.enums.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor; // 추가
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
@@ -41,6 +40,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             httpStatus = HttpStatus.UNAUTHORIZED.value();
         }
 
+        // 응답 객체 생성
         ApiErrorResponse errorResponse = new ApiErrorResponse(
                 errorMessage,
                 String.valueOf(httpStatus),

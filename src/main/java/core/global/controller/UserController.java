@@ -7,16 +7,14 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.image.service.ImageService;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.RedisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,8 +23,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Tag(name = "User", description = "사용자 관련 API")
@@ -41,6 +37,8 @@ public class UserController {
     private final AppleAuthService service;
     private final RedisService redisService;
     private final UserRepository userrepository;
+
+
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
                                     @RequestParam(required = false) String state) {
@@ -177,6 +175,35 @@ public class UserController {
         return ResponseEntity.ok(result);
     }
 
+
+
+    @PostMapping("/signup")
+    @Operation(summary = "일반 회원가입")
+    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest req) {
+        AuthResponse response = userService.signup(req);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/send-verification-email")
+    @Operation(summary = "이메일 인증 코드 발송")
+    public ResponseEntity<ApiResponse<String>> sendVerificationEmail(@RequestBody EmailRequest request) {
+        userService.sendEmailVerificationCode(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.success("인증 코드가 이메일로 전송되었습니다."));
+    }
+
+    @PostMapping("/verify-code")
+    @Operation(summary = "이메일 인증 코드 검증")
+    public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
+        boolean isVerified = userService.verifyEmailCode(request);
+        return ResponseEntity.ok(ApiResponse.success(isVerified));
+    }
+
+    @PostMapping("/doLogin")
+    @Operation(summary = "일반 로그인")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
+        AuthResponse response = userService.login(req);
+        return ResponseEntity.ok(response);
+    }
 
     /**
      * revoke (연동 해제)

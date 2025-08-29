@@ -6,25 +6,31 @@ import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.JwtTokenProvider;
-import core.global.dto.UserCreateDto;
+import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import core.global.image.service.ImageService;
-import core.global.image.service.impl.ImageServiceImpl;
 import core.global.service.RedisService;
+import core.global.service.SmtpMailService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,7 +38,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
-
+    private final PasswordEncoder passwordEncoder;
+    private final SmtpMailService smtpService;
+    private final RedisTemplate<String, String> redisTemplate;
     private final UserRepository userRepository;
     private final ImageService imageService;
     private final RedisService redisService;
@@ -44,6 +52,11 @@ public class UserService {
         userRepository.save(user);
         return user;
     }
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
+    private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:"; // 인증 완료 플래그
+    private static final long CODE_TTL_MIN = 3L;      // 분
+    private static final long VERIFIED_TTL_MIN = 10L; // 분 (회원가입까지 유예 시간)
+
 
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
@@ -67,7 +80,9 @@ public class UserService {
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
 
-
+    /**
+     * 기존 oauth2 로 인한 유저 프로필 셋팅
+     */
     @Transactional
     public UserUpdateDTO setupUserProfile(UserUpdateDTO dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -148,6 +163,7 @@ public class UserService {
                 .build();
     }
 
+
     private boolean notBlank(String s) { return s != null && !s.isBlank(); }
 
 
@@ -203,6 +219,152 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
+
+    /**
+     * 회원 가입 로직
+     *
+     * @param req
+     * @return
+     */
+    @Transactional
+    public AuthResponse signup(SignupRequest req) {
+        if (!req.isAgreedToTerms()) {
+            throw new BusinessException(ErrorCode.AGREEMENT_INPUT);
+        }
+
+        String email = normalizeEmail(req.getEmail());
+        if (userRepository.existsByEmail(email)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
+        }
+
+        // 이메일 인증 완료 여부 체크 (없으면 가입/토큰 발급 불가)
+        String verified = redisTemplate.opsForValue().get(EMAIL_VERIFIED_FLAG_KEY + email);
+        if (!"1".equals(verified)) {
+            // 필요하면 ErrorCode.EMAIL_NOT_VERIFIED 등으로 분리
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        String rawPw = req.getPassword();
+
+        User u = new User();
+        u.setProvider("local");
+        u.setSocialId(buildLocalSocialId(email)); // 일반 로그인용 socialId
+        u.setEmail(email);
+        u.setPassword(passwordEncoder.encode(rawPw));
+        u.setAgreedToTerms(req.isAgreedToTerms());
+        u.setAgreedToPushNotification(false);
+
+        Instant now = Instant.now();
+        u.setCreatedAt(now);
+        u.setUpdatedAt(now);
+
+        userRepository.save(u);
+
+        // 인증 완료 플래그는 일회성으로 소비
+        redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
+
+        String access  = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String refresh = jwtTokenProvider.createRefreshToken(u.getId());
+        long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
+
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail());
+    }
+    private String normalizeEmail(String email) {
+        if (email == null) return null;
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+
+    private String buildLocalSocialId(String email) {
+        // 결정적(동일 이메일이면 동일 결과) + 노출 안전하게 해시
+        return "local:" + sha256Hex(email);
+    }
+
+    private String sha256Hex(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+    /**
+     * 일반 회원 가입 로직
+     */
+    @Transactional(readOnly = true)
+    public AuthResponse login(EmailLoginDto req) {
+        String email = normalizeEmail(req.getEmail());
+
+        User u = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!"local".equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+        if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        String access  = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String refresh = jwtTokenProvider.createRefreshToken(u.getId());
+        long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
+
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail());
+    }
+
+    /**
+     *이메일 보내주는 로직
+     */
+    public void sendEmailVerificationCode(String rawEmail) {
+        String email = normalizeEmail(rawEmail);
+
+        if (userRepository.existsByEmail(email)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
+        }
+
+        String verificationCode = smtpService.sendVerificationEmail(email);
+
+        redisTemplate.opsForValue().set(
+                EMAIL_VERIFY_CODE_KEY + email,
+                verificationCode,
+                CODE_TTL_MIN,
+                TimeUnit.MINUTES
+        );
+    }
+
+    /**
+     * 이메일 인증 코드를 검증합니다.
+     */
+    public boolean verifyEmailCode(EmailVerificationRequest request) {
+        String email = normalizeEmail(request.getEmail());
+
+        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        if (storedCode == null || !storedCode.equals(request.getVerificationCode())) {
+            return false;
+        }
+
+        // 사용한 코드는 즉시 폐기
+        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+
+        // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
+        redisTemplate.opsForValue().set(
+                EMAIL_VERIFIED_FLAG_KEY + email,
+                "1",
+                VERIFIED_TTL_MIN,
+                TimeUnit.MINUTES
+        );
+        return true;
+    }
+
+    /**
+     8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
+     */
+    private static final Pattern PW_RULE = Pattern.compile(
+            "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
+    );
 
 
     /**
@@ -398,6 +560,10 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
         return name;
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
     }
 
     private UserSearchDTO toSearchDto(User u) {

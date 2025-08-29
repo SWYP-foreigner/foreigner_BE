@@ -8,6 +8,12 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
+    INVALID_EMAIL_INPUT (HttpStatus.BAD_REQUEST,"해당 이메일은 소셜 로그인 계정입니다. 소셜 로그인을 이용하세요."),
+    DUPLICATE_RESOURCE(HttpStatus.FORBIDDEN, "중복된 이메일입니다."),
+    AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN,"이메일 또는 비밀번호가 올바르지 않습니다."),
+    PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST,"비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
+    PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST,"비밀번호가 일치하지 않습니다."),
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
@@ -15,14 +21,12 @@ public enum ErrorCode {
     NOT_AVAILABLE_ANONYMOUS(HttpStatus.CONFLICT, "익명이 허용되지 않는 카테고리입니다."),
     INVALID_BOARD_CATEGORY(HttpStatus.BAD_REQUEST, "유효하지 않은 카테고리입니다."),
     NOT_AVAILABLE_WRITE(HttpStatus.CONFLICT, "쓰기가 불가능한 카테고리입니다."),
-
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
     INVALID_PARENT_COMMENT(HttpStatus.BAD_REQUEST, "대댓글하려는 댓글이 적합하지 않습니다."),
     INVALID_COMMENT_INPUT(HttpStatus.BAD_REQUEST, "댓글 입력값이 잘못됐습니다."),
     COMMENT_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 댓글을 삭제할 권한이 없습니다."),
     COMMENT_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 댓글을 수정할 권한이 없습니다."),
     COMMENT_ALREADY_DELETED(HttpStatus.GONE, "삭제된 댓글입니다."),
-
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
     EMAIL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "이메일이 이용 가능하지 않습니다."),
