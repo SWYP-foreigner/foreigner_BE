@@ -141,30 +141,6 @@ public class ChatService {
     }
 
 
-
-    private void validateParticipants(Set<Long> allParticipantIds) {
-        if (allParticipantIds.isEmpty()) {
-            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_MINIMUM);
-        }
-
-        long existingUserCount = userRepository.countByIdIn(allParticipantIds);
-        if (existingUserCount != allParticipantIds.size()) {
-            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND);
-        }
-    }
-
-    public Optional<ChatRoom> find1on1Room(Set<Long> allParticipantIds) {
-        return chatRoomRepo.findOneOnOneRoomByParticipantIds(
-                new ArrayList<>(allParticipantIds)
-        );
-    }
-
-    private void addParticipantsToRoom(ChatRoom room, List<User> participants) {
-        for (User user : participants) {
-            participantRepo.save(new ChatParticipant(room, user));
-        }
-    }
-
     /**
      * 사용자가 채팅방을 나갑니다.
      * 1:1 채팅방의 경우, 상대방은 방에 남아있습니다.
