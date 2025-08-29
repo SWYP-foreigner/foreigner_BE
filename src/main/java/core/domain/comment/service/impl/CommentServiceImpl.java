@@ -18,6 +18,7 @@ import core.global.enums.LikeType;
 import core.global.enums.SortOption;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
+import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
@@ -35,6 +36,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -255,6 +257,32 @@ public class CommentServiceImpl implements CommentService {
         String nextCursor = hasNext ? CursorCodec.encodeId(last.commentId()) : null;
 
         return new CursorPageResponse<>(items, hasNext, nextCursor);
+    }
+
+    @Override
+    public void addLike(Long commentId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, commentId, LikeType.COMMENT);
+        if (existedLike.isPresent()) {
+            throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        likeRepository.save(Like.builder()
+                .user(user)
+                .type(LikeType.POST)
+                .relatedId(commentId)
+                .build());
+    }
+
+    @Override
+    public void deleteLike(Long commentId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        likeRepository.deleteByUserEmailAndIdAndType(email, commentId, LikeType.COMMENT);
     }
 
 

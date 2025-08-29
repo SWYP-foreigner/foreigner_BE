@@ -137,9 +137,43 @@ public class CommentController {
                 .body(core.global.dto.ApiResponse.success("댓글 삭제 완료"));
     }
 
+    @Operation(summary = "좋아요 추가", description = "댓글 좋아요합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "추가 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+    })
+    @PostMapping("/comments/{commentId}/likes/me")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
+            @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
+    ) {
+        commentService.addLike( commentId);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("댓글 좋아요 완료"));
+    }
+
+    @Operation(summary = "좋아요 삭제", description = "댓글의 좋아요를 삭제합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+    })
+    @DeleteMapping("/comments/{commentId}/likes/me")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> deleteLike(
+            @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
+    ) {
+        commentService.deleteLike( commentId);
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .body(core.global.dto.ApiResponse.success("댓글 좋아요 삭제 완료"));
+    }
+
 
     @Operation(
-            summary = "댓글 목록 조회",
+            summary = "나의 댓글 목록 조회",
             description = """
           - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
           
