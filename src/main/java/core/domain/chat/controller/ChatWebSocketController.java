@@ -90,8 +90,6 @@ public class ChatWebSocketController {
             log.error("메시지 전송 실패", e);
         }
     }
-
-    // 기존의 나머지 메서드들은 그대로 유지됩니다.
     /**
      * @apiNote 사용자가 메시지를 입력 중임을 알리는 이벤트를 다른 참여자에게 전송합니다.
      *

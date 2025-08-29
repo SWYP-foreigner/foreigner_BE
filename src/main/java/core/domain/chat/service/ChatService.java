@@ -18,6 +18,7 @@ import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
+import jdk.jshell.spi.ExecutionControl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -62,7 +63,7 @@ public class ChatService {
     }
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         List<ChatRoom> rooms = chatRoomRepo.findChatRoomsByUserId(userId);
 
@@ -106,60 +107,41 @@ public class ChatService {
             );
         }).toList();
     }
-
-/*
-    public ChatRoom createRoom(Long creatorId, List<Long> participantIds) {
-        Set<Long> allParticipantIds = new HashSet<>(participantIds);
-        allParticipantIds.add(creatorId);
-
-        validateParticipants(allParticipantIds);
-
-        if (allParticipantIds.size() == 2) {
-            Optional<ChatRoom> existingRoomOpt = find1on1Room(allParticipantIds);
-            if (existingRoomOpt.isPresent()) {
-                return existingRoomOpt.get();
-            }
-        }
-
-        // ✅ 모든 참여자 정보를 한 번에 조회하여 Map으로 변환
-        List<User> participants = userRepository.findAllById(allParticipantIds);
-        Map<Long, User> participantsMap = participants.stream()
-                .collect(Collectors.toMap(User::getId, user -> user));
-
-        // 새로운 채팅방 생성 및 DB 저장
-        // ChatRoom 생성자도 roomName을 받을 수 있도록 수정해야 합니다.
-        ChatRoom newRoom = new ChatRoom(allParticipantIds.size() > 2, "새로운 채팅방", Instant.now());
-        chatRoomRepo.save(newRoom);
-
-        // 참여자 추가 로직
-        addParticipantsToRoom(newRoom, participants);
-
-        // --- 알림 로직 시작 ---
-        // 새로운 채팅방의 기본 정보 설정
-        String lastMessageContent = "새로운 채팅방이 생성되었습니다.";
-        LocalDateTime sentAt = newRoom.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
-        int unreadCount = 0; // 새 방이므로 안 읽은 메시지 없음
-
-        // ✅ 모든 참여자에게 "채팅방 리스트 갱신" 이벤트 전송
-        for (Long userId : allParticipantIds) {
-            User currentUser = participantsMap.get(userId);
-
-            // ✅ 통합된 from() 팩토리 메서드를 사용하여 DTO 생성
-            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
-                    newRoom,
-                    currentUser,
-                    lastMessageContent,
-                    sentAt,
-                    unreadCount
-            );
-
-            // 각 사용자의 개인 큐로 Summary 정보 전송
-            messagingTemplate.convertAndSend("/topic/user/" + userId + "/rooms", summary);
-        }
-
-        return newRoom;
+    @Transactional
+    public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
+        Optional<ChatRoom> existingRoom = chatRoomRepo.findByParticipantIds(currentUserId, otherUserId);
+        return existingRoom.map(chatRoom -> handleExistingRoom(chatRoom, currentUserId)).orElseGet(() -> createNewOneToOneChatRoom(currentUserId, otherUserId));
     }
-*/
+
+    private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
+
+        Optional<ChatParticipant> currentParticipant = room.getParticipants().stream()
+                .filter(p -> p.getUser().getId().equals(currentUserId))
+                .findFirst();
+        if (currentParticipant.isPresent() && currentParticipant.get().getStatus() == ChatParticipantStatus.LEFT) {
+            currentParticipant.get().reJoin();
+        }
+        return room;
+    }
+
+    private ChatRoom createNewOneToOneChatRoom(Long userId1, Long userId2) {
+        User currentUser = userRepository.findById(userId1)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User otherUser = userRepository.findById(userId2)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        ChatRoom newRoom = new ChatRoom(false, Instant.now());
+        ChatParticipant participant1 = new ChatParticipant(newRoom, currentUser);
+        ChatParticipant participant2 = new ChatParticipant(newRoom, otherUser);
+
+        newRoom.addParticipant(participant1);
+        newRoom.addParticipant(participant2);
+
+        return chatRoomRepo.save(newRoom);
+    }
+
+
+
     private void validateParticipants(Set<Long> allParticipantIds) {
         if (allParticipantIds.isEmpty()) {
             throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_MINIMUM);
