@@ -37,8 +37,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         log.info("WebSocket 핸드쉐이크 시작: uri={}", request.getURI());
                         return super.beforeHandshake(request, response, wsHandler, attributes);
                     }
-                })
-                .withSockJS();
+                });
     }
 
     @Override
