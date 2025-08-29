@@ -37,7 +37,6 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
-    private final  SimpMessagingTemplate messagingTemplate;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
@@ -47,12 +46,11 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo, SimpMessagingTemplate messagingTemplate, ChatMessageRepository chatMessageRepository,
+                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
                        ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
-        this.messagingTemplate = messagingTemplate;
 
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
