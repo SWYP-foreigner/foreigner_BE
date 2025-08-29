@@ -19,7 +19,7 @@ spring:
           accessToken: "access_token"
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
@@ -28,7 +28,7 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 1
+  access-expiration: 30
   refresh-expiration: 10080
 
 
@@ -93,7 +93,3 @@ logging:
     core.global.config.JwtTokenFilter: DEBUG
     org.springframework.security: DEBUG
 
-    # Hibernate SQL 쿼리 출력
-    org.hibernate.SQL: DEBUG
-    # Hibernate 쿼리 파라미터 바인딩 값 출력
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
