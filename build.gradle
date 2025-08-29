@@ -80,8 +80,13 @@ dependencies {
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	implementation 'com.google.cloud:google-cloud-translate:2.38.0'
-
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+	implementation 'org.springframework.data:spring-data-elasticsearch:5.3.0'
+	implementation 'co.elastic.clients:elasticsearch-java:8.14.0'
+	implementation 'org.elasticsearch.client:elasticsearch-rest-client:8.14.0'
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
 }
 
 dependencyManagement {
