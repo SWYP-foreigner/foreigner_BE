@@ -4,6 +4,18 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  mail:
+    host: ${NCP_MAIL_HOST}         # 네이버 SMTP 서버 주소
+    port: 465                    # 네이버 SMTP 포트 번호
+    username: ${NCP_EMAIL}    # 네이버 이메일
+    password: ${NCP_EMAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true              # 사용자 인증 여부
+          ssl:
+            enable: true
+            trust: smtp.naver.com
   data:
     mongodb:
       uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
@@ -97,3 +109,8 @@ logging:
     org.hibernate.SQL: DEBUG
     # Hibernate 쿼리 파라미터 바인딩 값 출력
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+app:
+  mail:
+    from: ${NAVER_HOST}         # 보내는 주소(네이버 계정과 동일 권장)
+    brand: ${APP_NAME}                    # 메일 제목/본문에 쓸 브랜드명
+    code-ttl-minutes: 3
