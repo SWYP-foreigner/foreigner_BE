@@ -4,6 +4,7 @@ import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
+import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.image.service.ImageService;
@@ -144,6 +145,8 @@ public class UserController {
         String storedRefreshToken = redisService.getRefreshToken(user.getId());
 
         if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+
+
             log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", user.getId());
             redisService.deleteRefreshToken(user.getId());
             return new ResponseEntity<>(ApiResponse.fail("Refresh token mismatch or blacklisted"), HttpStatus.UNAUTHORIZED);
@@ -158,7 +161,7 @@ public class UserController {
 
         log.info("--- [토큰 재발급] 완료. 사용자 ID: {} ---", user.getId());
 
-        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
+        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken,user.getId());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
@@ -212,7 +215,9 @@ public class UserController {
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
         try {
-            Long userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+            CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long userId = principal.getUserId();
             String authHeader = request.getHeader("Authorization");
             String accessToken = authHeader.substring(7);
 

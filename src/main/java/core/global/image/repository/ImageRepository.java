@@ -1,5 +1,6 @@
 package core.global.image.repository;
 
+import com.mongodb.client.MongoIterable;
 import core.global.image.entity.Image;
 import core.global.enums.ImageType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -78,5 +79,12 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     List<Image> findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
     Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
+
+
+    List<Image> findByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
+
+    // ✅ 쿼리 메소드 추가 (메서드명으로 JPA가 자동 생성)
+
+
 
 }

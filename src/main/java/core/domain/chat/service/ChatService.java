@@ -2,6 +2,7 @@ package core.domain.chat.service;
 
 
 import core.domain.chat.dto.ChatMessageResponse;
+import core.domain.chat.dto.ChatRoomSummaryResponse;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
@@ -14,14 +15,20 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.repository.ImageRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import core.global.image.entity.Image;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,7 +37,7 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
-
+    private final  SimpMessagingTemplate messagingTemplate;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
@@ -38,33 +45,70 @@ public class ChatService {
     private static final int MESSAGE_SEARCH_PAGE_SIZE = 20;
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     private final TranslationService translationService;
+    private final ImageRepository imageRepository;
     public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
+                       ChatParticipantRepository participantRepo, SimpMessagingTemplate messagingTemplate, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService) {
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
+        this.messagingTemplate = messagingTemplate;
 
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageReadStatusRepository = chatMessageReadStatusRepository;
         this.translationService = translationService;
+        this.imageRepository = imageRepository;
     }
-    public List<ChatRoom> getMyChatRooms(Long userId) {
-        List<ChatParticipant> participants = chatParticipantRepository.findByUserIdExplicit(userId);
+    public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        return participants.stream()
-                .map(ChatParticipant::getChatRoom)
-                .toList();
+        List<ChatRoom> rooms = chatRoomRepo.findChatRoomsByUserId(userId);
+
+        return rooms.stream().map(room -> {
+            String lastMessageContent = getLastMessageContent(room.getId());
+            LocalDateTime lastMessageTime = getLastMessageTime(room.getId());
+            int unreadCount = countUnreadMessages(room.getId(), userId);
+
+            String roomName;
+            String roomImageUrl;
+            int participantCount = room.getParticipants().size();
+
+            if (!room.getGroup()) {
+                User opponent = room.getParticipants().stream()
+                        .map(ChatParticipant::getUser)
+                        .filter(u -> !u.getId().equals(userId))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방 상대방을 찾을 수 없습니다."));
+
+                roomName = opponent.getLastName();
+
+                roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
+                        .map(Image::getUrl)
+                        .orElse(null);
+            } else {
+                roomName = room.getRoomName();
+
+                roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
+                        .map(Image::getUrl)
+                        .orElse(null);
+            }
+
+            return new ChatRoomSummaryResponse(
+                    room.getId(),
+                    roomName,
+                    lastMessageContent,
+                    lastMessageTime,
+                    roomImageUrl,
+                    unreadCount,
+                    participantCount
+            );
+        }).toList();
     }
-    /**
-     * 새로운 채팅방을 생성합니다.
-     * 케이스 1: 1:1 채팅방 중복 생성 방지
-     * 케이스 2: 채팅 참여자 유효성 검사 (최소 인원, 존재하지 않는 유저)
-     * 케이스 3: 그룹 채팅 생성
-     */
-    @Transactional
+
+/*
     public ChatRoom createRoom(Long creatorId, List<Long> participantIds) {
         Set<Long> allParticipantIds = new HashSet<>(participantIds);
         allParticipantIds.add(creatorId);
@@ -73,22 +117,50 @@ public class ChatService {
 
         if (allParticipantIds.size() == 2) {
             Optional<ChatRoom> existingRoomOpt = find1on1Room(allParticipantIds);
-
             if (existingRoomOpt.isPresent()) {
                 return existingRoomOpt.get();
             }
         }
 
+        // ✅ 모든 참여자 정보를 한 번에 조회하여 Map으로 변환
         List<User> participants = userRepository.findAllById(allParticipantIds);
+        Map<Long, User> participantsMap = participants.stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
 
-        ChatRoom newRoom = new ChatRoom(allParticipantIds.size() > 2, Instant.now());
+        // 새로운 채팅방 생성 및 DB 저장
+        // ChatRoom 생성자도 roomName을 받을 수 있도록 수정해야 합니다.
+        ChatRoom newRoom = new ChatRoom(allParticipantIds.size() > 2, "새로운 채팅방", Instant.now());
         chatRoomRepo.save(newRoom);
 
+        // 참여자 추가 로직
         addParticipantsToRoom(newRoom, participants);
+
+        // --- 알림 로직 시작 ---
+        // 새로운 채팅방의 기본 정보 설정
+        String lastMessageContent = "새로운 채팅방이 생성되었습니다.";
+        LocalDateTime sentAt = newRoom.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        int unreadCount = 0; // 새 방이므로 안 읽은 메시지 없음
+
+        // ✅ 모든 참여자에게 "채팅방 리스트 갱신" 이벤트 전송
+        for (Long userId : allParticipantIds) {
+            User currentUser = participantsMap.get(userId);
+
+            // ✅ 통합된 from() 팩토리 메서드를 사용하여 DTO 생성
+            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                    newRoom,
+                    currentUser,
+                    lastMessageContent,
+                    sentAt,
+                    unreadCount
+            );
+
+            // 각 사용자의 개인 큐로 Summary 정보 전송
+            messagingTemplate.convertAndSend("/topic/user/" + userId + "/rooms", summary);
+        }
 
         return newRoom;
     }
-
+*/
     private void validateParticipants(Set<Long> allParticipantIds) {
         if (allParticipantIds.isEmpty()) {
             throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_MINIMUM);
@@ -375,5 +447,25 @@ public class ChatService {
                 .collect(Collectors.toList());
 
         chatParticipantRepository.saveAll(newParticipants);
+    }
+    public int countUnreadMessages(Long roomId, Long readerId) {
+        return chatMessageRepository.countUnreadMessages(roomId, readerId);
+    }
+
+    public String getLastMessageContent(Long roomId) {
+        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
+        return (last != null) ? last.getContent() : null;
+    }
+
+    public LocalDateTime getLastMessageTime(Long roomId) {
+        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
+        if (last != null && last.getSentAt() != null) {
+            return last.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        return null;
+    }
+    public ChatRoom getChatRoomById(Long roomId) {
+        return chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 }

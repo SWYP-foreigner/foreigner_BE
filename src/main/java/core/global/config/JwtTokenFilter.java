@@ -44,6 +44,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
+            "/api/v1/member/refresh",
             "/swagger-ui.html"
     );
 
@@ -95,8 +96,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // validateToken 메서드가 ExpiredJwtException을 던지도록 수정되었으므로
-            // 이 블록은 토큰 구조, 서명 등 유효성 문제만 처리합니다.
             if (!jwtTokenProvider.validateToken(token)) {
                 log.warn("유효하지 않은 JWT 토큰입니다. URI={}", requestUri);
                 jwtAuthenticationEntryPoint.commence(
@@ -110,12 +109,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
 
-            User principal = new User(email, "", new ArrayList<>());
+
+            CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
+
             Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(auth);
-            log.debug("SecurityContext에 인증 정보 저장 완료. userId={}", userId);
+            log.debug("SecurityContext에 인증 정보 저장 완료. userId={}, email={}", userId, email);
 
             chain.doFilter(request, response);
+
 
         } catch (ExpiredJwtException e) {
             log.warn("JWT 토큰 만료: {}", e.getMessage());

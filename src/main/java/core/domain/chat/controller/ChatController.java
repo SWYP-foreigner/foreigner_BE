@@ -12,6 +12,7 @@ import core.domain.chat.service.ForbiddenWordService;
 import core.domain.chat.service.TranslationService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
 import core.global.enums.ChatParticipantStatus;
@@ -29,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
@@ -57,7 +59,7 @@ public class ChatController {
         this.translationService = translationService;
     }
 
-    @Operation(summary = "새로운 채팅방 생성", description = "1:1 또는 그룹 채팅방을 생성합니다.")
+    /*@Operation(summary = "새로운 채팅방 생성", description = "1:1 또는 그룹 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
@@ -68,12 +70,14 @@ public class ChatController {
     })
     @PostMapping("/rooms")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            Long creatorId, @RequestBody  List<Long> participantIds
+            @RequestBody  List<Long> participantIds
     ) {
-        ChatRoom room = chatService.createRoom(creatorId, participantIds);
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+        ChatRoom room = chatService.createRoom(userId, participantIds);
         ChatRoomResponse response = ChatRoomResponse.from(room);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }
+    }*/
 
     @Operation(summary = "자신의 채팅방 리스트 조회")
     @ApiResponses({
@@ -82,11 +86,11 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms(Long userId) {
-        List<ChatRoom> rooms = chatService.getMyChatRooms(userId);
-        List<ChatRoomResponse> responses = rooms.stream()
-                .map(ChatRoomResponse::from)
-                .toList();
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestParam Long userId) {
+
+
+        List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
+
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
@@ -98,7 +102,9 @@ public class ChatController {
             )
     })
     @DeleteMapping("/rooms/{roomId}/leave")
-    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId, @RequestParam Long userId) {
+    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
         chatService.leaveRoom(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
@@ -129,9 +135,10 @@ public class ChatController {
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId,
-            @RequestParam Long userId,
             @RequestParam(required = false, defaultValue = "false") boolean translate
     ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
         List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId, translate);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
@@ -168,7 +175,9 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     })
     @PostMapping("/users/block/{targetUserId}")
-    public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable Long targetUserId, @RequestParam Long userId) {
+    public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable Long targetUserId) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -232,12 +241,12 @@ public class ChatController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
             @RequestParam Long roomId,
-            @RequestParam Long userId,
             @RequestParam String search,
             @RequestParam(required = false, defaultValue = "false") boolean translate
     ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
         List<ChatMessage> messages = chatService.searchMessages(roomId, userId, search);
-
         if (translate) {
             User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
             String targetLanguage = user.getLanguage();
