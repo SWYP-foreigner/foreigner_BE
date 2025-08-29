@@ -190,10 +190,15 @@ public class ChatService {
      */
     @Transactional
     public void deleteRoomIfEmpty(Long roomId) {
+        // 1. 채팅방 조회
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        long remainingParticipants = participantRepo.countByChatRoomId(roomId);
-        if (remainingParticipants == 0) {
+
+        // 2. ACTIVE 상태의 참가자만 카운트
+        long remainingActiveParticipants = participantRepo.countByChatRoomIdAndStatus(roomId, ChatParticipantStatus.ACTIVE);
+
+        // 3. 남은 ACTIVE 참가자가 0명일 경우에만 방 삭제
+        if (remainingActiveParticipants == 0) {
             chatRoomRepo.delete(room);
         }
     }

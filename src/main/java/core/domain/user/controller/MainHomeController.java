@@ -29,19 +29,4 @@ public class MainHomeController {
         return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 전송되었습니다."));
     }
 
-
-    @Operation(summary = "채팅 메시지 보내기", description = "마음에 드는 친구에게 채팅 메시지를 전송합니다.")
-    @PostMapping("/chat/{userId}")
-    public ResponseEntity<ApiResponse<String>> sendChatMessage(
-            @PathVariable Long userId,
-            @RequestParam String message
-    ) {
-        // TODO: 서비스 호출
-        boolean success = true; // 예시
-
-        if (!success) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-        return ResponseEntity.ok(ApiResponse.success("채팅 메시지가 전송되었습니다."));
-    }
 }

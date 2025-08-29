@@ -108,18 +108,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "채팅방 삭제")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
-    })
-    @DeleteMapping("/rooms/{roomId}")
-    public ResponseEntity<ApiResponse<Void>> deleteChatRoom(@PathVariable Long roomId) {
-        chatService.forceDeleteRoom(roomId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 
     @Operation(summary = "채팅방 메시지 조회 (무한 스크롤)")
     @ApiResponses({
