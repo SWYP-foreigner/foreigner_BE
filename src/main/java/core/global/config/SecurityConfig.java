@@ -1,5 +1,8 @@
 package core.global.config;
 
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -52,9 +55,6 @@ public class SecurityConfig {
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
                                 "/error/**",
-                                "/auth/test-login",
-                                "/auth/me",
-                                "/api/v1/member/signup",
                                 "/api/v1/member/doLogin",
                                 "/api/v1/member/verify-code",
                                 "/api/v1/member/signup",
