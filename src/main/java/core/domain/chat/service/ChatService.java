@@ -29,6 +29,7 @@ import core.global.image.entity.Image;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -69,7 +70,7 @@ public class ChatService {
             String lastMessageContent = getLastMessageContent(room.getId());
             LocalDateTime lastMessageTime = getLastMessageTime(room.getId());
             int unreadCount = countUnreadMessages(room.getId(), userId);
-
+            String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(DateTimeFormatter.ofPattern("HH:mm")) : null;
             String roomName;
             String roomImageUrl;
             int participantCount = room.getParticipants().size();
@@ -98,7 +99,7 @@ public class ChatService {
                     room.getId(),
                     roomName,
                     lastMessageContent,
-                    lastMessageTime,
+                    lastMessageTimeStr,
                     roomImageUrl,
                     unreadCount,
                     participantCount
