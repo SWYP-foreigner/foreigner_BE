@@ -320,7 +320,7 @@ public class PostServiceImpl implements PostService {
     public void removeLike(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        likeRepository.deleteByUserNameAndIdAndType(email, postId, LikeType.POST);
+        likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
 
     @Override

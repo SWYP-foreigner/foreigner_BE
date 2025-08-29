@@ -29,6 +29,7 @@ import core.global.image.entity.Image;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,7 +38,6 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
-    private final  SimpMessagingTemplate messagingTemplate;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
@@ -47,12 +47,11 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo, SimpMessagingTemplate messagingTemplate, ChatMessageRepository chatMessageRepository,
+                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
                        ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
-        this.messagingTemplate = messagingTemplate;
 
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
@@ -71,7 +70,7 @@ public class ChatService {
             String lastMessageContent = getLastMessageContent(room.getId());
             LocalDateTime lastMessageTime = getLastMessageTime(room.getId());
             int unreadCount = countUnreadMessages(room.getId(), userId);
-
+            String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(DateTimeFormatter.ofPattern("HH:mm")) : null;
             String roomName;
             String roomImageUrl;
             int participantCount = room.getParticipants().size();
@@ -100,7 +99,7 @@ public class ChatService {
                     room.getId(),
                     roomName,
                     lastMessageContent,
-                    lastMessageTime,
+                    lastMessageTimeStr,
                     roomImageUrl,
                     unreadCount,
                     participantCount

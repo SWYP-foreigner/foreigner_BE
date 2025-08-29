@@ -7,22 +7,20 @@ import core.global.image.repository.ImageRepository;
 
 import java.time.LocalDateTime;
 import core.global.image.entity.Image;
+import java.time.format.DateTimeFormatter;
+
+// ChatRoomSummaryResponse 수정
 public record ChatRoomSummaryResponse(
-        // 1. 채팅방 아이디
         Long roomId,
-        // 2. 채팅방 이름 (1:1: 상대방 이름, 그룹: 방 이름)
         String roomName,
-        // 3. 마지막 채팅 내용
         String lastMessageContent,
-        // 4. 마지막 채팅 시간
-        LocalDateTime lastMessageTime,
-        // 5. 채팅방 사진 (1:1: 상대방 프로필 사진, 그룹: 방 사진)
+        String lastMessageTime, // ✅ LocalDateTime → String
         String roomImageUrl,
-        // 6. 안 읽은 메시지
         int unreadCount,
-        // 7. 채팅방 인원수
         int participantCount
 ) {
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     public static ChatRoomSummaryResponse from(
             ChatRoom room,
@@ -35,11 +33,10 @@ public record ChatRoomSummaryResponse(
         String roomName;
         String roomImageUrl;
 
-
         if (!room.getGroup()) {
             User opponent = room.getParticipants().stream()
                     .map(p -> p.getUser())
-                    .filter(u -> !u.getId().equals(userId)) // ✅ userId 사용
+                    .filter(u -> !u.getId().equals(userId))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방에 상대방이 없습니다."));
 
@@ -47,18 +44,21 @@ public record ChatRoomSummaryResponse(
             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                     .map(Image::getUrl)
                     .orElse(null);
-        }  else {
+        } else {
             roomName = room.getRoomName();
             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
                     .map(Image::getUrl)
                     .orElse(null);
         }
 
+        // LocalDateTime → HH:mm 포맷
+        String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(TIME_FORMATTER) : null;
+
         return new ChatRoomSummaryResponse(
                 room.getId(),
                 roomName,
                 lastMessageContent,
-                lastMessageTime,
+                lastMessageTimeStr,
                 roomImageUrl,
                 unreadCount,
                 room.getParticipants().size()
