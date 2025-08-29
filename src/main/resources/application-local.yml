@@ -86,11 +86,7 @@ ncp:
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET}
-  sms:
-    access-key: ${NCP_ACCESS_KEY}
-    secret-key: ${NCP_SECRET_KEY}
-    service-id: ${NCP_SERVICE_ID}
-    send-from: ${NCP_PHONE_NUM}
+
 
 swagger:
   server-url: http://localhost:8080
