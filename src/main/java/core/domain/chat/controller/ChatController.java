@@ -86,11 +86,10 @@ public class ChatController {
             )
     })
     @PostMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestBody Long userId) {
-
-
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms() {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
-
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
