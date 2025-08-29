@@ -33,10 +33,9 @@ spring:
           refreshToken: "refreshToken:"
           blacklist: "blacklist:"
           accessToken: "access_token"
-
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -87,6 +86,11 @@ ncp:
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET}
+  sms:
+    access-key: ${NCP_ACCESS_KEY}
+    secret-key: ${NCP_SECRET_KEY}
+    service-id: ${NCP_SERVICE_ID}
+    send-from: ${NCP_PHONE_NUM}
 
 swagger:
   server-url: http://localhost:8080
@@ -103,3 +107,10 @@ google:
       id: ${GCP_PROJECT_ID}
     translate:
       api-key: ${GCP_TRANSLATE_API_KEY}
+
+app:
+  mail:
+    from: ${NAVER_HOST}         # 보내는 주소(네이버 계정과 동일 권장)
+    brand: ${APP_NAME}                    # 메일 제목/본문에 쓸 브랜드명
+    code-ttl-minutes: 3
+
