@@ -85,7 +85,7 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
             )
     })
-    @GetMapping("/rooms")
+    @GetMapping("/rooms/one_to_one")
     public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getChatRooms() {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();

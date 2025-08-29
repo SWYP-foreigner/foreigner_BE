@@ -161,7 +161,7 @@ public class UserController {
 
         log.info("--- [토큰 재발급] 완료. 사용자 ID: {} ---", user.getId());
 
-        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
+        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken,user.getId());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 

@@ -2,6 +2,7 @@ package core.domain.chat.service;
 
 
 import core.domain.chat.dto.ChatMessageResponse;
+import core.domain.chat.dto.ChatRoomSummaryResponse;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
@@ -15,13 +16,17 @@ import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,7 +35,7 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
-
+    private final  SimpMessagingTemplate messagingTemplate;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
@@ -39,11 +44,12 @@ public class ChatService {
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     private final TranslationService translationService;
     public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
+                       ChatParticipantRepository participantRepo, SimpMessagingTemplate messagingTemplate, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
                        ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
+        this.messagingTemplate = messagingTemplate;
 
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
@@ -58,12 +64,8 @@ public class ChatService {
                 .map(ChatParticipant::getChatRoom)
                 .toList();
     }
-    /**
-     * 새로운 채팅방을 생성합니다.
-     * 케이스 1: 1:1 채팅방 중복 생성 방지
-     * 케이스 2: 채팅 참여자 유효성 검사 (최소 인원, 존재하지 않는 유저)
-     * 케이스 3: 그룹 채팅 생성
-     */
+    // @Service 클래스에 주입
+
     @Transactional
     public ChatRoom createRoom(Long creatorId, List<Long> participantIds) {
         Set<Long> allParticipantIds = new HashSet<>(participantIds);
@@ -71,6 +73,7 @@ public class ChatService {
 
         validateParticipants(allParticipantIds);
 
+        // 케이스 1: 1:1 채팅방 중복 생성 방지
         if (allParticipantIds.size() == 2) {
             Optional<ChatRoom> existingRoomOpt = find1on1Room(allParticipantIds);
 
@@ -81,10 +84,26 @@ public class ChatService {
 
         List<User> participants = userRepository.findAllById(allParticipantIds);
 
+        // 새로운 채팅방 생성 및 DB 저장
         ChatRoom newRoom = new ChatRoom(allParticipantIds.size() > 2, Instant.now());
         chatRoomRepo.save(newRoom);
+        LocalDateTime sentAt = newRoom.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
 
         addParticipantsToRoom(newRoom, participants);
+
+        // --- 추가된 알림 로직 시작 ---
+        // 모든 참여자에게 새로운 채팅방이 생성되었음을 알림
+        ChatRoomSummaryResponse summary = new ChatRoomSummaryResponse(
+                newRoom.getId(),
+                "새로운 채팅방이 생성되었습니다.", // or null for no last message
+                sentAt,
+                0
+        );
+
+        for (Long userId : allParticipantIds) {
+            // 각 사용자의 개인 큐로 Summary 정보 전송
+            messagingTemplate.convertAndSend("/topic/user/" + userId + "/rooms", summary);
+        }
 
         return newRoom;
     }
@@ -375,5 +394,23 @@ public class ChatService {
                 .collect(Collectors.toList());
 
         chatParticipantRepository.saveAll(newParticipants);
+    }
+    // ✅ 안 읽은 메시지 개수
+    public int countUnreadMessages(Long roomId, Long userId) {
+        return chatMessageRepository.countByChatRoomIdAndReceiverIdAndIsReadFalse(roomId, userId);
+    }
+
+    // ✅ 마지막 메시지 내용
+    public String getLastMessageContent(Long roomId) {
+        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
+        return (last != null) ? last.getContent() : null;
+    }
+
+    public LocalDateTime getLastMessageTime(Long roomId) {
+        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
+        if (last != null && last.getSentAt() != null) {
+            return last.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
+        return null;
     }
 }
