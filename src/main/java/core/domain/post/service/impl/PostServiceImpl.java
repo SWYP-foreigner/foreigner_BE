@@ -21,10 +21,12 @@ import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
+import core.global.search.PostCreatedEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +51,7 @@ public class PostServiceImpl implements PostService {
     private final ForbiddenWordService forbiddenWordService;
     private final ImageService imageService;
     private final BlockRepository blockRepository;
+    private final ApplicationEventPublisher publisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -232,8 +235,10 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
-        postRepository.save(post);
-        return post;
+        Post saved = postRepository.save(post);
+
+        publisher.publishEvent(new PostCreatedEvent(saved));
+        return saved;
     }
 
     private Post getPost(String email, PostWriteForChatRequest request, Board board) {
@@ -241,8 +246,10 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
-        postRepository.save(post);
-        return post;
+        Post saved = postRepository.save(post);
+
+        publisher.publishEvent(new PostCreatedEvent(saved));
+        return saved;
     }
 
     @Override
