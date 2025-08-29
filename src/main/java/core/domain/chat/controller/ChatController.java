@@ -86,7 +86,7 @@ public class ChatController {
             )
     })
     @PostMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestParam Long userId) {
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms(@RequestBody Long userId) {
 
 
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
