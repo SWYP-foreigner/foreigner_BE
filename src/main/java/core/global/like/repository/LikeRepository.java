@@ -28,5 +28,5 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    void deleteByUserNameAndIdAndType(String name, Long id, LikeType likeType);
+    void deleteByUserEmailAndIdAndType(String email, Long id, LikeType likeType);
 }
