@@ -13,16 +13,8 @@ import java.util.Optional;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    /**
-     * 특정 사용자 ID 목록에 포함된 1:1 채팅방을 찾습니다.
-     * 이 쿼리는 정확히 두 명의 사용자가 참여한 1:1 채팅방을 반환합니다.
-     */
-    @Query("SELECT cr FROM ChatRoom cr " +
-            "JOIN cr.participants p " +
-            "WHERE cr.group = false AND p.user.id IN :userIds " + // 여기서 'group'으로 수정
-            "GROUP BY cr.id " +
-            "HAVING COUNT(p.user.id) = 2")
-    Optional<ChatRoom> findOneOnOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.group = true AND cr.roomName LIKE %:keyword%")
+    List<ChatRoom> findGroupChatRoomsByKeyword(@Param("keyword") String keyword);
 
 
     /**
@@ -35,4 +27,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
 
     Optional<ChatRoom> findByParticipantIds(Long currentUserId, Long otherUserId);
+
+    @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
+    Optional<ChatRoom> findByIdWithParticipants(@Param("roomId") Long roomId);
 }

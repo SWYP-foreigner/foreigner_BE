@@ -3,6 +3,8 @@ package core.domain.chat.service;
 
 import core.domain.chat.dto.ChatMessageResponse;
 import core.domain.chat.dto.ChatRoomSummaryResponse;
+import core.domain.chat.dto.GroupChatDetailResponse;
+import core.domain.chat.dto.GroupChatSearchResponse;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
@@ -47,10 +49,12 @@ public class ChatService {
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
+    private final ChatRoomRepository chatRoomRepository;
+
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository) {
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -60,6 +64,7 @@ public class ChatService {
         this.chatMessageReadStatusRepository = chatMessageReadStatusRepository;
         this.translationService = translationService;
         this.imageRepository = imageRepository;
+        this.chatRoomRepository = chatRoomRepository;
     }
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
@@ -384,32 +389,6 @@ public class ChatService {
     }
 
 
-
-    @Transactional
-    public void addParticipants(Long roomId, List<Long> userIds) {
-        ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-
-        List<User> usersToAdd = userRepository.findAllById(userIds);
-
-        if (usersToAdd.size() != userIds.size()) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-        List<ChatParticipant> existingParticipants = chatParticipantRepository.findByChatRoomIdAndUserIdIn(roomId, userIds);
-        Set<Long> existingUserIds = existingParticipants.stream()
-                .map(p -> p.getUser().getId())
-                .collect(Collectors.toSet());
-
-        List<User> newUsers = usersToAdd.stream()
-                .filter(user -> !existingUserIds.contains(user.getId()))
-                .toList();
-
-        List<ChatParticipant> newParticipants = newUsers.stream()
-                .map(user -> new ChatParticipant(room, user))
-                .collect(Collectors.toList());
-
-        chatParticipantRepository.saveAll(newParticipants);
-    }
     public int countUnreadMessages(Long roomId, Long readerId) {
         return chatMessageRepository.countUnreadMessages(roomId, readerId);
     }
@@ -429,5 +408,86 @@ public class ChatService {
     public ChatRoom getChatRoomById(Long roomId) {
         return chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+    }
+
+    public GroupChatDetailResponse getGroupChatDetails(Long roomId) {
+        ChatRoom chatRoom = chatRoomRepo.findByIdWithParticipants(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        if (!chatRoom.getGroup()) {
+            throw new BusinessException(ErrorCode.CHAT_NOT_GROUP);
+        }
+
+        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.CHAT_ROOM, chatRoom.getId()
+        ).map(Image::getUrl).orElse(null);
+
+        List<String> participants_image_url = chatRoom.getParticipants().stream()
+                .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                        ImageType.USER, participant.getUser().getId()
+                ).map(Image::getUrl).orElse(null))
+                .collect(Collectors.toList());
+
+        int participantCount = chatRoom.getParticipants().size();
+
+        return GroupChatDetailResponse.from(
+                chatRoom,
+                roomImageUrl,
+                participantCount,
+                participants_image_url
+        );
+    }
+
+    /**
+     * 현재 사용자를 지정된 그룹 채팅방에 추가합니다.
+     *
+     * @param roomId 그룹 채팅방 ID
+     * @param userId 참여를 요청하는 사용자의 ID
+     */
+    public void joinGroupChat(Long roomId, Long userId) {
+        ChatRoom room = chatRoomRepo.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        if (!room.getGroup()) {
+            throw new BusinessException(ErrorCode.CHAT_NOT_GROUP);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        /* autor:김승환  사용자가 이미 참여자인지 확인
+        ChatParticipantStatus.LEFT 상태인 경우 다시 참여할 수 있도록 처리*/
+        chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .ifPresentOrElse(participant -> {
+                    if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
+                        throw new BusinessException(ErrorCode.ALREADY_CHAT_PARTICIPANT);
+                    } else {
+                        participant.reJoin();
+                    }
+                }, () -> {
+                    ChatParticipant newParticipant = new ChatParticipant(room, user);
+                    chatParticipantRepository.save(newParticipant);
+                });
+    }
+
+    /**
+     * 그룹 채팅방을 이름 키워드로 검색합니다.
+     * @param keyword 검색 키워드
+     * @return 검색 결과 DTO 목록
+     */
+    public List<GroupChatSearchResponse> searchGroupChatRooms(String keyword) {
+        List<ChatRoom> chatRooms = chatRoomRepository.findGroupChatRoomsByKeyword(keyword);
+
+        return chatRooms.stream()
+                .map(chatRoom -> {
+                    String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                            ImageType.CHAT_ROOM, chatRoom.getId()
+                    ).map(Image::getUrl).orElse(null);
+
+                    int participantCount = chatRoom.getParticipants().size();
+
+                    return GroupChatSearchResponse.from(chatRoom, roomImageUrl, participantCount);
+                })
+                .collect(Collectors.toList());
     }
 }
