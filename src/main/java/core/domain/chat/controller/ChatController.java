@@ -59,7 +59,7 @@ public class ChatController {
         this.translationService = translationService;
     }
 
-    /*@Operation(summary = "새로운 채팅방 생성", description = "1:1 또는 그룹 채팅방을 생성합니다.")
+    @Operation(summary = "새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
@@ -68,16 +68,16 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = Object.class))
             )
     })
-    @PostMapping("/rooms")
+    @PostMapping("/rooms/oneTone")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            @RequestBody  List<Long> participantIds
+            @RequestBody  Long otherUserId
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        ChatRoom room = chatService.createRoom(userId, participantIds);
+        ChatRoom room = chatService.createRoom(userId, otherUserId);
         ChatRoomResponse response = ChatRoomResponse.from(room);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }*/
+    }
 
     @Operation(summary = "자신의 채팅방 리스트 조회")
     @ApiResponses({
@@ -86,7 +86,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getOneToOneChatRooms() {
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>>ChatRooms() {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
@@ -108,18 +108,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "채팅방 삭제")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
-    })
-    @DeleteMapping("/rooms/{roomId}")
-    public ResponseEntity<ApiResponse<Void>> deleteChatRoom(@PathVariable Long roomId) {
-        chatService.forceDeleteRoom(roomId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 
     @Operation(summary = "채팅방 메시지 조회 (무한 스크롤)")
     @ApiResponses({
@@ -212,16 +200,17 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "그룹 채팅 참여자 추가 및 초대")
+    @Operation(summary = "그룹 채팅 재참여")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "이미 참여 중인 채팅방이거나, 그룹 채팅방이 아닐 경우"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
-    @PostMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<Void>> addParticipants(@PathVariable Long roomId, @RequestBody List<Long> userIds) {
-        chatService.addParticipants(roomId, userIds);
+    @PostMapping("/rooms/group/{roomId}/join")
+    public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId) {
+        Long currentUserId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        chatService.joinGroupChat(roomId, currentUserId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -276,5 +265,17 @@ public class ChatController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-
+    @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
+    @GetMapping("/rooms/group/{roomId}")
+    public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(
+            @PathVariable Long roomId) {
+        GroupChatDetailResponse response = chatService.getGroupChatDetails(roomId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @Operation(summary = "그룹 채팅방 검색", description = "채팅방 이름 키워드를 통해 그룹 채팅방을 검색합니다.")
+    @GetMapping("/rooms/group/search")
+    public ResponseEntity<ApiResponse<List<GroupChatSearchResponse>>> searchGroupChats(@RequestParam String keyword) {
+        List<GroupChatSearchResponse> response = chatService.searchGroupChatRooms(keyword);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
