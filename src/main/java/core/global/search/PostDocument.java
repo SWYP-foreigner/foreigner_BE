@@ -13,8 +13,8 @@ public record PostDocument(
         Long boardId,
         Long userId,
         Boolean anonymous,
-        Instant createdAt,
-        Instant updatedAt,
+        Long createdAt,
+        Long updatedAt,
         Long checkCount,
         String content
 ) {
@@ -24,8 +24,8 @@ public record PostDocument(
                 p.getBoard() != null ? p.getBoard().getId() : null,
                 p.getAuthor() != null ? p.getAuthor().getId() : null,
                 Boolean.TRUE.equals(p.getAnonymous()),
-                p.getCreatedAt(),
-                p.getUpdatedAt(),
+                p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli(),
+                p.getUpdatedAt() == null ? null : p.getUpdatedAt().toEpochMilli(),
                 p.getCheckCount(),
                 p.getContent()
         );

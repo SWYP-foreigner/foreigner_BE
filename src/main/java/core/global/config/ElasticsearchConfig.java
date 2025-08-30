@@ -3,6 +3,7 @@ package core.global.config;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,8 +19,10 @@ public class ElasticsearchConfig {
     }
 
     @Bean
-    public ElasticsearchClient elasticsearchClient(RestClient restClient) {
-        var transport = new RestClientTransport(restClient, new JacksonJsonpMapper());
+    public ElasticsearchClient elasticsearchClient(RestClient restClient,
+                                                   ObjectMapper springObjectMapper) {
+        var mapper = new JacksonJsonpMapper(springObjectMapper);
+        var transport = new RestClientTransport(restClient, mapper);
         return new ElasticsearchClient(transport);
     }
 }
