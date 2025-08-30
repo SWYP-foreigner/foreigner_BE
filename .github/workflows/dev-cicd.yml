@@ -110,6 +110,9 @@ jobs:
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
 
+            # --- Elasticsearch ---
+            ELASTICSEARCH_HOST=${{secrets.ELASTICSEARCH_HOST}}
+            
             SERVER_URL=${{secrets.SERVER_URL}}
             
             GCP_PROJECT_ID=${{secrets.GCP_PROJECT_ID}}

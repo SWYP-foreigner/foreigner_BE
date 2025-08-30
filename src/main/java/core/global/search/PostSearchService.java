@@ -2,8 +2,12 @@ package core.global.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.FieldValueFactorModifier;
+import co.elastic.clients.elasticsearch._types.query_dsl.FunctionBoostMode;
+import co.elastic.clients.elasticsearch._types.query_dsl.FunctionScoreMode;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.json.JsonData;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -11,11 +15,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static co.elastic.clients.elasticsearch._types.SortOrder.*;
-
 @Service
 @RequiredArgsConstructor
 public class PostSearchService {
+
+    private static final float PHRASE_BOOST = 3.0f;
+    private static final String RECENCY_SCALE = "14d";
+    private static final double POP_WEIGHT = 0.4;
+    private static final double RECENCY_WEIGHT = 0.6;
+    private static final int MAX_SIZE = 50;
 
     private final ElasticsearchClient es;
 
@@ -24,36 +32,61 @@ public class PostSearchService {
             SearchResponse<PostDocument> resp = es.search(s -> s
                             .index(SearchConstants.INDEX_POSTS)
                             .from(from)
-                            .size(size)
-                            .query(q -> q.bool(b -> {
-                                // boardId 필터
-                                if (boardId != null) {
-                                    b.filter(f -> f.term(t -> t.field("boardId").value(boardId)));
-                                }
-                                // === 품질 업그레이드 핵심 ===
-                                // 1) 정확 구문 우선 (가중치 ↑)
-                                b.should(sh -> sh.matchPhrase(mp -> mp
-                                        .field("content")
-                                        .query(query)
-                                        .slop(1)          // 단어 간 1칸 이동 허용
-                                        .boost(3.0f)      // 점수 가중치 ↑
-                                ));
-                                // 2) 모든 단어가 포함된 일반 매치 (AND)
-                                b.should(sh -> sh.match(m -> m
-                                        .field("content")
-                                        .query(query)
-                                        .operator(Operator.And)
-                                ));
-                                // 3) 오타 허용 매치 (fuzziness)
-                                b.should(sh -> sh.match(m -> m
-                                        .field("content")
-                                        .query(query)
-                                        .fuzziness("AUTO")
-                                ));
-                                // should 중 하나만 맞아도 됨
-                                b.minimumShouldMatch("1");
-                                return b;
-                            }))
+                            .size(Math.min(size, MAX_SIZE))
+                            .query(q -> q.functionScore(fs -> fs
+                                    .query(base -> base.bool(b -> {
+                                        if (boardId != null) {
+                                            b.filter(f -> f.term(t -> t.field("boardId").value(boardId)));
+                                        }
+                                        // === 품질 업그레이드 핵심 ===
+                                        // 1) 정확 구문 우선 (가중치 ↑)
+                                        b.should(sh -> sh.matchPhrase(mp -> mp
+                                                .field("content")
+                                                .query(query)
+                                                .slop(1)          // 단어 간 1칸 이동 허용
+                                                .boost(PHRASE_BOOST)      // 점수 가중치 ↑
+                                        ));
+                                        // 2) 모든 단어가 포함된 일반 매치 (AND)
+                                        b.should(sh -> sh.match(m -> m
+                                                .field("content")
+                                                .query(query)
+                                                .operator(Operator.And)
+                                        ));
+                                        // 3) 오타 허용 매치 (fuzziness)
+                                        b.should(sh -> sh.match(m -> m
+                                                .field("content")
+                                                .query(query)
+                                                .fuzziness("AUTO")
+                                        ));
+                                        // should 중 하나만 맞아도 됨
+                                        b.minimumShouldMatch("1");
+                                        return b;
+                                    }))
+                                    // 인기도: checkCount (log1p로 완화)
+                                    .functions(fn -> fn
+                                            .fieldValueFactor(fvf -> fvf
+                                                    .field("checkCount")
+                                                    .factor(1.0)
+                                                    .modifier(FieldValueFactorModifier.Log1p)
+                                                    .missing(0.0)
+                                            )
+                                            .weight(POP_WEIGHT)
+                                    )
+                                    // 최신성: createdAt 가우시안 감쇄 (origin=now)
+                                    .functions(fn -> fn
+                                            .gauss(g -> g
+                                                    .field("createdAt")
+                                                    .placement(p -> p
+                                                            .origin(JsonData.of("now"))
+                                                            .scale(JsonData.of(RECENCY_SCALE))  // 14일 스케일
+                                                            .decay(0.5)
+                                                    )
+                                            )
+                                            .weight(RECENCY_WEIGHT)
+                                    )
+                                    .scoreMode(FunctionScoreMode.Multiply)
+                                    .boostMode(FunctionBoostMode.Multiply)
+                            ))
                             // 정렬: 1순위 점수, 2순위 최신
                             .sort(ss -> ss.score(o -> o.order(SortOrder.Desc)))
                             .sort(ss -> ss.field(f -> f.field("createdAt").order(SortOrder.Desc)))

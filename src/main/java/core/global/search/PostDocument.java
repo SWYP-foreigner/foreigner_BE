@@ -16,7 +16,8 @@ public record PostDocument(
         Long createdAt,
         Long updatedAt,
         Long checkCount,
-        String content
+        String content,
+        String contentSuggest
 ) {
     public PostDocument(Post p) {
         this(
@@ -27,6 +28,7 @@ public record PostDocument(
                 p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli(),
                 p.getUpdatedAt() == null ? null : p.getUpdatedAt().toEpochMilli(),
                 p.getCheckCount(),
+                p.getContent(),
                 p.getContent()
         );
     }
