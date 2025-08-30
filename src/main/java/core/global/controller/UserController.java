@@ -229,7 +229,7 @@ public class UserController {
     @GetMapping("/password/start-reset")
     @Operation(summary = "메일 버튼 클릭 시: 세션ID 검증 → 토큰 생성 → JSON 반환")
     public ResponseEntity<ApiResponse<ResetTokenResponse>> startReset(@RequestParam("sid") String sessionId) {
-        ResetToken token = passwordService.issueTokenFromSession(sessionId); 
+        ResetToken token = passwordService.issueTokenFromSession(sessionId);
         return ResponseEntity.ok()
                 .headers(h -> { h.add("Cache-Control","no-store"); h.add("Pragma","no-cache"); })
                 .body(ApiResponse.success(new ResetTokenResponse(token.value(), token.expiresInSeconds())));
