@@ -5,8 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.validator.spi.messageinterpolation.LocaleResolver;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -58,7 +61,8 @@ public class SecurityConfig {
                                 "/api/v1/member/doLogin",
                                 "/api/v1/member/verify-code",
                                 "/api/v1/member/signup",
-                                "/api/v1/member/send-verification-email"
+                                "/api/v1/member/send-verification-email",
+                                "/api/v1/member/password/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 ) .exceptionHandling(exceptionHandling -> exceptionHandling
@@ -87,6 +91,5 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
 
 }

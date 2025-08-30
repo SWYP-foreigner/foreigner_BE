@@ -4,18 +4,31 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+  thymeleaf:
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+    check-template-location: true
   mail:
-    host: ${NCP_MAIL_HOST}         # 네이버 SMTP 서버 주소
-    port: 465                    # 네이버 SMTP 포트 번호
+    host: ${NCP_MAIL_HOST}        # 네이버 SMTP 서버 주소
+    port: 587                    # 네이버 SMTP 포트 번호
     username: ${NCP_EMAIL}    # 네이버 이메일
     password: ${NCP_EMAIL_PASSWORD}
+    default-encoding: UTF-8
     properties:
-      mail:
-        smtp:
-          auth: true              # 사용자 인증 여부
-          ssl:
-            enable: true
-            trust: smtp.naver.com
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true     # ★ 587 필수
+      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: false
+      mail.smtp.ssl.trust: smtp.naver.com
+      mail.smtp.ssl.protocols: TLSv1.2
+      mail.debug: true
+
   data:
     mongodb:
       uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
@@ -99,18 +112,17 @@ google:
     translate:
       api-key: ${GCP_TRANSLATE_API_KEY}
 
-logging:
-  level:
-    root: INFO
-    core.global.config.JwtTokenFilter: DEBUG
-    org.springframework.security: DEBUG
 
-    # Hibernate SQL 쿼리 출력
-    org.hibernate.SQL: DEBUG
-    # Hibernate 쿼리 파라미터 바인딩 값 출력
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 app:
   mail:
-    from: ${NAVER_HOST}         # 보내는 주소(네이버 계정과 동일 권장)
-    brand: ${APP_NAME}                    # 메일 제목/본문에 쓸 브랜드명
+    from: ${NAVER_HOST}
+    brand: ${APP_NAME}
     code-ttl-minutes: 3
+
+  password:
+    reset:
+      ttl-minutes: 15
+      session-ttl-minutes: 5
+
+  api:
+    base-url: ${BASE_URL)

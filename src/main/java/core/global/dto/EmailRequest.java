@@ -18,4 +18,5 @@ import lombok.Setter;
 @AllArgsConstructor
 public class EmailRequest {
     private String email;
+    private String lang; // "ko", "en" 같은 ISO 코드
 }

@@ -2,19 +2,31 @@ spring:
   config:
     activate:
       on-profile: local
-  mail:
-    host: ${NCP_MAIL_HOST}         # 네이버 SMTP 서버 주소
-    port: 465                    # 네이버 SMTP 포트 번호
-    username: ${NCP_EMAIL}    # 네이버 이메일
-    password: ${NCP_EMAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true              # 사용자 인증 여부
-          ssl:
-            enable: true
-            trust: smtp.naver.com
 
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false   # ★ 이 줄 추가
+  thymeleaf:
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+    check-template-location: true
+
+  mail:
+    host:  ${NCP_MAIL_HOST}        # 네이버 SMTP 서버 주소
+    port: 587                    # 네이버 SMTP 포트 번호
+    username:  ${NCP_EMAIL}    # 네이버 이메일
+    password: ${NCP_EMAIL_PASSWORD}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true     # ★ 587 필수
+      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: false
+      mail.smtp.ssl.trust: smtp.naver.com
+      mail.smtp.ssl.protocols: TLSv1.2
+      mail.debug: true
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
     username:  ${DB_USER}
@@ -35,7 +47,7 @@ spring:
           accessToken: "access_token"
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -88,6 +100,7 @@ ncp:
     bucket: ${NCP_BUCKET}
 
 
+
 swagger:
   server-url: http://localhost:8080
 
@@ -106,7 +119,14 @@ google:
 
 app:
   mail:
-    from: ${NAVER_HOST}         # 보내는 주소(네이버 계정과 동일 권장)
-    brand: ${APP_NAME}                    # 메일 제목/본문에 쓸 브랜드명
+    from: ${NAVER_HOST}
+    brand: ${APP_NAME}
     code-ttl-minutes: 3
 
+  password:
+    reset:
+      ttl-minutes: 15
+      session-ttl-minutes: 5
+
+  api:
+    base-url: ${BASE_URL)

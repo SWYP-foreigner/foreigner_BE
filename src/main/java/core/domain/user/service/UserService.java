@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -90,7 +91,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("email")
+                ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
         if (email == null || email.isBlank()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -174,7 +175,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("email")
+                ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
         if (email == null || email.isBlank()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -208,7 +209,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("email")
+                ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
         if (email == null || email.isBlank()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -318,14 +319,21 @@ public class UserService {
     /**
      *이메일 보내주는 로직
      */
-    public void sendEmailVerificationCode(String rawEmail) {
+    public void sendEmailVerificationCode(String rawEmail, Locale locale) {
         String email = normalizeEmail(rawEmail);
 
         if (userRepository.existsByEmail(email)) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        String verificationCode = smtpService.sendVerificationEmail(email);
+        Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
+
+        log.info("이메일 보내주는 로직"+String.valueOf(locale));
+        String verificationCode = smtpService.sendVerificationEmail(
+                email,
+                ttl,
+                locale   // 여기서 앱이 보낸 언어 사용
+        );
 
         redisTemplate.opsForValue().set(
                 EMAIL_VERIFY_CODE_KEY + email,
@@ -334,6 +342,7 @@ public class UserService {
                 TimeUnit.MINUTES
         );
     }
+
 
     /**
      * 이메일 인증 코드를 검증합니다.
@@ -387,7 +396,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("email")
+                ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
         if (email == null || email.isBlank()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -545,7 +554,7 @@ public class UserService {
         }
 
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
-            String email = jwtAuth.getToken().getClaim("email");
+            String email = jwtAuth.getToken().getClaim("templates/email");
             if (email == null || email.isBlank()) {
                 email = jwtAuth.getToken().getSubject(); // sub fallback
             }
