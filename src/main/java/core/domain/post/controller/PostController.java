@@ -177,7 +177,6 @@ public class PostController {
     })
     @GetMapping("/my/posts")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserPostItem>>> getMyPostList(
-            @Parameter(hidden = true) Authentication authentication,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
                     example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")

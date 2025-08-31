@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
 import java.util.Date;
@@ -16,15 +17,37 @@ public class JwtTokenProvider {
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
 
+    private final String keyHash;
+
+    private static String shortHash(byte[] key) {
+        int h = 1;
+        for (byte b : key) h = 31 * h + b;
+        return Integer.toHexString(h).substring(0, 8);
+    }
+
+
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secretKeyBase64,
             @Value("${jwt.access-expiration}") long accessTokenExpiration,
             @Value("${jwt.refresh-expiration}") long refreshTokenExpiration
     ) {
-        this.SECRET_KEY = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKeyBase64.trim()); // Base64로 보관된 경우
+        } catch (IllegalArgumentException e) {
+            keyBytes = secretKeyBase64.getBytes(StandardCharsets.UTF_8); // 평문으로 보관된 경우
+        }
+        this.SECRET_KEY = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiration = accessTokenExpiration * 60 * 1000L;
         this.refreshTokenExpiration = refreshTokenExpiration * 60 * 1000L;
+
+        this.keyHash = shortHash(keyBytes);
+        org.slf4j.LoggerFactory.getLogger(JwtTokenProvider.class)
+                .info("[JWT] Provider init: alg=HS512, keyLen={}B, keyHash={}", keyBytes.length, this.keyHash);
     }
+
+    // 진단용 getter
+    public String keyHash() { return keyHash; }
 
     /**
      * 액세스 토큰을 생성합니다.
