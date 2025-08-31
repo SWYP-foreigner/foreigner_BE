@@ -537,14 +537,15 @@ public class ChatService {
 
     private GroupChatMainResponse toGroupChatMainResponse(ChatRoom chatRoom) {
         String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoom.getId())
-                .map(image -> image.getUrl())
+                .map(Image::getUrl)
                 .orElse(null);
-
+        String userCount = String.valueOf(chatRoom.getParticipants().size());
         return new GroupChatMainResponse(
                 chatRoom.getId(),
                 chatRoom.getRoomName(),
                 chatRoom.getDescription(),
-                roomImageUrl
+                roomImageUrl,
+                userCount
         );
     }
     @Transactional
@@ -560,12 +561,13 @@ public class ChatService {
                         ImageType.CHAT_ROOM, chatRoom.getId())
                 .map(Image::getUrl)
                 .orElse(null);
-
+        String userCount = String.valueOf(chatRoom.getParticipants().size());
         return new GroupChatMainResponse(
                 chatRoom.getId(),
                 chatRoom.getRoomName(),
                 chatRoom.getDescription(),
-                roomImageUrl
+                roomImageUrl,
+                userCount
         );
     }
     @Transactional

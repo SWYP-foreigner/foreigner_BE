@@ -5,6 +5,7 @@ public record GroupChatMainResponse(
         Long roomId,
         String roomName,
         String description,
-        String roomImageUrl
+        String roomImageUrl,
+        String userCount
 ) {
 }
