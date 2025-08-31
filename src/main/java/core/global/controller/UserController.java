@@ -72,11 +72,13 @@ public class UserController {
             log.info("사용자 프로필 조회 성공. 사용자 ID(sub): {}, 이메일: {}", profile.getSub(), profile.getEmail());
 
             log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
+            boolean isNewUser =false;
             User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), "GOOGLE");
             if (originalUser == null) {
                 log.info("새로운 사용자입니다. 소셜 ID: {}, 이메일: {} 로 계정 생성", profile.getSub(), profile.getEmail());
                 originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
                 log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", originalUser.getId());
+                isNewUser=true;
             } else {
                 log.info("기존 사용자 발견. 사용자 ID: {}", originalUser.getId());
             }
@@ -90,7 +92,7 @@ public class UserController {
 
             redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
 
-            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken);
+            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken,isNewUser);
 
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
