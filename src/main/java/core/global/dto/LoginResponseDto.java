@@ -1,7 +1,7 @@
 package core.global.dto;
 
 public record LoginResponseDto(
-        Long id,
+        Long userId,
         String accessToken,
         String refreshToken
 ) {

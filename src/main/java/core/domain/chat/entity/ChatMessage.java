@@ -37,7 +37,5 @@ public class ChatMessage {
         this.content = content;
         this.sentAt = Instant.now();
     }
-    public void setReadCount(int readCount) {
-        this.readCount = readCount;
-    }
+
 }

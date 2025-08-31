@@ -15,4 +15,8 @@ public interface CommentService {
     void deleteComment(Long postId);
 
     CursorPageResponse<UserCommentItem> getMyCommentList(int size, String cursor);
+
+    void addLike(Long commentId);
+
+    void deleteLike(Long commentId);
 }

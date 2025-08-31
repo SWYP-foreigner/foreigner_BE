@@ -71,6 +71,9 @@ public enum ErrorCode {
     CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
 
     TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다."),
+    CHAT_NOT_GROUP(HttpStatus.UNAUTHORIZED, "현재의 채팅방은 그룹채팅방이 아닙니다"),
+    ALREADY_CHAT_PARTICIPANT(HttpStatus.UNAUTHORIZED, "이미 현재의 그룹채팅방에 참여하고 있습니다."),
+
 
     JWT_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "인증 정보(JWT)가 필요합니다."),
     JWT_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "액세스 토큰이 만료되었습니다."),

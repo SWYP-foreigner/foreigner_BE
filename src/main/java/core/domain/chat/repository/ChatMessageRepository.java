@@ -11,12 +11,8 @@ import java.time.Instant;
 import java.util.List;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
-    List<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long chatRoomId);
-    @Query("SELECT cm FROM ChatMessage cm WHERE cm.chatRoom.id = :roomId AND cm.readCount < :memberCount")
-    List<ChatMessage> findUnreadMessages(@Param("roomId") Long roomId, @Param("memberCount") int memberCount);
 
     List<ChatMessage> findByChatRoomIdAndContentContaining(Long roomId, String content, Pageable pageable);
-    List<ChatMessage> findByChatRoomIdAndSentAtAfterOrderBySentAtAsc(Long roomId, Instant lastLeftAt);
 
     List<ChatMessage> findByChatRoomIdAndSentAtAfterAndIdBefore(Long roomId, Instant lastLeftAt, Long lastMessageId, PageRequest sentAt);
 
@@ -28,13 +24,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     List<ChatMessage> findByChatRoomIdAndIdGreaterThan(Long roomId, Long lastReadMessageId);
 
-    List<ChatMessage> findByChatRoomIdAndIdBeforeAndSentAtAfterOrderBySentAtDesc(Long roomId, Long lastMessageId, Instant lastLeftAt, PageRequest of);
+    ChatMessage findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
 
-    List<ChatMessage> findByChatRoomIdAndSentAtAfterOrderBySentAtDesc(Long roomId, Instant lastLeftAt, PageRequest of);
-
-    List<ChatMessage> findByChatRoomIdAndIdBeforeOrderBySentAtDesc(Long roomId, Long lastMessageId, PageRequest of);
-
-    List<ChatMessage> findByChatRoomIdOrderBySentAtDesc(Long roomId, PageRequest of);
-
-    List<ChatMessage> findByChatRoomIdAndContentContainingOrderBySentAtDesc(Long roomId, String searchKeyword);
+    @Query("SELECT COUNT(cm) FROM ChatMessage cm " +
+            "WHERE cm.chatRoom.id = :roomId AND cm.id > " +
+            "(SELECT cp.lastReadMessageId FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :readerId)")
+    int countUnreadMessages(@Param("roomId") Long roomId, @Param("readerId") Long readerId);
 }
