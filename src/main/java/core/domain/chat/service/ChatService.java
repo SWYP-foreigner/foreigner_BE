@@ -189,28 +189,19 @@ public class ChatService {
         return participantRepo.findByChatRoomId(roomId);
     }
     public List<ChatRoomParticipantsResponse> getRoomParticipants(Long roomId) {
-        // 1. ChatRoom 엔티티 조회
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // 2. ChatRoom 엔티티를 사용하여 참여자 목록 조회
-        //    'findByChatRoom' 메서드가 @Transactional 범위 내에서 실행되므로 지연 로딩 문제가 발생하지 않습니다.
         List<ChatParticipant> participants = chatParticipantRepository.findByChatRoom(chatRoom);
-
-        // 3. 스트림을 사용하여 DTO 목록으로 변환
         return participants.stream()
                 .map(p -> {
-                    // 유저 프로필 이미지 URL 조회
-                    // N+1 쿼리 발생 가능성이 있으므로, 성능 최적화가 필요하다면 페치 조인을 고려해야 합니다.
                     String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
                                     ImageType.USER, p.getUser().getId())
                             .map(Image::getUrl)
                             .orElse(null);
 
-                    // 호스트 여부 확인 (그룹 채팅일 경우에만 의미)
                     boolean isHost = chatRoom.getOwner() != null && chatRoom.getOwner().getId().equals(p.getUser().getId());
 
-                    // DTO 객체 생성 및 반환
                     return new ChatRoomParticipantsResponse(
                             p.getUser().getId(),
                             p.getUser().getFirstName(),

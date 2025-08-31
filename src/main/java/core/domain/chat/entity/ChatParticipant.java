@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "chat_participant")
+@Table(name = "chat_participant",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"chat_room_id", "user_id"})
+        }
+)
 @Getter
 @NoArgsConstructor
 public class ChatParticipant {
