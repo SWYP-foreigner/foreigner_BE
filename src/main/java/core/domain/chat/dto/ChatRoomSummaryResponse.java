@@ -51,7 +51,6 @@ public record ChatRoomSummaryResponse(
                     .orElse(null);
         }
 
-        // LocalDateTime → HH:mm 포맷
         String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(TIME_FORMATTER) : null;
 
         return new ChatRoomSummaryResponse(

@@ -42,4 +42,10 @@ public class ChatRoom {
     public void changeToGroupChat() {
         this.group = true;
     }
+    public ChatRoom(Boolean group, Instant createdAt, String roomName) {
+        this.group = group;
+        this.createdAt = createdAt;
+        this.roomName = roomName;
+    }
+
 }

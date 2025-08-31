@@ -1,10 +1,7 @@
 package core.domain.chat.service;
 
 
-import core.domain.chat.dto.ChatMessageResponse;
-import core.domain.chat.dto.ChatRoomSummaryResponse;
-import core.domain.chat.dto.GroupChatDetailResponse;
-import core.domain.chat.dto.GroupChatSearchResponse;
+import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
@@ -20,12 +17,9 @@ import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
-import jdk.jshell.spi.ExecutionControl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import core.global.image.entity.Image;
@@ -135,7 +129,10 @@ public class ChatService {
         User otherUser = userRepository.findById(userId2)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        ChatRoom newRoom = new ChatRoom(false, Instant.now());
+        String roomName = otherUser.getFirstName() + " " + otherUser.getLastName();
+
+        ChatRoom newRoom = new ChatRoom(false, Instant.now(), roomName);
+
         ChatParticipant participant1 = new ChatParticipant(newRoom, currentUser);
         ChatParticipant participant2 = new ChatParticipant(newRoom, otherUser);
 
@@ -144,8 +141,6 @@ public class ChatService {
 
         return chatRoomRepo.save(newRoom);
     }
-
-
     /**
      * 사용자가 채팅방을 나갑니다.
      * 1:1 채팅방의 경우, 상대방은 방에 남아있습니다.
@@ -389,9 +384,6 @@ public class ChatService {
     }
 
 
-    public int countUnreadMessages(Long roomId, Long readerId) {
-        return chatMessageRepository.countUnreadMessages(roomId, readerId);
-    }
 
     public String getLastMessageContent(Long roomId) {
         ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
@@ -490,4 +482,72 @@ public class ChatService {
                 })
                 .collect(Collectors.toList());
     }
+
+    public List<ChatRoomSummaryResponse> searchRoomsByRoomName(Long userId, String roomName) {
+        List<ChatRoom> rooms = chatParticipantRepository.findChatRoomsByUserIdAndRoomName(userId, roomName);
+
+        return rooms.stream()
+                .map(room -> createChatRoomSummary(room, userId))
+                .collect(Collectors.toList());
+    }
+
+    private ChatRoomSummaryResponse createChatRoomSummary(ChatRoom room, Long userId) {
+
+        Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(room.getId());
+        String lastMessageContent = lastMessageOpt.map(ChatMessage::getContent).orElse(null);
+        LocalDateTime lastMessageTime = lastMessageOpt
+                .map(ChatMessage::getSentAt)
+                .map(instant -> LocalDateTime.ofInstant(instant, ZoneId.systemDefault()))
+                .orElse(null);
+
+
+        int unreadCount = countUnreadMessages(room.getId(), userId);
+
+        return ChatRoomSummaryResponse.from(
+                room,
+                userId,
+                lastMessageContent,
+                lastMessageTime,
+                unreadCount,
+                imageRepository
+        );
+    }
+
+    public int countUnreadMessages(Long roomId, Long userId) {
+        long totalMessagesCount = chatMessageRepository.countByChatRoomId(roomId);
+        long readMessagesCount = chatMessageReadStatusRepository.countByChatRoomIdAndReaderId(roomId, userId);
+        return (int) (totalMessagesCount - readMessagesCount);
+    }
+
+
+    @Transactional
+    public List<GroupChatMainResponse> getLatestGroupChats() {
+        List<ChatRoom> latestRooms = chatRoomRepository.findTop10ByGroupTrueOrderByCreatedAtDesc();
+        return latestRooms.stream()
+                .map(this::toGroupChatSearchResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
+        List<ChatRoom> popularRooms = chatRoomRepository.findTopByGroupTrueOrderByParticipantCountDesc(limit);
+        return popularRooms.stream()
+                .map(this::toGroupChatSearchResponse)
+                .collect(Collectors.toList());
+    }
+
+    private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
+        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                        ImageType.CHAT_ROOM, chatRoom.getId())
+                .map(Image::getUrl)
+                .orElse(null);
+
+        return new GroupChatMainResponse(
+                chatRoom.getId(),
+                chatRoom.getRoomName(),
+                chatRoom.getDescription(),
+                roomImageUrl
+        );
+    }
+
 }

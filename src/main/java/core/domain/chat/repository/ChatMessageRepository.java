@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
@@ -30,4 +31,19 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             "WHERE cm.chatRoom.id = :roomId AND cm.id > " +
             "(SELECT cp.lastReadMessageId FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :readerId)")
     int countUnreadMessages(@Param("roomId") Long roomId, @Param("readerId") Long readerId);
+
+    /**
+     * 특정 채팅방의 가장 최근 메시지를 조회합니다.
+     * chatRoomId로 메시지를 찾고, sentAt 필드를 기준으로 내림차순 정렬하여 첫 번째 결과를 반환합니다.
+     *
+     * @param chatRoomId 메시지를 찾을 채팅방의 ID
+     * @return 가장 최근 메시지가 담긴 Optional 객체
+     */
+    Optional<ChatMessage> findFirstByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+    /**
+     * 특정 채팅방의 전체 메시지 수를 계산합니다.
+     * @param chatRoomId 메시지 수를 계산할 채팅방 ID
+     * @return 해당 채팅방의 총 메시지 수
+     */
+    long countByChatRoomId(Long chatRoomId);
 }

@@ -43,4 +43,11 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipants(@Param("roomId") Long roomId);
+
+    List<ChatRoom> findTop10ByGroupTrueOrderByCreatedAtDesc();
+
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "WHERE cr.group = true " +
+            "ORDER BY SIZE(cr.participants) DESC")
+    List<ChatRoom> findTopByGroupTrueOrderByParticipantCountDesc(int limit);
 }

@@ -17,14 +17,13 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     List<ChatParticipant> findByChatRoomId(Long chatRoomId);
 
-    int countByChatRoomId(Long roomId);
-
     Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 
     Optional<ChatParticipant> findByChatRoomIdAndUserId(Long chatRoomId, Long userId);
 
-    List<ChatParticipant> findByChatRoomIdAndUserIdIn(Long roomId, List<Long> userIds);
     long countByChatRoomIdAndStatus(Long roomId, ChatParticipantStatus status);
 
+    @Query("SELECT cp.chatRoom FROM ChatParticipant cp WHERE cp.user.id = :userId AND cp.chatRoom.roomName LIKE %:roomName%")
+    List<ChatRoom> findChatRoomsByUserIdAndRoomName(@Param("userId") Long userId, @Param("roomName") String roomName);
 
 }

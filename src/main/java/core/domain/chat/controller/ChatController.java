@@ -194,13 +194,13 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = Object.class))
             )
     })
-    @PostMapping("/rooms/{roomId}/rejoin")
+    @PostMapping("/rooms/{roomId}/join")
     public ResponseEntity<ApiResponse<Void>> rejoinChatRoom(@PathVariable Long roomId, @RequestParam Long userId) {
         chatService.rejoinRoom(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "그룹 채팅 재참여")
+    @Operation(summary = "그룹 채팅 참여")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "이미 참여 중인 채팅방이거나, 그룹 채팅방이 아닐 경우"),
@@ -276,6 +276,45 @@ public class ChatController {
     @GetMapping("/rooms/group/search")
     public ResponseEntity<ApiResponse<List<GroupChatSearchResponse>>> searchGroupChats(@RequestParam String keyword) {
         List<GroupChatSearchResponse> response = chatService.searchGroupChatRooms(keyword);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "채팅방 이름 검색", description = "사용자가 참여 중인 채팅방을 이름 키워드로 검색합니다. 1:1, 그룹 채팅 모두 포함됩니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatRoomSummaryResponse.class))
+            ),
+    })
+    @GetMapping("/rooms/search")
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> searchRooms(
+            @RequestParam("roomName") String roomName
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<ChatRoomSummaryResponse> responses = chatService.searchRoomsByRoomName(principal.getUserId(), roomName);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+
+    @Operation(summary = "최신 그룹 채팅방 10개 조회", description = "가장 최근에 생성된 그룹 채팅방 10개를 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = GroupChatSearchResponse.class))
+            )
+    })
+    @GetMapping("/group/latest")
+    public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getLatestGroupChats() {
+        List<GroupChatMainResponse> response = chatService.getLatestGroupChats();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "인기 그룹 채팅방 10개 조회", description = "참여자가 가장 많은 그룹 채팅방 10개를 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = GroupChatSearchResponse.class))
+            )
+    })
+    @GetMapping("/group/popular")
+    public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getPopularGroupChats() {
+        List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
