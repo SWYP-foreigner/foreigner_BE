@@ -17,7 +17,7 @@ public record PostDocument(
         Long updatedAt,
         Long checkCount,
         String content,
-        String contentSuggest
+        Object contentSuggest
 ) {
     public PostDocument(Post p) {
         this(
@@ -29,7 +29,11 @@ public record PostDocument(
                 p.getUpdatedAt() == null ? null : p.getUpdatedAt().toEpochMilli(),
                 p.getCheckCount(),
                 p.getContent(),
-                p.getContent()
+                java.util.Map.of(
+                        "input", java.util.List.of(p.getContent()),
+                        "weight", Math.min(100, (int)Math.round(Math.log1p(
+                                p.getCheckCount() == null ? 0L : p.getCheckCount()) * 20))
+                )
         );
     }
 }

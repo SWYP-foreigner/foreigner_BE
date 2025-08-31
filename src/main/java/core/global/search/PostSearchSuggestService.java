@@ -14,20 +14,24 @@ public class PostSearchSuggestService {
     private final ElasticsearchClient es;
 
     public List<String> suggest(String prefix, int size) {
+        final int limit = Math.max(1, Math.min(size, 20));
+
         try {
             var resp = es.search(s -> s
                             .index(SearchConstants.INDEX_POSTS)
+                            .size(0)
+                            .trackTotalHits(t -> t.enabled(false))
                             .suggest(sug -> sug
                                     .suggesters("content-suggest", s1 -> s1
                                             .prefix(prefix)
                                             .completion(c -> c
                                                     .field("contentSuggest")
                                                     .skipDuplicates(true)
-                                                    .size(size)
+                                                    .size(limit)
+                                                    .fuzzy(f -> f.fuzziness("AUTO"))
                                             )
                                     )
-                            )
-                            .source(src -> src.fetch(false)),
+                            ),
                     PostDocument.class
             );
 
