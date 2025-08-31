@@ -124,7 +124,7 @@ jobs:
             GCP_TRANSLATE_API_KEY=${{secrets.GCP_TRANSLATE_API_KEY}}
 
             NAVER_HOST=${{secrets.NAVER_HOST}}
-            APP_NAME${{secrets.APP_NAME}}
+            APP_NAME=${{secrets.APP_NAME}}
             BASE_URL=${{secrets.BASE_URL}}
 
             # --- 추가 설정 ---
