@@ -50,4 +50,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
             "WHERE cr.group = true " +
             "ORDER BY SIZE(cr.participants) DESC")
     List<ChatRoom> findTopByGroupTrueOrderByParticipantCountDesc(int limit);
+
+    List<ChatRoom> findTop10ByGroupTrueAndIdLessThanOrderByCreatedAtDesc(Long id);
+
 }

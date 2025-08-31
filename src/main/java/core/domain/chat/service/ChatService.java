@@ -521,13 +521,32 @@ public class ChatService {
 
 
     @Transactional
-    public List<GroupChatMainResponse> getLatestGroupChats() {
-        List<ChatRoom> latestRooms = chatRoomRepository.findTop10ByGroupTrueOrderByCreatedAtDesc();
+    public List<GroupChatMainResponse> getLatestGroupChats(Long lastChatRoomId) {
+        List<ChatRoom> latestRooms;
+
+        if (lastChatRoomId == null) {
+            latestRooms = chatRoomRepository.findTop10ByGroupTrueOrderByCreatedAtDesc();
+        } else {
+            latestRooms = chatRoomRepository.findTop10ByGroupTrueAndIdLessThanOrderByCreatedAtDesc(lastChatRoomId);
+        }
+
         return latestRooms.stream()
-                .map(this::toGroupChatSearchResponse)
+                .map(this::toGroupChatMainResponse)
                 .collect(Collectors.toList());
     }
 
+    private GroupChatMainResponse toGroupChatMainResponse(ChatRoom chatRoom) {
+        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoom.getId())
+                .map(image -> image.getUrl())
+                .orElse(null);
+
+        return new GroupChatMainResponse(
+                chatRoom.getId(),
+                chatRoom.getRoomName(),
+                chatRoom.getDescription(),
+                roomImageUrl
+        );
+    }
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
         List<ChatRoom> popularRooms = chatRoomRepository.findTopByGroupTrueOrderByParticipantCountDesc(limit);
