@@ -7,6 +7,7 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
+import core.global.enums.Ouathplatform;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
@@ -73,10 +74,10 @@ public class UserController {
 
             log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
             boolean isNewUser =false;
-            User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), "GOOGLE");
+            User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
             if (originalUser == null) {
                 log.info("새로운 사용자입니다. 소셜 ID: {}, 이메일: {} 로 계정 생성", profile.getSub(), profile.getEmail());
-                originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), "GOOGLE");
+                originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
                 log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", originalUser.getId());
                 isNewUser=true;
             } else {
@@ -85,15 +86,10 @@ public class UserController {
             log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
             String accessToken = jwtTokenProvider.createAccessToken(originalUser.getId(), originalUser.getEmail());
             String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getId());
-
             Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
-
             long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
-
             redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
-
             LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken,isNewUser);
-
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {
