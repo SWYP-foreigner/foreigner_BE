@@ -110,22 +110,22 @@ jobs:
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
 
-            NCP_MAIL_HOST=${{NCP_MAIL_HOST}}
-            NCP_EMAIL=${{NCP_EMAIL}}
-            NCP_EMAIL_PASSWORD=${{NCP_EMAIL_PASSWORD}}
+            NCP_MAIL_HOST=${{secrets.NCP_MAIL_HOST}}
+            NCP_EMAIL=${{secrets.NCP_EMAIL}}
+            NCP_EMAIL_PASSWORD=${{secrets.NCP_EMAIL_PASSWORD}}
 
-            FEIGN_CONNECT_TIMEOUT=${{FEIGN_CONNECT_TIMEOUT}}
-            FEIGN_READ_TIMEOUT=${{FEIGN_READ_TIMEOUT}}
-            FEIGN_LOGGER_LEVEL=${{FEIGN_LOGGER_LEVEL}}
+            FEIGN_CONNECT_TIMEOUT=${{secrets.FEIGN_CONNECT_TIMEOUT}}
+            FEIGN_READ_TIMEOUT=${{secrets.FEIGN_READ_TIMEOUT}}
+            FEIGN_LOGGER_LEVEL=${{secrets.FEIGN_LOGGER_LEVEL}}
 
             SERVER_URL=${{secrets.SERVER_URL}}
             
             GCP_PROJECT_ID=${{secrets.GCP_PROJECT_ID}}
             GCP_TRANSLATE_API_KEY=${{secrets.GCP_TRANSLATE_API_KEY}}
 
-            NAVER_HOST=${{NAVER_HOST}}
-            APP_NAME${{APP_NAME}}
-            BASE_URL=${{BASE_URL}}
+            NAVER_HOST=${{secrets.NAVER_HOST}}
+            APP_NAME${{secrets.APP_NAME}}
+            BASE_URL=${{secrets.BASE_URL}}
 
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
