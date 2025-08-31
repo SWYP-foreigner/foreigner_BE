@@ -26,4 +26,6 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     @Query("SELECT cp.chatRoom FROM ChatParticipant cp WHERE cp.user.id = :userId AND cp.chatRoom.roomName LIKE %:roomName%")
     List<ChatRoom> findChatRoomsByUserIdAndRoomName(@Param("userId") Long userId, @Param("roomName") String roomName);
     List<ChatParticipant> findByChatRoom(ChatRoom chatRoom);
+
+
 }

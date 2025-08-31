@@ -64,7 +64,7 @@ public class ChatService {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<ChatRoom> rooms = chatRoomRepo.findChatRoomsByUserId(userId);
+        List<ChatRoom> rooms = chatRoomRepo.findActiveChatRoomsByUserId(userId,ChatParticipantStatus.ACTIVE);
 
         return rooms.stream().map(room -> {
             String lastMessageContent = getLastMessageContent(room.getId());
