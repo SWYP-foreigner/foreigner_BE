@@ -57,14 +57,14 @@ jwt:
   refresh-expiration: 10080
 
 
-cloud:
-  openfeign:
-    client:
-      config:
-        default:
-          connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
-          readTimeout: ${FEIGN_READ_TIMEOUT}
-          loggerLevel: ${FEIGN_LOGGER_LEVEL}
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: ${FEIGN_CONNECT_TIMEOUT}
+            readTimeout: ${FEIGN_READ_TIMEOUT}
+            loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 
 oauth:
