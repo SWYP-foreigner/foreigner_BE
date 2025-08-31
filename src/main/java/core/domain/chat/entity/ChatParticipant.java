@@ -11,7 +11,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "chat_participant",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"chat_room_id", "user_id"})
+                @UniqueConstraint(columnNames = {"chatroom_id", "user_id"})
         }
 )
 @Getter
