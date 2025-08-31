@@ -573,7 +573,6 @@ public class ChatService {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-
         ChatRoom groupChatRoom = new ChatRoom(
                 true,
                 Instant.now(),
@@ -581,22 +580,23 @@ public class ChatService {
                 request.description(),
                 owner
         );
+        ChatRoom savedChatRoom = chatRoomRepository.save(groupChatRoom);
 
+        ChatParticipant participant = new ChatParticipant(savedChatRoom, owner);
 
-        ChatParticipant participant = new ChatParticipant(groupChatRoom, owner);
         chatParticipantRepository.save(participant);
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
             Image roomImage = Image.of(
                     ImageType.CHAT_ROOM,
-                    groupChatRoom.getId(),
+                    savedChatRoom.getId(),
                     request.roomImageUrl(),
                     0
             );
             imageRepository.save(roomImage);
         }
 
-        return groupChatRoom;
+        return savedChatRoom;
     }
 
 }

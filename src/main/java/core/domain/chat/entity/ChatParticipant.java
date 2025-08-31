@@ -28,7 +28,6 @@ public class ChatParticipant {
     @Column(name = "joined_at", updatable = false)
     private Instant joinedAt;
 
-
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
 
