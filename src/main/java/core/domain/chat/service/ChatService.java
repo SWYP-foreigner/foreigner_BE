@@ -185,8 +185,30 @@ public class ChatService {
         chatRoomRepo.delete(room);
     }
 
-    public List<ChatParticipant> getParticipants(Long roomId) {
-        return participantRepo.findByChatRoomId(roomId);
+    public List<ChatParticipantResponse> getParticipants(Long roomId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        List<ChatParticipant> participants = chatParticipantRepository.findByChatRoom(chatRoom);
+
+        return participants.stream()
+                .map(p -> {
+                    String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                                    ImageType.USER, p.getUser().getId())
+                            .map(Image::getUrl)
+                            .orElse(null);
+
+                    boolean isHost = chatRoom.getOwner() != null && chatRoom.getOwner().getId().equals(p.getUser().getId());
+
+                    return new ChatParticipantResponse(
+                            p.getUser().getId(),
+                            p.getUser().getFirstName(),
+                            p.getUser().getLastName(),
+                            userImageUrl,
+                            isHost
+                    );
+                })
+                .collect(Collectors.toList());
     }
 
     /**

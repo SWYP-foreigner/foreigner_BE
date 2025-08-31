@@ -160,19 +160,7 @@ public class ChatController {
     })
     @GetMapping("/rooms/{roomId}/participants")
     public ResponseEntity<ApiResponse<List<ChatParticipantResponse>>> getParticipants(@PathVariable Long roomId) {
-        List<ChatParticipant> participants = chatService.getParticipants(roomId);
-
-        List<ChatParticipantResponse> responses = participants.stream()
-                .map(p -> new ChatParticipantResponse(
-                        p.getId(),
-                        p.getUser().getId(),
-                        p.getUser().getLastName(),
-                        p.getJoinedAt(),
-                        p.getLastLeftAt(),
-                        p.getLastReadMessageId(),
-                        p.getStatus()
-                )).collect(Collectors.toList());
-
+        List<ChatParticipantResponse> responses = chatService.getParticipants(roomId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
