@@ -109,7 +109,7 @@ public class ChatController {
     }
 
 
-    @Operation(summary = "채팅방 메시지 조회 (무한 스크롤)")
+    @Operation(summary = "채팅방 메시지 조회 (무한 스크롤 위로 스크롤올릴때 호출하는 api )")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
@@ -127,6 +127,25 @@ public class ChatController {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId, translate);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+
+    @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/rooms/{roomId}/first_messages")
+    public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
+            @PathVariable Long roomId
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+        List<ChatMessageFirstResponse> responses = chatService.getFirstMessages(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 

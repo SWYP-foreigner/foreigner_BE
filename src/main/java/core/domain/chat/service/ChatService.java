@@ -549,5 +549,17 @@ public class ChatService {
                 roomImageUrl
         );
     }
+    @Transactional
+    public List<ChatMessageFirstResponse> getFirstMessages(Long roomId, Long userId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
 
+        chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 채팅방에 참여하지 않은 사용자입니다."));
+        List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
+
+        return messages.stream()
+                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, imageRepository))
+                .collect(Collectors.toList());
+    }
 }
