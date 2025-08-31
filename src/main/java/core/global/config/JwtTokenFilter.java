@@ -57,6 +57,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/api/v1/member/refresh",
             "/swagger-ui.html",
             "/api/v1/member/password/**"
+            "/ws/**"
     );
 
     @Override
@@ -106,8 +107,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // validateToken 메서드가 ExpiredJwtException을 던지도록 수정되었으므로
-            // 이 블록은 토큰 구조, 서명 등 유효성 문제만 처리합니다.
             if (!jwtTokenProvider.validateToken(token)) {
                 log.warn("유효하지 않은 JWT 토큰입니다. URI={}", requestUri);
                 jwtAuthenticationEntryPoint.commence(

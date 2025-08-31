@@ -92,11 +92,6 @@ public class UserController {
 
             LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken);
 
-            log.info("5. 로그인 프로세스 완료. 사용자 ID와 JWT 토큰을 반환합니다.");
-            log.info("--- [구글 앱 로그인] API 요청 처리 성공 ---");
-            log.info("AccessToken 생성 완료. 길이: {}, 앞부분: {}", accessToken.length(), accessToken.substring(0, 20) + "...");
-            log.info("RefreshToken 생성 완료. 길이: {}, 앞부분: {}", refreshToken.length(), refreshToken.substring(0, 20) + "...");
-
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {
@@ -162,7 +157,7 @@ public class UserController {
 
         log.info("--- [토큰 재발급] 완료. 사용자 ID: {} ---", user.getId());
 
-        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken);
+        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken,user.getId());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 

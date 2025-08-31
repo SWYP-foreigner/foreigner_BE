@@ -342,7 +342,7 @@ class PostServiceImplTest {
     void removeLike_success() {
         service.removeLike(77L);
         then(likeRepository).should()
-                .deleteByUserNameAndIdAndType("alice", 77L, LikeType.POST);
+                .deleteByUserEmailAndIdAndType("alice", 77L, LikeType.POST);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

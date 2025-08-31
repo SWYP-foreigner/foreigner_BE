@@ -63,6 +63,8 @@ public class SecurityConfig {
                                 "/api/v1/member/signup",
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**"
+                                "/ws/**",
+                                "/ws"
                         ).permitAll()
                         .anyRequest().authenticated()
                 ) .exceptionHandling(exceptionHandling -> exceptionHandling

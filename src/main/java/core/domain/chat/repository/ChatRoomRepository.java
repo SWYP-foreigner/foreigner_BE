@@ -1,7 +1,6 @@
 package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatRoom;
-import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,23 +12,35 @@ import java.util.Optional;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    /**
-     * 특정 사용자 ID 목록에 포함된 1:1 채팅방을 찾습니다.
-     * 이 쿼리는 정확히 두 명의 사용자가 참여한 1:1 채팅방을 반환합니다.
-     */
-    @Query("SELECT cr FROM ChatRoom cr " +
-            "JOIN cr.participants p " +
-            "WHERE cr.group = false AND p.user.id IN :userIds " + // 여기서 'group'으로 수정
-            "GROUP BY cr.id " +
-            "HAVING COUNT(p.user.id) = 2")
-    Optional<ChatRoom> findOneOnOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.group = true AND cr.roomName LIKE %:keyword%")
+    List<ChatRoom> findGroupChatRoomsByKeyword(@Param("keyword") String keyword);
 
 
     /**
      * 특정 사용자가 속한 모든 채팅방 목록을 찾습니다.
      */
     @Query("SELECT cr FROM ChatRoom cr " +
-            "JOIN cr.participants p " +
-            "WHERE p.user.id = :userId")
+           "JOIN cr.participants p " +
+           "WHERE p.user.id = :userId")
     List<ChatRoom> findChatRoomsByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            select distinct cr
+            from ChatRoom cr
+            left join fetch cr.participants cp
+            left join fetch cp.user u
+            where exists (
+              select 1 from ChatParticipant c1
+              where c1.chatRoom = cr and c1.user.id = :currentUserId
+            )
+            and exists (
+              select 1 from ChatParticipant c2
+              where c2.chatRoom = cr and c2.user.id = :otherUserId
+            )
+            and size(cr.participants) = 2
+            """)
+    Optional<ChatRoom> findByParticipantIds(Long currentUserId, Long otherUserId);
+
+    @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
+    Optional<ChatRoom> findByIdWithParticipants(@Param("roomId") Long roomId);
 }
