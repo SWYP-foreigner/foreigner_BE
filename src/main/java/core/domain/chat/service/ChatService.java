@@ -370,21 +370,6 @@ public class ChatService {
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
 
-
-    @Transactional
-    public void rejoinRoom(Long roomId, Long userId) {
-        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-
-        if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.CHAT_ROOM_JOIN_FAILED);
-        }
-
-        participant.reJoin();
-    }
-
-
-
     public String getLastMessageContent(Long roomId) {
         ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
         return (last != null) ? last.getContent() : null;
@@ -583,4 +568,35 @@ public class ChatService {
                 .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, imageRepository))
                 .collect(Collectors.toList());
     }
+    @Transactional
+    public ChatRoom createGroupChatRoom(Long userId, GroupChatCreateRequest request) {
+        User owner = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
+        ChatRoom groupChatRoom = new ChatRoom(
+                true,
+                Instant.now(),
+                request.roomName(),
+                request.description(),
+                owner
+        );
+
+
+        ChatParticipant participant = new ChatParticipant(groupChatRoom, owner);
+        chatParticipantRepository.save(participant);
+
+        if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
+            Image roomImage = Image.of(
+                    ImageType.CHAT_ROOM,
+                    groupChatRoom.getId(),
+                    request.roomImageUrl(),
+                    0
+            );
+            imageRepository.save(roomImage);
+        }
+
+        return groupChatRoom;
+    }
+
 }

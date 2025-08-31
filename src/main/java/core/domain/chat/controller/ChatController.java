@@ -59,7 +59,7 @@ public class ChatController {
         this.translationService = translationService;
     }
 
-    @Operation(summary = "새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
+    @Operation(summary = "1:1 새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
@@ -205,20 +205,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "그룹 채팅방 재참여")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "이미 참여 중인 채팅방"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
-    })
-    @PostMapping("/rooms/{roomId}/join")
-    public ResponseEntity<ApiResponse<Void>> rejoinChatRoom(@PathVariable Long roomId, @RequestParam Long userId) {
-        chatService.rejoinRoom(roomId, userId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
     @Operation(summary = "그룹 채팅 참여")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -338,4 +324,26 @@ public class ChatController {
         List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성하고, 생성자를 방의 오너 및 참여자로 지정합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @PostMapping("/rooms/group")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createGroupChatRoom(
+            @RequestBody GroupChatCreateRequest request) {
+
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        ChatRoom room = chatService.createGroupChatRoom(userId, request);
+        ChatRoomResponse response = ChatRoomResponse.from(room);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
 }
