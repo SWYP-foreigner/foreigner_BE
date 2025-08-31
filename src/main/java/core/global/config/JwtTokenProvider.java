@@ -21,10 +21,9 @@ public class JwtTokenProvider {
 
     private static String shortHash(byte[] key) {
         int h = 1;
-        for (byte b : key) h = 31 * h + b;
-        return Integer.toHexString(h).substring(0, 8);
+        for (byte b : key) h = 31 * h + (b & 0xff);
+        return String.format("%08x", h); // 항상 8자리로 패딩
     }
-
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secretKeyBase64,
