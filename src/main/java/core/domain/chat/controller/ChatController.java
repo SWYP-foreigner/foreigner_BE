@@ -159,8 +159,8 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<List<ChatParticipantResponse>>> getParticipants(@PathVariable Long roomId) {
-        List<ChatParticipantResponse> responses = chatService.getParticipants(roomId);
+    public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId) {
+        List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
@@ -312,26 +312,4 @@ public class ChatController {
         List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-    @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성하고, 생성자를 방의 오너 및 참여자로 지정합니다.")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
-    })
-    @PostMapping("/rooms/group")
-    public ResponseEntity<ApiResponse<ChatRoomResponse>> createGroupChatRoom(
-            @RequestBody GroupChatCreateRequest request) {
-
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = principal.getUserId();
-
-        ChatRoom room = chatService.createGroupChatRoom(userId, request);
-        ChatRoomResponse response = ChatRoomResponse.from(room);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
-    }
-
 }
