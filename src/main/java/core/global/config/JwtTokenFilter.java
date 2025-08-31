@@ -1,8 +1,11 @@
 package core.global.config;
 
 import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import core.global.service.RedisService;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -44,8 +47,16 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
+            "/swagger-ui.html",
+            "/auth/**",
+            "/api/v1/member/signup",
+            "/api/v1/member/doLogin",
+            "/api/v1/member/verify-code",
+            "/api/v1/member/signup",
+            "/api/v1/member/send-verification-email",
             "/api/v1/member/refresh",
             "/swagger-ui.html",
+            "/api/v1/member/password/**"
             "/ws/**"
     );
 
@@ -59,7 +70,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     public void init() {
         log.info("JwtTokenFilter 빈이 성공적으로 생성되었습니다.");
     }
-
     /** JWT 서명 키 */
     private SecretKey signingKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
@@ -107,6 +117,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // 토큰에서 정보 추출
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
 

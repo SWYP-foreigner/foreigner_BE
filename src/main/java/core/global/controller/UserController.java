@@ -7,26 +7,25 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.image.service.ImageService;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
+import core.global.service.PasswordService;
 import core.global.service.RedisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Locale;
 import java.util.Optional;
 
 @Tag(name = "User", description = "사용자 관련 API")
@@ -41,6 +40,8 @@ public class UserController {
     private final AppleAuthService service;
     private final RedisService redisService;
     private final UserRepository userrepository;
+    private final PasswordService passwordService;
+
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
                                     @RequestParam(required = false) String state) {
@@ -173,7 +174,74 @@ public class UserController {
     }
 
 
-    /**
+
+    @PostMapping("/signup")
+    @Operation(summary = "일반 회원가입")
+    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest req) {
+        AuthResponse response = userService.signup(req);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/send-verification-email")
+    @Operation(summary = "이메일 인증 코드 발송")
+    public ResponseEntity<ApiResponse<String>> sendVerificationEmail(@RequestBody EmailRequest request) {
+        String tag = (request.getLang() == null || request.getLang().isBlank()) ? "en" : request.getLang();
+        Locale locale = Locale.forLanguageTag(tag);   // "en" 기본
+        userService.sendEmailVerificationCode(request.getEmail(), locale);
+        return ResponseEntity.ok(ApiResponse.success("인증 코드가 이메일로 전송되었습니다."));
+    }
+
+
+    @PostMapping("/verify-code")
+    @Operation(summary = "이메일 인증 코드 검증")
+    public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
+        boolean isVerified = userService.verifyEmailCode(request);
+        return ResponseEntity.ok(ApiResponse.success(isVerified));
+    }
+
+    @PostMapping("/doLogin")
+    @Operation(summary = "일반 로그인")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
+        AuthResponse response = userService.login(req);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/password/forgot")
+    @Operation(summary = "비밀번호 재설정 메일 발송(세션ID 방식)")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody EmailRequest request) {
+        Locale loc = (request.getLang() == null || request.getLang().isBlank())
+                ? LocaleContextHolder.getLocale()
+                : Locale.forLanguageTag(request.getLang());
+
+
+        passwordService.sendResetMailSessionMode(request.getEmail(), loc);
+
+
+        return ResponseEntity.ok(ApiResponse.success("메시지가 전송되었다면 , 링크를 눌러주세요 "));
+    }
+
+    /** 2) 메일 버튼 클릭 → 세션ID 검증 → (그때) 토큰 생성 → JSON 반환 */
+    @GetMapping("/password/start-reset")
+    @Operation(summary = "메일 버튼 클릭 시: 세션ID 검증 → 토큰 생성 → JSON 반환")
+    public ResponseEntity<ApiResponse<ResetTokenResponse>> startReset(@RequestParam("sid") String sessionId) {
+        ResetToken token = passwordService.issueTokenFromSession(sessionId);
+        return ResponseEntity.ok()
+                .headers(h -> { h.add("Cache-Control","no-store"); h.add("Pragma","no-cache"); })
+                .body(ApiResponse.success(new ResetTokenResponse(token.value(), token.expiresInSeconds())));
+    }
+
+
+    @PostMapping("/password/reset")
+    @Operation(summary = "임시토큰 검증 후 비밀번호 재설정(단일 API)")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest req) {
+        passwordService.validateTokenAndResetPassword(req.getToken(), req.getNewPassword());
+        // 바디 없이 200 OK 반환
+        return ResponseEntity.ok().build();
+    }
+
+
+
+    /*
      * revoke (연동 해제)
      */
     @PostMapping("/apple/revoke")

@@ -68,7 +68,7 @@ dependencies {
 
 	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor"
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	testImplementation 'org.mockito:mockito-inline:5.2.0'
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
@@ -82,6 +82,7 @@ dependencies {
 	implementation 'com.google.cloud:google-cloud-translate:2.38.0'
 
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 dependencyManagement {

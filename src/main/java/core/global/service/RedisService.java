@@ -19,7 +19,7 @@ public class RedisService {
     private String blacklistPrefix;
 
     /**
-     * Refresh Token 저장
+     * Refresh Token 저장..
      * @param userId 사용자 ID
      * @param refreshToken 저장할 리프레시 토큰
      * @param expirationMillis 토큰 만료 시간 (밀리초)

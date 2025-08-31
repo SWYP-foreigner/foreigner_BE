@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface LikeRepository extends JpaRepository<Like, Long> {
 
     @Query("select l from Like l where l.relatedId= :id and l.type= :likeType and l.user.email= :email")
-    Optional<Like> findLikeByUserEmailAndType(@Param("email") String email, @Param("id") Long id, @Param("likeType") LikeType likeType);
+    Optional<Like> findLikeByUserEmailAndType(@Param("templates/email") String email, @Param("id") Long id, @Param("likeType") LikeType likeType);
 
     @Query("""
             select l.relatedId, count(l.id)

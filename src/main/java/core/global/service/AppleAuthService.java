@@ -90,7 +90,7 @@ public class AppleAuthService {
 
         AppleUserInfo user = new AppleUserInfo(
                 claims.getSubject(),
-                claims.get("email", String.class),
+                claims.get("templates/email", String.class),
                 Optional.ofNullable(claims.get("email_verified", Boolean.class)).orElse(null)
         );
 
