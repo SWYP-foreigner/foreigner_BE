@@ -152,7 +152,7 @@ public class ChatController {
     @Operation(summary = "채팅 참여자 조회")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatParticipantResponse.class))
+                    content = @Content(schema = @Schema(implementation = ChatRoomParticipantsResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
                     content = @Content(schema = @Schema(implementation = Object.class))
@@ -310,6 +310,20 @@ public class ChatController {
     @GetMapping("/group/popular")
     public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getPopularGroupChats() {
         List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @Operation(summary = "유저 프로필 조회", description = "userId를 통해 유저의 상세 프로필 정보와 이미지 URL을 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatUserProfileResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 유저",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/users/{userId}/profile")
+    public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
+        ChatUserProfileResponse response = chatService.getUserProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

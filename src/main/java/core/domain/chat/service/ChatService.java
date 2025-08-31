@@ -621,5 +621,24 @@ public class ChatService {
 
         return savedChatRoom;
     }
+    /**
+     * 사용자 프로필 조회 서비스 메서드
+     * @param userId 조회할 사용자의 ID
+     * @return UserProfileResponse DTO
+     */
+    @Transactional(readOnly = true)
+    public ChatUserProfileResponse getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
+
+        String imageUrl = images.stream()
+                .findFirst()
+                .map(Image::getUrl)
+                .orElse(null);
+
+        return ChatUserProfileResponse.from(user, imageUrl);
+    }
 
 }
