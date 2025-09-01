@@ -170,10 +170,8 @@ public class ChatService {
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // 2. ACTIVE 상태의 참가자만 카운트
         long remainingActiveParticipants = participantRepo.countByChatRoomIdAndStatus(roomId, ChatParticipantStatus.ACTIVE);
 
-        // 3. 남은 ACTIVE 참가자가 0명일 경우에만 방 삭제
         if (remainingActiveParticipants == 0) {
             chatRoomRepo.delete(room);
         }
@@ -449,6 +447,7 @@ public class ChatService {
      * @param userId 참여를 요청하는 사용자의 ID
      */
     public void joinGroupChat(Long roomId, Long userId) {
+
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -459,21 +458,22 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        /* autor:김승환  사용자가 이미 참여자인지 확인
-        ChatParticipantStatus.LEFT 상태인 경우 다시 참여할 수 있도록 처리*/
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .ifPresentOrElse(participant -> {
-                    if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
-                        throw new BusinessException(ErrorCode.ALREADY_CHAT_PARTICIPANT);
-                    } else {
-                        participant.reJoin();
-                    }
-                }, () -> {
-                    ChatParticipant newParticipant = new ChatParticipant(room, user);
-                    chatParticipantRepository.save(newParticipant);
-                });
+                .ifPresentOrElse(
+                        participant -> {
+                            if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
+                                throw new BusinessException(ErrorCode.ALREADY_CHAT_PARTICIPANT);
+                            } else {
+                                participant.reJoin();
+                            }
+                        },
+                        () -> {
+                            ChatParticipant newParticipant = new ChatParticipant(room, user);
+                            room.addParticipant(newParticipant);
+                            chatParticipantRepository.save(newParticipant);
+                        }
+                );
     }
-
     /**
      * 그룹 채팅방을 이름 키워드로 검색합니다.
      * @param keyword 검색 키워드

@@ -3,7 +3,6 @@ package core.domain.chat.dto;
 import core.domain.chat.entity.ChatRoom;
 import java.util.List;
 
-// 필드명의 오타(onwer_image_Url)와 네이밍 컨벤션(owner_id)을 수정했습니다.
 public record GroupChatDetailResponse(
         Long chatRoomId,
         String roomName,
@@ -13,15 +12,15 @@ public record GroupChatDetailResponse(
         String ownerLastName,
         String roomImageUrl,
         int participantCount,
-        List<String> participantsImageUrls, // participants_image_url -> participantsImageUrls
-        String ownerImageUrl // onwer_image_Url -> ownerImageUrl
+        List<String> participantsImageUrls,
+        String ownerImageUrl
 ) {
     public static GroupChatDetailResponse from(
             ChatRoom chatRoom,
             String roomImageUrl,
             int participantCount,
             List<String> participantsImageUrls,
-            String ownerImageUrl // 5번째 파라미터로 ownerImageUrl 추가
+            String ownerImageUrl
     ) {
         return new GroupChatDetailResponse(
                 chatRoom.getId(),
