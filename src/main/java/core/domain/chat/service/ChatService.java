@@ -410,31 +410,35 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
-    public GroupChatDetailResponse getGroupChatDetails(Long roomId) {
-        ChatRoom chatRoom = chatRoomRepo.findByIdWithParticipants(roomId)
+    public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-
-        if (!chatRoom.getGroup()) {
-            throw new BusinessException(ErrorCode.CHAT_NOT_GROUP);
-        }
 
         String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
                 ImageType.CHAT_ROOM, chatRoom.getId()
         ).map(Image::getUrl).orElse(null);
 
-        List<String> participants_image_url = chatRoom.getParticipants().stream()
-                .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                        ImageType.USER, participant.getUser().getId()
-                ).map(Image::getUrl).orElse(null))
-                .collect(Collectors.toList());
+        Long ownerId = chatRoom.getOwner().getId();
+        String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.USER,
+                ownerId
+        ).map(Image::getUrl).orElse(null);
 
-        int participantCount = chatRoom.getParticipants().size();
+        List<String> otherParticipantsImageUrls = chatRoom.getParticipants().stream()
+                .filter(participant -> !participant.getUser().getId().equals(ownerId))
+                .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                        ImageType.USER,
+                        participant.getUser().getId()
+                ).map(Image::getUrl).orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
         return GroupChatDetailResponse.from(
                 chatRoom,
                 roomImageUrl,
-                participantCount,
-                participants_image_url
+                chatRoom.getParticipants().size(),
+                otherParticipantsImageUrls,
+                ownerImageUrl
         );
     }
 
