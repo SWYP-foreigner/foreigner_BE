@@ -273,7 +273,7 @@ public class CommentServiceImpl implements CommentService {
 
         likeRepository.save(Like.builder()
                 .user(user)
-                .type(LikeType.POST)
+                .type(LikeType.COMMENT)
                 .relatedId(commentId)
                 .build());
     }
