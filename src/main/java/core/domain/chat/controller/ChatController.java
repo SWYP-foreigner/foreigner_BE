@@ -201,9 +201,10 @@ public class ChatController {
     })
     @PostMapping("/rooms/group/{roomId}/join")
     public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId) {
-        Long currentUserId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
 
-        chatService.joinGroupChat(roomId, currentUserId);
+        chatService.joinGroupChat(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
