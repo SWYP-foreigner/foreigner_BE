@@ -13,10 +13,8 @@ import java.util.Optional;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    @Query("SELECT cr FROM ChatRoom cr WHERE cr.group = true AND cr.roomName LIKE %:keyword%")
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.group = true AND LOWER(cr.roomName) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<ChatRoom> findGroupChatRoomsByKeyword(@Param("keyword") String keyword);
-
-
     /**
      * 특정 사용자가 속한 모든 채팅방 목록을 찾습니다.
      */
