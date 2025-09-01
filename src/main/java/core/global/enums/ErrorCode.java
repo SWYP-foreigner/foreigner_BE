@@ -9,12 +9,12 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum ErrorCode {
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
-    INVALID_EMAIL_INPUT (HttpStatus.BAD_REQUEST,"해당 이메일은 소셜 로그인 계정입니다. 소셜 로그인을 이용하세요."),
+    INVALID_EMAIL_INPUT(HttpStatus.BAD_REQUEST, "해당 이메일은 소셜 로그인 계정입니다. 소셜 로그인을 이용하세요."),
     DUPLICATE_RESOURCE(HttpStatus.FORBIDDEN, "중복된 이메일입니다."),
 
-    AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN,"이메일 또는 비밀번호가 올바르지 않습니다."),
-    PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST,"비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
-    PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST,"비밀번호가 일치하지 않습니다."),
+    AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST, "비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
+    PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
@@ -29,13 +29,11 @@ public enum ErrorCode {
     COMMENT_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 댓글을 수정할 권한이 없습니다."),
     COMMENT_ALREADY_DELETED(HttpStatus.GONE, "삭제된 댓글입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
-    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 장소입니다."),
     EMAIL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "이메일이 이용 가능하지 않습니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     INVALID_OR_EXPIRED_SESSION(HttpStatus.BAD_REQUEST, "세션이 만료되었습니다."),
-    INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
+    INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST, "토큰 시간이 만료되었습니다."),
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
-    INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),
     PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST, "프로필은 한장만 등록 가능합니다."),
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
@@ -48,7 +46,7 @@ public enum ErrorCode {
     MISSING_SOCIAL_INFO(HttpStatus.BAD_REQUEST, "소셜 로그인 필수 정보가 누락되었습니다."),
     USER_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
     INVALID_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "로그인 되어있지 않습니다."),
-    WEAK_PASSWORD(HttpStatus.BAD_REQUEST,"보안에 취약합니다. 다시 재설정 바랍니다."),
+    WEAK_PASSWORD(HttpStatus.BAD_REQUEST, "보안에 취약합니다. 다시 재설정 바랍니다."),
     LIKE_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요가 존재하지 않습니다."),
     LIKE_ALREADY_EXIST(HttpStatus.CONFLICT, "좋아요가 이미 존재합니다."),
     BOOKMARK_ALREADY_EXIST(HttpStatus.CONFLICT, "북마크가 이미 존재합니다."),
@@ -74,13 +72,14 @@ public enum ErrorCode {
     CHAT_NOT_GROUP(HttpStatus.UNAUTHORIZED, "현재의 채팅방은 그룹채팅방이 아닙니다"),
     ALREADY_CHAT_PARTICIPANT(HttpStatus.UNAUTHORIZED, "이미 현재의 그룹채팅방에 참여하고 있습니다."),
 
-
     JWT_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "인증 정보(JWT)가 필요합니다."),
     JWT_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "액세스 토큰이 만료되었습니다."),
     JWT_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
     JWT_TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "블랙리스트에 등록된 토큰입니다."),
+
     ELASTICSEARCH_INDEX_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "인덱스 작업에 실패했습니다."),
-    ELASTICSEARCH_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색에 실패했습니다.");
+    ELASTICSEARCH_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색에 실패했습니다."),
+    ELASTICSEARCH_SEARCH_SUGGEST_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색 제안에 실패했습니다.");
 
     private final HttpStatus errorCode;
     private final String message;

@@ -18,7 +18,7 @@ public class PostSearchSuggestService {
 
         try {
             var resp = es.search(s -> s
-                            .index(SearchConstants.INDEX_POSTS)
+                            .index(SearchConstants.INDEX_POSTS_SUGGEST)
                             .size(0)
                             .trackTotalHits(t -> t.enabled(false))
                             .suggest(sug -> sug
@@ -46,7 +46,7 @@ public class PostSearchSuggestService {
                     .toList();
 
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.ELASTICSEARCH_SEARCH_FAILED);
+            throw new BusinessException(ErrorCode.ELASTICSEARCH_SEARCH_SUGGEST_FAILED);
         }
     }
 }
