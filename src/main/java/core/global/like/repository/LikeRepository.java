@@ -28,5 +28,6 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Like l where l.user.email = :email and l.type = :likeType and l.relatedId = :id")
     void deleteByUserEmailAndIdAndType(String email, Long id, LikeType likeType);
 }
