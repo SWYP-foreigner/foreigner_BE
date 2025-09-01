@@ -26,6 +26,9 @@ public record PostDetailResponse(
         @Schema(description = "채팅방 링크", example = "https://ko-ri.cloud/chatroom/10")
         String link,
 
+        @Schema(description = "좋아요 여부", example = "true")
+        Boolean isLiked,
+
         @Schema(description = "좋아요 수", example = "12")
         Long likeCount,
 
