@@ -282,6 +282,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
+    @Transactional
     public void deleteLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
