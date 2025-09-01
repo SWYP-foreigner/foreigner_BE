@@ -1,6 +1,7 @@
 package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatRoom;
+import core.global.enums.ChatParticipantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -43,4 +44,24 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipants(@Param("roomId") Long roomId);
+
+    List<ChatRoom> findTop10ByGroupTrueOrderByCreatedAtDesc();
+
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "WHERE cr.group = true " +
+            "ORDER BY SIZE(cr.participants) DESC")
+    List<ChatRoom> findTopByGroupTrueOrderByParticipantCountDesc(int limit);
+
+    List<ChatRoom> findTop10ByGroupTrueAndIdLessThanOrderByCreatedAtDesc(Long id);
+    /**
+     * 특정 사용자가 ACTIVE 상태로 참여하고 있는 채팅방 목록을 조회합니다.
+     *
+     * @param userId         사용자 ID
+     * @param participantStatus 조회할 참여 상태 (ACTIVE)
+     * @return ACTIVE 상태인 채팅방 목록
+     */
+    @Query("SELECT cr FROM ChatRoom cr JOIN ChatParticipant cp ON cr.id = cp.chatRoom.id WHERE cp.user.id = :userId AND cp.status = :participantStatus")
+    List<ChatRoom> findActiveChatRoomsByUserId(@Param("userId") Long userId, @Param("participantStatus") ChatParticipantStatus participantStatus);
+
+
 }

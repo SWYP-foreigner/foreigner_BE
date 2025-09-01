@@ -9,7 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "ChatParticipant")
+@Table(name = "chat_participant",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"chatroom_id", "user_id"})
+        }
+)
 @Getter
 @NoArgsConstructor
 public class ChatParticipant {
@@ -27,7 +31,6 @@ public class ChatParticipant {
 
     @Column(name = "joined_at", updatable = false)
     private Instant joinedAt;
-
 
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;

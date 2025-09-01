@@ -17,10 +17,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,8 +44,16 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
+            "/swagger-ui.html",
+            "/auth/**",
+            "/api/v1/member/signup",
+            "/api/v1/member/doLogin",
+            "/api/v1/member/verify-code",
+            "/api/v1/member/signup",
+            "/api/v1/member/send-verification-email",
             "/api/v1/member/refresh",
             "/swagger-ui.html",
+            "/api/v1/member/password/**",
             "/auth/test-login",
             "/ws/**"
     );
