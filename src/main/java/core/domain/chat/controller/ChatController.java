@@ -132,7 +132,7 @@ public class ChatController {
     @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+                    content = @Content(schema = @Schema(implementation = ChatMessageFirstResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음",
                     content = @Content(schema = @Schema(implementation = Object.class))
