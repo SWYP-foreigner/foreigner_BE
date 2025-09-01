@@ -2,6 +2,7 @@ package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
@@ -46,46 +47,59 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(SendMessageRequest req) {
         try {
-            ChatMessage saved = chatService.saveMessage(req.roomId(), req.senderId(), req.content());
+            // 1. 원문 메시지를 DB에 먼저 저장합니다.
+            ChatMessage savedMessage = chatService.saveMessage(req.roomId(), req.senderId(), req.content());
+            String originalContent = savedMessage.getContent();
+            LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
 
-            String broadcastContent = saved.getContent();
-            String originalContent = null;
+            // 2. 해당 채팅방의 모든 참여자 정보를 조회합니다.
+            List<ChatParticipant> participants = chatService.getParticipants(req.roomId());
 
-            if (req.translate() && req.targetLanguage() != null && !req.targetLanguage().isEmpty()) {
-                originalContent = saved.getContent();
-                List<String> translatedList = translationService.translateMessages(List.of(originalContent), req.targetLanguage());
-                if (!translatedList.isEmpty()) {
-                    broadcastContent = translatedList.get(0);
+            // 3. 각 참여자에게 개인화된 메시지 및 채팅방 요약 정보를 전송합니다.
+            for (ChatParticipant participant : participants) {
+                User recipient = participant.getUser();
+                String contentToSend = originalContent;
+                String originalForDisplay = null;
+
+                // --- 3A. 메시지 개인화 (번역 처리) ---
+                if (participant.isTranslateEnabled()) {
+                    String targetLanguage = recipient.getLanguage();
+                    if (targetLanguage != null && !targetLanguage.isEmpty()) {
+                        List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
+                        if (!translatedList.isEmpty()) {
+                            contentToSend = translatedList.get(0);
+                            originalForDisplay = originalContent;
+                        }
+                    }
                 }
-            }
 
-            ChatMessageResponse response = new ChatMessageResponse(
-                    saved.getId(),
-                    saved.getChatRoom().getId(),
-                    saved.getSender().getId(),
-                    broadcastContent,
-                    saved.getSentAt(),
-                    originalContent
-            );
+                ChatMessageResponse messageResponse = new ChatMessageResponse(
+                        savedMessage.getId(),
+                        savedMessage.getChatRoom().getId(),
+                        savedMessage.getSender().getId(),
+                        contentToSend,
+                        savedMessage.getSentAt(),
+                        originalForDisplay
+                );
+                // ★★★ 수정된 라인 ★★★
+                messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
 
-            messagingTemplate.convertAndSend("/topic/rooms/" + req.roomId(), response);
-            LocalDateTime sentAt = saved.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
-            chatService.getParticipants(req.roomId()).forEach(user -> {
-                int unreadCount = chatService.countUnreadMessages(req.roomId(), user.getId());
+                // --- 3B. 채팅방 목록 요약 정보 생성 및 전송 ---
+                int unreadCount = chatService.countUnreadMessages(req.roomId(), recipient.getId());
+
                 ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
-                        saved.getChatRoom(),
-                        user.getUser().getId(),
-                        saved.getContent(),
+                        savedMessage.getChatRoom(),
+                        recipient.getId(),
+                        originalContent,
                         sentAt,
                         unreadCount,
                         imageRepository
                 );
 
+                messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+            }
 
-                messagingTemplate.convertAndSend("/topic/user/" + user.getId() + "/rooms", summary);
-            });
-
-            log.info("메시지 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
+            log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
         }

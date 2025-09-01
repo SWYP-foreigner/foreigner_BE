@@ -13,7 +13,24 @@ import java.util.Optional;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
-    List<ChatMessage> findByChatRoomIdAndContentContaining(Long roomId, String content, Pageable pageable);
+    /**
+     * 특정 채팅방의 모든 메시지를 메시지 ID 오름차순으로 조회합니다.
+     * (메시지 생성 순서대로 정렬)
+     *
+     * @param chatRoomId 조회할 채팅방의 ID
+     * @return 해당 채팅방의 모든 메시지 리스트
+     */
+    List<ChatMessage> findByChatRoomIdOrderByIdAsc(Long chatRoomId);
+
+    /**
+     * 특정 채팅방에서 주어진 키워드가 포함된 메시지를 검색합니다.
+     * (SQL의 LIKE '%keyword%'와 동일)
+     *
+     * @param chatRoomId 검색할 채팅방의 ID
+     * @param keyword 검색할 키워드 문자열
+     * @return 키워드가 포함된 메시지 리스트
+     */
+    List<ChatMessage> findByChatRoomIdAndContentContaining(Long chatRoomId, String keyword);
 
     List<ChatMessage> findByChatRoomIdAndSentAtAfterAndIdBefore(Long roomId, Instant lastLeftAt, Long lastMessageId, PageRequest sentAt);
 
