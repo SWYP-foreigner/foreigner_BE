@@ -1,24 +1,17 @@
 package core.domain.chat.dto;
 
-import core.domain.chat.entity.ChatMessage;
-
 import java.time.Instant;
+
 public record ChatMessageResponse(
         Long id,
         Long roomId,
         Long senderId,
-        String content,
+        String originContent,
+        String targetContent,
         Instant sentAt,
-        String originalContent
+        String senderFirstName,
+        String senderLastName,
+        String senderImageUrl
 ) {
-    public static ChatMessageResponse fromEntity(ChatMessage message) {
-        return new ChatMessageResponse(
-                message.getId(),
-                message.getChatRoom().getId(),
-                message.getSender().getId(),
-                message.getContent(),
-                message.getSentAt(),
-                null
-        );
-    }
+
 }

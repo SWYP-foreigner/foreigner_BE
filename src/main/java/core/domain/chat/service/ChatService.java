@@ -41,7 +41,6 @@ public class ChatService {
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private static final int MESSAGE_PAGE_SIZE = 20;
-    private static final int MESSAGE_SEARCH_PAGE_SIZE = 20;
     private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
@@ -277,6 +276,7 @@ public class ChatService {
 
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
+        // 번역이 필요한 경우
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
             List<String> originalContents = messages.stream()
                     .map(ChatMessage::getContent)
@@ -287,25 +287,45 @@ public class ChatService {
                     .mapToObj(i -> {
                         ChatMessage message = messages.get(i);
                         String translatedContent = translatedContents.get(i);
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
                         return new ChatMessageResponse(
                                 message.getId(),
                                 message.getChatRoom().getId(),
-                                message.getSender().getId(),
+                                sender.getId(),
+                                message.getContent(),
                                 translatedContent,
                                 message.getSentAt(),
-                                message.getContent()
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
                         );
                     }).collect(Collectors.toList());
-        } else {
+        }
+        // 번역이 필요 없는 경우
+        else {
             return messages.stream()
-                    .map(message -> new ChatMessageResponse(
-                            message.getId(),
-                            message.getChatRoom().getId(),
-                            message.getSender().getId(),
-                            message.getContent(),
-                            message.getSentAt(),
-                            null
-                    )).collect(Collectors.toList());
+                    .map(message -> {
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                null,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
+                        );
+                    }).collect(Collectors.toList());
         }
     }
 
@@ -341,7 +361,6 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
-        // 1. 사용자의 번역 설정 확인
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
@@ -351,7 +370,24 @@ public class ChatService {
         if (!needsTranslation || targetLanguage == null || targetLanguage.isEmpty()) {
             List<ChatMessage> messages = chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
             return messages.stream()
-                    .map(ChatMessageResponse::fromEntity)
+                    .map(message -> {
+                        User sender = message.getSender();
+                        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                null,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                userImageUrl
+                        );
+                    })
                     .collect(Collectors.toList());
         }
         else {
@@ -369,14 +405,24 @@ public class ChatService {
 
             return messagePairs.stream()
                     .filter(pair -> pair.translatedContent().toLowerCase().contains(keyword.toLowerCase()))
-                    .map(pair -> new ChatMessageResponse(
-                            pair.originalMessage().getId(),
-                            pair.originalMessage().getChatRoom().getId(),
-                            pair.originalMessage().getSender().getId(),
-                            pair.translatedContent(),
-                            pair.originalMessage().getSentAt(),
-                            pair.originalMessage().getContent()
-                    ))
+                    .map(pair -> {
+                        User sender = pair.originalMessage().getSender();
+                        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                pair.originalMessage().getId(),
+                                pair.originalMessage().getChatRoom().getId(),
+                                sender.getId(),
+                                pair.originalMessage().getContent(),
+                                pair.translatedContent(),
+                                pair.originalMessage().getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                userImageUrl
+                        );
+                    })
                     .collect(Collectors.toList());
         }
     }
@@ -682,32 +728,37 @@ public class ChatService {
         ChatRoom chatRoom = savedMessage.getChatRoom();
 
         List<ChatParticipant> participants = chatRoom.getParticipants();
+        User senderUser = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER,req.senderId())
+                .map(Image::getUrl)
+                .orElse(null);
 
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
-            String contentToSend = originalContent;
-            String originalForDisplay = null;
+            String originContent = originalContent;
+            String targetContent = null;
 
-            // 번역 로직
             if (participant.isTranslateEnabled()) {
                 String targetLanguage = recipient.getLanguage();
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
-                    List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
+                    List<String> translatedList = translationService.translateMessages(List.of(originContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
-                        contentToSend = translatedList.get(0);
-                        originalForDisplay = originalContent;
+                        targetContent = translatedList.getFirst();
                     }
                 }
             }
 
-            // 개인 메시지 전송
             ChatMessageResponse messageResponse = new ChatMessageResponse(
                     savedMessage.getId(),
                     chatRoom.getId(),
                     savedMessage.getSender().getId(),
-                    contentToSend,
+                    originContent,
+                    targetContent,
                     savedMessage.getSentAt(),
-                    originalForDisplay
+                    senderUser.getFirstName(),
+                    senderUser.getLastName(),
+                    userImageUrl
             );
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
 
