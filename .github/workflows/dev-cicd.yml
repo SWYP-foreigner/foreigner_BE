@@ -67,6 +67,8 @@ jobs:
 
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin            
             
+            echo "${{ secrets.GCP_SA_KEY_JSON }}" > gcp-key.json
+            
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             
             # .env 파일을 생성합니다.
@@ -126,6 +128,8 @@ jobs:
             NAVER_HOST=${{secrets.NAVER_HOST}}
             APP_NAME=${{secrets.APP_NAME}}
             BASE_URL=${{secrets.BASE_URL}}
+            
+            
 
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
