@@ -3,6 +3,7 @@ package core.domain.chat.service;
 import com.google.cloud.translate.v3.*;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class TranslationService {
 
     @Value("${google.cloud.project.id}")
@@ -31,7 +33,8 @@ public class TranslationService {
         if (messages == null || messages.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
             return messages;
         }
-
+        log.info(">>>> [TRANSLATION_DATA_CHECK] Target Language: '{}'", targetLanguage);
+        log.info(">>>> [TRANSLATION_DATA_CHECK] Messages to Translate: {}", messages);
         try {
             TranslationServiceSettings settings = TranslationServiceSettings.newBuilder()
                     .setHeaderProvider(() -> Collections.singletonMap("x-goog-api-key", apiKey))
@@ -39,7 +42,8 @@ public class TranslationService {
 
             try (TranslationServiceClient client = TranslationServiceClient.create(settings)) {
                 LocationName parent = LocationName.of(projectId, "global");
-
+                log.info(">>>> [TRANSLATION_DATA_CHECK] Target Language: '{}'", targetLanguage);
+                log.info(">>>> [TRANSLATION_DATA_CHECK] Messages to Translate: {}", messages);
                 TranslateTextRequest request = TranslateTextRequest.newBuilder()
                         .setParent(parent.toString())
                         .setMimeType("text/plain")
