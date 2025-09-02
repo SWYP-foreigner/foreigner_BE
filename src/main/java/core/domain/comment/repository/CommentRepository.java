@@ -32,7 +32,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
             order by c.id desc
             """)
     List<UserCommentItem> findMyCommentsForCursor(
-            @Param("templates/email") String email,
+            @Param("email") String email,
             @Param("lastId") Long lastId,
             Pageable pageable
     );
