@@ -17,6 +17,9 @@ public record CommentItem(
         @Schema(description = "댓글 내용", example = "좋은 글이네요!")
         String content,
 
+        @Schema(description = "좋아요 여부", example = "true")
+        Boolean isLiked,
+
         @Schema(description = "좋아요 개수", example = "5")
         Long likeCount,
 
@@ -30,6 +33,7 @@ public record CommentItem(
         Boolean deleted
 ) {
     public static CommentItem from(Comment c,
+                                   boolean isLiked,
                                    long likeCount,
                                    @Nullable String userImageUrl) {
         if (c.isDeleted()) {
@@ -37,6 +41,7 @@ public record CommentItem(
                     null,
                     null,
                     "삭제된 댓글입니다.",
+                    false,
                     0L,
                     c.getCreatedAt(),
                     null,
@@ -47,6 +52,7 @@ public record CommentItem(
                 c.getId(),
                 (c.getAuthor() != null) ? c.getAuthor().getName() : null,
                 c.getContent(),
+                isLiked,
                 likeCount,
                 c.getCreatedAt(),
                 userImageUrl,

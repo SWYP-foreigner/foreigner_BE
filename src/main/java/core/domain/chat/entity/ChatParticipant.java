@@ -41,6 +41,13 @@ public class ChatParticipant {
     @Column(name = "last_left_at")
     private Instant lastLeftAt;
 
+    @Column(name = "translate_enabled", nullable = false)
+    private boolean translateEnabled = false;
+
+    public void toggleTranslation(boolean enabled) {
+        this.translateEnabled = enabled;
+    }
+
     public ChatParticipant(ChatRoom chatRoom, User user) {
         this.chatRoom = chatRoom;
         this.user = user;

@@ -2,6 +2,7 @@ package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
@@ -46,48 +47,13 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(SendMessageRequest req) {
         try {
-            ChatMessage saved = chatService.saveMessage(req.roomId(), req.senderId(), req.content());
+            // 복잡한 로직 대신 서비스 메소드 호출 한 줄로 끝납니다.
+            chatService.processAndSendChatMessage(req);
 
-            String broadcastContent = saved.getContent();
-            String originalContent = null;
-
-            if (req.translate() && req.targetLanguage() != null && !req.targetLanguage().isEmpty()) {
-                originalContent = saved.getContent();
-                List<String> translatedList = translationService.translateMessages(List.of(originalContent), req.targetLanguage());
-                if (!translatedList.isEmpty()) {
-                    broadcastContent = translatedList.get(0);
-                }
-            }
-
-            ChatMessageResponse response = new ChatMessageResponse(
-                    saved.getId(),
-                    saved.getChatRoom().getId(),
-                    saved.getSender().getId(),
-                    broadcastContent,
-                    saved.getSentAt(),
-                    originalContent
-            );
-
-            messagingTemplate.convertAndSend("/topic/rooms/" + req.roomId(), response);
-            LocalDateTime sentAt = saved.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
-            chatService.getParticipants(req.roomId()).forEach(user -> {
-                int unreadCount = chatService.countUnreadMessages(req.roomId(), user.getId());
-                ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
-                        saved.getChatRoom(),
-                        user.getUser().getId(),
-                        saved.getContent(),
-                        sentAt,
-                        unreadCount,
-                        imageRepository
-                );
-
-
-                messagingTemplate.convertAndSend("/topic/user/" + user.getId() + "/rooms", summary);
-            });
-
-            log.info("메시지 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
+            log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
+            // 필요하다면 이곳에서 클라이언트에게 에러 메시지를 보낼 수도 있습니다.
         }
     }
     /**
@@ -139,29 +105,5 @@ public class ChatWebSocketController {
         }
     }
 
-    @Operation(summary = "메시지 전송", description = "STOMP 실제 엔드포인트: /app/chat.sendMessage\n구독 채널: /topic/rooms/{roomId}")
-    @GetMapping("/docs/chat/sendMessage")
-    public SendMessageRequest sendMessageExample() {
-        return new SendMessageRequest(1L, 2L, "안녕하세요", false);
-    }
 
-   @Operation(summary = "메시지 전송 예시 (번역 포함)",
-              description = "STOMP 실제 엔드포인트: /app/chat.sendMessage\n" +
-                      "구독 채널: /topic/rooms/{roomId}\n" +
-                      "메시지를 한국어로 번역 요청하는 예시입니다.")
-    @GetMapping("/docs/chat/sendMessage-with-translation")
-    public SendMessageRequest sendMessageWithTranslationExample() {
-        return new SendMessageRequest(1L, 2L, "Hello, how are you?", "ko", true);
-    }
-    @Operation(summary = "타이핑 이벤트", description = "STOMP 실제 엔드포인트: /app/chat.typing\n구독 채널: /topic/chatrooms/{roomId}")
-    @GetMapping("/docs/chat/typing")
-    public TypingEvent typingExample() {
-        return new TypingEvent(1L, "이용준", 3L,true);
-    }
-
-    @Operation(summary = "메시지 읽음 처리", description = "STOMP 실제  엔드포인트: /app/chat.markAsRead\n구독 채널: /topic/rooms/{roomId}/read-status")
-    @GetMapping("/docs/chat/markAsRead")
-    public MarkAsReadRequest readExample() {
-        return new MarkAsReadRequest(1L, 2L, 99L);
-    }
 }

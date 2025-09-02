@@ -20,6 +20,7 @@ import core.global.image.repository.ImageRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import core.global.image.entity.Image;
@@ -29,6 +30,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public class ChatService {
@@ -44,11 +46,11 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
-
+    private final SimpMessagingTemplate messagingTemplate; // 주입 필요
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository) {
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -59,6 +61,7 @@ public class ChatService {
         this.translationService = translationService;
         this.imageRepository = imageRepository;
         this.chatRoomRepository = chatRoomRepository;
+        this.messagingTemplate = messagingTemplate;
     }
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
@@ -176,12 +179,7 @@ public class ChatService {
             chatRoomRepo.delete(room);
         }
     }
-    @Transactional
-    public void forceDeleteRoom(Long roomId) {
-        ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        chatRoomRepo.delete(room);
-    }
+
 
     public List<ChatParticipant> getParticipants(Long roomId) {
         return participantRepo.findByChatRoomId(roomId);
@@ -260,38 +258,35 @@ public class ChatService {
      * @param roomId 채팅방 ID
      * @param userId 조회하는 사용자 ID
      * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
-     * @param translate 메시지 번역 요청 여부
      * @return ChatMessageResponse 목록
      */
+    // ChatService.java
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(
             Long roomId,
             Long userId,
-            Long lastMessageId,
-            boolean translate
+            Long lastMessageId
+
     ) {
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+
+        boolean needsTranslation = participant.isTranslateEnabled();
+        String targetLanguage = participant.getUser().getLanguage();
+
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
-        if (translate) {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-            String targetLanguage = user.getLanguage();
-            if (targetLanguage == null || targetLanguage.isEmpty()) {
-                return messages.stream()
-                        .map(ChatMessageResponse::fromEntity)
-                        .toList();
-            }
-
+        if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
             List<String> originalContents = messages.stream()
                     .map(ChatMessage::getContent)
                     .collect(Collectors.toList());
             List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
 
-            return messages.stream()
-                    .map(message -> {
-                        int index = messages.indexOf(message);
-                        String translatedContent = translatedContents.get(index);
+            return IntStream.range(0, messages.size())
+                    .mapToObj(i -> {
+                        ChatMessage message = messages.get(i);
+                        String translatedContent = translatedContents.get(i);
                         return new ChatMessageResponse(
                                 message.getId(),
                                 message.getChatRoom().getId(),
@@ -300,7 +295,7 @@ public class ChatService {
                                 message.getSentAt(),
                                 message.getContent()
                         );
-                    }).toList();
+                    }).collect(Collectors.toList());
         } else {
             return messages.stream()
                     .map(message -> new ChatMessageResponse(
@@ -310,10 +305,9 @@ public class ChatService {
                             message.getContent(),
                             message.getSentAt(),
                             null
-                    )).toList();
+                    )).collect(Collectors.toList());
         }
     }
-
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
@@ -343,24 +337,51 @@ public class ChatService {
         return chatMessageRepository.save(message);
     }
 
+    // ChatService.java
+
     @Transactional(readOnly = true)
-    public List<ChatMessage> searchMessages(Long roomId, Long userId, String searchKeyword) {
-        ChatParticipant participant = participantRepo.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+    public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
+        // 1. 사용자의 번역 설정 확인
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
-        Pageable pageable = PageRequest.of(0, MESSAGE_SEARCH_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "sentAt"));
-        return chatMessageRepository.findByChatRoomIdAndContentContaining(
-                roomId, searchKeyword, pageable);
-    }
+        boolean needsTranslation = participant.isTranslateEnabled();
+        String targetLanguage = participant.getUser().getLanguage();
 
-    @Transactional
-    public boolean deleteMessage(Long messageId) {
-        if (!chatMessageRepository.existsById(messageId)) {
-            return false;
+        if (!needsTranslation || targetLanguage == null || targetLanguage.isEmpty()) {
+            List<ChatMessage> messages = chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
+            return messages.stream()
+                    .map(ChatMessageResponse::fromEntity)
+                    .collect(Collectors.toList());
         }
-        chatMessageRepository.deleteById(messageId);
-        return true;
+        else {
+            List<ChatMessage> allMessages = chatMessageRepository.findByChatRoomIdOrderByIdAsc(roomId);
+            if (allMessages.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<String> originalContents = allMessages.stream().map(ChatMessage::getContent).collect(Collectors.toList());
+            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+            List<MessagePair> messagePairs = IntStream.range(0, allMessages.size())
+                    .mapToObj(i -> new MessagePair(allMessages.get(i), translatedContents.get(i)))
+                    .toList();
+
+            return messagePairs.stream()
+                    .filter(pair -> pair.translatedContent().toLowerCase().contains(keyword.toLowerCase()))
+                    .map(pair -> new ChatMessageResponse(
+                            pair.originalMessage().getId(),
+                            pair.originalMessage().getChatRoom().getId(),
+                            pair.originalMessage().getSender().getId(),
+                            pair.translatedContent(),
+                            pair.originalMessage().getSentAt(),
+                            pair.originalMessage().getContent()
+                    ))
+                    .collect(Collectors.toList());
+        }
     }
+
+    private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
     /**
      * @apiNote 메시지 읽음 상태를 업데이트합니다.
      * 그룹 채팅에서 '누가 읽었는지'를 관리하는 로직입니다.
@@ -644,5 +665,63 @@ public class ChatService {
 
         return ChatUserProfileResponse.from(user, imageUrl);
     }
+    @Transactional
+    public void toggleTranslation(Long roomId, Long userId, boolean enable) {
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+        participant.toggleTranslation(enable);
+    }
 
+    @Transactional
+    public void processAndSendChatMessage(SendMessageRequest req) {
+
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+        String originalContent = savedMessage.getContent();
+        LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+        ChatRoom chatRoom = savedMessage.getChatRoom();
+
+        List<ChatParticipant> participants = chatRoom.getParticipants();
+
+        for (ChatParticipant participant : participants) {
+            User recipient = participant.getUser();
+            String contentToSend = originalContent;
+            String originalForDisplay = null;
+
+            // 번역 로직
+            if (participant.isTranslateEnabled()) {
+                String targetLanguage = recipient.getLanguage();
+                if (targetLanguage != null && !targetLanguage.isEmpty()) {
+                    List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
+                    if (!translatedList.isEmpty()) {
+                        contentToSend = translatedList.get(0);
+                        originalForDisplay = originalContent;
+                    }
+                }
+            }
+
+            // 개인 메시지 전송
+            ChatMessageResponse messageResponse = new ChatMessageResponse(
+                    savedMessage.getId(),
+                    chatRoom.getId(),
+                    savedMessage.getSender().getId(),
+                    contentToSend,
+                    savedMessage.getSentAt(),
+                    originalForDisplay
+            );
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
+
+
+            int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
+            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                    chatRoom,
+                    recipient.getId(),
+                    originalContent,
+                    sentAt,
+                    unreadCount,
+                    imageRepository
+            );
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+        }
+    }
 }

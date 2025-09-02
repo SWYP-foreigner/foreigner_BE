@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -80,13 +81,18 @@ class PostServiceImplTest {
         Post post = mock(Post.class);
         given(postRepository.findById(postId)).willReturn(Optional.of(post));
 
+        // ★ 현재 사용자 name="alice" → 이름으로 유저 찾고, 이메일 꺼내서 사용
+        User u = mock(User.class);
+        given(userRepository.findByName("alice")).willReturn(Optional.of(u));
+        given(u.getEmail()).willReturn("alice@email.com");
+
         PostDetailResponse detail = mock(PostDetailResponse.class);
-        given(postRepository.findPostDetail(postId)).willReturn(detail);
+        given(postRepository.findPostDetail("alice@email.com", postId)).willReturn(detail);
 
         PostDetailResponse result = service.getPostDetail(postId);
 
         then(post).should().changeCheckCount();
-        then(postRepository).should().findPostDetail(postId);
+        then(postRepository).should().findPostDetail("alice@email.com", postId);
         assertThat(result).isSameAs(detail);
     }
 

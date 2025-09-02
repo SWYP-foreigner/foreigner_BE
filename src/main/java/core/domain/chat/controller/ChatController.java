@@ -121,19 +121,18 @@ public class ChatController {
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @PathVariable Long roomId,
-            @RequestParam(required = false) Long lastMessageId,
-            @RequestParam(required = false, defaultValue = "false") boolean translate
+            @RequestParam(required = false) Long lastMessageId
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId, translate);
+
+        List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
-
     @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+                    content = @Content(schema = @Schema(implementation = ChatMessageFirstResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음",
                     content = @Content(schema = @Schema(implementation = Object.class))
@@ -175,23 +174,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @Operation(summary = "메시지 삭제")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "존재하지 않는 메시지",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
-    })
-    @DeleteMapping("/rooms/{roomId}/messages/{messageId}")
-    public ResponseEntity<ApiResponse<Void>> deleteMessage(@PathVariable Long roomId, @PathVariable String messageId) {
-        boolean deleted = chatService.deleteMessage(Long.valueOf(messageId));
-        if (!deleted) {
-            log.warn("메시지 삭제 실패: messageId={}", messageId);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.fail("존재하지 않는 메시지입니다."));
-        }
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 
     @Operation(summary = "그룹 채팅 참여")
     @ApiResponses({
@@ -223,41 +205,14 @@ public class ChatController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
             @RequestParam Long roomId,
-            @RequestParam String search,
-            @RequestParam(required = false, defaultValue = "false") boolean translate
+            @RequestParam String keyword
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        List<ChatMessage> messages = chatService.searchMessages(roomId, userId, search);
-        if (translate) {
-            User user = userRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-            String targetLanguage = user.getLanguage();
 
-            if (targetLanguage != null && !targetLanguage.isEmpty()) {
-                List<String> originalContents = messages.stream().map(ChatMessage::getContent).collect(Collectors.toList());
-                List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+        List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
 
-                List<ChatMessageResponse> responses = messages.stream()
-                        .map(message -> {
-                            int index = messages.indexOf(message);
-                            String translatedContent = translatedContents.get(index);
-                            return new ChatMessageResponse(
-                                    message.getId(),
-                                    message.getChatRoom().getId(),
-                                    message.getSender().getId(),
-                                    translatedContent,
-                                    message.getSentAt(),
-                                    message.getContent()
-                            );
-                        }).collect(Collectors.toList());
-                return ResponseEntity.ok(ApiResponse.success(responses));
-            }
-        }
-
-        List<ChatMessageResponse> response = messages.stream()
-                .map(ChatMessageResponse::fromEntity)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(responses));
     }
     @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
     @GetMapping("/rooms/group/{roomId}")
@@ -326,5 +281,24 @@ public class ChatController {
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    // ChatController.java
+
+    @Operation(summary = "채팅방 번역 기능 설정", description = "특정 채팅방의 메시지 번역 기능을 켜거나 끕니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "설정 변경 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 참여자를 찾을 수 없음")
+    })
+    @PostMapping("/rooms/{roomId}/translation")
+    public ResponseEntity<ApiResponse<Void>> toggleTranslation(
+            @PathVariable Long roomId,
+            @RequestBody ToggleTranslationRequest request
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        chatService.toggleTranslation(roomId, userId, request.translateEnabled());
+
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
