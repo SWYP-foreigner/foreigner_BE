@@ -117,8 +117,7 @@ logging:
     root: INFO
     core.global.config.JwtTokenFilter: DEBUG
     org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 app:
   mail:
     from: ${NAVER_HOST}
