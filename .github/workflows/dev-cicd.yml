@@ -67,7 +67,7 @@ jobs:
 
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin            
             
-            printf '%s\n' "${{ secrets.GCP_SA_KEY_JSON }}" > gcp-key.json
+            echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
             
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             
