@@ -20,6 +20,7 @@ import core.global.image.repository.ImageRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import core.global.image.entity.Image;
@@ -45,11 +46,11 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
-
+    private final SimpMessagingTemplate messagingTemplate; // 주입 필요
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository) {
+                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -60,6 +61,7 @@ public class ChatService {
         this.translationService = translationService;
         this.imageRepository = imageRepository;
         this.chatRoomRepository = chatRoomRepository;
+        this.messagingTemplate = messagingTemplate;
     }
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
@@ -177,12 +179,7 @@ public class ChatService {
             chatRoomRepo.delete(room);
         }
     }
-    @Transactional
-    public void forceDeleteRoom(Long roomId) {
-        ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        chatRoomRepo.delete(room);
-    }
+
 
     public List<ChatParticipant> getParticipants(Long roomId) {
         return participantRepo.findByChatRoomId(roomId);
@@ -673,5 +670,58 @@ public class ChatService {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
         participant.toggleTranslation(enable);
+    }
+
+    @Transactional
+    public void processAndSendChatMessage(SendMessageRequest req) {
+        // 1. 메시지 저장
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+        String originalContent = savedMessage.getContent();
+        LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
+        ChatRoom chatRoom = savedMessage.getChatRoom();
+
+        List<ChatParticipant> participants = chatRoom.getParticipants();
+
+        for (ChatParticipant participant : participants) {
+            User recipient = participant.getUser();
+            String contentToSend = originalContent;
+            String originalForDisplay = null;
+
+            // 번역 로직
+            if (participant.isTranslateEnabled()) {
+                String targetLanguage = recipient.getLanguage();
+                if (targetLanguage != null && !targetLanguage.isEmpty()) {
+                    List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
+                    if (!translatedList.isEmpty()) {
+                        contentToSend = translatedList.get(0);
+                        originalForDisplay = originalContent;
+                    }
+                }
+            }
+
+            // 개인 메시지 전송
+            ChatMessageResponse messageResponse = new ChatMessageResponse(
+                    savedMessage.getId(),
+                    chatRoom.getId(),
+                    savedMessage.getSender().getId(),
+                    contentToSend,
+                    savedMessage.getSentAt(),
+                    originalForDisplay
+            );
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
+
+            // 채팅방 목록 요약 정보 전송
+            int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
+            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                    chatRoom,
+                    recipient.getId(),
+                    originalContent,
+                    sentAt,
+                    unreadCount,
+                    imageRepository
+            );
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+        }
     }
 }

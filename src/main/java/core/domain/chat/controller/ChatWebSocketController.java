@@ -47,61 +47,13 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(SendMessageRequest req) {
         try {
-            // 1. 원문 메시지를 DB에 먼저 저장합니다.
-            ChatMessage savedMessage = chatService.saveMessage(req.roomId(), req.senderId(), req.content());
-            String originalContent = savedMessage.getContent();
-            LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
-
-            // 2. 해당 채팅방의 모든 참여자 정보를 조회합니다.
-            List<ChatParticipant> participants = chatService.getParticipants(req.roomId());
-
-            // 3. 각 참여자에게 개인화된 메시지 및 채팅방 요약 정보를 전송합니다.
-            for (ChatParticipant participant : participants) {
-                User recipient = participant.getUser();
-                String contentToSend = originalContent;
-                String originalForDisplay = null;
-
-                // --- 3A. 메시지 개인화 (번역 처리) ---
-                if (participant.isTranslateEnabled()) {
-                    String targetLanguage = recipient.getLanguage();
-                    if (targetLanguage != null && !targetLanguage.isEmpty()) {
-                        List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
-                        if (!translatedList.isEmpty()) {
-                            contentToSend = translatedList.get(0);
-                            originalForDisplay = originalContent;
-                        }
-                    }
-                }
-
-                ChatMessageResponse messageResponse = new ChatMessageResponse(
-                        savedMessage.getId(),
-                        savedMessage.getChatRoom().getId(),
-                        savedMessage.getSender().getId(),
-                        contentToSend,
-                        savedMessage.getSentAt(),
-                        originalForDisplay
-                );
-                // ★★★ 수정된 라인 ★★★
-                messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
-
-                // --- 3B. 채팅방 목록 요약 정보 생성 및 전송 ---
-                int unreadCount = chatService.countUnreadMessages(req.roomId(), recipient.getId());
-
-                ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
-                        savedMessage.getChatRoom(),
-                        recipient.getId(),
-                        originalContent,
-                        sentAt,
-                        unreadCount,
-                        imageRepository
-                );
-
-                messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
-            }
+            // 복잡한 로직 대신 서비스 메소드 호출 한 줄로 끝납니다.
+            chatService.processAndSendChatMessage(req);
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
+            // 필요하다면 이곳에서 클라이언트에게 에러 메시지를 보낼 수도 있습니다.
         }
     }
     /**
@@ -153,29 +105,5 @@ public class ChatWebSocketController {
         }
     }
 
-    @Operation(summary = "메시지 전송", description = "STOMP 실제 엔드포인트: /app/chat.sendMessage\n구독 채널: /topic/rooms/{roomId}")
-    @GetMapping("/docs/chat/sendMessage")
-    public SendMessageRequest sendMessageExample() {
-        return new SendMessageRequest(1L, 2L, "안녕하세요", false);
-    }
 
-   @Operation(summary = "메시지 전송 예시 (번역 포함)",
-              description = "STOMP 실제 엔드포인트: /app/chat.sendMessage\n" +
-                      "구독 채널: /topic/rooms/{roomId}\n" +
-                      "메시지를 한국어로 번역 요청하는 예시입니다.")
-    @GetMapping("/docs/chat/sendMessage-with-translation")
-    public SendMessageRequest sendMessageWithTranslationExample() {
-        return new SendMessageRequest(1L, 2L, "Hello, how are you?", "ko", true);
-    }
-    @Operation(summary = "타이핑 이벤트", description = "STOMP 실제 엔드포인트: /app/chat.typing\n구독 채널: /topic/chatrooms/{roomId}")
-    @GetMapping("/docs/chat/typing")
-    public TypingEvent typingExample() {
-        return new TypingEvent(1L, "이용준", 3L,true);
-    }
-
-    @Operation(summary = "메시지 읽음 처리", description = "STOMP 실제  엔드포인트: /app/chat.markAsRead\n구독 채널: /topic/rooms/{roomId}/read-status")
-    @GetMapping("/docs/chat/markAsRead")
-    public MarkAsReadRequest readExample() {
-        return new MarkAsReadRequest(1L, 2L, 99L);
-    }
 }
