@@ -1,17 +1,13 @@
 package core.domain.chat.service;
 
 import com.google.cloud.translate.v3.*;
-import com.google.api.gax.core.FixedCredentialsProvider;
-import com.google.auth.Credentials;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.AccessToken;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Date;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,10 +33,8 @@ public class TranslationService {
         }
 
         try {
-            Credentials credentials = GoogleCredentials.create(new AccessToken(apiKey, new Date(Long.MAX_VALUE)));
-
             TranslationServiceSettings settings = TranslationServiceSettings.newBuilder()
-                    .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+                    .setHeaderProvider(() -> Collections.singletonMap("x-goog-api-key", apiKey))
                     .build();
 
             try (TranslationServiceClient client = TranslationServiceClient.create(settings)) {
@@ -68,6 +62,5 @@ public class TranslationService {
                     e
             );
         }
-
     }
 }

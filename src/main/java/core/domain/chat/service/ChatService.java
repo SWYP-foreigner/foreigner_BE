@@ -674,7 +674,7 @@ public class ChatService {
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
-        // 1. 메시지 저장
+
         ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
         LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
@@ -711,7 +711,7 @@ public class ChatService {
             );
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
 
-            // 채팅방 목록 요약 정보 전송
+
             int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
             ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
                     chatRoom,
