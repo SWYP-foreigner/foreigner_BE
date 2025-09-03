@@ -58,6 +58,9 @@ public class UserService {
     private static final long CODE_TTL_MIN = 3L;      // 분
     private static final long VERIFIED_TTL_MIN = 10L; // 분 (회원가입까지 유예 시간)
 
+    public boolean existsByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
 
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
