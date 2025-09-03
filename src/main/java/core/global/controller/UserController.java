@@ -175,10 +175,11 @@ public class UserController {
 
     @PostMapping("/signup")
     @Operation(summary = "일반 회원가입")
-    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest req) {
-        AuthResponse response = userService.signup(req);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> signup(@Valid @RequestBody SignupRequest req) {
+        userService.signup(req);
+        return ResponseEntity.ok().build();
     }
+
 
     @PostMapping("/send-verification-email")
     @Operation(summary = "이메일 인증 코드 발송")

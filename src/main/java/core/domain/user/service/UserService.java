@@ -231,7 +231,7 @@ public class UserService {
      * @return
      */
     @Transactional
-    public AuthResponse signup(SignupRequest req) {
+    public void signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
             throw new BusinessException(ErrorCode.AGREEMENT_INPUT);
         }
@@ -241,10 +241,9 @@ public class UserService {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        // 이메일 인증 완료 여부 체크 (없으면 가입/토큰 발급 불가)
+        // 이메일 인증 완료 여부 체크
         String verified = redisTemplate.opsForValue().get(EMAIL_VERIFIED_FLAG_KEY + email);
         if (!"1".equals(verified)) {
-            // 필요하면 ErrorCode.EMAIL_NOT_VERIFIED 등으로 분리
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
@@ -267,12 +266,10 @@ public class UserService {
         // 인증 완료 플래그는 일회성으로 소비
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        String access  = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
-        String refresh = jwtTokenProvider.createRefreshToken(u.getId());
-        long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
-
-        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail());
+        // ✅ 토큰 발급 및 반환 제거
     }
+
+
     private String normalizeEmail(String email) {
         if (email == null) return null;
         return email.trim().toLowerCase(Locale.ROOT);
