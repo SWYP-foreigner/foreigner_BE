@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Tag(name = "채팅 API", description = "1:1 채팅, 그룹 채팅, 메시지 검색/삭제 등 채팅 기능 API")
@@ -70,8 +71,22 @@ public class ChatController {
     })
     @PostMapping("/rooms/oneTone")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            @RequestBody  Long otherUserId
+            @RequestBody Map<String, Object> requestBody
     ) {
+        log.info("Raw JSON Request Body from client: {}", requestBody);
+
+        Object rawId = requestBody.get("otherUserId");
+        Long otherUserId;
+
+        if (rawId instanceof Integer) {
+            otherUserId = ((Integer) rawId).longValue();
+        } else if (rawId instanceof Map) {
+            Map<String, Object> idMap = (Map<String, Object>) rawId;
+            otherUserId = Long.valueOf(idMap.get("id").toString());
+        } else {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE.getErrorCode(), "otherUserId 형식이 잘못되었습니다.");
+        }
+
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         ChatRoom room = chatService.createRoom(userId, otherUserId);
