@@ -47,13 +47,11 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(SendMessageRequest req) {
         try {
-            // 복잡한 로직 대신 서비스 메소드 호출 한 줄로 끝납니다.
             chatService.processAndSendChatMessage(req);
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
-            // 필요하다면 이곳에서 클라이언트에게 에러 메시지를 보낼 수도 있습니다.
         }
     }
     /**

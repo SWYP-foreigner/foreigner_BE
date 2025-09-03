@@ -175,10 +175,11 @@ public class UserController {
 
     @PostMapping("/signup")
     @Operation(summary = "일반 회원가입")
-    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest req) {
-        AuthResponse response = userService.signup(req);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> signup(@Valid @RequestBody SignupRequest req) {
+        userService.signup(req);
+        return ResponseEntity.ok().build();
     }
+
 
     @PostMapping("/send-verification-email")
     @Operation(summary = "이메일 인증 코드 발송")
@@ -202,6 +203,17 @@ public class UserController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
         AuthResponse response = userService.login(req);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/email/check")
+    @Operation(summary = "이메일 가입 중복 여부 확인")
+    public ResponseEntity<ApiResponse<EmailCheckResponse>> checkRepeat(@RequestBody EmailCheckRequest request) {
+        boolean exists = userService.existsByEmail(request.getEmail());
+
+        String message = exists ? "중복된 이메일입니다." : "사용 가능한 이메일입니다.";
+        EmailCheckResponse result = new EmailCheckResponse(exists, message);
+
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @PostMapping("/password/forgot")

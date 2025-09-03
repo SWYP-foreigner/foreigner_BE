@@ -60,9 +60,11 @@ public class SecurityConfig {
                                 "/api/v1/member/signup",
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
+                                "/api/v1/member/email/check",
                                 "/auth/test-login",
                                 "/ws/**",
                                 "/ws"
+
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
