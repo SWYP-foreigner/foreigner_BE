@@ -96,6 +96,16 @@ jobs:
           script: |
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
+            
+            echo "[ES] URL=${ES_URL}"
+            echo "[ES] Plain HEAD"
+            curl -sS -o /dev/null -w "HTTP %{http_code}\n" "${ES_URL}" || true
+            
+            echo "[ES] Verbose (SSL 자세히)"
+            curl -vI "${ES_URL}" || true
+            
+            echo "[ES] Insecure try"
+            curl -vkI "${ES_URL}" || true
 
             cd ~/foreigner
             chmod +x infra/elasticsearch/scripts/*.sh || true
