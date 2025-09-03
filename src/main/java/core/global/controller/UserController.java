@@ -204,6 +204,17 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/email/check")
+    @Operation(summary = "이메일 가입 중복 여부 확인")
+    public ResponseEntity<ApiResponse<EmailCheckResponse>> checkRepeat(@RequestBody EmailCheckRequest request) {
+        boolean exists = userService.existsByEmail(request.getEmail());
+
+        String message = exists ? "중복된 이메일입니다." : "사용 가능한 이메일입니다.";
+        EmailCheckResponse result = new EmailCheckResponse(exists, message);
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @PostMapping("/password/forgot")
     @Operation(summary = "비밀번호 재설정 메일 발송(세션ID 방식)")
     public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody EmailRequest request) {
