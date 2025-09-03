@@ -28,7 +28,6 @@ public class RecommenderService {
      */
     @Transactional(readOnly = true)
     public List<UserUpdateDTO> recommendForUser(Authentication auth, int limit) {
-        // 인증 객체 유효성 검증 로직을 서비스로 이동
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
