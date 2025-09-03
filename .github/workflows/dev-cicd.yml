@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           source: "infra/elasticsearch/**"
-          target: "~/foreigner/infra/elasticsearch"
+          target: "~/foreigner"
 
   # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
   es-rollout:
