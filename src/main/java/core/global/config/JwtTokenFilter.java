@@ -1,11 +1,8 @@
 package core.global.config;
 
 import core.global.enums.ErrorCode;
-import core.global.exception.BusinessException;
 import core.global.service.RedisService;
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -20,10 +17,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,6 +74,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     public void init() {
         log.info("JwtTokenFilter 빈이 성공적으로 생성되었습니다.");
     }
+
     /** JWT 서명 키 */
     private SecretKey signingKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
@@ -124,7 +122,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // 토큰에서 정보 추출
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
 

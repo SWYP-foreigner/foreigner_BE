@@ -29,12 +29,12 @@ spring:
       mail.debug: true
   datasource:
     url: jdbc:postgresql://localhost:5432/${DB_NAME}
-    username:  ${DB_USER}
+    username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   data:
     mongodb:
-      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+      uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/${MONGO_INITDB_DATABASE}?authSource=admin
 
     redis:
       host: ${REDIS_HOST}
@@ -45,6 +45,7 @@ spring:
           refreshToken: "refreshToken:"
           blacklist: "blacklist:"
           accessToken: "access_token"
+
   jpa:
     hibernate:
       ddl-auto: create
@@ -99,8 +100,6 @@ ncp:
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET}
 
-
-
 swagger:
   server-url: http://localhost:8080
 
@@ -118,6 +117,9 @@ google:
       api-key: ${GCP_TRANSLATE_API_KEY}
 
 app:
+  search:
+    es-url: http://localhost:9200
+
   mail:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}

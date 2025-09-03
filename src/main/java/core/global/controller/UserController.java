@@ -251,6 +251,7 @@ public class UserController {
 
 
 
+
     /*
      * revoke (연동 해제)
      */
@@ -284,6 +285,7 @@ public class UserController {
         UserUpdateDTO response = userService.getUserProfile();
         return ResponseEntity.ok(response);
     }
+
     @DeleteMapping("/withdraw")
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
