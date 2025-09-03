@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ES="${ES_URL:-http://localhost:9200}"
-PREFIX="${INDEX_PREFIX:-posts-lab}"   # 물리 인덱스 접두사 유지
-NEW_INDEX="${PREFIX}-$(date +%Y%m%d-%H%M%S)"
+# === required ===
+: "${ES_URL:?Set ES_URL (e.g. http://10.0.1.25:9200)}"
+# === optional ===
+INDEX_PREFIX="${INDEX_PREFIX:-posts-lab}"
+
+ES="$ES_URL"
+NEW_INDEX="${INDEX_PREFIX}-$(date +%Y%m%d-%H%M%S)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LAST="$ROOT_DIR/.last_posts_index"
 
-AUTH_OPT=()
-[ -n "${ES_AUTH:-}" ] && AUTH_OPT=(-u "$ES_AUTH")
+CURL_OPTS=(--fail-with-body -sS)
+[ "${ES_INSECURE:-0}" = "1" ] && CURL_OPTS+=(-k)
 
-# 템플릿이 PREFIX-* 패턴을 잡고 있으므로 빈 바디로 생성
-curl -fsS -X PUT "$ES/$NEW_INDEX" \
+AUTH_OPT=()
+if [ -n "${ES_API_KEY:-}" ]; then
+  AUTH_OPT=(-H "Authorization: ApiKey ${ES_API_KEY}")
+elif [ -n "${ES_AUTH:-}" ]; then
+  AUTH_OPT=(-u "${ES_AUTH}")
+fi
+
+echo "[ES] Creating index: ${NEW_INDEX}"
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" \
+  -X PUT "${ES}/${NEW_INDEX}" \
   -H 'Content-Type: application/json' \
-  "${AUTH_OPT[@]}" \
   -d '{}'
 
-echo -n "$NEW_INDEX" > "$LAST"
-echo "[OK] created index: $NEW_INDEX (saved to $LAST)"
+echo -n "${NEW_INDEX}" > "${LAST}"
+echo "[OK] created index: ${NEW_INDEX} (saved to ${LAST})"

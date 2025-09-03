@@ -96,40 +96,51 @@ jobs:
           script: |
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
-            
+          
+            # ⬇️ 가장 먼저 환경변수 주입
             export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
+            : "${ES_URL:?ES_URL must be set}"
             
+            CURL_AUTH=()
+            if [ -n "${ES_AUTH:-}" ]; then
+              CURL_AUTH=(-u "$ES_AUTH")
+            fi
 
+            # 연결 스모크(헤더만)
+            echo "[ES] HEAD ${ES_URL}"
+            curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
+            
             cd ~/foreigner
-            chmod +x infra/elasticsearch/scripts/*.sh || true
+            chmod -R +x infra/elasticsearch/scripts || true
 
             echo "[ES] Apply template"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/01-apply_template.sh
 
             echo "[ES] Create new index"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/02-create_index.sh
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
 
             SRC_ALIAS="posts_search"
-            if ! curl -s -o /dev/null -w "%{http_code}" ${ES_AUTH:+-u "$ES_AUTH"} "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
-            SRC_ALIAS="posts_lab"
+            if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
+              SRC_ALIAS="posts_lab"
             fi
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
-            
-            # ✅ _reindex 수행
+
             curl -sS -X POST "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-            -H 'Content-Type: application/json' \
-            ${ES_AUTH:+-u "$ES_AUTH"} \
-            -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
+              -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
             echo; echo "[ES] _reindex done"
-            
-            
+
             echo "[ES] Switch aliases"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
 
             echo "[ES] Verify"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/99-verify.sh
 
   # 4) 앱 배포만(.env 작성→docker compose pull/up)
