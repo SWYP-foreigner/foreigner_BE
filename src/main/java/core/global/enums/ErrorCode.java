@@ -80,7 +80,8 @@ public enum ErrorCode {
 
     ELASTICSEARCH_INDEX_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "인덱스 작업에 실패했습니다."),
     ELASTICSEARCH_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색에 실패했습니다."),
-    ELASTICSEARCH_SEARCH_SUGGEST_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색 제안에 실패했습니다.");
+    ELASTICSEARCH_SEARCH_SUGGEST_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색 제안에 실패했습니다."),
+    BLOCKED_USER_POST(HttpStatus.CONFLICT, "접근할 수 없는 글입니다.");
 
     private final HttpStatus errorCode;
     private final String message;

@@ -24,7 +24,7 @@ public class PostIndexService {
         try {
             PostDocument doc = toDocument(post);
             IndexResponse res = es.index(i -> i
-                    .index(SearchConstants.INDEX_POSTS)
+                    .index(SearchConstants.INDEX_POSTS_WRITE)
                     .id(String.valueOf(doc.postId())) // ES 문서 id = RDB post_id
                     .document(doc)
             );

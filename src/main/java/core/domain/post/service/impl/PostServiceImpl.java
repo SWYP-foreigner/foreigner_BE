@@ -159,6 +159,10 @@ public class PostServiceImpl implements PostService {
     public PostDetailResponse getPostDetail(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        if(blockRepository.existsBlockedByEmail(email, postId)){
+            throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
+        }
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
         addViews(post);

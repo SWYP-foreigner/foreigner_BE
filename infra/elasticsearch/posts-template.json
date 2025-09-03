@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["posts-*"],
+  "index_patterns": ["posts-lab-*"],
   "priority": 500,
   "template": {
     "settings": {
@@ -25,6 +25,11 @@
             "type": "custom",
             "tokenizer": "standard",
             "filter": ["lowercase","en_possessive","en_stop","en_syn","en_stem"]
+          },
+          "english_completion_exact": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase","en_possessive","en_stop","en_stem"]
           }
         }
       }
@@ -45,12 +50,20 @@
           "analyzer": "english_custom",
           "search_analyzer": "english_custom",
           "fields": {
-            "asyt": { "type": "search_as_you_type" }   // bool_prefix 자동완성 유지(백업 라인)
+            "asyt": { "type": "search_as_you_type" }
           }
         },
+
         "contentSuggest": {
           "type": "completion",
           "analyzer": "english_custom",
+          "preserve_separators": true,
+          "preserve_position_increments": true,
+          "max_input_length": 100
+        },
+        "contentSuggestExact": {
+          "type": "completion",
+          "analyzer": "english_completion_exact",
           "preserve_separators": true,
           "preserve_position_increments": true,
           "max_input_length": 100
