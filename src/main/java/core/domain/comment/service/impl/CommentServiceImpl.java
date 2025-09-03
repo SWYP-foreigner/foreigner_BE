@@ -33,10 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -106,6 +103,11 @@ public class CommentServiceImpl implements CommentService {
         // 4) 보조 데이터(좋아요 수, 유저 이미지) 일괄 조회
         List<Long> commentIds = rows.stream().map(Comment::getId).toList();
 
+        Set<Long> myLikedIds = commentIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(likeRepository.findMyLikedRelatedIds(myId, LikeType.COMMENT, commentIds));
+
+
         Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
                 .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
 
@@ -123,7 +125,8 @@ public class CommentServiceImpl implements CommentService {
                 .map(cmt -> {
                     long lc = likeCountMap.getOrDefault(cmt.getId(), 0L);
                     String userImage = (cmt.getAuthor() != null) ? userImageMap.get(cmt.getAuthor().getId()) : null;
-                    return CommentItem.from(cmt, lc, userImage);
+                    boolean isLiked = myLikedIds.contains(cmt.getId());
+                    return CommentItem.from(cmt, isLiked, lc, userImage);
                 })
                 .toList();
 
@@ -273,12 +276,13 @@ public class CommentServiceImpl implements CommentService {
 
         likeRepository.save(Like.builder()
                 .user(user)
-                .type(LikeType.POST)
+                .type(LikeType.COMMENT)
                 .relatedId(commentId)
                 .build());
     }
 
     @Override
+    @Transactional
     public void deleteLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 

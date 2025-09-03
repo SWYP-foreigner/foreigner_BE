@@ -58,12 +58,19 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/swagger-ui.html",
             "/api/v1/member/password/**",
             "/ws/**",
-            "/api/v1/member/email/check"
+            "/api/v1/member/email/check",
+            "/auth/test-login",
+            "/ws/**"
     );
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
+        boolean shouldNotFilter = EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
+
+        if (requestUri.startsWith("/ws")) {
+            log.info(">>>> [DEPLOYMENT CHECK] /ws request detected in shouldNotFilter. Result={}", shouldNotFilter);
+        }
         return EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
     }
 

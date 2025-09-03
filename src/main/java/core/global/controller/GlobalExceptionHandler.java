@@ -29,7 +29,6 @@ public class GlobalExceptionHandler {
                 ));
     }
 
-    // 405: 지원하지 않는 메서드 상세 로깅 + Allow 헤더 설정
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiErrorResponse> handle405(HttpRequestMethodNotSupportedException ex,
                                                       HttpServletRequest req) {

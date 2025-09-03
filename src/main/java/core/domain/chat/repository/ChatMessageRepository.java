@@ -9,10 +9,28 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
-    List<ChatMessage> findByChatRoomIdAndContentContaining(Long roomId, String content, Pageable pageable);
+    /**
+     * 특정 채팅방의 모든 메시지를 메시지 ID 오름차순으로 조회합니다.
+     * (메시지 생성 순서대로 정렬)
+     *
+     * @param chatRoomId 조회할 채팅방의 ID
+     * @return 해당 채팅방의 모든 메시지 리스트
+     */
+    List<ChatMessage> findByChatRoomIdOrderByIdAsc(Long chatRoomId);
+
+    /**
+     * 특정 채팅방에서 주어진 키워드가 포함된 메시지를 검색합니다.
+     * (SQL의 LIKE '%keyword%'와 동일)
+     *
+     * @param chatRoomId 검색할 채팅방의 ID
+     * @param keyword 검색할 키워드 문자열
+     * @return 키워드가 포함된 메시지 리스트
+     */
+    List<ChatMessage> findByChatRoomIdAndContentContaining(Long chatRoomId, String keyword);
 
     List<ChatMessage> findByChatRoomIdAndSentAtAfterAndIdBefore(Long roomId, Instant lastLeftAt, Long lastMessageId, PageRequest sentAt);
 
@@ -22,6 +40,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     List<ChatMessage> findByChatRoomId(Long roomId, PageRequest sentAt);
 
+    List<ChatMessage> findTop50ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
     List<ChatMessage> findByChatRoomIdAndIdGreaterThan(Long roomId, Long lastReadMessageId);
 
     ChatMessage findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
@@ -30,4 +50,19 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             "WHERE cm.chatRoom.id = :roomId AND cm.id > " +
             "(SELECT cp.lastReadMessageId FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :readerId)")
     int countUnreadMessages(@Param("roomId") Long roomId, @Param("readerId") Long readerId);
+
+    /**
+     * 특정 채팅방의 가장 최근 메시지를 조회합니다.
+     * chatRoomId로 메시지를 찾고, sentAt 필드를 기준으로 내림차순 정렬하여 첫 번째 결과를 반환합니다.
+     *
+     * @param chatRoomId 메시지를 찾을 채팅방의 ID
+     * @return 가장 최근 메시지가 담긴 Optional 객체
+     */
+    Optional<ChatMessage> findFirstByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+    /**
+     * 특정 채팅방의 전체 메시지 수를 계산합니다.
+     * @param chatRoomId 메시지 수를 계산할 채팅방 ID
+     * @return 해당 채팅방의 총 메시지 수
+     */
+    long countByChatRoomId(Long chatRoomId);
 }

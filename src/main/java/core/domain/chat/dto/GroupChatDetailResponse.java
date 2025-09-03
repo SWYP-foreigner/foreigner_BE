@@ -1,24 +1,26 @@
 package core.domain.chat.dto;
 
-import java.util.List;
 import core.domain.chat.entity.ChatRoom;
+import java.util.List;
 
 public record GroupChatDetailResponse(
         Long chatRoomId,
         String roomName,
         String description,
-        Long owner_id,
+        Long ownerId, // owner_id -> ownerId
         String ownerFirstName,
         String ownerLastName,
         String roomImageUrl,
         int participantCount,
-        List<String> participants_image_url
+        List<String> participantsImageUrls,
+        String ownerImageUrl
 ) {
     public static GroupChatDetailResponse from(
             ChatRoom chatRoom,
             String roomImageUrl,
             int participantCount,
-            List<String> participants_image_url
+            List<String> participantsImageUrls,
+            String ownerImageUrl
     ) {
         return new GroupChatDetailResponse(
                 chatRoom.getId(),
@@ -29,7 +31,8 @@ public record GroupChatDetailResponse(
                 chatRoom.getOwner().getLastName(),
                 roomImageUrl,
                 participantCount,
-                participants_image_url
+                participantsImageUrls,
+                ownerImageUrl // 생성자에 ownerImageUrl 전달
         );
     }
 }

@@ -154,11 +154,13 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public PostDetailResponse getPostDetail(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
         addViews(post);
 
-        return postRepository.findPostDetail(postId);
+        return postRepository.findPostDetail(email, postId);
     }
 
     private void addViews(Post post) {

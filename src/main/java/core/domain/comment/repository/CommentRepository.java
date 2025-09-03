@@ -24,7 +24,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
     List<Object[]> countByPostIds(@Param("postIds") List<Long> postIds);
 
     @Query("""
-            select new core.domain.comment.dto.UserCommentItem(c.id, p.content, c.content, c.createdAt)
+            select new core.domain.comment.dto.UserCommentItem(c.id, p.id, p.content, c.content, c.createdAt)
             from Comment c
             join c.post p
             where c.author.email = :email
@@ -32,7 +32,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
             order by c.id desc
             """)
     List<UserCommentItem> findMyCommentsForCursor(
-            @Param("templates/email") String email,
+            @Param("email") String email,
             @Param("lastId") Long lastId,
             Pageable pageable
     );
