@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# === required ===
-: "${ES_URL:?Set ES_URL (e.g. http://10.0.1.25:9200)}"
-# === optional ===
+: "${ES_URL:?Set ES_URL (e.g. http://127.0.0.1:9200)}"
 ALIAS_SEARCH="${ALIAS_SEARCH:-posts_search}"
 ALIAS_SUGG="${ALIAS_SUGG:-posts_suggest}"
 ALIAS_WRITE="${ALIAS_WRITE:-posts_write}"
-INDEX_PREFIX="${INDEX_PREFIX:-posts-lab}"
 
-ES="$ES_URL"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LAST="$ROOT_DIR/.last_posts_index"
-
-[ -f "${LAST}" ] || { echo "No .last_posts_index file. Run 02-create_index.sh first."; exit 1; }
-IDX="$(cat "${LAST}")"
+: "${LAST:?missing .last_posts_index}"
+NEW_INDEX="$(cat "$LAST")"
 
 CURL_OPTS=(--fail-with-body -sS)
 [ "${ES_INSECURE:-0}" = "1" ] && CURL_OPTS+=(-k)
@@ -27,24 +22,34 @@ elif [ -n "${ES_AUTH:-}" ]; then
   AUTH_OPT=(-u "${ES_AUTH}")
 fi
 
-echo "[ES] Switching aliases to ${IDX}"
-read -r -d '' BODY <<JSON
+echo "[ES] Switching aliases to ${NEW_INDEX}"
+
+# 1) 모든 인덱스에서 기존 별칭 제거(없어도 통과)
+REMOVE_PAYLOAD=$(cat <<JSON
 {
   "actions": [
-    { "remove": { "alias": "${ALIAS_SEARCH}", "index": "${INDEX_PREFIX}-*", "must_exist": false } },
-    { "remove": { "alias": "${ALIAS_SUGG}",  "index": "${INDEX_PREFIX}-*", "must_exist": false } },
-    { "remove": { "alias": "${ALIAS_WRITE}", "index": "${INDEX_PREFIX}-*", "must_exist": false } },
-
-    { "add":    { "alias": "${ALIAS_SEARCH}", "index": "${IDX}" } },
-    { "add":    { "alias": "${ALIAS_SUGG}",  "index": "${IDX}" } },
-    { "add":    { "alias": "${ALIAS_WRITE}", "index": "${IDX}", "is_write_index": true } }
+    { "remove": { "index": "*", "alias": "${ALIAS_SEARCH}", "must_exist": false } },
+    { "remove": { "index": "*", "alias": "${ALIAS_SUGG}",  "must_exist": false } },
+    { "remove": { "index": "*", "alias": "${ALIAS_WRITE}", "must_exist": false } }
   ]
 }
 JSON
+)
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
+  -H 'Content-Type: application/json' -d "${REMOVE_PAYLOAD}"
 
-curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" \
-  -X POST "${ES}/_aliases" \
-  -H 'Content-Type: application/json' \
-  -d "${BODY}"
+# 2) 새 인덱스에 별칭 부여
+ADD_PAYLOAD=$(cat <<JSON
+{
+  "actions": [
+    { "add": { "index": "${NEW_INDEX}", "alias": "${ALIAS_SEARCH}" } },
+    { "add": { "index": "${NEW_INDEX}", "alias": "${ALIAS_SUGG}" } },
+    { "add": { "index": "${NEW_INDEX}", "alias": "${ALIAS_WRITE}", "is_write_index": true } }
+  ]
+}
+JSON
+)
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
+  -H 'Content-Type: application/json' -d "${ADD_PAYLOAD}"
 
-echo "[OK] alias '${ALIAS_SEARCH}'/'${ALIAS_SUGG}'/'${ALIAS_WRITE}' -> ${IDX}"
+echo "[OK] aliases -> ${NEW_INDEX}"
