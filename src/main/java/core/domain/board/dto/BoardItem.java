@@ -22,6 +22,9 @@ public record BoardItem(
         @Schema(description = "작성 시간(UTC)", type = "string", format = "date-time", example = "2025-08-20T12:34:56Z")
         Instant createdAt,
 
+        @Schema(description = "좋아요 여부", example = "true")
+        Boolean isLiked,
+
         @Schema(description = "좋아요 수", example = "10")
         Long likeCount,
 

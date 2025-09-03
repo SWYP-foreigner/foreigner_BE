@@ -15,6 +15,9 @@ public record BookmarkItem(
         @Schema(description = "게시글 내용", example = "안녕하세요, 첫 글입니다.")
         String content,
 
+        @Schema(description = "좋아요 여부", example = "true")
+        Boolean isLiked,
+
         @Schema(description = "좋아요 개수", example = "25")
         Long likeCount,
 

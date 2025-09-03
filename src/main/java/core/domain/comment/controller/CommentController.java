@@ -139,18 +139,18 @@ public class CommentController {
 
     @Operation(summary = "좋아요 추가", description = "댓글 좋아요합니다.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "추가 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "추가 성공(본문 없음)", content = @Content),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
-    @PostMapping("/comments/{commentId}/likes/me")
+    @PutMapping("/comments/{commentId}/likes/me")
     public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
         commentService.addLike( commentId);
         return ResponseEntity
-                .status(HttpStatus.CREATED)
+                .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 좋아요 완료"));
     }
 

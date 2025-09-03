@@ -68,6 +68,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Long> commentCountExpr = commentCountExpr();
 
+        Expression<Boolean> likedByMe = likedByViewerId(userId);
+
         QImage u = new QImage("u");
         Expression<String> userImageUrlExpr =
                 JPAExpressions
@@ -90,6 +92,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         authorNameExpr,
                         board.category,
                         post.createdAt,
+                        likedByMe,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
@@ -157,6 +160,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     .or(score.eq(cursorScore).and(tieBreaker));
         }
 
+        Expression<Boolean> likedByMe = likedByViewerId(userId);
+
         Expression<String> authorNameExpr = getAuthorName();
 
         Expression<String> preview = preview200();
@@ -182,6 +187,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         authorNameExpr,
                         board.category,
                         post.createdAt,
+                        likedByMe,
                         likes,
                         comments,
                         views,
@@ -204,7 +210,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public PostDetailResponse findPostDetail(Long postId) {
+    public PostDetailResponse findPostDetail(String email, Long postId) {
         QImage userImage = new QImage("u");
 
         Expression<Long> likeCountExpr = likeCountExpr();
@@ -235,6 +241,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<String> linkExpr = Expressions.constant("CHAT LINK");
 
+        Expression<Boolean> likedByMe = likedByViewerEmail(email);
+
         List<Tuple> rows = query
                 .select(
                         post.id,
@@ -243,6 +251,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         board.category,
                         post.createdAt,
                         linkExpr,
+                        likedByMe,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
@@ -268,17 +277,18 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         // 첫 행에서 단건 필드 뽑기
         Tuple t0 = rows.get(0);
 
-        Long id               = t0.get(post.id);
-        String content        = t0.get(post.content);
-        String userName       = t0.get(userNameExpr);
-        BoardCategory cat     = t0.get(board.category);
-        Instant createdAt     = t0.get(post.createdAt);
-        String link           = t0.get(linkExpr);
-        Long likeCount        = t0.get(likeCountExpr);
-        Long commentCount     = t0.get(commentCountExpr);
-        Long viewCount        = t0.get(post.checkCount);
-        String userImageUrl   = t0.get(userImageUrlExpr);
-        Integer imageCount    = t0.get(imageCountExpr);
+        Long id = t0.get(post.id);
+        String content = t0.get(post.content);
+        String userName = t0.get(userNameExpr);
+        BoardCategory cat = t0.get(board.category);
+        Instant createdAt = t0.get(post.createdAt);
+        String link = t0.get(linkExpr);
+        Boolean liked= t0.get(likedByMe);
+        Long likeCount = t0.get(likeCountExpr);
+        Long commentCount = t0.get(commentCountExpr);
+        Long viewCount = t0.get(post.checkCount);
+        String userImageUrl = t0.get(userImageUrlExpr);
+        Integer imageCount = t0.get(imageCountExpr);
 
         List<String> contentImageUrls = rows.stream()
                 .map(r -> r.get(image.url))
@@ -292,6 +302,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 cat,
                 createdAt,
                 link,
+                liked,
                 likeCount,
                 commentCount,
                 viewCount,
@@ -303,12 +314,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     @Override
     public List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne) {
+
+        Expression<Boolean> likedByMe = likedByViewerEmail(email);
+
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
                         post.id,
                         preview200(),
                         post.createdAt,
+                        likedByMe,
                         likeCountExpr(),
                         commentCountExpr(),
                         post.checkCount,
@@ -328,12 +343,15 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         BooleanExpression ltCursor = post.createdAt.lt(cursorCreatedAt)
                 .or(post.createdAt.eq(cursorCreatedAt).and(post.id.lt(cursorId)));
 
+        Expression<Boolean> likedByMe = likedByViewerEmail(email);
+
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
                         post.id,
                         preview200(),
                         post.createdAt,
+                        likedByMe,
                         likeCountExpr(),
                         commentCountExpr(),
                         post.checkCount,
@@ -436,5 +454,33 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(like)
                 .where(like.type.eq(LIKE_TYPE_POST)
                         .and(like.relatedId.eq(post.id)));
+    }
+
+    // 🔹 viewerId(로그인 유저 id)로 좋아요 여부
+    private Expression<Boolean> likedByViewerId(Long viewerId) {
+        if (viewerId == null) return Expressions.FALSE; // 비로그인
+        return JPAExpressions
+                .selectOne()
+                .from(like)
+                .where(
+                        like.type.eq(LIKE_TYPE_POST)
+                                .and(like.relatedId.eq(post.id))
+                                .and(like.user.id.eq(viewerId))
+                )
+                .exists();
+    }
+
+    // 🔹 viewerEmail(로그인 유저 email)로 좋아요 여부 (내 게시글 목록 API에서 사용)
+    private Expression<Boolean> likedByViewerEmail(String email) {
+        if (email == null || email.isBlank()) return Expressions.FALSE;
+        return JPAExpressions
+                .selectOne()
+                .from(like)
+                .where(
+                        like.type.eq(LIKE_TYPE_POST)
+                                .and(like.relatedId.eq(post.id))
+                                .and(like.user.email.eq(email))
+                )
+                .exists();
     }
 }

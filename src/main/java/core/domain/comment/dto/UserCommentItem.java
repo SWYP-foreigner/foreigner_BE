@@ -9,6 +9,9 @@ public record UserCommentItem(
         @Schema(description = "댓글 ID", example = "99")
         Long commentId,
 
+        @Schema(description = "게시글 ID", example = "99")
+        Long postId,
+
         @Schema(description = "게시글 내용", example = "게시글 본문입니다.")
         String postContent,
 

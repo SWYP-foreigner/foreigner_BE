@@ -96,9 +96,15 @@ public class BookmarkServiceImpl implements BookmarkService {
                         Collectors.mapping(row -> (String) row[1], Collectors.toList())
                 ));
 
+        Set<Long> myLikedPostIds = postIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(likeRepository.findMyLikedRelatedIdsByEmail(
+                email, LIKE_TYPE_POST, postIds
+        ));
+
         List<BookmarkItem> items = new ArrayList<>(content.size());
         for (Bookmark b : content) {
-            items.add(toResponse(b, likeMap, commentMap, userImageMap, postImagesMap));
+            items.add(toResponse(b, likeMap, commentMap, userImageMap, postImagesMap, myLikedPostIds));
         }
 
         Long lastId = content.get(content.size() - 1).getId();
@@ -112,7 +118,8 @@ public class BookmarkServiceImpl implements BookmarkService {
             Map<Long, Long> likeMap,
             Map<Long, Long> commentMap,
             Map<Long, String> userImageMap,
-            Map<Long, List<String>> postImagesMap
+            Map<Long, List<String>> postImagesMap,
+            Set<Long> myLikedPostIds
     ) {
         Post p = b.getPost();
 
@@ -130,10 +137,13 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         List<String> postImages = postImagesMap.getOrDefault(postId, List.of());
 
+        boolean isLiked = myLikedPostIds.contains(postId);
+
         return new BookmarkItem(
                 b.getId(),
                 authorName,
                 safeTrim(p.getContent()),
+                isLiked,
                 likeCount,
                 commentCount,
                 checkCount,
