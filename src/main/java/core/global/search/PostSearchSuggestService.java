@@ -6,6 +6,7 @@ import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Service
@@ -22,7 +23,15 @@ public class PostSearchSuggestService {
                             .size(0)
                             .trackTotalHits(t -> t.enabled(false))
                             .suggest(sug -> sug
-                                    .suggesters("content-suggest", s1 -> s1
+                                    .suggesters("exact", s1 -> s1
+                                            .prefix(prefix)
+                                            .completion(c -> c
+                                                    .field("contentSuggestExact")
+                                                    .skipDuplicates(true)
+                                                    .size(limit)
+                                            )
+                                    )
+                                    .suggesters("fuzzy", s2 -> s2
                                             .prefix(prefix)
                                             .completion(c -> c
                                                     .field("contentSuggest")
@@ -38,12 +47,16 @@ public class PostSearchSuggestService {
             var sug = resp.suggest().get("content-suggest");
             if (sug == null) return List.of();
 
-            return sug.stream()
-                    .flatMap(opt -> opt.completion().options().stream())
-                    .map(o -> o.text())
-                    .distinct()
-                    .limit(size)
-                    .toList();
+            var out = new LinkedHashSet<String>();
+            var exact = resp.suggest().get("exact");
+            if (exact != null) {
+                exact.forEach(e -> e.completion().options().forEach(o -> out.add(o.text())));
+            }
+            var fuzzy = resp.suggest().get("fuzzy");
+            if (fuzzy != null) {
+                fuzzy.forEach(f -> f.completion().options().forEach(o -> out.add(o.text())));
+            }
+            return out.stream().limit(size).toList();
 
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.ELASTICSEARCH_SEARCH_SUGGEST_FAILED);
