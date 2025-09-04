@@ -6,7 +6,7 @@ set -euo pipefail
 # === optional ===
 TEMPLATE_NAME="${TEMPLATE_NAME:-posts-template-v1}"
 
-ES="ES_URL"
+ES="$ES_URL"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TPL="$ROOT_DIR/posts-template.json"
