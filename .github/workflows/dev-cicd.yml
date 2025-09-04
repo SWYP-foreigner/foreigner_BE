@@ -219,7 +219,6 @@ jobs:
 
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
-            ES_URL=${{ secrets.ES_URL }}
 
             SERVER_URL=${{ secrets.SERVER_URL }}
             
