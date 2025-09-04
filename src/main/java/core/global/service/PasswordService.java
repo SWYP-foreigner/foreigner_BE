@@ -54,17 +54,6 @@ public class PasswordService {
                 TimeUnit.MINUTES
         );
 
-        /**
-         * 실패 횟수 초기화
-         *
-         * **/
-        redisTemplate.opsForValue().set(
-                EMAIL_VERIFY_FAIL_KEY + email,
-                "0",
-                CODE_TTL_MIN,
-                TimeUnit.MINUTES
-        );
-
         log.info("비밀번호 재설정 코드 발송 완료: {}", email);
     }
 
