@@ -18,145 +18,94 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
-
+import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PasswordService {
 
-    private static final String RESET_TOKEN_KEY   = "PWRESET:TOKEN:";    // token -> email
-    private static final String RESET_EMAIL_LOCK  = "PWRESET:EMAIL:";    // email -> last token
-    private static final String RESET_SESSION_KEY = "PWRESET:SESSION:";  // sid   -> email
-
     private final UserRepository userRepository;
-    private final StringRedisTemplate redis;
+    private final StringRedisTemplate redisTemplate;
+    private final SmtpMailService smtpService;
     private final PasswordEncoder passwordEncoder;
-    private final SmtpMailService smtpMailService;
+
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:"; // 코드 저장
+    private static final String EMAIL_VERIFY_FAIL_KEY = "email_verification:fail:"; // 실패 횟수 저장
+    private static final long CODE_TTL_MIN = 3L; // 분
+    private static final int MAX_FAIL_COUNT = 5; // 최대 실패 횟수
 
     /**
-     * 토큰 , 세션 ,기본 baseurl
+     * 이메일 보내주는 로직
      */
-    @Value("${app.password.reset.ttl-minutes}")
-    private long resetTtlMin;
+    public void sendEmailVerificationCode(String rawEmail, Locale locale) {
+        String email = normalizeEmail(rawEmail);
+        Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
 
-    @Value("${app.password.reset.session-ttl-minutes}")
-    private long sessionTtlMin;
+        String verificationCode = smtpService.sendVerificationEmail(
+                email,
+                ttl,
+                locale
+        );
 
-    @Value("${app.api.base-url}")
-    private String apiBaseUrl;
+        redisTemplate.opsForValue().set(
+                EMAIL_VERIFY_CODE_KEY + email,
+                verificationCode,
+                CODE_TTL_MIN,
+                TimeUnit.MINUTES
+        );
 
-    /*
-     * 세션ID 방식 메일 전송
-     * ========================= */
-    public void sendResetMailSessionMode(String rawEmail, @Nullable Locale locale) {
-        final String email = normalizeEmail(rawEmail);
-        final Locale loc = (locale != null) ? locale : LocaleContextHolder.getLocale();
+        /**
+         * 실패 횟수 초기화
+         *
+         * **/
+        redisTemplate.opsForValue().set(
+                EMAIL_VERIFY_FAIL_KEY + email,
+                "0",
+                CODE_TTL_MIN,
+                TimeUnit.MINUTES
+        );
 
-        userRepository.findByEmail(email).ifPresent(user -> {
-            String sid = UUID.randomUUID().toString();
-            Duration sessionTtl = Duration.ofMinutes(sessionTtlMin);
-            redis.opsForValue().set(RESET_SESSION_KEY + sid, email, sessionTtl);
-
-            String startUrl = apiBaseUrl + "/api/v1/member/password/start-reset?sid=" + sid;
-
-            smtpMailService.sendPasswordResetSessionEmail(email, sessionTtl, loc, startUrl);
-        });
+        log.info("비밀번호 재설정 코드 발송 완료: {}", email);
     }
 
-    /*
-     * 토큰 생성(세션ID 소비 시)
-     *
+    /**
+     * 코드 검증 + 비밀번호 재설정
      */
-    public ResetToken issueTokenFromSession(String sessionId) {
-        String key = RESET_SESSION_KEY + sessionId;
-        String email = redis.opsForValue().get(key);
-        if (email == null) {
-            throw new BusinessException(ErrorCode.INVALID_OR_EXPIRED_SESSION);
-        }
-
-        // 세션ID는 1회용 → 즉시 삭제
-        redis.delete(key);
-
-        // 실제 토큰 생성 및 저장
-        String token = generateToken();
-        Duration ttl = Duration.ofMinutes(resetTtlMin);
-        redis.opsForValue().set(RESET_TOKEN_KEY + token, email, ttl);
-
-        return new ResetToken(token, ttl.toSeconds());
-    }
-    // PasswordService 내부에 추가
     @Transactional
-    public void validateTokenAndResetPassword(String token, String newPassword) {
-        if (token == null || token.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_OR_EXPIRED_TOKEN);
-        }
-
-        final String tokenKey = RESET_TOKEN_KEY + token; // "PWRESET:TOKEN:" + token
-        String email = redis.opsForValue().get(tokenKey);
-        if (email == null) {
-            throw new BusinessException(ErrorCode.INVALID_OR_EXPIRED_TOKEN);
-        }
-
-        assertStrongPassword(newPassword);
+    public void verifyCodeAndResetPassword(String rawEmail, String code, String newPassword) {
+        String email = normalizeEmail(rawEmail);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        user.setPassword(passwordEncoder.encode(newPassword));
-
-        redis.delete(tokenKey);
-        redis.delete(RESET_EMAIL_LOCK + email);
-    }
-
-    /* =========================
-     * 토큰 검증/비밀번호 변경
-     * ========================= */
-    public boolean isValidResetToken(String token) {
-        return token != null && redis.hasKey(RESET_TOKEN_KEY + token);
-    }
-
-    @Transactional
-    public void resetPassword(String token, String newPassword) {
-        if (token == null || token.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_OR_EXPIRED_TOKEN);
-        }
-        String email = redis.opsForValue().get(RESET_TOKEN_KEY + token);
-        if (email == null) {
-            throw new BusinessException(ErrorCode.INVALID_OR_EXPIRED_TOKEN);
-        }
-
-        assertStrongPassword(newPassword);
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        user.setPassword(passwordEncoder.encode(newPassword));
-
-        /*
-         토큰 1회성 사용 → 즉시 삭제
+        /**
+         2) Redis에서 실패 횟수 가져오기
          */
-        redis.delete(RESET_TOKEN_KEY + token);
-        redis.delete(RESET_EMAIL_LOCK + email);
-    }
+        String failCountStr = redisTemplate.opsForValue().get(EMAIL_VERIFY_FAIL_KEY + email);
+        int failCount = failCountStr == null ? 0 : Integer.parseInt(failCountStr);
 
-    /* =========================
-     * 유틸
-     * ========================= */
-    private String normalizeEmail(String raw) {
-        return raw == null ? null : raw.trim().toLowerCase();
-    }
-
-    /** URL-safe 랜덤 토큰 */
-    private String generateToken() {
-        byte[] b = new byte[32];
-        new java.security.SecureRandom().nextBytes(b);
-        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b);
-    }
-
-    private void assertStrongPassword(String pw) {
-        if (pw == null || pw.length() < 8) {
-            throw new BusinessException(ErrorCode.WEAK_PASSWORD);
+        if (failCount >= MAX_FAIL_COUNT) {
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED); // 시도 초과
         }
+
+        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        if (storedCode == null || !storedCode.equals(code)) {
+            // 실패 → 횟수 증가
+            redisTemplate.opsForValue().increment(EMAIL_VERIFY_FAIL_KEY + email);
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        redisTemplate.delete(EMAIL_VERIFY_FAIL_KEY + email);
+
+        log.info("비밀번호 재설정 완료: {}", email);
     }
 
+    private String normalizeEmail(String email) {
+        if (email == null) return null;
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
 }
