@@ -15,7 +15,7 @@ public enum ErrorCode {
     AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN,"이메일 또는 비밀번호가 올바르지 않습니다."),
     PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST,"비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST,"비밀번호가 일치하지 않습니다."),
-
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "otherUserId 형식이 잘못되었습니다."),
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
