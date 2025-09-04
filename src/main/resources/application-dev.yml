@@ -126,7 +126,7 @@ app:
     code-ttl-minutes: 3
 
   search:
-    es-url: ${ES_URL}
+    es-url: ${ELASTICSEARCH_HOST}
 
   password:
     reset:
