@@ -96,7 +96,7 @@ jobs:
           script: |
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
-          
+            
             # ⬇️ 가장 먼저 환경변수 주입
             export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
@@ -219,28 +219,29 @@ jobs:
 
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
+            ES_URL=${{ secrets.ES_URL }}
 
             SERVER_URL=${{ secrets.SERVER_URL }}
-
+            
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-
+            
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-
+            
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
             EOF
-
+            
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
             echo "Using IMAGE=${IMAGE}"
-
+            
             docker compose pull
             docker compose up -d --remove-orphans
-
+            
             docker compose ps
             docker compose logs --since=5m || true
             docker image prune -f || true
