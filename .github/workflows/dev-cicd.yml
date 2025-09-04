@@ -24,6 +24,7 @@ jobs:
           test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
+          test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
           echo "All required secrets are set."
 
   # 1) 도커 이미지 빌드/푸시만 담당
@@ -97,9 +98,9 @@ jobs:
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
             
             # ⬇️ 가장 먼저 환경변수 주입
-            export ELASTICSEARCH_HOST="${{ secrets.ELASTICSEARCH_HOST }}"
+            export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
-            : "${ELASTICSEARCH_HOST:?ELASTICSEARCH_HOST must be set}"
+            : "${ES_URL:?ES_URL must be set}"
             
             CURL_AUTH=()
             if [ -n "${ES_AUTH:-}" ]; then
@@ -107,39 +108,39 @@ jobs:
             fi
 
             # 연결 스모크(헤더만)
-            echo "[ES] HEAD ${ELASTICSEARCH_HOST}"
-            curl -sS -I "${CURL_AUTH[@]}" "${ELASTICSEARCH_HOST}" >/dev/null
+            echo "[ES] HEAD ${ES_URL}"
+            curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
             
             cd ~/foreigner
             chmod -R +x infra/elasticsearch/scripts || true
 
             echo "[ES] Apply template"
-            ELASTICSEARCH_HOST="$ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/01-apply_template.sh
 
             echo "[ES] Create new index"
-            ELASTICSEARCH_HOST="$ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/02-create_index.sh
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
 
             SRC_ALIAS="posts_search"
-            if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ELASTICSEARCH_HOST}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
+            if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
               SRC_ALIAS="posts_lab"
             fi
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
 
-            curl -sS -X POST "${ELASTICSEARCH_HOST}/_reindex?wait_for_completion=true&refresh=true" \
+            curl -sS -X POST "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
               -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
               -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
             echo; echo "[ES] _reindex done"
 
             echo "[ES] Switch aliases"
-            ELASTICSEARCH_HOST="$ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
 
             echo "[ES] Verify"
-            ELASTICSEARCH_HOST="$ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/99-verify.sh
 
   # 4) 앱 배포만(.env 작성→docker compose pull/up)
@@ -218,6 +219,7 @@ jobs:
 
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
+            ES_URL=${{ secrets.ES_URL }}
 
             SERVER_URL=${{ secrets.SERVER_URL }}
             

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # === required ===
-: "${ELASTICSEARCH_HOST:?Set ELASTICSEARCH_HOST (e.g. http://10.0.1.25:9200)}"
+: "${ES_URL:?Set ES_URL (e.g. http://10.0.1.25:9200)}"
 # === optional ===
 INDEX_PREFIX="${INDEX_PREFIX:-posts-lab}"
 
-ES="$ELASTICSEARCH_HOST"
+ES="$ES_URL"
 NEW_INDEX="${INDEX_PREFIX}-$(date +%Y%m%d-%H%M%S)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
