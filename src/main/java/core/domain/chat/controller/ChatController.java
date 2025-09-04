@@ -88,8 +88,10 @@ public class ChatController {
     })
     @GetMapping("/rooms")
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> ChatRooms() {
+        log.info(">>>> 시작 ");
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
+        log.info(">>>> Received request for chat rooms from userId: {}", userId);
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
         ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> responseEntity =
                 ResponseEntity.ok(ApiResponse.success(responses));
