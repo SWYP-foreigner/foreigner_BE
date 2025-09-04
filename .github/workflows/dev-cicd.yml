@@ -118,7 +118,7 @@ jobs:
             bash infra/elasticsearch/scripts/01-apply_template.sh
 
             echo "[ES] Create new index"
-            ELASTICSEARCH_HOST="ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
+            ELASTICSEARCH_HOST="$ELASTICSEARCH_HOST" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/02-create_index.sh
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
