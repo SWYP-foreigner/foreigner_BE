@@ -11,6 +11,8 @@ import co.elastic.clients.elasticsearch._types.query_dsl.FunctionScoreMode;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.json.JsonData;
+import co.elastic.clients.json.JsonpMapper;
+import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import core.domain.board.dto.BoardItem;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
@@ -24,6 +26,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,22 +64,27 @@ public class PostSearchService {
 
         if (viewerId != null && query != null && !query.isBlank()) {
             redisService.log(viewerId, query);
+            log.debug("[SEARCH][RECENT] logged query for user={}, q='{}'", viewerId, query);
         }
 
         try {
-            log.debug("[SEARCH] email={}, viewerId={}, boardId={}, effectiveBoardId={}",
-                    email, viewerId, boardId, effectiveBoardId);
-            log.debug("[SEARCH] blockedIds(size={}): {}", blockedIds.size(), blockedIds);
+            log.debug("[SEARCH][BEGIN] email={}, viewerId={}, boardId={}, effectiveBoardId={}, blockedCount={}",
+                    email, viewerId, boardId, effectiveBoardId, blockedIds.size());
 
 
             var hits = searchIdsAndHighlights(query, effectiveBoardId, blockedIds, viewerId);
-            if (hits.isEmpty()) return List.of();
+            if (hits.isEmpty()) {
+                log.debug("[SEARCH][END] no hits");
+                return List.of();
+            }
 
             var ids = hits.stream().map(SearchHitLite::id).toList();
             log.debug("[ES→APP] hitIds(from ES)={}", ids);
 
             // ⬇️ JPA는 차단 미적용 수화 전용
             var items = postRepository.findPostsByIdsForSearch(viewerId, ids);
+            log.debug("[JPA] fetchedCount={}, fetchedIds={}",
+                    items.size(), items.stream().map(BoardItem::postId).toList());
 
             // ES 순서로 정렬 + 하이라이트/점수 주입
             Map<Long, Integer> order = new HashMap<>();
@@ -97,9 +105,17 @@ public class PostSearchService {
                 log.warn("[DIFF] presentInES_butMissingInDB={}", missingInDb);
             }
 
-            return items.stream()
+            var result = items.stream()
                     .map(i -> new SearchResultView(i, hlMap.get(i.postId()), scMap.getOrDefault(i.postId(), 0.0)))
                     .toList();
+
+
+            if (log.isDebugEnabled()) {
+                log.debug("[SEARCH][END] returnCount={}, orderedIds={}",
+                        result.size(), result.stream().map(r -> r.item().postId()).toList());
+            }
+
+            return result;
 
         } catch (ElasticsearchException e) {
             log.error("[ES] search failed (status={}, reason={})",
@@ -123,10 +139,14 @@ public class PostSearchService {
                                                        List<Long> blockedIds,
                                                        Long viewerId) throws IOException {
 
+        log.debug("[ES][SEARCH][REQ] viewerId={}, boardId={}, blockedCount={}, query='{}'",
+                viewerId, boardId, blockedIds == null ? 0 : blockedIds.size(), query);
+
+        long t0 = System.currentTimeMillis();
+
         SearchResponse<Void> resp = es.search(s -> s
                         .index(INDEX_POSTS_SEARCH)
                         .from(0).size(ABSOLUTE_MAX_SIZE)
-                        // _source 끄기(페이로드 최소화). 필요하면 특정 필드 include로 바꿔도 됨.
                         .source(src -> src.filter(f -> f.excludes("*")))
                         .query(q -> q.functionScore(fs -> fs
                                 .query(base -> base.bool(b -> {
@@ -163,11 +183,30 @@ public class PostSearchService {
                         .sort(ss -> ss.score(o -> o.order(SortOrder.Desc)))
                         .sort(ss -> ss.field(f -> f.field("createdAt").order(SortOrder.Desc)))
                         .highlight(h -> h.preTags("<em>").postTags("</em>")
-                                .fields("content", hf -> hf.numberOfFragments(1).fragmentSize(140))),
-                Void.class);
+                                .fields("content", hf -> hf.numberOfFragments(1).fragmentSize(140)))
+                        // .explain(true) // (옵션) 잠깐만 켜서 확인
+                        .trackTotalHits(t -> t.enabled(true))
+                , Void.class);
+
+        long wallMs = System.currentTimeMillis() - t0;
+
+        // === 추가: 응답 요약 ===
+        int hitCount = resp.hits().hits().size();
+        Long total = resp.hits().total() == null ? null : resp.hits().total().value();
+        log.debug("[ES][SEARCH][RESP] took={}ms(es), wall={}ms, hits={}, total={}",
+                resp.took(), wallMs, hitCount, total);
+
+        // === 추가: 상위 히트 요약 ===
+        for (int i = 0; i < hitCount; i++) {
+            var h = resp.hits().hits().get(i);
+            String hl = null;
+            var hs = h.highlight() == null ? null : h.highlight().get("content");
+            if (hs != null && !hs.isEmpty()) hl = hs.get(0);
+            log.debug("[ES][HIT][{}] id={}, score={}, hl={}", i, h.id(), h.score(), hl);
+        }
 
         var esIds = resp.hits().hits().stream().map(h -> h.id()).toList();
-        log.debug("[ES] took={}ms, hits={}, ids={}", resp.took(), esIds.size(), esIds);
+        log.debug("[ES] ids={}", esIds);
 
         return resp.hits().hits().stream().map(h -> {
             String hl = null;
@@ -186,6 +225,11 @@ public class PostSearchService {
 
         if (blockedIds == null || blockedIds.isEmpty()) return b;
 
+        boolean useTermsLookup = blockedIds.size() >= BLOCK_TERMS_LOOKUP_THRESHOLD;
+        log.debug("[ES][BLOCK] mode={}, blockedCount={}, threshold={}",
+                useTermsLookup ? "terms_lookup" : "terms",
+                blockedIds.size(), BLOCK_TERMS_LOOKUP_THRESHOLD);
+
         if (blockedIds.size() < BLOCK_TERMS_LOOKUP_THRESHOLD) {
             var vals = blockedIds.stream().map(FieldValue::of).toList();
             return b.mustNot(mn -> mn.terms(t -> t.field("userId").terms(ts -> ts.value(vals))));
@@ -196,4 +240,19 @@ public class PostSearchService {
                             .path(USER_FILTER_BLOCKED_PATH)))));
         }
     }
+
+    private static final JsonpMapper __ES_JSON_MAPPER = new JacksonJsonpMapper();
+
+    private static String __toJson(Object obj) {
+        try {
+            StringWriter sw = new StringWriter();
+            var gen = __ES_JSON_MAPPER.jsonProvider().createGenerator(sw);
+            __ES_JSON_MAPPER.serialize(obj, gen);
+            gen.close();
+            return sw.toString();
+        } catch (Exception e) {
+            return "{\"_logError\":\"" + e.getMessage() + "\"}";
+        }
+    }
+
 }
