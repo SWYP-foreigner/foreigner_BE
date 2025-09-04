@@ -128,12 +128,13 @@ jobs:
             if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
               SRC_ALIAS="posts_lab"
             fi
-          
-            
-            echo "[ES] Conditional reindex (if source alias exists)"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/04-reindex_if_exists.sh || true
-            
+            echo "[ES] Reindex source alias = ${SRC_ALIAS}"
+
+            curl -sS -X POST "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+              -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
+            echo; echo "[ES] _reindex done"
+
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
