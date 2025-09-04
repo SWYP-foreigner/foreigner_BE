@@ -64,68 +64,63 @@ public class ChatService {
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
     }
+    private record ChatRoomWithTime(ChatRoom room, LocalDateTime lastMessageTime) {}
+
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
-        // 1. 메서드 시작 로그 (어떤 사용자에 대한 요청인지 확인)
-        log.info(">>>> Starting to get chat room summaries for userId: {}", userId);
 
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         List<ChatRoom> rooms = chatRoomRepo.findActiveChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
-        // 2. 채팅방 조회 결과 로그 (조회된 채팅방 개수 확인)
-        log.info(">>>> Found {} active chat rooms for userId: {}", rooms.size(), userId);
+        List<ChatRoomSummaryResponse> summaryResponses = rooms.stream()
+                .map(room -> new ChatRoomWithTime(room, getLastMessageTime(room.getId())))
 
-        List<ChatRoomSummaryResponse> summaryResponses = rooms.stream().map(room -> {
-            // 3. 각 채팅방 처리 로그 (반복문 내부의 상세 정보 확인)
-            // 이 로그는 채팅방 개수만큼 반복해서 찍히므로, 상세 디버깅 시에만 보도록 DEBUG 레벨로 설정하는 것이 좋습니다.
-            log.debug(">>>> Processing roomId: {}", room.getId());
+                .sorted(Comparator.comparing(
+                        ChatRoomWithTime::lastMessageTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
 
-            String lastMessageContent = getLastMessageContent(room.getId());
-            LocalDateTime lastMessageTime = getLastMessageTime(room.getId());
-            int unreadCount = countUnreadMessages(room.getId(), userId);
-            String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(DateTimeFormatter.ofPattern("HH:mm")) : null;
-            String roomName;
-            String roomImageUrl;
-            int participantCount = room.getParticipants().size();
+                .map(roomWithTime -> {
+                    ChatRoom room = roomWithTime.room();
+                    LocalDateTime lastMessageTime = roomWithTime.lastMessageTime();
+                    String lastMessageContent = getLastMessageContent(room.getId());
+                    int unreadCount = countUnreadMessages(room.getId(), userId);
+                    String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(DateTimeFormatter.ofPattern("HH:mm")) : null;
+                    int participantCount = room.getParticipants().size();
+                    String roomName;
+                    String roomImageUrl;
 
-            if (!room.getGroup()) {
-                User opponent = room.getParticipants().stream()
-                        .map(ChatParticipant::getUser)
-                        .filter(u -> !u.getId().equals(userId))
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방 상대방을 찾을 수 없습니다."));
+                    if (!room.getGroup()) {
+                        User opponent = room.getParticipants().stream()
+                                .map(ChatParticipant::getUser)
+                                .filter(u -> !u.getId().equals(userId))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방 상대방을 찾을 수 없습니다."));
 
-                roomName = opponent.getLastName();
-                roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
-                        .map(Image::getUrl)
-                        .orElse(null);
+                        roomName = opponent.getLastName();
+                        roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
 
-                log.debug(">>>> 1:1 Room (id:{}) -> Opponent: {}, ImageUrl: {}", room.getId(), roomName, roomImageUrl);
-            } else {
-                roomName = room.getRoomName();
-                roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
-                        .map(Image::getUrl)
-                        .orElse(null);
+                    } else {
+                        roomName = room.getRoomName();
+                        roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+                    }
 
-                log.debug(">>>> Group Room (id:{}) -> Name: {}, ImageUrl: {}", room.getId(), roomName, roomImageUrl);
-            }
-
-            return new ChatRoomSummaryResponse(
-                    room.getId(),
-                    roomName,
-                    lastMessageContent,
-                    lastMessageTimeStr,
-                    roomImageUrl,
-                    unreadCount,
-                    participantCount
-            );
-        }).toList();
-
-        // 4. 최종 결과 로그 (최종적으로 생성된 응답 DTO 개수 확인)
-        log.info(">>>> Successfully created {} chat room summaries for userId: {}", summaryResponses.size(), userId);
-        // 만약 최종 응답의 상세 내용까지 보고 싶다면 DEBUG 레벨로 로깅할 수 있습니다.
-        log.debug(">>>> Final Response content: {}", summaryResponses);
+                    return new ChatRoomSummaryResponse(
+                            room.getId(),
+                            roomName,
+                            lastMessageContent,
+                            lastMessageTimeStr,
+                            roomImageUrl,
+                            unreadCount,
+                            participantCount
+                    );
+                })
+                .toList();
 
         return summaryResponses;
     }
