@@ -163,9 +163,11 @@ jobs:
             cd ~/foreigner
 
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-             echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
+            echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
 
-            IMAGE="${{ needs.build.outputs.image }}"
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+            : "${IMAGE:?IMAGE is empty}"
+            echo "Using IMAGE=${IMAGE}"
 
             cat > .env <<'EOF'
             # --- PostgreSQL ---
