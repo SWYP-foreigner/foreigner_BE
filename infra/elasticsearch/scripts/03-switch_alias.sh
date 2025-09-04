@@ -36,7 +36,7 @@ REMOVE_PAYLOAD=$(cat <<JSON
 JSON
 )
 curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
-  -H 'Content-Type: application/json' -d "${REMOVE_PAYLOAD}"
+  -H 'Content-Type: application/json' -d "${REMOVE_PAYLOAD}" || true
 
 # 2) 새 인덱스에 별칭 부여
 ADD_PAYLOAD=$(cat <<JSON
