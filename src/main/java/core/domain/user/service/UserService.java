@@ -297,15 +297,26 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public AuthResponse login(EmailLoginDto req) {
+        log.info("[LOGIN] 요청: email={}", req.getEmail());
+
         String email = normalizeEmail(req.getEmail());
+        log.debug("[LOGIN] 정규화된 이메일: {}", email);
 
         User u = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.warn("[LOGIN] 사용자 없음: email={}", email);
+                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                });
+
+        log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
         if (!"local".equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+            log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
+
         if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
+            log.warn("[LOGIN] 비밀번호 불일치: email={}", email);
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
@@ -313,8 +324,11 @@ public class UserService {
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
 
+        log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
+
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail());
     }
+
 
     /**
      *이메일 보내주는 로직
