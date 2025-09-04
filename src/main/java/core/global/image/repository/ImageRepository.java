@@ -81,9 +81,10 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
 
-    List<Image> findByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
+    @Modifying
+    @Query("DELETE FROM Image i WHERE i.imageType = :imageType AND i.relatedId = :relatedId")
+    void deleteAllByImageTypeAndRelatedId(@Param("imageType") ImageType imageType, @Param("relatedId") Long relatedId);
 
-    // ✅ 쿼리 메소드 추가 (메서드명으로 JPA가 자동 생성)
 
 
 

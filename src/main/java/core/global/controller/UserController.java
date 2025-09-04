@@ -1,5 +1,11 @@
 package core.global.controller;
 
+import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -7,7 +13,12 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
+import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
+import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
+import core.global.image.repository.ImageRepository;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
@@ -42,6 +53,14 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
+    private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
+    private final BookmarkRepository bookmarkRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
+    private final PostRepository postRepository;
+    private final ImageRepository imageRepository;
+
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -279,7 +298,16 @@ public class UserController {
             Long userId = principal.getUserId();
             String authHeader = request.getHeader("Authorization");
             String accessToken = authHeader.substring(7);
-
+            if (!userRepository.existsById(userId)) {
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            }
+            imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+            commentRepository.deleteAllByAuthorId(userId);
+            bookmarkRepository.deleteAllByUserId(userId);
+            postRepository.deleteAllByAuthorId(userId);
+            chatParticipantRepository.deleteAllByUserId(userId);
+            chatMessageRepository.deleteAllBySenderId(userId);
+            userRepository.deleteById(userId);
             userService.deleteUser(userId);
             redisService.deleteRefreshToken(userId);
             long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
@@ -292,4 +320,5 @@ public class UserController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
 }

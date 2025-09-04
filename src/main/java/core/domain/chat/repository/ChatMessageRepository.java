@@ -4,6 +4,7 @@ import core.domain.chat.entity.ChatMessage;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,14 +43,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     List<ChatMessage> findTop50ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
 
-    List<ChatMessage> findByChatRoomIdAndIdGreaterThan(Long roomId, Long lastReadMessageId);
-
     ChatMessage findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
-
-    @Query("SELECT COUNT(cm) FROM ChatMessage cm " +
-            "WHERE cm.chatRoom.id = :roomId AND cm.id > " +
-            "(SELECT cp.lastReadMessageId FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :readerId)")
-    int countUnreadMessages(@Param("roomId") Long roomId, @Param("readerId") Long readerId);
 
     /**
      * 특정 채팅방의 가장 최근 메시지를 조회합니다.
@@ -67,4 +61,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      */
     int countByChatRoomIdAndIdGreaterThan(Long chatRoomId, Long id);
     Optional<ChatMessage> findTopByChatRoomIdOrderByIdDesc(Long chatRoomId);
+    @Modifying
+    @Query("DELETE FROM ChatMessage m WHERE m.sender.id = :userId")
+    void deleteAllBySenderId(@Param("userId") Long userId);
 }
