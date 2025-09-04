@@ -68,40 +68,42 @@ public class PasswordService {
         log.info("비밀번호 재설정 코드 발송 완료: {}", email);
     }
 
-    /**
-     * 코드 검증 + 비밀번호 재설정
-     */
     @Transactional
     public void verifyCodeAndResetPassword(String rawEmail, String code, String newPassword) {
         String email = normalizeEmail(rawEmail);
+        log.info("[비밀번호 재설정] 요청 시작 - email: {}", email);
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.warn("[비밀번호 재설정] 사용자 없음 - email: {}", email);
+                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                });
 
-        /**
-         2) Redis에서 실패 횟수 가져오기
-         */
+        // Redis에서 실패 횟수 가져오기
         String failCountStr = redisTemplate.opsForValue().get(EMAIL_VERIFY_FAIL_KEY + email);
         int failCount = failCountStr == null ? 0 : Integer.parseInt(failCountStr);
+        log.info("[비밀번호 재설정] 현재 실패 횟수: {}", failCount);
 
         if (failCount >= MAX_FAIL_COUNT) {
+            log.warn("[비밀번호 재설정] 최대 시도 초과 - email: {}", email);
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED); // 시도 초과
         }
 
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        log.info("[비밀번호 재설정] Redis 저장 코드: {}", storedCode);
+
         if (storedCode == null || !storedCode.equals(code)) {
-            // 실패 → 횟수 증가
-            redisTemplate.opsForValue().increment(EMAIL_VERIFY_FAIL_KEY + email);
+            log.warn("[비밀번호 재설정] 인증 코드 불일치 - email: {}, 입력 코드: {}", email, code);
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        log.info("[비밀번호 재설정] 비밀번호 변경 완료 - email: {}", email);
 
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
         redisTemplate.delete(EMAIL_VERIFY_FAIL_KEY + email);
-
-        log.info("비밀번호 재설정 완료: {}", email);
+        log.info("[비밀번호 재설정] Redis 키 삭제 완료 - email: {}", email);
     }
 
     private String normalizeEmail(String email) {
