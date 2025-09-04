@@ -217,39 +217,23 @@ public class UserController {
     }
 
     @PostMapping("/password/forgot")
-    @Operation(summary = "비밀번호 재설정 메일 발송(세션ID 방식)")
+    @Operation(summary = "비밀번호 재설정 메일 발송")
     public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody EmailRequest request) {
         Locale loc = (request.getLang() == null || request.getLang().isBlank())
                 ? LocaleContextHolder.getLocale()
                 : Locale.forLanguageTag(request.getLang());
 
-
-        passwordService.sendResetMailSessionMode(request.getEmail(), loc);
-
+        passwordService.sendEmailVerificationCode(request.getEmail(), loc);
 
         return ResponseEntity.ok(ApiResponse.success("메시지가 전송되었다면 , 링크를 눌러주세요 "));
     }
 
-    /** 2) 메일 버튼 클릭 → 세션ID 검증 → (그때) 토큰 생성 → JSON 반환 */
-    @GetMapping("/password/start-reset")
-    @Operation(summary = "메일 버튼 클릭 시: 세션ID 검증 → 토큰 생성 → JSON 반환")
-    public ResponseEntity<ApiResponse<ResetTokenResponse>> startReset(@RequestParam("sid") String sessionId) {
-        ResetToken token = passwordService.issueTokenFromSession(sessionId);
-        return ResponseEntity.ok()
-                .headers(h -> { h.add("Cache-Control","no-store"); h.add("Pragma","no-cache"); })
-                .body(ApiResponse.success(new ResetTokenResponse(token.value(), token.expiresInSeconds())));
-    }
-
-
-    @PostMapping("/password/reset")
-    @Operation(summary = "임시토큰 검증 후 비밀번호 재설정(단일 API)")
-    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest req) {
-        passwordService.validateTokenAndResetPassword(req.getToken(), req.getNewPassword());
-        // 바디 없이 200 OK 반환
+    @PostMapping("/password/reset-by-code")
+    @Operation(summary = "이메일 코드 인증 후 비밀번호 재설정")
+    public ResponseEntity<Void> resetPasswordByCode(@RequestBody ResetPasswordByCodeRequest req) {
+        passwordService.verifyCodeAndResetPassword(req.getEmail(), req.getCode(), req.getNewPassword());
         return ResponseEntity.ok().build();
     }
-
-
 
     /*
      * revoke (연동 해제)

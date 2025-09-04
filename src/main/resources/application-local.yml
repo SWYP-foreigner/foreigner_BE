@@ -14,10 +14,10 @@ spring:
     check-template-location: true
 
   mail:
-    host:  ${NCP_MAIL_HOST}        # 네이버 SMTP 서버 주소
+    host:  smtp.naver.com
     port: 587                    # 네이버 SMTP 포트 번호
-    username:  ${NCP_EMAIL}    # 네이버 이메일
-    password: ${NCP_EMAIL_PASSWORD}
+    username:  hjun16@naver.com
+    password: LPVC4KVS931N
     default-encoding: UTF-8
     properties:
       mail.smtp.auth: true
@@ -28,9 +28,9 @@ spring:
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/${DB_NAME}
-    username:  ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://localhost:5432/postgres
+    username:  postgres
+    password: 1111
     driver-class-name: org.postgresql.Driver
   data:
     mongodb:
@@ -119,8 +119,8 @@ google:
 
 app:
   mail:
-    from: ${NAVER_HOST}
-    brand: ${APP_NAME}
+    from: hjun16@naver.com
+    brand: koriapp
     code-ttl-minutes: 3
 
   password:
@@ -129,4 +129,4 @@ app:
       session-ttl-minutes: 5
 
   api:
-    base-url: ${BASE_URL}
+    base-url: http://localhost:8080
