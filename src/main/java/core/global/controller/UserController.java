@@ -231,9 +231,9 @@ public class UserController {
 
 
     @PostMapping("/password/reset-by-code")
-    @Operation(summary = "이메일 코드 인증 후 비밀번호 재설정")
+    @Operation(summary = " 비밀번호 재설정")
     public ResponseEntity<Void> resetPasswordByCode(@RequestBody ResetPasswordByCodeRequest req) {
-        passwordService.verifyCodeAndResetPassword(req.getEmail(), req.getCode(), req.getNewPassword());
+        passwordService.verifyCodeAndResetPassword(req.getEmail(), req.getNewPassword());
         return ResponseEntity.ok().build();
     }
 

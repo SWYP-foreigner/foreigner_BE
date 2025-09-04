@@ -28,11 +28,8 @@ public class PasswordService {
     private final StringRedisTemplate redisTemplate;
     private final SmtpMailService smtpService;
     private final PasswordEncoder passwordEncoder;
-
-    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:"; // 코드 저장
-    private static final String EMAIL_VERIFY_FAIL_KEY = "email_verification:fail:"; // 실패 횟수 저장
+    private static final String EMAIL_VERIFY_CODE_KEY = "password_reset:code:";
     private static final long CODE_TTL_MIN = 3L; // 분
-    private static final int MAX_FAIL_COUNT = 5; // 최대 실패 횟수
 
     /**
      * 이메일 보내주는 로직
@@ -58,7 +55,7 @@ public class PasswordService {
     }
 
     @Transactional
-    public void verifyCodeAndResetPassword(String rawEmail, String code, String newPassword) {
+    public void verifyCodeAndResetPassword(String rawEmail, String newPassword) {
         String email = normalizeEmail(rawEmail);
         log.info("[비밀번호 재설정] 요청 시작 - email: {}", email);
 
@@ -68,22 +65,13 @@ public class PasswordService {
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
 
-      
-
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
-        log.info("[비밀번호 재설정] Redis 저장 코드: {}", storedCode);
-
-        if (storedCode == null || !storedCode.equals(code)) {
-            log.warn("[비밀번호 재설정] 인증 코드 불일치 - email: {}, 입력 코드: {}", email, code);
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
-        }
+        // Note: The code verification logic has been removed as per the request.
+        // The password will now be changed directly if a user with the provided email is found.
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("[비밀번호 재설정] 비밀번호 변경 완료 - email: {}", email);
 
-        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
-        redisTemplate.delete(EMAIL_VERIFY_FAIL_KEY + email);
         log.info("[비밀번호 재설정] Redis 키 삭제 완료 - email: {}", email);
     }
 
