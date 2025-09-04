@@ -28,7 +28,7 @@ public class PasswordService {
     private final StringRedisTemplate redisTemplate;
     private final SmtpMailService smtpService;
     private final PasswordEncoder passwordEncoder;
-    private static final String EMAIL_VERIFY_CODE_KEY = "password_reset:code:";
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
     private static final long CODE_TTL_MIN = 3L; // 분
 
     /**
