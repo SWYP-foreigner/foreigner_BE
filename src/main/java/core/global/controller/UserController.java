@@ -218,15 +218,17 @@ public class UserController {
 
     @PostMapping("/password/forgot")
     @Operation(summary = "비밀번호 재설정 메일 발송")
-    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody EmailRequest request) {
+    public ResponseEntity<Void> forgotPassword(@RequestBody EmailRequest request) {
         Locale loc = (request.getLang() == null || request.getLang().isBlank())
                 ? LocaleContextHolder.getLocale()
                 : Locale.forLanguageTag(request.getLang());
 
         passwordService.sendEmailVerificationCode(request.getEmail(), loc);
 
-        return ResponseEntity.ok(ApiResponse.success("메시지가 전송되었다면 ,인증번호를 입력해주세요 ."));
+        // body 없이 200 OK 반환
+        return ResponseEntity.ok().build();
     }
+
 
     @PostMapping("/password/reset-by-code")
     @Operation(summary = "이메일 코드 인증 후 비밀번호 재설정")
