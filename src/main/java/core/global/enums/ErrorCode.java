@@ -15,7 +15,7 @@ public enum ErrorCode {
     AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN,"이메일 또는 비밀번호가 올바르지 않습니다."),
     PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST,"비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST,"비밀번호가 일치하지 않습니다."),
-    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "otherUserId 형식이 잘못되었습니다."),
+
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
@@ -35,6 +35,7 @@ public enum ErrorCode {
     FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
     INVALID_OR_EXPIRED_SESSION(HttpStatus.BAD_REQUEST, "세션이 만료되었습니다."),
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
+
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     INVALID_TRIP_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 status입니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),
@@ -70,7 +71,7 @@ public enum ErrorCode {
     IMAGE_FILE_DELETE_FAILED(HttpStatus.BAD_REQUEST, "이미지 삭제를 실패했습니다."),
     IMAGE_FOLDER_DELETE_FAILED(HttpStatus.BAD_REQUEST, "폴더 삭제에 실패했습니다."),
     CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
-
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "otherUserId 형식이 잘못되었습니다."),
     TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다."),
     CHAT_NOT_GROUP(HttpStatus.UNAUTHORIZED, "현재의 채팅방은 그룹채팅방이 아닙니다"),
     ALREADY_CHAT_PARTICIPANT(HttpStatus.UNAUTHORIZED, "이미 현재의 그룹채팅방에 참여하고 있습니다."),
