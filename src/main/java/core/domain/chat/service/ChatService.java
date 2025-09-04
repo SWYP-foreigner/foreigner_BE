@@ -3,10 +3,8 @@ package core.domain.chat.service;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
-import core.domain.chat.entity.ChatMessageReadStatus;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.ChatMessageReadStatusRepository;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
@@ -43,7 +41,6 @@ public class ChatService {
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private static final int MESSAGE_PAGE_SIZE = 20;
-    private final ChatMessageReadStatusRepository chatMessageReadStatusRepository;
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -51,14 +48,13 @@ public class ChatService {
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       ChatMessageReadStatusRepository chatMessageReadStatusRepository, TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.chatParticipantRepository = chatParticipantRepository;
-        this.chatMessageReadStatusRepository = chatMessageReadStatusRepository;
         this.translationService = translationService;
         this.imageRepository = imageRepository;
         this.chatRoomRepository = chatRoomRepository;
@@ -454,26 +450,10 @@ public class ChatService {
      */
     @Transactional
     public void markMessagesAsRead(Long roomId, Long readerId, Long lastReadMessageId) {
-        User reader = userRepository.findById(readerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
         ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-
-        List<ChatMessage> unreadMessages = chatMessageRepository.findByChatRoomIdAndIdGreaterThan(roomId, lastReadMessageId);
-
-        for (ChatMessage msg : unreadMessages) {
-            boolean alreadyRead = chatMessageReadStatusRepository.existsByChatMessageAndReader(msg, reader);
-
-            if (!alreadyRead) {
-                ChatMessageReadStatus readStatus = new ChatMessageReadStatus(msg, reader, Instant.now());
-                chatMessageReadStatusRepository.save(readStatus);
-            }
-        }
-
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
-
     public String getLastMessageContent(Long roomId) {
         ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
         return (last != null) ? last.getContent() : null;
@@ -609,9 +589,14 @@ public class ChatService {
     }
 
     public int countUnreadMessages(Long roomId, Long userId) {
-        long totalMessagesCount = chatMessageRepository.countByChatRoomId(roomId);
-        long readMessagesCount = chatMessageReadStatusRepository.countByChatRoomIdAndReaderId(roomId, userId);
-        return (int) (totalMessagesCount - readMessagesCount);
+        // 1. ChatParticipant에서 사용자의 마지막 읽은 메시지 ID (북마크)를 찾습니다.
+        Long lastReadId = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .map(ChatParticipant::getLastReadMessageId)
+                .orElse(0L); // 읽은 적 없으면 0으로 간주 (모든 메시지가 안 읽음 처리됨)
+
+        // 2. ChatMessage 테이블에서 북마크 ID보다 큰 메시지의 개수를 셉니다.
+        //    이 로직을 위해 ChatMessageRepository에 countByChatRoomIdAndIdGreaterThan 메서드가 필요합니다.
+        return chatMessageRepository.countByChatRoomIdAndIdGreaterThan(roomId, lastReadId);
     }
 
 
@@ -818,4 +803,5 @@ public class ChatService {
 
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
+
 }

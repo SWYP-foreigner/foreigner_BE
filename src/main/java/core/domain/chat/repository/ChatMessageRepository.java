@@ -59,12 +59,12 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      * @return 가장 최근 메시지가 담긴 Optional 객체
      */
     Optional<ChatMessage> findFirstByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
-    /**
-     * 특정 채팅방의 전체 메시지 수를 계산합니다.
-     * @param chatRoomId 메시지 수를 계산할 채팅방 ID
-     * @return 해당 채팅방의 총 메시지 수
-     */
-    long countByChatRoomId(Long chatRoomId);
 
+    /**
+     * 특정 채팅방(chatRoomId)에서, 특정 메시지 ID(id)보다 큰 ID를 가진 메시지들의 개수를 반환합니다.
+     * Spring Data JPA가 메서드 이름을 분석하여 아래와 유사한 쿼리를 자동으로 생성합니다:
+     * SELECT COUNT(cm) FROM ChatMessage cm WHERE cm.chatRoom.id = :chatRoomId AND cm.id > :id
+     */
+    int countByChatRoomIdAndIdGreaterThan(Long chatRoomId, Long id);
     Optional<ChatMessage> findTopByChatRoomIdOrderByIdDesc(Long chatRoomId);
 }
