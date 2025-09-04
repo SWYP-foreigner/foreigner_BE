@@ -225,7 +225,7 @@ public class UserController {
 
         passwordService.sendEmailVerificationCode(request.getEmail(), loc);
 
-        return ResponseEntity.ok(ApiResponse.success("메시지가 전송되었다면 , 링크를 눌러주세요 "));
+        return ResponseEntity.ok(ApiResponse.success("메시지가 전송되었다면 ,인증번호를 입력해주세요 ."));
     }
 
     @PostMapping("/password/reset-by-code")

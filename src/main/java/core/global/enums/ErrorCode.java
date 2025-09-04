@@ -11,7 +11,7 @@ public enum ErrorCode {
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
     INVALID_EMAIL_INPUT (HttpStatus.BAD_REQUEST,"해당 이메일은 소셜 로그인 계정입니다. 소셜 로그인을 이용하세요."),
     DUPLICATE_RESOURCE(HttpStatus.FORBIDDEN, "중복된 이메일입니다."),
-
+    AUTHENTICATION_OVER_FAILED(HttpStatus.FORBIDDEN,"횟수가 넘어갔습니다."),
     AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN,"이메일 또는 비밀번호가 올바르지 않습니다."),
     PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST,"비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST,"비밀번호가 일치하지 않습니다."),

@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -29,21 +28,23 @@ public class PasswordService {
     private final StringRedisTemplate redisTemplate;
     private final SmtpMailService smtpService;
     private final PasswordEncoder passwordEncoder;
-    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
-    private static final long CODE_TTL_MIN = 3L;      // 분
+
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:"; // 코드 저장
+    private static final String EMAIL_VERIFY_FAIL_KEY = "email_verification:fail:"; // 실패 횟수 저장
+    private static final long CODE_TTL_MIN = 3L; // 분
+    private static final int MAX_FAIL_COUNT = 5; // 최대 실패 횟수
+
     /**
-     *이메일 보내주는 로직
+     * 이메일 보내주는 로직
      */
     public void sendEmailVerificationCode(String rawEmail, Locale locale) {
         String email = normalizeEmail(rawEmail);
-
         Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
 
-        log.info("이메일 보내주는 로직"+String.valueOf(locale));
         String verificationCode = smtpService.sendVerificationEmail(
                 email,
                 ttl,
-                locale   // 여기서 앱이 보낸 언어 사용
+                locale
         );
 
         redisTemplate.opsForValue().set(
@@ -52,35 +53,59 @@ public class PasswordService {
                 CODE_TTL_MIN,
                 TimeUnit.MINUTES
         );
+
+        /**
+         * 실패 횟수 초기화
+         *
+         * **/
+        redisTemplate.opsForValue().set(
+                EMAIL_VERIFY_FAIL_KEY + email,
+                "0",
+                CODE_TTL_MIN,
+                TimeUnit.MINUTES
+        );
+
+        log.info("비밀번호 재설정 코드 발송 완료: {}", email);
     }
+
+    /**
+     * 코드 검증 + 비밀번호 재설정
+     */
     @Transactional
     public void verifyCodeAndResetPassword(String rawEmail, String code, String newPassword) {
         String email = normalizeEmail(rawEmail);
 
-        // 1) DB에 해당 유저 존재하는지 확인
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 2) Redis에서 인증코드 꺼내오기
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
-        if (storedCode == null || !storedCode.equals(code)) {
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED); // 잘못된 코드
+        /**
+         2) Redis에서 실패 횟수 가져오기
+         */
+        String failCountStr = redisTemplate.opsForValue().get(EMAIL_VERIFY_FAIL_KEY + email);
+        int failCount = failCountStr == null ? 0 : Integer.parseInt(failCountStr);
+
+        if (failCount >= MAX_FAIL_COUNT) {
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED); // 시도 초과
         }
 
-        // 3) 유저 비밀번호 갱신
+        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        if (storedCode == null || !storedCode.equals(code)) {
+            // 실패 → 횟수 증가
+            redisTemplate.opsForValue().increment(EMAIL_VERIFY_FAIL_KEY + email);
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // 4) 인증코드 소비 후 삭제
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        redisTemplate.delete(EMAIL_VERIFY_FAIL_KEY + email);
 
         log.info("비밀번호 재설정 완료: {}", email);
     }
-
 
     private String normalizeEmail(String email) {
         if (email == null) return null;
         return email.trim().toLowerCase(Locale.ROOT);
     }
-
 }
