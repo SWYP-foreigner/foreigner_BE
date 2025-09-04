@@ -356,21 +356,35 @@ public class UserService {
                 TimeUnit.MINUTES
         );
     }
-
-
     /**
-     * 이메일 인증 코드를 검증합니다.
+
+     true 반환;
+
      */
     public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
+        String verificationCode = request.getVerificationCode();
+
+        log.info("Verifying email code for email: {}", email);
+        log.debug("Received verification code: {}", verificationCode);
 
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
-        if (storedCode == null || !storedCode.equals(request.getVerificationCode())) {
+
+        if (storedCode == null) {
+            log.warn("Stored code not found for email: {}. Code may have expired.", email);
             return false;
         }
 
+        if (!storedCode.equals(verificationCode)) {
+            log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
+            return false;
+        }
+
+        log.info("Email code verification successful for: {}", email);
+
         // 사용한 코드는 즉시 폐기
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        log.debug("Deleted verification code from Redis for email: {}", email);
 
         // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
@@ -379,6 +393,8 @@ public class UserService {
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+        log.info("Set verified flag in Redis for email: {} with TTL of {} minutes", email, VERIFIED_TTL_MIN);
+
         return true;
     }
 
