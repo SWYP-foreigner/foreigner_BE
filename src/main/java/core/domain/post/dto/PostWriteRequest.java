@@ -26,7 +26,6 @@ public record PostWriteRequest(
         @Size(max = 5, message = "이미지는 최대 5개까지 첨부 가능합니다.")
         List<
                 @NotBlank(message = "이미지 URL이 비어있습니다.")
-                @URL(message = "유효한 URL 형식이 아닙니다.")
                         String
                 > imageUrls
 
