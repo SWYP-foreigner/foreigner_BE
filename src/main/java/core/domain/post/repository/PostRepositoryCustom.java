@@ -22,4 +22,6 @@ public interface PostRepositoryCustom {
 
         List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
 
+        List<BoardItem> findPostsByIdsForSearch(Long viewerId, List<Long> ids);
+
 }

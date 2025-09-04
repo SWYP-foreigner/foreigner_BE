@@ -70,11 +70,11 @@ public class ChatController {
     })
     @PostMapping("/rooms/oneTone")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            @RequestBody  Long otherUserId
+            @RequestBody CreateRoomRequest request
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        ChatRoom room = chatService.createRoom(userId, otherUserId);
+        ChatRoom room = chatService.createRoom(userId, request.otherUserId());
         ChatRoomResponse response = ChatRoomResponse.from(room);
         return ResponseEntity.ok(ApiResponse.success(response));
     }

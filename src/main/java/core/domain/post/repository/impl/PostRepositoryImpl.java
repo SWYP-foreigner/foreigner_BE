@@ -366,6 +366,50 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .fetch();
     }
 
+    @Override
+    public List<BoardItem> findPostsByIdsForSearch(Long viewerId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return List.of();
+
+        Expression<String> preview        = preview200();
+        Expression<Long>  likeCountExpr   = likeCountExpr();
+        Expression<Long>  commentCountExpr= commentCountExpr();
+        Expression<Boolean> likedByMe     = likedByViewerId(viewerId);
+        BooleanExpression visibleToMe     = visibleTo(viewerId);
+
+        QImage uimg = new QImage("uimg");
+        Expression<String> userImageUrlExpr =
+                JPAExpressions.select(uimg.url)
+                        .from(uimg)
+                        .where(uimg.imageType.eq(IMAGE_TYPE_USER)
+                                .and(uimg.relatedId.eq(user.id)));
+
+        Expression<String> contentThumbUrlExpr = firstPostImageUrlExpr();
+
+        return query
+                .select(Projections.constructor(
+                        BoardItem.class,
+                        post.id,
+                        preview,
+                        user.name,
+                        board.category,
+                        post.createdAt,
+                        likedByMe,
+                        likeCountExpr,
+                        commentCountExpr,
+                        post.checkCount,
+                        userImageUrlExpr,
+                        contentThumbUrlExpr,
+                        postImageCountExpr(),
+                        Expressions.numberTemplate(Long.class, "NULL")
+                ))
+                .from(post)
+                .join(post.author, user)
+                .join(post.board, board)
+                .where(post.id.in(ids).and(visibleToMe))
+                .fetch();
+    }
+
+
     private BooleanExpression visibleTo(Long userId) {
         if (userId == null) return null; // 비로그인
 
@@ -388,15 +432,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .notExists();
 
         return notMyBlocking.and(notTheirBlocking);
-    }
-
-    private BooleanExpression allOf(BooleanExpression... exps) {
-        BooleanExpression result = null;
-        for (BooleanExpression e : exps) {
-            if (e == null) continue;
-            result = (result == null) ? e : result.and(e);
-        }
-        return result;
     }
 
     private Expression<Integer> postImageCountExpr() {
@@ -482,5 +517,15 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 .and(like.user.email.eq(email))
                 )
                 .exists();
+    }
+
+
+    private BooleanExpression allOf(BooleanExpression... exps) {
+        BooleanExpression result = null;
+        for (BooleanExpression e : exps) {
+            if (e == null) continue;
+            result = (result == null) ? e : result.and(e);
+        }
+        return result;
     }
 }
