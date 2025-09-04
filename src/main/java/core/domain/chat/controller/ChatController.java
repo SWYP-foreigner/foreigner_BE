@@ -306,4 +306,14 @@ public class ChatController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    @PostMapping("/rooms/{roomId}/read-all")
+    public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        chatService.markAllMessagesAsReadInRoom(roomId, userId);
+
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }

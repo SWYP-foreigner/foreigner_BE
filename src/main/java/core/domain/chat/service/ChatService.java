@@ -791,4 +791,31 @@ public class ChatService {
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
     }
+
+    @Transactional
+    public void markAllMessagesAsReadInRoom(Long roomId, Long readerId) {
+        Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
+
+        if (lastMessageOpt.isPresent()) {
+            ChatMessage lastMessage = lastMessageOpt.get();
+            Long lastMessageId = lastMessage.getId();
+            AllmarkMessagesAsRead(roomId, readerId, lastMessageId);
+
+            log.info(">>>> All messages marked as read for userId: {} in roomId: {}", readerId, roomId);
+        } else {
+            // 채팅방에 메시지가 없는 경우는 아무것도 하지 않고 조용히 종료합니다.
+            log.info(">>>> No messages to mark as read in roomId: {}", roomId);
+        }
+    }
+
+    /**
+     * 특정 메시지 ID까지 읽음 처리하는 기존 메서드 (이전 답변의 효율적인 버전)
+     */
+    @Transactional
+    public void AllmarkMessagesAsRead(Long roomId, Long readerId, Long lastReadMessageId) {
+        ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+
+        readerParticipant.setLastReadMessageId(lastReadMessageId);
+    }
 }

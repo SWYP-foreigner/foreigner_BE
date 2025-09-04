@@ -65,4 +65,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      * @return 해당 채팅방의 총 메시지 수
      */
     long countByChatRoomId(Long chatRoomId);
+
+    Optional<ChatMessage> findTopByChatRoomIdOrderByIdDesc(Long chatRoomId);
 }
