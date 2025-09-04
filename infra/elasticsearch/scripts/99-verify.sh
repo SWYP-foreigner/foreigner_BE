@@ -2,14 +2,14 @@
 set -euo pipefail
 
 # === required ===
-: "${ES_URL:?Set ES_URL (e.g. http://10.0.1.25:9200)}"
+: "${ELASTICSEARCH_HOST:?Set ELASTICSEARCH_HOST (e.g. http://10.0.1.25:9200)}"
 # === optional ===
 ALIAS_SEARCH="${ALIAS_SEARCH:-posts_search}"
 ALIAS_SUGG="${ALIAS_SUGG:-posts_suggest}"
 ALIAS_WRITE="${ALIAS_WRITE:-posts_write}"
 INDEX_PREFIX="${INDEX_PREFIX:-posts-lab}"
 
-ES="$ES_URL"
+ES="$ELASTICSEARCH_HOST"
 
 CURL_OPTS=(--fail-with-body -sS)
 [ "${ES_INSECURE:-0}" = "1" ] && CURL_OPTS+=(-k)

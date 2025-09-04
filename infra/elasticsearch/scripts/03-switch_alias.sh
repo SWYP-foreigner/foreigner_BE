@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${ES_URL:?Set ES_URL (e.g. http://127.0.0.1:9200)}"
+: "${ELASTICSEARCH_HOST:?Set ELASTICSEARCH_HOST (e.g. http://127.0.0.1:9200)}"
 ALIAS_SEARCH="${ALIAS_SEARCH:-posts_search}"
 ALIAS_SUGG="${ALIAS_SUGG:-posts_suggest}"
 ALIAS_WRITE="${ALIAS_WRITE:-posts_write}"
@@ -35,7 +35,7 @@ REMOVE_PAYLOAD=$(cat <<JSON
 }
 JSON
 )
-curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ELASTICSEARCH_HOST}/_aliases" \
   -H 'Content-Type: application/json' -d "${REMOVE_PAYLOAD}"
 
 # 2) 새 인덱스에 별칭 부여
@@ -49,7 +49,7 @@ ADD_PAYLOAD=$(cat <<JSON
 }
 JSON
 )
-curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ELASTICSEARCH_HOST}/_aliases" \
   -H 'Content-Type: application/json' -d "${ADD_PAYLOAD}"
 
 echo "[OK] aliases -> ${NEW_INDEX}"

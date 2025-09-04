@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # === required ===
-: "${ES_URL:?Set ES_URL (e.g. http://10.0.1.25:9200)}"
+: "${ELASTICSEARCH_HOST:?Set ELASTICSEARCH_HOST (e.g. http://10.0.1.25:9200)}"
 # === optional ===
 TEMPLATE_NAME="${TEMPLATE_NAME:-posts-template-v1}"
 
-ES="$ES_URL"
+ES="ELASTICSEARCH_HOST"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TPL="$ROOT_DIR/posts-template.json"
