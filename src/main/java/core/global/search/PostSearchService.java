@@ -139,10 +139,14 @@ public class PostSearchService {
                                                        List<Long> blockedIds,
                                                        Long viewerId) throws IOException {
 
+        log.debug("[ES][SEARCH][REQ] viewerId={}, boardId={}, blockedCount={}, query='{}'",
+                viewerId, boardId, blockedIds == null ? 0 : blockedIds.size(), query);
+
+        long t0 = System.currentTimeMillis();
+
         SearchResponse<Void> resp = es.search(s -> s
                         .index(INDEX_POSTS_SEARCH)
                         .from(0).size(ABSOLUTE_MAX_SIZE)
-                        // _source 끄기(페이로드 최소화). 필요하면 특정 필드 include로 바꿔도 됨.
                         .source(src -> src.filter(f -> f.excludes("*")))
                         .query(q -> q.functionScore(fs -> fs
                                 .query(base -> base.bool(b -> {
@@ -179,22 +183,20 @@ public class PostSearchService {
                         .sort(ss -> ss.score(o -> o.order(SortOrder.Desc)))
                         .sort(ss -> ss.field(f -> f.field("createdAt").order(SortOrder.Desc)))
                         .highlight(h -> h.preTags("<em>").postTags("</em>")
-                                .fields("content", hf -> hf.numberOfFragments(1).fragmentSize(140))),
-                Void.class);
+                                .fields("content", hf -> hf.numberOfFragments(1).fragmentSize(140)))
+                        // .explain(true) // (옵션) 잠깐만 켜서 확인
+                        .trackTotalHits(t -> t.enabled(true))
+                , Void.class);
 
-        log.debug("[ES][SEARCH][REQ] viewerId={}, boardId={}, blockedCount={}, query='{}'",
-                viewerId, boardId, blockedIds == null ? 0 : blockedIds.size(), query);
-        log.debug("[ES][SEARCH][DSL] {}", __toJson(req));
-
-        long t0 = System.currentTimeMillis();
-        SearchResponse<Void> resp = es.search(req, Void.class);
         long wallMs = System.currentTimeMillis() - t0;
 
+        // === 추가: 응답 요약 ===
         int hitCount = resp.hits().hits().size();
         Long total = resp.hits().total() == null ? null : resp.hits().total().value();
         log.debug("[ES][SEARCH][RESP] took={}ms(es), wall={}ms, hits={}, total={}",
                 resp.took(), wallMs, hitCount, total);
 
+        // === 추가: 상위 히트 요약 ===
         for (int i = 0; i < hitCount; i++) {
             var h = resp.hits().hits().get(i);
             String hl = null;
@@ -204,7 +206,7 @@ public class PostSearchService {
         }
 
         var esIds = resp.hits().hits().stream().map(h -> h.id()).toList();
-        log.debug("[ES] took={}ms, hits={}, ids={}", resp.took(), esIds.size(), esIds);
+        log.debug("[ES] ids={}", esIds);
 
         return resp.hits().hits().stream().map(h -> {
             String hl = null;
