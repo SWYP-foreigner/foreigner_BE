@@ -54,17 +54,6 @@ public class PasswordService {
                 TimeUnit.MINUTES
         );
 
-        /**
-         * 실패 횟수 초기화
-         *
-         * **/
-        redisTemplate.opsForValue().set(
-                EMAIL_VERIFY_FAIL_KEY + email,
-                "0",
-                CODE_TTL_MIN,
-                TimeUnit.MINUTES
-        );
-
         log.info("비밀번호 재설정 코드 발송 완료: {}", email);
     }
 
@@ -79,15 +68,7 @@ public class PasswordService {
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
 
-        // Redis에서 실패 횟수 가져오기
-        String failCountStr = redisTemplate.opsForValue().get(EMAIL_VERIFY_FAIL_KEY + email);
-        int failCount = failCountStr == null ? 0 : Integer.parseInt(failCountStr);
-        log.info("[비밀번호 재설정] 현재 실패 횟수: {}", failCount);
-
-        if (failCount >= MAX_FAIL_COUNT) {
-            log.warn("[비밀번호 재설정] 최대 시도 초과 - email: {}", email);
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED); // 시도 초과
-        }
+      
 
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
         log.info("[비밀번호 재설정] Redis 저장 코드: {}", storedCode);
