@@ -50,7 +50,7 @@ public class ImageServiceImpl implements ImageService {
      * ✅ Presigned URL 생성 (일괄)
      */
     @Override
-    public List<PresignedUrlResponse> generatePresignedUrls( PresignedUrlRequest request) {
+    public List<PresignedUrlResponse> generatePresignedUrls(PresignedUrlRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         if (request.files() == null || request.files().isEmpty()) {
@@ -109,7 +109,6 @@ public class ImageServiceImpl implements ImageService {
         clientHeaders.put("x-amz-meta-owner", email);
         clientHeaders.put("x-amz-meta-session", uploadSessionId);
         clientHeaders.put("x-amz-meta-image-type", imageType.name().toLowerCase());
-        clientHeaders.put("x-amz-acl", "public-read");
 
         String publicUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, key);
 
@@ -232,7 +231,10 @@ public class ImageServiceImpl implements ImageService {
             log.info("[POST IMG] copy: src={} -> dst={}", srcKey, dstKey);
             s3Client.copyObject(b -> b
                     .sourceBucket(bucket).sourceKey(srcKey)
-                    .destinationBucket(bucket).destinationKey(dstKey));
+                    .destinationBucket(bucket).destinationKey(dstKey)
+                    .acl(ObjectCannedACL.PUBLIC_READ)               // ✅ 새 오브젝트에 퍼블릭 읽기 부여
+                    .metadataDirective(MetadataDirective.COPY)      // ✅ 메타/Content-Type 유지(명시)
+            );
             s3Client.deleteObject(b -> b.bucket(bucket).key(srcKey));
         } catch (SdkException e) {
             log.warn("[POST IMG] copy/delete failed. src={}, dst={}, err={}", srcKey, dstKey, e.getMessage());
@@ -343,7 +345,10 @@ public class ImageServiceImpl implements ImageService {
             String dstKey = "users/%d/profile.%s".formatted(userId, ext);
             try {
                 s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
-                        .destinationBucket(bucket).destinationKey(dstKey));
+                        .destinationBucket(bucket).destinationKey(dstKey)
+                        .acl(ObjectCannedACL.PUBLIC_READ)               // ✅ 새 오브젝트에 퍼블릭 읽기 부여
+                        .metadataDirective(MetadataDirective.COPY)      // ✅ 메타/Content-Type 유지(명시)
+                );
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
             } catch (SdkException e) {
                 throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
