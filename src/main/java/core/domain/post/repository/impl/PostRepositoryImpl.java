@@ -143,10 +143,10 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         // ── 최종 점수(정수)
         NumberExpression<Long> score =
-                recencyPoints.multiply(5L)
-                        .add(views.multiply(3L))
-                        .add(likes)
-                        .add(comments);
+                recencyPoints.multiply(3L)
+                        .add(views.multiply(1L))
+                        .add(likes.multiply(3L))
+                        .add(comments.multiply(3L));
 
         // ── 커서 조건(무한스크롤)
         BooleanExpression ltCursor = null;
