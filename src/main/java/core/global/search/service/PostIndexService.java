@@ -1,10 +1,12 @@
-package core.global.search;
+package core.global.search.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.IndexResponse;
 import core.domain.post.entity.Post;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.search.SearchConstants;
+import core.global.search.dto.PostDocument;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

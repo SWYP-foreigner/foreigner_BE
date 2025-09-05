@@ -1,4 +1,4 @@
-package core.global.search;
+package core.global.search.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;

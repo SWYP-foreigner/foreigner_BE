@@ -80,6 +80,6 @@ public class Post {
     }
 
     public void changeCheckCount() {
-        this.checkCount++;
+        this.checkCount = this.checkCount + 1;
     }
 }
