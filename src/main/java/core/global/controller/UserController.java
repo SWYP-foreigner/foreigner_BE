@@ -64,45 +64,44 @@ public class UserController {
         System.out.println("State: " + state);
         return "Received code: " + code + ", state: " + state;
     }
-
+    @Operation(summary = "구글 소셜 로그인", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/google/app-login")
-    @Operation(summary = "구글 앱 로그인 API", description = "React Native 앱에서 받은 인증 코드를 사용합니다.")
-
     public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(
             @Parameter(description = "구글 로그인 요청 데이터", required = true)
             @RequestBody GoogleLoginReq req) {
 
         log.info("--- [구글 앱 로그인] API 요청 수신 ---");
-        log.info("요청 데이터: {}", req);
-        log.info("앱으로부터 받은 인증 코드: {}", req.getCode());
 
         try {
             log.info("1. 구글과 인증 코드를 교환하여 액세스 토큰을 받는 중...");
             AccessTokenDto accessTokenDto = googleService.exchangeCode(req.getCode());
-            log.info("액세스 토큰 교환 성공. 받은 토큰: {}", accessTokenDto.getAccess_token());
 
             log.info("2. 받은 액세스 토큰으로 구글 사용자 프로필 정보를 조회하는 중...");
             GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
-            log.info("사용자 프로필 조회 성공. 사용자 ID(sub): {}, 이메일: {}", profile.getSub(), profile.getEmail());
 
             log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
-            boolean isNewUser =false;
             User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
+
             if (originalUser == null) {
-                log.info("새로운 사용자입니다. 소셜 ID: {}, 이메일: {} 로 계정 생성", profile.getSub(), profile.getEmail());
+                log.info("새로운 사용자입니다. 소셜 ID로 계정 생성");
                 originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
                 log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", originalUser.getId());
-                isNewUser=true;
             } else {
                 log.info("기존 사용자 발견. 사용자 ID: {}", originalUser.getId());
             }
+
             log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
             String accessToken = jwtTokenProvider.createAccessToken(originalUser.getId(), originalUser.getEmail());
             String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getId());
             Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
             long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
             redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
-            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken,isNewUser);
+
+            boolean isNewUserResponse = originalUser.isNewUser();
+            log.info("이 사용자는 새로운 유저입니까? (isNewUser DB 값): {}", isNewUserResponse);
+
+            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken, isNewUserResponse);
+
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {
