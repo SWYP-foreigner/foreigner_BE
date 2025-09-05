@@ -8,7 +8,9 @@ public record AuthResponse(
         String tokenType,         // "Bearer"
         String accessToken,
         String refreshToken,
-        long   expiresInMillis,   // 액세스 토큰 만료(ms)
-        Long   userId,
-        String email
-) {}
+        long expiresInMillis,   // 액세스 토큰 만료(ms)
+        Long userId,
+        String email,
+        Boolean isNewUser
+) {
+}
