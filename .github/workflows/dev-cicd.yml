@@ -97,7 +97,6 @@ jobs:
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
             
-            # ⬇️ 가장 먼저 환경변수 주입
             export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
             : "${ES_URL:?ES_URL must be set}"
@@ -138,6 +137,11 @@ jobs:
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
+            
+            echo "[ES] Cleanup: keep last 1, delete the rest"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
+            bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
 
             echo "[ES] Verify"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
