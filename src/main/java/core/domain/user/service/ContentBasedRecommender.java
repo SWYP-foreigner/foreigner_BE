@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -57,35 +58,28 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
-        // 1. DB에서 후보 풀을 가져옴
         Page<User> page = userRepository.findCandidatesExcluding(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
 
-        // ✅ [로그 1] DB에서 가져온 초기 후보가 몇 명인지 확인
         log.info(">>>> [디버깅 1] DB에서 조회된 초기 후보 수: {}", page.getContent().size());
 
         if (!page.hasContent()) {
             return List.of();
         }
 
-        // 2. 모든 후보의 점수를 계산
         List<Scored<User>> scored = new ArrayList<>();
         for (User cand : page.getContent()) {
             double s = score(me, cand, meAge, meLangs);
             scored.add(new Scored<>(cand, s));
         }
 
-        // ✅ [로그 2] 점수 계산 후 후보가 몇 명인지 확인
         log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
         log.info(">>>> 리미트 수 : {}",limit);
 
-        // 3. 점수 순으로 정렬
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
-        // 4. 후보가 부족한 경우 모두 반환
         if (scored.size() <= limit) {
-            // ✅ [로그 3] 후보 부족 조건문에 진입했는지 확인
             log.info(">>>> [디버깅 3] 후보 수가 limit({}) 이하이므로 모두 반환합니다.", limit);
             return scored.stream()
                     .map(s -> toDto(s.getItem()))
@@ -155,10 +149,15 @@ public class ContentBasedRecommender {
     }
 
     private int safeAge(String birth) {
+        if (birth == null || birth.isBlank()) {
+            return -1;
+        }
         try {
-            LocalDate d = LocalDate.parse(birth);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+            LocalDate d = LocalDate.parse(birth, formatter);
             return Period.between(d, LocalDate.now()).getYears();
         } catch (Exception e) {
+            log.error(">>>> 잘못된 날짜 형식으로 나이 계산 실패: {}", birth, e);
             return -1;
         }
     }
