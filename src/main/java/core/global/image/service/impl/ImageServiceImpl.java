@@ -128,44 +128,48 @@ public class ImageServiceImpl implements ImageService {
         final List<String> adds = (toAdd == null) ? List.of() : toAdd;
         final List<String> removes = (toRemove == null) ? List.of() : toRemove;
 
-        // 아무것도 없으면 바로 반환
         if (adds.isEmpty() && removes.isEmpty()) {
             return;
         }
 
-        // 1) 삭제 처리 (DB + S3)
+        // 4) 삭제: DB는 URL 기준, S3는 key 기준 ------------- [변경]
         if (!removes.isEmpty()) {
-            // URL → key 변환
+            // 입력이 URL/Key 섞여 와도 key로 정규화
             List<String> removeKeys = removes.stream()
-                    .map(url -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, url))
+                    .map(raw -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw))
                     .toList();
 
-            // DB에서 삭제
-            imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, removeKeys);
+            // DB 삭제는 "공개 URL" 기준으로
+            List<String> removeUrls = removeKeys.stream()
+                    .map(k -> UrlUtil.buildPublicUrlFromKey(endPoint, bucket, k))
+                    .toList();
+            imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, removeUrls);
 
-            // S3에서도 삭제 시도
+            // S3 삭제는 key 기준
             for (String key : removeKeys) {
                 try {
                     s3Client.deleteObject(b -> b.bucket(bucket).key(key));
                 } catch (SdkException e) {
-                    // 실패 시 로그만 남기고 무시 (DB와 불일치 허용)
                     log.warn("이미지 삭제 실패: key={}, err={}", key, e.getMessage());
                 }
             }
         }
 
-        // 2) 생존 이미지 조회 & 순서 재정렬
+        // 생존 이미지 조회 & 순서 재정렬
         List<Image> survivors = imageRepository
                 .findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
 
         int pos = 0;
-        Set<String> survivorKeys = new HashSet<>();
+
+        Set<String> survivorUrls = new HashSet<>();
         for (Image img : survivors) {
             img.changePosition(pos++);
-            survivorKeys.add(img.getUrl());
+            // DB에 key/URL 혼재 가능 → 모두 key로 환산 후 다시 공개 URL로 통일
+            String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, img.getUrl());
+            String storedUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, storedKey);
+            survivorUrls.add(storedUrl);
         }
 
-        // 3) 추가할 이미지 처리 (중복 제외 + temp/* → 최종키 COPY)
         List<Image> toSave = new ArrayList<>();
         for (String raw : adds) {
             String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw);
@@ -175,16 +179,19 @@ public class ImageServiceImpl implements ImageService {
             log.info("[POST IMG] postId={}, inRaw={}, normKey={}, staging={}, exists={}",
                     postId, raw, key, staging, exists);
 
-            if (survivorKeys.contains(key)) {
-                log.info("[POST IMG] skip (already attached): key={}", key);
+            // 최종 목적지 키 생성 (order 반영)
+            String finalKey = ensureFinalKey("posts/" + postId, pos, key);
+            String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+
+            if (survivorUrls.contains(finalUrl)) {
+                log.info("[POST IMG] skip (already attached): {}", finalUrl);
                 continue;
             }
 
-            String finalKey = ensureFinalKey("posts/post/" + postId, pos, key);
-            Image created = Image.of(ImageType.POST, postId, finalKey, pos++);
+            Image created = Image.of(ImageType.POST, postId, finalUrl, pos++);
             toSave.add(created);
         }
-        // 4) 추가된 엔티티 저장
+
         if (!toSave.isEmpty()) {
             imageRepository.saveAll(toSave);
         }

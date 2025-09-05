@@ -159,7 +159,7 @@ public class PostServiceImpl implements PostService {
     public PostDetailResponse getPostDetail(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        if(blockRepository.existsBlockedByEmail(email, postId)){
+        if(blockRepository.existsBlockedByEmail(email)){
             throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
         }
 
@@ -390,7 +390,7 @@ public class PostServiceImpl implements PostService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (blockRepository.existsBlocked(me.getId(), blockedUser.getId())) {
+        if (blockRepository.existsBlock(me.getId(), blockedUser.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
 
