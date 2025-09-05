@@ -40,15 +40,16 @@ public class MyPageController {
      * 각 FollowStatus 별 팔로우 목록 조회
      * GET /api/v1/mypage/following?status=ACCEPTED
      */
-    @Operation(summary = "팔로우 목록 조회", description = "특정 상태(status)의 팔로우 목록을 조회합니다.")
-    @GetMapping("/following")
-    public ResponseEntity<List<FollowDTO>> getFollowingListByStatus(
+    @Operation(summary = "팔로우/팔로워 목록 조회", description = "팔로잉 또는 팔로워 목록을 특정 상태(status)로 조회합니다.")
+    @GetMapping("/follows")
+    public ResponseEntity<List<FollowDTO>> getFollowsByStatus(
             Authentication authentication,
-            @Parameter(description = "조회할 팔로우 상태 (서로 맞팔인 상태, 수락안한상태,보낸상태)") @RequestParam FollowStatus status) {
+            @Parameter(description = "팔로우 상태 (예: ACCEPTED, PENDING)") @RequestParam FollowStatus status,
+            @Parameter(description = "true인 경우 팔로워, false인 경우 팔로잉 목록을 조회") @RequestParam(defaultValue = "false") boolean isFollowers) {
 
-        List<FollowDTO> followingList = followService.getMyFollowingByStatus(authentication, status);
+        List<FollowDTO> list = followService.getMyFollowsByStatus(authentication, status, isFollowers);
 
-        return ResponseEntity.ok().body(followingList);
+        return ResponseEntity.ok().body(list);
     }
 
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")

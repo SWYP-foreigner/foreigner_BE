@@ -20,19 +20,17 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
     Optional<Follow> findByUserAndFollowingAndStatus(User user, User following, FollowStatus status);
 
     /**
-     * 특정 사용자가 팔로우하는 모든 목록을 상태(status)와 함께 조회합니다.
-     * 팔로우 대상(f.following)의 정보를 즉시 로딩하기 위해 FETCH JOIN을 사용합니다.
+     기존 메서드: 내가 팔로우하는 사람들을 조회 (보낸사람 조회)
      */
     @Query("SELECT f FROM Follow f JOIN FETCH f.following WHERE f.user = :user AND f.status = :status")
     List<Follow> findByUserAndStatus(@Param("user") User user, @Param("status") FollowStatus status);
 
-
-    /**
-     * 특정 사용자에게 들어온 모든 팔로우 요청(PENDING 상태)을 조회합니다.
-     * 요청을 보낸 사용자(f.user)의 정보를 즉시 로딩하기 위해 FETCH JOIN을 사용합니다.
+    /*
+        새로운 메서드: 나를 팔로우하는 사람들을 조회 (받은 사람 조회)
      */
-    @Query("SELECT f FROM Follow f JOIN FETCH f.user WHERE f.following = :following AND f.status = :status")
-    List<Follow> findByFollowingAndStatus(@Param("following") User following, @Param("status") FollowStatus status);
+    @Query("SELECT f FROM Follow f JOIN FETCH f.user WHERE f.following = :user AND f.status = :status")
+    List<Follow> findByFollowingAndStatus(@Param("user") User user, @Param("status") FollowStatus status);
+
 
 
     // 특정 사용자와 팔로우 대상의 관계를 조회 (상태 무관)
