@@ -53,13 +53,7 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
-    private final UserRepository userRepository;
-    private final CommentRepository commentRepository;
-    private final BookmarkRepository bookmarkRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
-    private final PostRepository postRepository;
-    private final ImageRepository imageRepository;
+
 
 
     @GetMapping("/google/callback")
@@ -292,33 +286,12 @@ public class UserController {
     @DeleteMapping("/withdraw")
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
-        try {
-
-            CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            Long userId = principal.getUserId();
-            String authHeader = request.getHeader("Authorization");
-            String accessToken = authHeader.substring(7);
-            if (!userRepository.existsById(userId)) {
-                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-            }
-            imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
-            commentRepository.deleteAllByAuthorId(userId);
-            bookmarkRepository.deleteAllByUserId(userId);
-            postRepository.deleteAllByAuthorId(userId);
-            chatParticipantRepository.deleteAllByUserId(userId);
-            chatMessageRepository.deleteAllBySenderId(userId);
-            userRepository.deleteById(userId);
-            userService.deleteUser(userId);
-            redisService.deleteRefreshToken(userId);
-            long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-            redisService.blacklistAccessToken(accessToken, expiration);
-
-            log.info("사용자 {} 계정 및 관련 토큰 삭제 완료.", userId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            log.error("회원 탈퇴 처리 중 오류 발생", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+        String authHeader = request.getHeader("Authorization");
+        String accessToken = authHeader.substring(7);
+        userService.withdrawUser(userId, accessToken);
+        return ResponseEntity.noContent().build();
     }
 
 }
