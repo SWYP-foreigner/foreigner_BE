@@ -91,6 +91,7 @@ public class ImageServiceImpl implements ImageService {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
+                .acl(ObjectCannedACL.PUBLIC_READ)
                 .contentType(contentType)
                 .metadata(meta)
                 .build();
@@ -108,6 +109,7 @@ public class ImageServiceImpl implements ImageService {
         clientHeaders.put("x-amz-meta-owner", email);
         clientHeaders.put("x-amz-meta-session", uploadSessionId);
         clientHeaders.put("x-amz-meta-image-type", imageType.name().toLowerCase());
+        clientHeaders.put("x-amz-acl", "public-read");
 
         String publicUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, key);
 
