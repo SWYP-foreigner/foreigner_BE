@@ -4,7 +4,9 @@ import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.repository.ImageRepository;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
 public class ContentBasedRecommender {
 
     private final UserRepository userRepository;
-
+    private final ImageRepository imageRepository;
     private static final double W_PURPOSE = 0.4;
     private static final double W_COUNTRY = 0.2;
     private static final double W_AGE = 0.3;   // 너가 바꾼 가중치 유지
@@ -166,6 +168,10 @@ public class ContentBasedRecommender {
     private static class Scored<T> { private T item; private double score; }
 
     private UserUpdateDTO toDto(User u) {
+        String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
+                .map(image -> image.getUrl())
+                .orElse(null);
+
         return UserUpdateDTO.builder()
                 .userId(u.getId())
                 .firstname(u.getFirstName())
@@ -177,7 +183,7 @@ public class ContentBasedRecommender {
                 .purpose(u.getPurpose())
                 .language(csvToSet(u.getLanguage()).stream().toList())
                 .hobby(csvToSet(u.getHobby()).stream().toList())
-                .imageKey(null)
+                .imageKey(imageKey)
                 .build();
     }
 }
