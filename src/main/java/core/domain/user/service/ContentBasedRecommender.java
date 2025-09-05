@@ -58,7 +58,7 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
-        Page<User> page = userRepository.findCandidatesExcluding(
+        Page<User> page = userRepository.findPageNullMemberAndMember(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
 

@@ -31,6 +31,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findCandidatesExcluding(Long meId, Pageable pageable);
     Optional<User> getUserById(Long id);
 
+    @Query("SELECT u FROM User u WHERE u.id != :meId AND u.purpose IS NOT NULL AND u.country IS NOT NULL AND u.language IS NOT NULL AND u.hobby IS NOT NULL")
+    Page<User> findPageNullMemberAndMember(@Param("meId") Long meId, Pageable pageable);
 
 
     boolean existsByEmail(String email);
