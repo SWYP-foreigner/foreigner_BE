@@ -13,5 +13,10 @@ import java.util.Optional;
 public interface PostRepository extends JpaRepository<Post, Long> , PostRepositoryCustom{
     @Query("SELECT p.author FROM Post p WHERE p.id = :postId")
     Optional<User> findUserByPostId(Long postId);
+
     List<Post> findAllByAuthorId(Long authorId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Post p set p.checkCount = p.checkCount + 1 where p.id = :postId")
+    int incrementViewCount(@Param("postId") Long postId);
 }

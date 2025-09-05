@@ -1,4 +1,4 @@
-package core.global.search;
+package core.global.search.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.FieldValue;
@@ -8,6 +8,7 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.search.SearchConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
