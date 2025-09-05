@@ -117,13 +117,12 @@ public class MyPageController {
             Authentication auth,
             @RequestBody UserLanguageDTO dto) {
 
-
-        // TranslationService에 사용자 ID와 언어 설정을 저장하는 로직 호출
         translationService.saveUserLanguage(auth, dto.getLanguage());
 
-        // 성공 응답 반환
         return ResponseEntity.ok().build();
     }
+
+
 
 }
 

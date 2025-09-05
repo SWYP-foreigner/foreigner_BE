@@ -17,8 +17,8 @@ import java.time.Instant;
                 @UniqueConstraint(columnNames = {"email"})
         })
 @Getter
-@NoArgsConstructor
 @Setter
+@NoArgsConstructor
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -76,13 +76,16 @@ public class User {
     private String password;
 
     @Column(name = "is_new_user")
-    private boolean isNewUser = false;
+    private boolean isNewUser;
+
 
     @Column(name = "agreed_to_push_notification")
     private boolean agreedToPushNotification = false;
 
     @Column(name = "agreed_to_terms")
     private boolean agreedToTerms = false;
+
+
     @Builder
     public User(String firstName,
                 String lastName,
@@ -132,6 +135,13 @@ public class User {
         this.updatedAt = Instant.now();
     }
 
+    public void updateUserLanguage(String language){
+        this.language=language;
+    }
+
+    public void updateTranslageLanguage(String translateLanguage){
+        this.translateLanguage=translateLanguage;
+    }
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
     }
