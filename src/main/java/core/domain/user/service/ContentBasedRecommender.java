@@ -8,6 +8,7 @@ import core.global.exception.BusinessException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContentBasedRecommender {
 
     private final UserRepository userRepository;
@@ -55,28 +57,43 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
+        // 1. DB에서 후보 풀을 가져옴
         Page<User> page = userRepository.findCandidatesExcluding(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
 
+        // ✅ [로그 1] DB에서 가져온 초기 후보가 몇 명인지 확인
+        log.info(">>>> [디버깅 1] DB에서 조회된 초기 후보 수: {}", page.getContent().size());
+
         if (!page.hasContent()) {
             return List.of();
         }
+
+        // 2. 모든 후보의 점수를 계산
         List<Scored<User>> scored = new ArrayList<>();
         for (User cand : page.getContent()) {
             double s = score(me, cand, meAge, meLangs);
             scored.add(new Scored<>(cand, s));
         }
 
+        // ✅ [로그 2] 점수 계산 후 후보가 몇 명인지 확인
+        log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
+
+
+        // 3. 점수 순으로 정렬
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
+        // 4. 후보가 부족한 경우 모두 반환
         if (scored.size() <= limit) {
+            // ✅ [로그 3] 후보 부족 조건문에 진입했는지 확인
+            log.info(">>>> [디버깅 3] 후보 수가 limit({}) 이하이므로 모두 반환합니다.", limit);
             return scored.stream()
                     .map(s -> toDto(s.getItem()))
                     .toList();
         }
 
-
+        // 5. 확률적 재랭킹 로직 실행
+        log.info(">>>> [디버깅 4] 후보 수가 충분하여 확률적 재랭킹을 시작합니다.");
         int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
         int finalLimit = Math.min(limit, poolK);
         List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), finalLimit, TEMPERATURE);
