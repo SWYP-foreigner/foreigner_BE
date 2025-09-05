@@ -1,11 +1,14 @@
 package core.domain.user.controller;
 
+import com.sun.security.auth.UserPrincipal;
+import core.domain.chat.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
+import core.global.dto.UserLanguageDTO;
 import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
 import core.global.exception.BusinessException;
@@ -15,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +34,7 @@ public class MyPageController {
 
     private final UserService userService;
     private final FollowService followService;
+    private final TranslationService translationService;
 
     /**
      * 각 FollowStatus 별 팔로우 목록 조회
@@ -103,6 +108,18 @@ public class MyPageController {
         // 🚀 인증 관련은 서비스에서 처리
         List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
         return ResponseEntity.ok(response);
+    }
+
+    // 사용자의 언어를 업데이트하는 새로운 API (인증 객체로 처리)
+    @PutMapping("/user/language")
+    @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
+    public ResponseEntity<Void> updateUserLanguage(
+            Authentication auth,
+            @RequestBody UserLanguageDTO dto) {
+
+        translationService.saveUserLanguage(auth, dto.getLanguage());
+
+        return ResponseEntity.ok().build();
     }
 
 

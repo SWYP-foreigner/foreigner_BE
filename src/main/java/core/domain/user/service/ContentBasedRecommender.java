@@ -1,6 +1,5 @@
 package core.domain.user.service;
 
-
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -23,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class ContentBasedRecommender {
@@ -38,11 +38,11 @@ public class ContentBasedRecommender {
      랜덤 랭킹용 파라미터 (원하면 @Value 로 빼서 설정 가능)
      * POOL_MULTIPLIER = 5;
      * (limit * 5) 풀에서 추출
-     *  MIN_POOL:최소 풀 사이즈
-     *  TEMPERATURE: 클수록 랜덤성 증가
+     * MIN_POOL:최소 풀 사이즈
+     * TEMPERATURE: 클수록 랜덤성 증가
      */
-    private static final int   POOL_MULTIPLIER = 3;
-    private static final int   MIN_POOL       = 50;
+    private static final int   POOL_MULTIPLIER = 2;
+    private static final int   MIN_POOL       = 2;
     private static final double TEMPERATURE   = 0.1;
 
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
@@ -55,6 +55,7 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
+        // 전체 후보 풀을 가져옴
         Page<User> page = userRepository.findCandidatesExcluding(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
@@ -65,14 +66,25 @@ public class ContentBasedRecommender {
             scored.add(new Scored<>(cand, s));
         }
 
+        // 후보가 없으면 빈 리스트 반환
+        if (scored.isEmpty()) {
+            return List.of();
+        }
+
         /**
          1) 규칙대로 점수 계산 후 내림차순 정렬(기본 베이스)
-          */
+         */
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
         // 2) 상위 풀에서 Gumbel-Top-k로 확률적 재랭킹 → 호출마다 순서 달라짐
+        // 풀 사이즈를 전체 후보 수보다 크게 설정하지 않도록 수정
         int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
-        List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), limit, TEMPERATURE);
+
+        // 최종 선택할 인원 수를 풀 사이즈를 넘지 않게 조정
+        int finalLimit = Math.min(limit, poolK);
+
+        // Gumbel-Top-k를 사용하여 최종 추천 리스트 선택
+        List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), finalLimit, TEMPERATURE);
 
         return chosen.stream().map(this::toDto).toList();
     }
@@ -92,12 +104,11 @@ public class ContentBasedRecommender {
         return draws.stream().limit(Math.max(1, limit)).map(d -> d.u).toList();
     }
 
-
     private double score(User me, User other, int meAge, Set<String> meLangs) {
         double purposeScore = eq(me.getPurpose(), other.getPurpose()) ? 1.0 : 0.0;
         double countryScore = eq(me.getCountry(), other.getCountry()) ? 1.0 : 0.0;
-        double ageScore     = ageSim(meAge, safeAge(other.getBirthdate()), 9.0);
-        double langScore    = jaccard(meLangs, csvToSet(other.getLanguage()));
+        double ageScore = ageSim(meAge, safeAge(other.getBirthdate()), 9.0);
+        double langScore = jaccard(meLangs, csvToSet(other.getLanguage()));
 
         return W_PURPOSE * purposeScore
                 + W_COUNTRY * countryScore

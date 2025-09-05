@@ -33,7 +33,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.regex.Pattern;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -41,8 +41,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 @Service
 @Transactional
@@ -59,6 +61,11 @@ public class UserService {
     private static final Pattern PW_RULE = Pattern.compile(
             "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
     );
+
+    // 예: [코드] 형태 추출
+    Pattern pattern = Pattern.compile("\\[(.*?)\\]");
+
+
     private final PasswordEncoder passwordEncoder;
     private final SmtpMailService smtpService;
     private final RedisTemplate<String, String> redisTemplate;
@@ -169,16 +176,46 @@ public class UserService {
             user.setPurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
         }
 
-        if (dto.getLanguage() != null) {
-            String csv = dto.getLanguage().stream()
+        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
+            // 전체 언어 CSV
+            String userLanguagesCsv = dto.getLanguage().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
+                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .collect(Collectors.joining(","));
-            log.debug("언어 변경: {} → {}", user.getLanguage(), csv);
-            if (!csv.isEmpty()) user.setLanguage(csv);
+
+            log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
+            if (!userLanguagesCsv.isEmpty()) {
+                user.setLanguage(userLanguagesCsv);
+            }
+
+            /**
+             첫 번째 요소만 translatedLanguage로 사용
+              */
+            String firstTranslatedLanguage = dto.getLanguage().stream()
+                    .filter(Objects::nonNull)
+                    .findFirst() // 첫 번째 요소 가져오기
+                    .map(s -> {
+                        Matcher matcher = pattern.matcher(s);
+                        if (matcher.find()) {
+                            return matcher.group(1).trim(); // 괄호 안 내용 추출
+                        }
+                        return "";
+                    })
+                    .orElse("");
+            /**
+             첫 요소 없으면 빈 문자열
+              */
+
+            log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
+            if (!firstTranslatedLanguage.isEmpty()) {
+                user.setTranslateLanguage(firstTranslatedLanguage);
+            }
         }
+
+
         if (dto.getHobby() != null) {
             String csv = dto.getHobby().stream()
                     .filter(Objects::nonNull)
@@ -499,14 +536,43 @@ public class UserService {
             user.setPurpose(v.length() > 40 ? v.substring(0, 40) : v);
         }
 
-        if (dto.getLanguage() != null) {
-            String csv = dto.getLanguage().stream()
+        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
+            // 전체 언어 CSV
+            String userLanguagesCsv = dto.getLanguage().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
+                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .collect(Collectors.joining(","));
-            if (!csv.isEmpty()) user.setLanguage(csv);
+
+            log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
+            if (!userLanguagesCsv.isEmpty()) {
+                user.setLanguage(userLanguagesCsv);
+            }
+
+            /**
+             첫 번째 요소만 translatedLanguage로 사용
+             */
+            String firstTranslatedLanguage = dto.getLanguage().stream()
+                    .filter(Objects::nonNull)
+                    .findFirst() // 첫 번째 요소 가져오기
+                    .map(s -> {
+                        Matcher matcher = pattern.matcher(s);
+                        if (matcher.find()) {
+                            return matcher.group(1).trim(); // 괄호 안 내용 추출
+                        }
+                        return "";
+                    })
+                    .orElse("");
+            /**
+             첫 요소 없으면 빈 문자열
+             */
+
+            log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
+            if (!firstTranslatedLanguage.isEmpty()) {
+                user.setTranslateLanguage(firstTranslatedLanguage);
+            }
         }
         if (dto.getHobby() != null) {
             String csv = dto.getHobby().stream()

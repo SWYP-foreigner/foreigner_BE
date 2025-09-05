@@ -35,7 +35,6 @@ public class Follow {
         this.status = status;
     }
 
-    // 팔로우 요청을 수락하는 메서드
     public void accept() {
         this.status = FollowStatus.ACCEPTED;
     }
