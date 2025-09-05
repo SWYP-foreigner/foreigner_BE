@@ -16,12 +16,12 @@ import lombok.*;
 @Builder
 public class EmailLoginDto {
 
-    @Schema(example = "kildong@example.com")
+    @Schema(example = "hjun16@naver.com")
     @NotBlank
     @Email
     private String email;
 
-    @Schema(example = "password123!")
+    @Schema(example = "password12!")
     @NotBlank
     private String password;
 }

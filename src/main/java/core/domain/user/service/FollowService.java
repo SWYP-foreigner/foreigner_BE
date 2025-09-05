@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +24,7 @@ public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
+    @Transactional
     public void follow(Authentication auth, Long targetUserId) {
         String email = auth.getName(); // JWT subject=email 가정
         User follower = userRepository.findByEmail(email)
@@ -31,6 +33,11 @@ public class FollowService {
 
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 자기 자신을 팔로우하는 것을 방지하는 로직 추가
+        if (follower.getId().equals(targetUser.getId())) {
+            throw new BusinessException(ErrorCode.CANNOT_FOLLOW_YOURSELF);
+        }
 
         Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
         if (existing != null) {
@@ -48,7 +55,6 @@ public class FollowService {
 
         followRepository.save(follow);
     }
-
     /** 상대(fromUserId)가 보낸 팔로우 요청을 '현재 로그인 사용자'가 수락 */
     public void acceptFollow(Authentication auth, Long fromUserId) {
         String toEmail = auth.getName();
@@ -80,21 +86,34 @@ public class FollowService {
         followRepository.delete(follow);
     }
 
-    /** 내(현재 로그인 사용자)가 팔로우한 목록(=following) 중 특정 상태만 조회 */
+    /** 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회 */
     @Transactional(readOnly = true)
-    public List<FollowDTO> getMyFollowingByStatus(Authentication auth, FollowStatus status) {
+    public List<FollowDTO> getMyFollowsByStatus(Authentication auth, FollowStatus status, boolean isFollowers) {
         String email = auth.getName();
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        return followRepository.findByUserAndStatus(me, status).stream()
-                .map(Follow::getFollowing)
-                .map(u -> new FollowDTO(
-                        u.getId(),
-                        u.getFirstName()+u.getLastName(),
-                        u.getCountry(),
-                        u.getSex()
-                ))
+        Stream<Follow> followStream;
+
+        if (isFollowers) {
+            followStream = followRepository.findByFollowingAndStatus(me, status).stream();
+        } else { // false이면 내가 팔로우하는 사람들을 조회
+            followStream = followRepository.findByUserAndStatus(me, status).stream();
+        }
+
+        return followStream
+                .map(follow -> {
+                    /**
+                     * 여기서 구분해서 조회
+                     */
+                    User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
+                    return new FollowDTO(
+                            targetUser.getId(),
+                            targetUser.getFirstName() + targetUser.getLastName(),
+                            targetUser.getCountry(),
+                            targetUser.getSex()
+                    );
+                })
                 .toList();
     }
 
