@@ -91,31 +91,55 @@ public class UserService {
     public UserUpdateDTO setupUserProfile(UserUpdateDTO dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
+            log.warn("인증 정보 없음 - 이메일 프로필 업데이트 불가");
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
+
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
                 ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
         if (email == null || email.isBlank()) {
+            log.warn("인증에서 이메일 추출 실패");
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
+        log.info("프로필 업데이트 요청: email={}", email);
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("존재하지 않는 사용자: {}", email);
+                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                });
 
-        if (notBlank(dto.getFirstname()))    user.setFirstName(dto.getFirstname().trim());
-        if (notBlank(dto.getLastname()))     user.setLastName(dto.getLastname().trim());
-        if (dto.getGender() != null)         user.setSex(dto.getGender());
-        if (dto.getBirthday() != null)       user.setBirthdate(dto.getBirthday()); // 형식 검증이 필요하면 여기서 추가
+        if (notBlank(dto.getFirstname())) {
+            log.debug("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
+            user.setFirstName(dto.getFirstname().trim());
+        }
+        if (notBlank(dto.getLastname())) {
+            log.debug("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
+            user.setLastName(dto.getLastname().trim());
+        }
+        if (dto.getGender() != null) {
+            log.debug("성별 변경: {} → {}", user.getSex(), dto.getGender());
+            user.setSex(dto.getGender());
+        }
+        if (dto.getBirthday() != null) {
+            log.debug("생일 변경: {} → {}", user.getBirthdate(), dto.getBirthday());
+            user.setBirthdate(dto.getBirthday());
+        }
 
-        if (notBlank(dto.getCountry()))      user.setCountry(dto.getCountry().trim());
+        if (notBlank(dto.getCountry())) {
+            log.debug("국가 변경: {} → {}", user.getCountry(), dto.getCountry().trim());
+            user.setCountry(dto.getCountry().trim());
+        }
 
         if (notBlank(dto.getIntroduction())) {
             String intro = dto.getIntroduction().trim();
-            user.setIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro); // 컬럼 길이 보호
+            log.debug("소개 변경: {} → {}", user.getIntroduction(), intro);
+            user.setIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro);
         }
         if (notBlank(dto.getPurpose())) {
             String purpose = dto.getPurpose().trim();
+            log.debug("목적 변경: {} → {}", user.getPurpose(), purpose);
             user.setPurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
         }
 
@@ -126,6 +150,7 @@ public class UserService {
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .collect(Collectors.joining(","));
+            log.debug("언어 변경: {} → {}", user.getLanguage(), csv);
             if (!csv.isEmpty()) user.setLanguage(csv);
         }
         if (dto.getHobby() != null) {
@@ -135,24 +160,28 @@ public class UserService {
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .collect(Collectors.joining(","));
+            log.debug("취미 변경: {} → {}", user.getHobby(), csv);
             if (!csv.isEmpty()) user.setHobby(csv);
         }
 
         user.setUpdatedAt(Instant.now());
+        log.info("UpdatedAt 설정 완료: {}", user.getUpdatedAt());
 
         String finalImageKey = null;
         if (notBlank(dto.getImageKey())) {
+            log.info("프로필 이미지 업데이트 요청: {}", dto.getImageKey().trim());
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
         }
 
         userRepository.save(user);
-
+        log.info("사용자 정보 저장 완료: id={}, email={}", user.getId(), user.getEmail());
 
         if (finalImageKey == null) {
             finalImageKey = imageService.getUserProfileKey(user.getId());
+            log.debug("기존 프로필 이미지 가져옴: {}", finalImageKey);
         }
 
-        return UserUpdateDTO.builder()
+        UserUpdateDTO result = UserUpdateDTO.builder()
                 .firstname(user.getFirstName())
                 .lastname(user.getLastName())
                 .gender(user.getSex())
@@ -165,6 +194,9 @@ public class UserService {
                 .imageKey(finalImageKey)
                 .email(user.getEmail())
                 .build();
+
+        log.info("프로필 업데이트 성공 반환: {}", result);
+        return result;
     }
 
 
