@@ -78,7 +78,7 @@ public class ContentBasedRecommender {
 
         // ✅ [로그 2] 점수 계산 후 후보가 몇 명인지 확인
         log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
-
+        log.info(">>>> 리미트 수 : {}",limit);
 
         // 3. 점수 순으로 정렬
         scored.sort((a, b) -> Double.compare(b.score, a.score));
