@@ -55,35 +55,30 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
-        // 전체 후보 풀을 가져옴
         Page<User> page = userRepository.findCandidatesExcluding(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
 
+        if (!page.hasContent()) {
+            return List.of();
+        }
         List<Scored<User>> scored = new ArrayList<>();
         for (User cand : page.getContent()) {
             double s = score(me, cand, meAge, meLangs);
             scored.add(new Scored<>(cand, s));
         }
 
-        // 후보가 없으면 빈 리스트 반환
-        if (scored.isEmpty()) {
-            return List.of();
-        }
-
-        /**
-         1) 규칙대로 점수 계산 후 내림차순 정렬(기본 베이스)
-         */
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
-        // 2) 상위 풀에서 Gumbel-Top-k로 확률적 재랭킹 → 호출마다 순서 달라짐
-        // 풀 사이즈를 전체 후보 수보다 크게 설정하지 않도록 수정
+        if (scored.size() <= limit) {
+            return scored.stream()
+                    .map(s -> toDto(s.getItem()))
+                    .toList();
+        }
+
+
         int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
-
-        // 최종 선택할 인원 수를 풀 사이즈를 넘지 않게 조정
         int finalLimit = Math.min(limit, poolK);
-
-        // Gumbel-Top-k를 사용하여 최종 추천 리스트 선택
         List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), finalLimit, TEMPERATURE);
 
         return chosen.stream().map(this::toDto).toList();
