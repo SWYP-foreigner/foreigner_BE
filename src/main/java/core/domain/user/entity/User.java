@@ -75,6 +75,9 @@ public class User {
     @Column(name = "password", nullable = true)
     private String password;
 
+    @Column(name = "is_new_user")
+    private boolean isNewUser;
+
     @Column(name = "agreed_to_push_notification")
     private boolean agreedToPushNotification = false;
 

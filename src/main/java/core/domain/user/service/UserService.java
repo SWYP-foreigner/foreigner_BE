@@ -49,6 +49,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
+    private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:"; // 인증 완료 플래그
+    private static final long CODE_TTL_MIN = 3L;      // 분
+    private static final long VERIFIED_TTL_MIN = 10L; // 분 (회원가입까지 유예 시간)
+    /**
+     * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
+     */
+    private static final Pattern PW_RULE = Pattern.compile(
+            "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
+    );
     private final PasswordEncoder passwordEncoder;
     private final SmtpMailService smtpService;
     private final RedisTemplate<String, String> redisTemplate;
@@ -64,17 +74,18 @@ public class UserService {
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
     private final LikeRepository likeRepository;
-    public User create(UserCreateDto memberCreateDto){
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
+    }
+
+    public User create(UserCreateDto memberCreateDto) {
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
                 .build();
         userRepository.save(user);
         return user;
     }
-    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
-    private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:"; // 인증 완료 플래그
-    private static final long CODE_TTL_MIN = 3L;      // 분
-    private static final long VERIFIED_TTL_MIN = 10L; // 분 (회원가입까지 유예 시간)
 
     public boolean existsByEmail(String email) {
         return userRepository.existsByEmail(email);
@@ -214,9 +225,9 @@ public class UserService {
         return result;
     }
 
-
-    private boolean notBlank(String s) { return s != null && !s.isBlank(); }
-
+    private boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
 
     @Transactional(readOnly = true)
     public UserUpdateDTO getUserProfile() {
@@ -250,7 +261,6 @@ public class UserService {
                 .email(user.getEmail())
                 .build();
     }
-
 
     @Transactional
     public void deleteProfileImage() {
@@ -301,6 +311,7 @@ public class UserService {
         u.setSocialId(buildLocalSocialId(email)); // 일반 로그인용 socialId
         u.setEmail(email);
         u.setPassword(passwordEncoder.encode(rawPw));
+        u.setNewUser(true);
         u.setAgreedToTerms(req.isAgreedToTerms());
         u.setAgreedToPushNotification(false);
 
@@ -316,12 +327,10 @@ public class UserService {
         // ✅ 토큰 발급 및 반환 제거
     }
 
-
     private String normalizeEmail(String email) {
         if (email == null) return null;
         return email.trim().toLowerCase(Locale.ROOT);
     }
-
 
     private String buildLocalSocialId(String email) {
         // 결정적(동일 이메일이면 동일 결과) + 노출 안전하게 해시
@@ -339,6 +348,7 @@ public class UserService {
             throw new IllegalStateException("SHA-256 not available", e);
         }
     }
+
     /**
      * 일반 회원 가입 로직
      */
@@ -367,18 +377,17 @@ public class UserService {
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
-        String access  = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
 
         log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
 
-        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail());
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 
-
     /**
-     *이메일 보내주는 로직
+     * 이메일 보내주는 로직
      */
     public void sendEmailVerificationCode(String rawEmail, Locale locale) {
         String email = normalizeEmail(rawEmail);
@@ -389,7 +398,7 @@ public class UserService {
 
         Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
 
-        log.info("이메일 보내주는 로직"+String.valueOf(locale));
+        log.info("이메일 보내주는 로직" + String.valueOf(locale));
         String verificationCode = smtpService.sendVerificationEmail(
                 email,
                 ttl,
@@ -403,10 +412,9 @@ public class UserService {
                 TimeUnit.MINUTES
         );
     }
+
     /**
-
-     true 반환;
-
+     * true 반환;
      */
     public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
@@ -446,14 +454,6 @@ public class UserService {
     }
 
     /**
-     8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
-     */
-    private static final Pattern PW_RULE = Pattern.compile(
-            "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
-    );
-
-
-    /**
      * 쉼표로 구분된 문자열을 List<String>으로 변환
      */
     private List<String> stringToList(String str) {
@@ -482,11 +482,11 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (notBlank(dto.getFirstname()))    user.setFirstName(dto.getFirstname().trim());
-        if (notBlank(dto.getLastname()))     user.setLastName(dto.getLastname().trim());
-        if (dto.getGender() != null)         user.setSex(dto.getGender());
-        if (dto.getBirthday() != null)       user.setBirthdate(dto.getBirthday());
-        if (notBlank(dto.getCountry()))      user.setCountry(dto.getCountry().trim());
+        if (notBlank(dto.getFirstname())) user.setFirstName(dto.getFirstname().trim());
+        if (notBlank(dto.getLastname())) user.setLastName(dto.getLastname().trim());
+        if (dto.getGender() != null) user.setSex(dto.getGender());
+        if (dto.getBirthday() != null) user.setBirthdate(dto.getBirthday());
+        if (notBlank(dto.getCountry())) user.setCountry(dto.getCountry().trim());
 
         if (notBlank(dto.getIntroduction())) {
             String v = dto.getIntroduction().trim();
@@ -515,8 +515,8 @@ public class UserService {
                     .collect(Collectors.joining(","));
             if (!csv.isEmpty()) user.setHobby(csv);
         }
-        if(dto.getEmail()!=null){
-            String v= dto.getEmail().trim();
+        if (dto.getEmail() != null) {
+            String v = dto.getEmail().trim();
             user.setEmail(v);
         }
         user.setUpdatedAt(Instant.now());
@@ -532,6 +532,7 @@ public class UserService {
             finalImageKey = imageService.getUserProfileKey(user.getId());
         }
 
+        user.setNewUser(false);
 
         return UserUpdateDTO.builder()
                 .firstname(user.getFirstName())
@@ -547,6 +548,7 @@ public class UserService {
                 .email(email)
                 .build();
     }
+
     @Transactional
     public void deleteUser(Long userId) {
         User user = userRepository.findById(userId)
@@ -579,7 +581,8 @@ public class UserService {
     }
 
     /**
-     *  두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
+     * 두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
+     *
      * @param firstName
      * @param lastName
      * @return
@@ -592,14 +595,14 @@ public class UserService {
 
 
         if ((firstName == null || firstName.isBlank()) &&
-                (lastName  == null || lastName.isBlank())) {
+            (lastName == null || lastName.isBlank())) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         Long meId = user.getId();
 
         String fn = firstName == null ? null : firstName.trim();
-        String ln = lastName  == null ? null : lastName.trim();
+        String ln = lastName == null ? null : lastName.trim();
 
         List<User> users;
         if (notBlank(fn) && notBlank(ln)) {
@@ -623,7 +626,9 @@ public class UserService {
                 .toList();
     }
 
-    /** 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회) */
+    /**
+     * 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회)
+     */
     private String getCurrentEmailOrThrow() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
@@ -648,10 +653,6 @@ public class UserService {
         return name;
     }
 
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
     private UserSearchDTO toSearchDto(User u) {
         return UserSearchDTO.builder()
                 .id(u.getId())
@@ -659,14 +660,15 @@ public class UserService {
                 .lastName(u.getLastName())
                 .gender(u.getSex())
                 .country(u.getCountry())
-                 .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
+                .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
                 .build();
     }
 
     /**
      * 회원 탈퇴를 처리하는 메서드.
      * 사용자와 관련된 모든 데이터를 삭제하고, 토큰을 무효화합니다.
-     * @param userId 탈퇴할 사용자의 ID
+     *
+     * @param userId      탈퇴할 사용자의 ID
      * @param accessToken 블랙리스트에 추가할 사용자의 Access Token
      */
     public void withdrawUser(Long userId, String accessToken) {

@@ -21,7 +21,7 @@ import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
-import core.global.search.PostCreatedEvent;
+import core.global.search.dto.PostCreatedEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -165,13 +165,10 @@ public class PostServiceImpl implements PostService {
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
-        addViews(post);
+
+        postRepository.incrementViewCount(postId);
 
         return postRepository.findPostDetail(email, postId);
-    }
-
-    private void addViews(Post post) {
-        post.changeCheckCount();
     }
 
     @Override
