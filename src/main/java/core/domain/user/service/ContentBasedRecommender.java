@@ -8,6 +8,7 @@ import core.global.exception.BusinessException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContentBasedRecommender {
 
     private final UserRepository userRepository;
@@ -55,10 +58,15 @@ public class ContentBasedRecommender {
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
-        // 전체 후보 풀을 가져옴
         Page<User> page = userRepository.findCandidatesExcluding(
                 meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
         );
+
+        log.info(">>>> [디버깅 1] DB에서 조회된 초기 후보 수: {}", page.getContent().size());
+
+        if (!page.hasContent()) {
+            return List.of();
+        }
 
         List<Scored<User>> scored = new ArrayList<>();
         for (User cand : page.getContent()) {
@@ -66,24 +74,22 @@ public class ContentBasedRecommender {
             scored.add(new Scored<>(cand, s));
         }
 
-        // 후보가 없으면 빈 리스트 반환
-        if (scored.isEmpty()) {
-            return List.of();
-        }
+        log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
+        log.info(">>>> 리미트 수 : {}",limit);
 
-        /**
-         1) 규칙대로 점수 계산 후 내림차순 정렬(기본 베이스)
-         */
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
-        // 2) 상위 풀에서 Gumbel-Top-k로 확률적 재랭킹 → 호출마다 순서 달라짐
-        // 풀 사이즈를 전체 후보 수보다 크게 설정하지 않도록 수정
+        if (scored.size() <= limit) {
+            log.info(">>>> [디버깅 3] 후보 수가 limit({}) 이하이므로 모두 반환합니다.", limit);
+            return scored.stream()
+                    .map(s -> toDto(s.getItem()))
+                    .toList();
+        }
+
+        // 5. 확률적 재랭킹 로직 실행
+        log.info(">>>> [디버깅 4] 후보 수가 충분하여 확률적 재랭킹을 시작합니다.");
         int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
-
-        // 최종 선택할 인원 수를 풀 사이즈를 넘지 않게 조정
         int finalLimit = Math.min(limit, poolK);
-
-        // Gumbel-Top-k를 사용하여 최종 추천 리스트 선택
         List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), finalLimit, TEMPERATURE);
 
         return chosen.stream().map(this::toDto).toList();
@@ -143,10 +149,15 @@ public class ContentBasedRecommender {
     }
 
     private int safeAge(String birth) {
+        if (birth == null || birth.isBlank()) {
+            return -1;
+        }
         try {
-            LocalDate d = LocalDate.parse(birth);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+            LocalDate d = LocalDate.parse(birth, formatter);
             return Period.between(d, LocalDate.now()).getYears();
         } catch (Exception e) {
+            log.error(">>>> 잘못된 날짜 형식으로 나이 계산 실패: {}", birth, e);
             return -1;
         }
     }
