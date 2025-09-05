@@ -10,6 +10,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
+import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
@@ -60,6 +61,7 @@ public class UserService {
     private final ChatParticipantRepository chatParticipantRepository;
     private final PostRepository postRepository;
     private final ImageRepository imageRepository;
+    private final FollowRepository followRepository;
     public User create(UserCreateDto memberCreateDto){
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -657,6 +659,7 @@ public class UserService {
 
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
+        followRepository.deleteAllByUserId(userId);
 
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
         chatParticipantRepository.deleteAllByUserId(userId);
