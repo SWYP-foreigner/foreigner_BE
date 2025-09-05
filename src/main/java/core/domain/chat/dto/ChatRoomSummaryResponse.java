@@ -3,30 +3,26 @@ package core.domain.chat.dto;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.user.entity.User;
 import core.global.enums.ImageType;
-import core.global.image.repository.ImageRepository;
-
-import java.time.LocalDateTime;
 import core.global.image.entity.Image;
-import java.time.format.DateTimeFormatter;
+import core.global.image.repository.ImageRepository;
+import java.time.Instant;
 
-// ChatRoomSummaryResponse 수정
+
 public record ChatRoomSummaryResponse(
         Long roomId,
         String roomName,
         String lastMessageContent,
-        String lastMessageTime, // ✅ LocalDateTime → String
+        Instant lastMessageTime,
         String roomImageUrl,
         int unreadCount,
         int participantCount
 ) {
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-
     public static ChatRoomSummaryResponse from(
             ChatRoom room,
             Long userId,
             String lastMessageContent,
-            LocalDateTime lastMessageTime,
+            Instant lastMessageTime,
             int unreadCount,
             ImageRepository imageRepository
     ) {
@@ -51,13 +47,12 @@ public record ChatRoomSummaryResponse(
                     .orElse(null);
         }
 
-        String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(TIME_FORMATTER) : null;
 
         return new ChatRoomSummaryResponse(
                 room.getId(),
                 roomName,
                 lastMessageContent,
-                lastMessageTimeStr,
+                lastMessageTime,
                 roomImageUrl,
                 unreadCount,
                 room.getParticipants().size()
