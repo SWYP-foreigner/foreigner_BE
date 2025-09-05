@@ -31,11 +31,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findCandidatesExcluding(Long meId, Pageable pageable);
     Optional<User> getUserById(Long id);
 
+    @Query("SELECT u FROM User u WHERE u.id != :meId AND u.purpose IS NOT NULL AND u.country IS NOT NULL AND u.language IS NOT NULL AND u.hobby IS NOT NULL")
+    Page<User> findPageNullMemberAndMember(@Param("meId") Long meId, Pageable pageable);
 
 
     boolean existsByEmail(String email);
 
-    // 이미 너 코드에 쓰고 있던 시그니처 예시
+    // 이미 너 코드에 쓰고 있던 시그니처 예시.
     List<User> findByFirstNameIgnoreCaseAndIdNot(String firstName, Long excludeId);
     List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
     List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);
