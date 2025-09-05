@@ -60,29 +60,26 @@ public class ChatService {
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
     }
-    private record ChatRoomWithTime(ChatRoom room, LocalDateTime lastMessageTime) {}
+    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
-
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         List<ChatRoom> rooms = chatRoomRepo.findActiveChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
-        List<ChatRoomSummaryResponse> summaryResponses = rooms.stream()
+        return rooms.stream()
                 .map(room -> new ChatRoomWithTime(room, getLastMessageTime(room.getId())))
-
                 .sorted(Comparator.comparing(
                         ChatRoomWithTime::lastMessageTime,
                         Comparator.nullsLast(Comparator.reverseOrder())
                 ))
-
                 .map(roomWithTime -> {
                     ChatRoom room = roomWithTime.room();
-                    LocalDateTime lastMessageTime = roomWithTime.lastMessageTime();
+                    Instant lastMessageTime = roomWithTime.lastMessageTime();
+
                     String lastMessageContent = getLastMessageContent(room.getId());
                     int unreadCount = countUnreadMessages(room.getId(), userId);
-                    String lastMessageTimeStr = lastMessageTime != null ? lastMessageTime.format(DateTimeFormatter.ofPattern("HH:mm")) : null;
                     int participantCount = room.getParticipants().size();
                     String roomName;
                     String roomImageUrl;
@@ -106,19 +103,18 @@ public class ChatService {
                                 .orElse(null);
                     }
 
+
                     return new ChatRoomSummaryResponse(
                             room.getId(),
                             roomName,
                             lastMessageContent,
-                            lastMessageTimeStr,
+                            lastMessageTime,
                             roomImageUrl,
                             unreadCount,
                             participantCount
                     );
                 })
                 .toList();
-
-        return summaryResponses;
     }
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
@@ -271,7 +267,7 @@ public class ChatService {
      * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
      * @return ChatMessageResponse 목록
      */
-    // ChatService.java
+
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(
@@ -288,7 +284,6 @@ public class ChatService {
 
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
-        // 번역이 필요한 경우
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
             List<String> originalContents = messages.stream()
                     .map(ChatMessage::getContent)
@@ -317,7 +312,7 @@ public class ChatService {
                         );
                     }).collect(Collectors.toList());
         }
-        // 번역이 필요 없는 경우
+
         else {
             return messages.stream()
                     .map(message -> {
@@ -454,17 +449,17 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
+
     public String getLastMessageContent(Long roomId) {
-        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
-        return (last != null) ? last.getContent() : null;
+        return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId) // Optional<ChatMessage> 반환
+                .map(ChatMessage::getContent)
+                .orElse(null);
     }
 
-    public LocalDateTime getLastMessageTime(Long roomId) {
-        ChatMessage last = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId);
-        if (last != null && last.getSentAt() != null) {
-            return last.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
-        }
-        return null;
+    public Instant getLastMessageTime(Long roomId) {
+        return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
+                .map(ChatMessage::getSentAt)
+                .orElse(null);
     }
     public ChatRoom getChatRoomById(Long roomId) {
         return chatRoomRepo.findById(roomId)
@@ -567,14 +562,10 @@ public class ChatService {
     }
 
     private ChatRoomSummaryResponse createChatRoomSummary(ChatRoom room, Long userId) {
-
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(room.getId());
-        String lastMessageContent = lastMessageOpt.map(ChatMessage::getContent).orElse(null);
-        LocalDateTime lastMessageTime = lastMessageOpt
-                .map(ChatMessage::getSentAt)
-                .map(instant -> LocalDateTime.ofInstant(instant, ZoneId.systemDefault()))
-                .orElse(null);
 
+        String lastMessageContent = lastMessageOpt.map(ChatMessage::getContent).orElse(null);
+        Instant lastMessageTime = lastMessageOpt.map(ChatMessage::getSentAt).orElse(null);
 
         int unreadCount = countUnreadMessages(room.getId(), userId);
 
@@ -589,14 +580,11 @@ public class ChatService {
     }
 
     public int countUnreadMessages(Long roomId, Long userId) {
-        // 1. ChatParticipant에서 사용자의 마지막 읽은 메시지 ID (북마크)를 찾습니다.
         Long lastReadId = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .map(ChatParticipant::getLastReadMessageId)
-                .orElse(0L); // 읽은 적 없으면 0으로 간주 (모든 메시지가 안 읽음 처리됨)
+                .orElse(0L);
 
-        // 2. ChatMessage 테이블에서 북마크 ID보다 큰 메시지의 개수를 셉니다.
-        //    이 로직을 위해 ChatMessageRepository에 countByChatRoomIdAndIdGreaterThan 메서드가 필요합니다.
-        return chatMessageRepository.countByChatRoomIdAndIdGreaterThan(roomId, lastReadId);
+        return chatMessageRepository.countUnreadMessages(roomId, lastReadId, userId);
     }
 
 
@@ -663,36 +651,8 @@ public class ChatService {
                 .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, imageRepository))
                 .collect(Collectors.toList());
     }
-    @Transactional
-    public ChatRoom createGroupChatRoom(Long userId, GroupChatCreateRequest request) {
-        User owner = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        ChatRoom groupChatRoom = new ChatRoom(
-                true,
-                Instant.now(),
-                request.roomName(),
-                request.description(),
-                owner
-        );
-        ChatRoom savedChatRoom = chatRoomRepository.save(groupChatRoom);
 
-        ChatParticipant participant = new ChatParticipant(savedChatRoom, owner);
-
-        chatParticipantRepository.save(participant);
-
-        if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
-            Image roomImage = Image.of(
-                    ImageType.CHAT_ROOM,
-                    savedChatRoom.getId(),
-                    request.roomImageUrl(),
-                    0
-            );
-            imageRepository.save(roomImage);
-        }
-
-        return savedChatRoom;
-    }
     /**
      * 사용자 프로필 조회 서비스 메서드
      * @param userId 조회할 사용자의 ID
@@ -719,31 +679,29 @@ public class ChatService {
         participant.toggleTranslation(enable);
     }
 
+
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
-
         ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
-        LocalDateTime sentAt = savedMessage.getSentAt().atZone(ZoneId.systemDefault()).toLocalDateTime();
+
 
         ChatRoom chatRoom = savedMessage.getChatRoom();
-
         List<ChatParticipant> participants = chatRoom.getParticipants();
         User senderUser = userRepository.findById(req.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER,req.senderId())
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
                 .map(Image::getUrl)
                 .orElse(null);
 
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
-            String originContent = originalContent;
             String targetContent = null;
 
             if (participant.isTranslateEnabled()) {
                 String targetLanguage = recipient.getLanguage();
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
-                    List<String> translatedList = translationService.translateMessages(List.of(originContent), targetLanguage);
+                    List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
                         targetContent = translatedList.getFirst();
                     }
@@ -754,7 +712,7 @@ public class ChatService {
                     savedMessage.getId(),
                     chatRoom.getId(),
                     savedMessage.getSender().getId(),
-                    originContent,
+                    originalContent,
                     targetContent,
                     savedMessage.getSentAt(),
                     senderUser.getFirstName(),
@@ -763,20 +721,18 @@ public class ChatService {
             );
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
 
-
             int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
             ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
                     chatRoom,
                     recipient.getId(),
                     originalContent,
-                    sentAt,
+                    savedMessage.getSentAt(),
                     unreadCount,
                     imageRepository
             );
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
     }
-
     @Transactional
     public void markAllMessagesAsReadInRoom(Long roomId, Long readerId) {
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
@@ -788,7 +744,6 @@ public class ChatService {
 
             log.info(">>>> All messages marked as read for userId: {} in roomId: {}", readerId, roomId);
         } else {
-            // 채팅방에 메시지가 없는 경우는 아무것도 하지 않고 조용히 종료합니다.
             log.info(">>>> No messages to mark as read in roomId: {}", roomId);
         }
     }
