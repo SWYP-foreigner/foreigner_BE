@@ -176,13 +176,13 @@ public class ChatService {
      */
     @Transactional
     public void deleteRoomIfEmpty(Long roomId) {
-        // 1. 채팅방 조회
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
         long remainingActiveParticipants = participantRepo.countByChatRoomIdAndStatus(roomId, ChatParticipantStatus.ACTIVE);
 
         if (remainingActiveParticipants == 0) {
+            chatMessageRepository.deleteByChatRoomId(roomId);
             chatRoomRepo.delete(room);
         }
     }
