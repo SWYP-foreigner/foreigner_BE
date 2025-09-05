@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonIgnoreProperties(ignoreUnknown = true) // 모르는 필드 들어와도 무시
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserUpdateDTO {
     private String firstname;
     private String lastname;
@@ -27,5 +27,6 @@ public class UserUpdateDTO {
     private String email;
     private List<String> language;
     private List<String> hobby;
-    private String imageKey; // S3 이미지 키
+    private String imageKey;
+    private Long userId;
 }

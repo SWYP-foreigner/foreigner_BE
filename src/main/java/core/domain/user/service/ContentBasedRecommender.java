@@ -167,6 +167,7 @@ public class ContentBasedRecommender {
 
     private UserUpdateDTO toDto(User u) {
         return UserUpdateDTO.builder()
+                .userId(u.getId())
                 .firstname(u.getFirstName())
                 .lastname(u.getLastName())
                 .gender(u.getSex())
