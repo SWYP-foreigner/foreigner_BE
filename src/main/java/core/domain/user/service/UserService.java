@@ -19,6 +19,7 @@ import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
+import core.global.like.repository.LikeRepository;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -62,6 +63,7 @@ public class UserService {
     private final PostRepository postRepository;
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
+    private final LikeRepository likeRepository;
     public User create(UserCreateDto memberCreateDto){
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -656,11 +658,10 @@ public class UserService {
             postRepository.deleteAll(userPosts);
             log.info(">>>> Deleted posts by userId: {}", userId);
         }
-
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
-
+        likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);

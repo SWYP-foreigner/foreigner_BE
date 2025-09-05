@@ -76,8 +76,7 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.markAsRead")
     public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
         try {
-            CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            Long userId = principal.getUserId();
+            Long userId = req.userId();
             chatService.markMessagesAsRead(req.roomId(), userId, req.lastReadMessageId());
 
             messagingTemplate.convertAndSend(
