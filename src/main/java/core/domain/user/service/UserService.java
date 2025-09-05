@@ -236,6 +236,8 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
         }
 
+        user.setNewUser(false);
+
         userRepository.save(user);
         log.info("사용자 정보 저장 완료: id={}, email={}", user.getId(), user.getEmail());
 
@@ -597,8 +599,6 @@ public class UserService {
         if (finalImageKey == null) {
             finalImageKey = imageService.getUserProfileKey(user.getId());
         }
-
-        user.setNewUser(false);
 
         return UserUpdateDTO.builder()
                 .firstname(user.getFirstName())
