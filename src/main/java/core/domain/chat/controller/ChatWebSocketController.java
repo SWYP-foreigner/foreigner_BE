@@ -8,6 +8,7 @@ import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.config.CustomUserDetails;
 import core.global.image.repository.ImageRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController; // 제거
@@ -74,30 +76,32 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.markAsRead")
     public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
         try {
-            chatService.markMessagesAsRead(req.roomId(), req.readerId(), req.lastReadMessageId());
+            CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            Long userId = principal.getUserId();
+            chatService.markMessagesAsRead(req.roomId(), userId, req.lastReadMessageId());
 
             messagingTemplate.convertAndSend(
                     "/topic/rooms/" + req.roomId() + "/read-status",
-                    new ReadStatusResponse(req.roomId(), req.readerId(), req.lastReadMessageId())
+                    new ReadStatusResponse(req.roomId(), userId, req.lastReadMessageId())
             );
 
             ChatRoom chatRoom = chatService.getChatRoomById(req.roomId());
 
-            int unreadCount = chatService.countUnreadMessages(req.roomId(), req.readerId());
+            int unreadCount = chatService.countUnreadMessages(req.roomId(),userId);
 
             ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
                     chatRoom,
-                    req.readerId(),
+                    userId,
                     chatService.getLastMessageContent(req.roomId()),
                     chatService.getLastMessageTime(req.roomId()),
                     unreadCount,
                     imageRepository
             );
 
-            messagingTemplate.convertAndSend("/topic/user/" + req.readerId() + "/rooms", summary);
+            messagingTemplate.convertAndSend("/topic/user/" + userId + "/rooms", summary);
 
             log.info("메시지 읽음 처리 성공: roomId={}, readerId={}, lastReadMessageId={}",
-                    req.roomId(), req.readerId(), req.lastReadMessageId());
+                    req.roomId(), userId, req.lastReadMessageId());
         } catch (Exception e) {
             log.error("메시지 읽음 처리 실패", e);
         }
