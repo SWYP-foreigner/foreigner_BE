@@ -52,6 +52,9 @@ public class User {
     @Column(name = "languages", nullable = true)
     private String language;
 
+    @Column(name = "translate_language", nullable = true)
+    private String translateLanguage;
+
     @Column(name = "hobby", nullable = true)
     private String hobby;
 

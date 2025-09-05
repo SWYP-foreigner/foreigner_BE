@@ -113,9 +113,6 @@ public class UserService {
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
 
-    /**
-     * 기존 oauth2 로 인한 유저 프로필 셋팅
-     */
     @Transactional
     public UserUpdateDTO setupUserProfile(UserUpdateDTO dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
