@@ -40,7 +40,7 @@ public class FriednCommendController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         List<UserUpdateDTO> list = recommenderService.recommendForUser(auth, limit);
-        log.info(">>>> 최종 반환 유저 ", list);
+        log.info(">>>> 최종 반환 유저: {}", list);
         return ResponseEntity.ok(list);
     }
 
