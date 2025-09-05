@@ -356,8 +356,9 @@ public class ImageServiceImpl implements ImageService {
         }
 
         // 새 Image 레코드(프로필은 항상 orderIndex=0)
-        imageRepository.save(Image.of(ImageType.USER, userId, finalKey, 0));
-        return finalKey;
+        String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+        imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
+        return finalUrl;
     }
 
     @Override
