@@ -5,6 +5,7 @@ import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
@@ -642,13 +643,25 @@ public class UserService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+        List<Post> userPosts = postRepository.findAllByAuthorId(userId);
+
+        if (userPosts != null && !userPosts.isEmpty()) {
+            commentRepository.deleteAllByPostIn(userPosts);
+            log.info(">>>> Deleted comments on posts by userId: {}", userId);
+
+            bookmarkRepository.deleteAllByPostIn(userPosts);
+            log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
+            postRepository.deleteAll(userPosts);
+            log.info(">>>> Deleted posts by userId: {}", userId);
+        }
+
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
-        postRepository.deleteAllByAuthorId(userId);
+
+        imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-
+        userRepository.deleteById(userId);
 
         redisService.deleteRefreshToken(userId);
 
