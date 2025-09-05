@@ -280,7 +280,7 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
         boolean needsTranslation = participant.isTranslateEnabled();
-        String targetLanguage = participant.getUser().getLanguage();
+        String targetLanguage = participant.getUser().getTranslateLanguage();
 
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
@@ -372,7 +372,7 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
         boolean needsTranslation = participant.isTranslateEnabled();
-        String targetLanguage = participant.getUser().getLanguage();
+        String targetLanguage = participant.getUser().getTranslateLanguage();
 
         if (!needsTranslation || targetLanguage == null || targetLanguage.isEmpty()) {
             List<ChatMessage> messages = chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
@@ -699,7 +699,7 @@ public class ChatService {
             String targetContent = null;
 
             if (participant.isTranslateEnabled()) {
-                String targetLanguage = recipient.getLanguage();
+                String targetLanguage = recipient.getTranslateLanguage();
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
                     List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
