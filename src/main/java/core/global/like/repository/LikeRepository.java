@@ -49,4 +49,8 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     List<Long> findMyLikedRelatedIds(@Param("userId") Long userId,
                                      @Param("type") LikeType type,
                                      @Param("ids") Collection<Long> ids);
+
+    @Modifying
+    @Query("DELETE FROM Like l WHERE l.user.id = :userId")
+    void deleteAllByUserId(@Param("userId") Long userId);
 }

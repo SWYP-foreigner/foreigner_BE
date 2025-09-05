@@ -5,6 +5,7 @@ import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.global.enums.FollowStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -39,4 +40,12 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
 
     // Correctly finds a Follow entity by the IDs of the 'user' and 'following' objects
     Optional<Follow> findByUser_IdAndFollowing_IdAndStatus(Long userId, Long followingId, FollowStatus status);
+    /**
+     * 특정 사용자와 관련된 모든 팔로우 관계를 삭제합니다.
+     * (해당 사용자가 팔로우한 경우 + 해당 사용자를 팔로우한 경우 모두)
+     * @param userId 삭제할 사용자의 ID
+     */
+    @Modifying
+    @Query("DELETE FROM Follow f WHERE f.user.id = :userId OR f.following.id = :userId")
+    void deleteAllByUserId(@Param("userId") Long userId);
 }
