@@ -1,5 +1,11 @@
 package core.global.controller;
 
+import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -7,7 +13,12 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
+import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
+import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
+import core.global.image.repository.ImageRepository;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
@@ -42,6 +53,8 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
+
+
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -273,23 +286,12 @@ public class UserController {
     @DeleteMapping("/withdraw")
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
-        try {
-
-            CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            Long userId = principal.getUserId();
-            String authHeader = request.getHeader("Authorization");
-            String accessToken = authHeader.substring(7);
-
-            userService.deleteUser(userId);
-            redisService.deleteRefreshToken(userId);
-            long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-            redisService.blacklistAccessToken(accessToken, expiration);
-
-            log.info("사용자 {} 계정 및 관련 토큰 삭제 완료.", userId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            log.error("회원 탈퇴 처리 중 오류 발생", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+        String authHeader = request.getHeader("Authorization");
+        String accessToken = authHeader.substring(7);
+        userService.withdrawUser(userId, accessToken);
+        return ResponseEntity.noContent().build();
     }
+
 }

@@ -1,6 +1,12 @@
 package core.domain.user.service;
 
 
+import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.entity.Post;
+import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -8,7 +14,9 @@ import core.domain.user.repository.UserRepository;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
@@ -46,6 +54,12 @@ public class UserService {
     private final ImageService imageService;
     private final RedisService redisService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final CommentRepository commentRepository;
+    private final BookmarkRepository bookmarkRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
+    private final PostRepository postRepository;
+    private final ImageRepository imageRepository;
     public User create(UserCreateDto memberCreateDto){
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -614,5 +628,44 @@ public class UserService {
                 .country(u.getCountry())
                  .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
                 .build();
+    }
+
+    /**
+     * 회원 탈퇴를 처리하는 메서드.
+     * 사용자와 관련된 모든 데이터를 삭제하고, 토큰을 무효화합니다.
+     * @param userId 탈퇴할 사용자의 ID
+     * @param accessToken 블랙리스트에 추가할 사용자의 Access Token
+     */
+    public void withdrawUser(Long userId, String accessToken) {
+
+
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        List<Post> userPosts = postRepository.findAllByAuthorId(userId);
+
+        if (userPosts != null && !userPosts.isEmpty()) {
+            commentRepository.deleteAllByPostIn(userPosts);
+            log.info(">>>> Deleted comments on posts by userId: {}", userId);
+
+            bookmarkRepository.deleteAllByPostIn(userPosts);
+            log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
+            postRepository.deleteAll(userPosts);
+            log.info(">>>> Deleted posts by userId: {}", userId);
+        }
+
+        commentRepository.deleteAllByAuthorId(userId);
+        bookmarkRepository.deleteAllByUserId(userId);
+
+        imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+        chatParticipantRepository.deleteAllByUserId(userId);
+        chatMessageRepository.deleteAllBySenderId(userId);
+        userRepository.deleteById(userId);
+
+        redisService.deleteRefreshToken(userId);
+
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
     }
 }

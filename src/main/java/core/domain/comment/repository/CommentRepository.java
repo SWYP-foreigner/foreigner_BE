@@ -2,8 +2,10 @@ package core.domain.comment.repository;
 
 import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.entity.Comment;
+import core.domain.post.entity.Post;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -36,5 +38,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
             @Param("lastId") Long lastId,
             Pageable pageable
     );
-
+    @Modifying
+    @Query("DELETE FROM Comment c WHERE c.author.id = :userId")
+    void deleteAllByAuthorId(@Param("userId") Long userId);
+    void deleteAllByPostIn(List<Post> posts);
 }

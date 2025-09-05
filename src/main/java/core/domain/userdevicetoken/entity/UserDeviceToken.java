@@ -28,7 +28,7 @@ public class UserDeviceToken {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "device_type")
-    private DeviceType deviceType; // 원문 Enum 값 미상 → 추정
+    private DeviceType deviceType;
 
     @Column(name = "created_at")
     private Instant createdAt;
