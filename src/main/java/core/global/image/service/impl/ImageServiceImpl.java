@@ -282,6 +282,8 @@ public class ImageServiceImpl implements ImageService {
         String prefix = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, fileLocation);
         if (!prefix.endsWith("/")) prefix += "/";
 
+        log.info(prefix);
+
         String continuation = null;
         try {
             do {
@@ -364,16 +366,16 @@ public class ImageServiceImpl implements ImageService {
     @Override
     @Transactional
     public void deleteUserProfileImage(Long userId) {
-        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
-        if (images.isEmpty()) return;
 
-        for (Image img : images) {
-            try {
-                s3Client.deleteObject(b -> b.bucket(bucket).key(img.getUrl()));
-            } catch (SdkException e) {
-                log.warn("profile key delete failed (ignored): {}", e.getMessage());
-            }
+        String folder = "users/%d/".formatted(userId);
+        try {
+            // 같은 클래스 내에 deleteFolder가 있다면 그대로 호출
+            deleteFolder(folder);
+        } catch (BusinessException e) {
+            // 폴더 삭제 실패는 경고만 남기고, 아래 레거시 개별 삭제도 시도
+            log.warn("profile folder delete failed (ignored): {}", e.getMessage());
         }
+
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
     }
 

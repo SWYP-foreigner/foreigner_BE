@@ -286,7 +286,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.POST_DELETE_FORBIDDEN);
         }
 
-        String folderPrefix = "posts/post/" + postId;
+        String folderPrefix = "posts/" + postId;
         try {
             imageService.deleteFolder(folderPrefix);
         } catch (BusinessException ex) {
