@@ -91,7 +91,6 @@ public class ImageServiceImpl implements ImageService {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
-                .acl(ObjectCannedACL.PUBLIC_READ)
                 .contentType(contentType)
                 .metadata(meta)
                 .build();
