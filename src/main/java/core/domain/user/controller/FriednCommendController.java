@@ -37,10 +37,10 @@ public class FriednCommendController {
     public ResponseEntity<List<UserUpdateDTO>> recommend(
             @RequestParam(defaultValue = "2") int limit
     ) {
-        // Authentication 객체를 서비스로 전달하여 인증 로직을 처리합니다.
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         List<UserUpdateDTO> list = recommenderService.recommendForUser(auth, limit);
+        log.info(">>>> 최종 반환 유저 ", list);
         return ResponseEntity.ok(list);
     }
 
