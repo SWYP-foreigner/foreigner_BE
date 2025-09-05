@@ -462,7 +462,7 @@ public class ChatService {
                 .orElse(null);
     }
     public ChatRoom getChatRoomById(Long roomId) {
-        return chatRoomRepo.findById(roomId)
+        return chatRoomRepository.findByIdWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
