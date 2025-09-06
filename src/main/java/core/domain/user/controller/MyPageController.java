@@ -86,7 +86,7 @@ public class MyPageController {
 
     @Operation(summary = "친구가 되기 전에 PENDING 상태 팔로우 요청 취소",
             description = "팔로우 요청을 취소합니다.")
-    @DeleteMapping("/users/follow/pending/{friendId}")
+    @DeleteMapping("/api/v1/mypage/users/follow/{friendId}")
     public ResponseEntity<ApiResponse<String>> unfollowPending(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
