@@ -145,9 +145,7 @@ public class ChatService {
         User otherUser = userRepository.findById(userId2)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String roomName = otherUser.getFirstName() + " " + otherUser.getLastName();
-
-        ChatRoom newRoom = new ChatRoom(false, Instant.now(), roomName);
+        ChatRoom newRoom = new ChatRoom(false, Instant.now(), "1:1 채팅방");
 
         ChatParticipant participant1 = new ChatParticipant(newRoom, currentUser);
         ChatParticipant participant2 = new ChatParticipant(newRoom, otherUser);
@@ -157,6 +155,7 @@ public class ChatService {
 
         return chatRoomRepo.save(newRoom);
     }
+
     /**
      * 사용자가 채팅방을 나갑니다.
      * 1:1 채팅방의 경우, 상대방은 방에 남아있습니다.
