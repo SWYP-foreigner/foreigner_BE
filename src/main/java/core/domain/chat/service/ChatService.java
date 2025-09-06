@@ -764,4 +764,34 @@ public class ChatService {
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
 
+
+    @Transactional
+    public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
+        User owner = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        ChatRoom newRoom = new ChatRoom(
+                true,
+                Instant.now(),
+                request.roomName(),
+                request.description(),
+                owner
+        );
+        ChatRoom savedRoom = chatRoomRepository.save(newRoom);
+
+        ChatParticipant ownerParticipant = new ChatParticipant(savedRoom, owner);
+        chatParticipantRepository.save(ownerParticipant);
+
+        if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
+            Image chatRoomImage = Image.of(
+                    ImageType.CHAT_ROOM,
+                    savedRoom.getId(),
+                    request.roomImageUrl(),
+                    0
+            );
+            imageRepository.save(chatRoomImage);
+        }
+
+    }
+
 }
