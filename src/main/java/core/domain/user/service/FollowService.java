@@ -101,6 +101,7 @@ public class FollowService {
                 .toList();
     }
     /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
+    @Transactional
     public void follow(Authentication auth, Long targetUserId) {
         log.info("[FOLLOW] 요청 시작: 사용자={}, 대상={}", auth.getName(), targetUserId);
 
