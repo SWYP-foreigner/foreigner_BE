@@ -5,11 +5,14 @@ import core.domain.chat.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.entity.User;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
 import core.global.dto.UserLanguageDTO;
+import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
+import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 
 @Tag(name = "마이페이지 ", description = "팔로우 한 친구 목록 보기 API")
@@ -47,6 +51,16 @@ public class MyPageController {
 
         return ResponseEntity.ok().body(list);
     }
+
+
+
+    @Operation(summary = "Received/Sent 수 조회", description = "PENDING 상태의 보낸/받은 팔로우 요청 수를 조회합니다.")
+    @GetMapping("/follows/pending/count")
+    public ResponseEntity<Map<String, Long>> getPendingFollowsCount(Authentication authentication) {
+        Map<String, Long> counts = followService.getPendingFollowCounts(authentication);
+        return ResponseEntity.ok(counts);
+    }
+
 
 
     @Operation(

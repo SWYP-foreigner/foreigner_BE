@@ -10,16 +10,16 @@ import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -33,6 +33,24 @@ public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     private final ImageRepository imageRepository;
+
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
+        // 현재 로그인 사용자 조회
+        User me = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        long sentCount = followRepository.countByUserIdAndStatus(me.getId(), FollowStatus.PENDING);
+        long receivedCount = followRepository.countByFollowingIdAndStatus(me.getId(), FollowStatus.PENDING);
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("sent", sentCount);
+        result.put("received", receivedCount);
+
+        return result;
+    }
+
     /**
      * 친구 리스트 api
      */
@@ -198,7 +216,9 @@ public class FollowService {
         }
     }
 
-
+    /**
+     *  RECEIVED/SENT 조회수 서비스
+     */
 
 
     /** 현재 로그인 사용자가 targetUserId 언팔 */
@@ -255,18 +275,47 @@ public class FollowService {
         List<FollowDTO> result = followStream
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
+
+                    String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, targetUser.getId())
+                            .map(image -> image.getUrl())
+                            .orElse(null);
+                    List<String> languages = (targetUser.getLanguage() != null && !targetUser.getLanguage().isBlank())
+                            ? Arrays.stream(targetUser.getLanguage().split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList()
+                            : List.of();
+
+                    List<String> hobbies = (targetUser.getHobby() != null && !targetUser.getHobby().isBlank())
+                            ? Arrays.stream(targetUser.getHobby().split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList()
+                            : List.of();
+
                     return new FollowDTO(
-                            targetUser.getId(),
-                            targetUser.getFirstName() + targetUser.getLastName(),
+                            targetUser.getFirstName(),
+                            targetUser.getLastName(),
+                            targetUser.getSex(),
+                            targetUser.getBirthdate(),
                             targetUser.getCountry(),
-                            targetUser.getSex()
+                            targetUser.getIntroduction(),
+                            targetUser.getPurpose(),
+                            targetUser.getEmail(),
+                            languages,
+                            hobbies,
+                            imageKey,
+                            targetUser.getId()
                     );
+
                 })
                 .collect(Collectors.toList());
 
         log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환", result.size());
         return result;
     }
+
+
 
     /** 상대(fromUserId)가 나에게 보낸 요청 거절 */
     @Transactional
