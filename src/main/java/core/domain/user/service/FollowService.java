@@ -159,6 +159,48 @@ public class FollowService {
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
     }
 
+
+    @Transactional
+    public void unfollowAccepted(Authentication authentication, Long friendId) {
+        log.info("unfollowAccepted 호출됨 - friendId: {}", friendId);
+
+        User me = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> {
+                    log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
+                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                });
+        log.info("현재 로그인 사용자: {} ({})", me.getEmail(), me.getId());
+
+        if (me.getId().equals(friendId)) {
+            log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        Optional<Follow> targetFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
+                me.getId(), friendId, FollowStatus.ACCEPTED);
+
+        Optional<Follow> targetInverseFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
+                friendId, me.getId(), FollowStatus.ACCEPTED);
+
+        targetFollow.ifPresent(f -> {
+            followRepository.delete(f);
+            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
+        });
+
+        targetInverseFollow.ifPresent(f -> {
+            followRepository.delete(f);
+            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
+        });
+
+        if (targetFollow.isEmpty() && targetInverseFollow.isEmpty()) {
+            log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - friendId: {}", friendId);
+            throw new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
+        }
+    }
+
+
+
+
     /** 현재 로그인 사용자가 targetUserId 언팔 */
     @Transactional
     public void unfollow(Authentication auth, Long targetUserId) {
@@ -186,6 +228,7 @@ public class FollowService {
         followRepository.delete(follow);
         log.info("[UNFOLLOW] 언팔로우 성공: from={}, to={}", follower.getId(), targetUser.getId());
     }
+
 
     /** 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회 */
     @Transactional(readOnly = true)

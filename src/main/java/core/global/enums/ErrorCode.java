@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    FOLLOW_NOT_FOUND(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),
+    INVALID_FOLLOW_STATUS(HttpStatus.CONFLICT, "팔로우상태가 아닙니다."),
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
     INVALID_EMAIL_INPUT(HttpStatus.BAD_REQUEST, "해당 이메일은 소셜 로그인 계정입니다. 소셜 로그인을 이용하세요."),
     DUPLICATE_RESOURCE(HttpStatus.FORBIDDEN, "중복된 이메일입니다."),

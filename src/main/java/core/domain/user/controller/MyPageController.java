@@ -64,36 +64,46 @@ public class MyPageController {
 
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
     @PatchMapping("/accept-follow/{fromUserId}")
-    public ResponseEntity<ApiResponse<String>> acceptFollowRequest(
+    public ResponseEntity<Void> acceptFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID") @PathVariable Long fromUserId) {
 
-        followService.acceptFollow(authentication,fromUserId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 수락되었습니다."));
+        followService.acceptFollow(authentication, fromUserId);
+        return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "팔로우 요청 거절 (decline) ", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
-    public ResponseEntity<ApiResponse<String>> declineFollowRequest(
+    public ResponseEntity<Void> declineFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID")
             @PathVariable Long fromUserId) {
 
-        followService.declineFollow(authentication,fromUserId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 거절되었습니다."));
+        followService.declineFollow(authentication, fromUserId);
+        return ResponseEntity.ok().build();
     }
 
-
-    @Operation(summary = "팔로우를 두번 눌러서 팔로우 취소 ", description = "팔로우를 두번 눌러 팔로우 보낸 것을 취소합니다.")
+    @Operation(summary = "친구가 되기 전에 PENDING 상태 팔로우 요청 취소",
+            description = "팔로우 요청을 취소합니다.")
     @DeleteMapping("/users/follow/{friendId}")
-    public ResponseEntity<ApiResponse<String>> unfollow(
+    public ResponseEntity<Void> unfollowPending(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
         followService.unfollow(authentication, friendId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우가 취소되었습니다."));
+        return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "친구가 된 후 ACCEPTED 상태 친구 관계 해제",
+            description = "친구 관계를 해제합니다.")
+    @DeleteMapping("/users/follow/accepted/{friendId}")
+    public ResponseEntity<Void> unfollowAccepted(
+            Authentication authentication,
+            @PathVariable("friendId") Long friendId) {
+
+        followService.unfollowAccepted(authentication, friendId);
+        return ResponseEntity.ok().build();
+    }
 
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(

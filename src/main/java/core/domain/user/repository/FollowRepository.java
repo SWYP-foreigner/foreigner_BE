@@ -19,11 +19,24 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
     // 특정 사용자가 다른 사용자에게 보낸 팔로우 요청(PENDING 상태)이 있는지 확인
     Optional<Follow> findByUserAndFollowingAndStatus(User user, User following, FollowStatus status);
 
+    // 팔로우 관계를 follower ID와 following ID로 찾습니다.
+    Optional<Follow> findByUserIdAndFollowingId(Long userId, Long followingId);
+
+    // 팔로우 관계를 follower ID와 following ID, 그리고 특정 상태(status)로 찾습니다.
+    Optional<Follow> findByUserIdAndFollowingIdAndStatus(Long userId, Long followingId, FollowStatus status);
     /**
      기존 메서드: 내가 팔로우하는 사람들을 조회 (보낸사람 조회)
      */
     @Query("SELECT f FROM Follow f JOIN FETCH f.following WHERE f.user = :user AND f.status = :status")
     List<Follow> findByUserAndStatus(@Param("user") User user, @Param("status") FollowStatus status);
+
+
+    // 2. 내가 보낸 팔로우 요청 중 PENDING, ACCEPTED 상태
+    @Query("SELECT f FROM Follow f " +
+            "WHERE f.user.id = :userId  " +
+            "AND f.status IN (:statuses)")
+    List<Follow> findSentFollowsByStatuses(@Param("userId") Long userId,
+                                           @Param("statuses") List<FollowStatus> statuses);
 
     /*
         새로운 메서드: 나를 팔로우하는 사람들을 조회 (받은 사람 조회)
