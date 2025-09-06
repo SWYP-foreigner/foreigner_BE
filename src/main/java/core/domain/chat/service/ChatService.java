@@ -85,16 +85,21 @@ public class ChatService {
                     String roomImageUrl;
 
                     if (!room.getGroup()) {
-                        User opponent = room.getParticipants().stream()
+                        Optional<User> opponentOpt = room.getParticipants().stream()
                                 .map(ChatParticipant::getUser)
                                 .filter(u -> !u.getId().equals(userId))
-                                .findFirst()
-                                .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방 상대방을 찾을 수 없습니다."));
+                                .findFirst();
 
-                        roomName = opponent.getLastName();
-                        roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
-                                .map(Image::getUrl)
-                                .orElse(null);
+                        if (opponentOpt.isPresent()) {
+                            User opponent = opponentOpt.get();
+                            roomName = opponent.getLastName();
+                            roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
+                                    .map(Image::getUrl)
+                                    .orElse(null);
+                        } else {
+                            roomName = "(알 수 없는 사용자)";
+                            roomImageUrl = null;
+                        }
 
                     } else {
                         roomName = room.getRoomName();
