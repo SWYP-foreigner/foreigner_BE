@@ -172,45 +172,26 @@ public class FollowService {
                 });
         log.info("현재 로그인 사용자: {} ({})", me.getEmail(), me.getId());
 
-        // 대상 사용자 조회
-        User friend = userRepository.findById(friendId)
-                .orElseThrow(() -> {
-                    log.warn("대상 사용자({})를 찾을 수 없음", friendId);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
-                });
-        log.info("대상 사용자: {} ({})", friend.getEmail(), friend.getId());
-
         // 자기 자신을 언팔로우 방지
         if (me.getId().equals(friendId)) {
             log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // ACCEPTED 상태의 팔로우만 조회
-        List<Follow> acceptedFollows = followRepository.findAllAcceptedFollowsByUserId(
-                me.getId(),
-               FollowStatus.ACCEPTED
-        );
-        log.info("ACCEPTED 팔로우 목록 크기: {}", acceptedFollows.size());
-
-        Follow targetFollow = acceptedFollows.stream()
-                .filter(f -> f.getUser().getId().equals(friendId))
-                .findFirst()
+        // `me`가 `friendId`를 팔로우하는 'ACCEPTED' 상태의 관계를 직접 조회합니다.
+        Follow targetFollow = followRepository
+                .findByUserIdAndFollowingIdAndStatus(me.getId(), friendId, FollowStatus.ACCEPTED)
                 .orElseThrow(() -> {
                     log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - targetId: {}", friendId);
                     return new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
                 });
         log.info("찾은 ACCEPTED 팔로우: {} -> {} 상태: {}", me.getId(), targetFollow.getFollowing().getId(), targetFollow.getStatus());
 
-        // 상태 재확인
-        if (targetFollow.getStatus() != FollowStatus.ACCEPTED) {
-            log.warn("팔로우 상태가 ACCEPTED가 아님 - 실제: {}", targetFollow.getStatus());
-            throw new BusinessException(ErrorCode.INVALID_FOLLOW_STATUS);
-        }
-
+        // 이제 `targetFollow`는 `ACCEPTED` 상태임이 보장되므로, 바로 삭제합니다.
         followRepository.delete(targetFollow);
         log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", me.getId(), friendId);
     }
+
     /** 현재 로그인 사용자가 targetUserId 언팔 */
     @Transactional
     public void unfollow(Authentication auth, Long targetUserId) {
@@ -238,58 +219,6 @@ public class FollowService {
         followRepository.delete(follow);
         log.info("[UNFOLLOW] 언팔로우 성공: from={}, to={}", follower.getId(), targetUser.getId());
     }
-//
-//    @Transactional
-//    public void unfollowPending(Authentication authentication, Long friendId) {
-//        log.info("unfollowPending 호출됨 - friendId: {}", friendId);
-//
-//        // 현재 로그인한 사용자 조회
-//        User me = userRepository.findByEmail(authentication.getName())
-//                .orElseThrow(() -> {
-//                    log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
-//                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
-//                });
-//        log.info("현재 로그인 사용자: {} ({})", me.getEmail(), me.getId());
-//
-//        // 대상 사용자 조회
-//        User friend = userRepository.findById(friendId)
-//                .orElseThrow(() -> {
-//                    log.warn("대상 사용자({})를 찾을 수 없음", friendId);
-//                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
-//                });
-//        log.info("대상 사용자: {} ({})", friend.getEmail(), friend.getId());
-//
-//        // 자기 자신을 언팔로우 방지
-//        if (me.getId().equals(friendId)) {
-//            log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
-//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-//        }
-//
-//        // PENDING 상태의 팔로우만 조회
-//        List<Follow> pendingFollows = followRepository.findSentFollowsByStatuses(
-//                me.getId(),
-//                Arrays.asList(FollowStatus.PENDING)
-//        );
-//        log.info("PENDING 팔로우 목록 크기: {}", pendingFollows.size());
-//
-//        Follow targetFollow = pendingFollows.stream()
-//                .filter(f -> f.getFollowing().getId().equals(friendId))
-//                .findFirst()
-//                .orElseThrow(() -> {
-//                    log.warn("PENDING 상태의 팔로우를 찾을 수 없음 - targetId: {}", friendId);
-//                    return new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
-//                });
-//        log.info("찾은 PENDING 팔로우: {} -> {} 상태: {}", me.getId(), targetFollow.getFollowing().getId(), targetFollow.getStatus());
-//
-//        // 상태 재확인
-//        if (targetFollow.getStatus() != FollowStatus.PENDING) {
-//            log.warn("팔로우 상태가 PENDING이 아님 - 실제: {}", targetFollow.getStatus());
-//            throw new BusinessException(ErrorCode.INVALID_FOLLOW_STATUS);
-//        }
-//
-//        followRepository.delete(targetFollow);
-//        log.info("PENDING 팔로우 삭제 완료 - {} -> {}", me.getId(), friendId);
-//    }
 
     /** 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회 */
     @Transactional(readOnly = true)
