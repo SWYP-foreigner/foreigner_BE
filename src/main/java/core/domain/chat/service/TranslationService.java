@@ -89,10 +89,10 @@ public class TranslationService {
          추출된 언어 코드를 translateLanguage 필드에 저장
          */
         if (!extractedCode.isEmpty()) {
-            user.updateTranslageLanguage(extractedCode);
+            user.updateTranslateLanguage(extractedCode);
         } else {
             // 괄호가 없을 경우, 전체 문자열을 소문자로 저장
-            user.updateUserLanguage(language.toLowerCase().trim());
+            user.updateLanguage(language.toLowerCase().trim());
         }
 
         userRepository.save(user);

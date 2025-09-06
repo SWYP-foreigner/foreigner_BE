@@ -1,14 +1,13 @@
 package core.domain.user.entity;
 
-import core.domain.user.dto.UserUpdateDTO;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
-
 
 @Entity
 @Table(name = "users",
@@ -17,7 +16,6 @@ import java.time.Instant;
                 @UniqueConstraint(columnNames = {"email"})
         })
 @Getter
-@Setter
 @NoArgsConstructor
 public class User {
     @Id
@@ -58,10 +56,12 @@ public class User {
     @Column(name = "hobby", nullable = true)
     private String hobby;
 
-    @Column(name = "created_at", nullable = true)
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at",nullable = true)
+    @LastModifiedDate
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     @Column(name = "provider", nullable = true)
@@ -72,19 +72,18 @@ public class User {
 
     @Column(name = "email", nullable = true)
     private String email;
+
     @Column(name = "password", nullable = true)
     private String password;
 
     @Column(name = "is_new_user")
     private boolean isNewUser = true;
 
-
     @Column(name = "agreed_to_push_notification")
     private boolean agreedToPushNotification = false;
 
     @Column(name = "agreed_to_terms")
     private boolean agreedToTerms = false;
-
 
     @Builder
     public User(String firstName,
@@ -112,37 +111,108 @@ public class User {
         this.socialId = socialId;
         this.email = email;
     }
-
-    public void updateProfile(UserUpdateDTO dto) {
-        if (notBlank(dto.getFirstname())) this.firstName = dto.getFirstname().trim();
-        if (notBlank(dto.getLastname()))  this.lastName  = dto.getLastname().trim();
-
-        if (dto.getGender() != null) this.sex = dto.getGender();
-        if (dto.getBirthday() != null) this.birthdate = dto.getBirthday();
-
-        if (notBlank(dto.getCountry())) this.country = dto.getCountry().trim();
-        if (notBlank(dto.getIntroduction())) this.introduction = dto.getIntroduction().trim();
-        if (notBlank(dto.getPurpose())) this.purpose = dto.getPurpose().trim();
-
-        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
-            this.language = String.join(",", dto.getLanguage());
-        }
-        if (dto.getHobby() != null && !dto.getHobby().isEmpty()) {
-            this.hobby = String.join(",", dto.getHobby());
-        }
-
-
-        this.updatedAt = Instant.now();
+    // --- 개별 필드 업데이트 메서드 ---
+    public void updateFirstName(String firstName) {
+        if (notBlank(firstName)) this.firstName = firstName.trim();
+        touchUpdatedAt();
     }
 
-    public void updateUserLanguage(String language){
-        this.language=language;
+    public void updateLastName(String lastName) {
+        if (notBlank(lastName)) this.lastName = lastName.trim();
+        touchUpdatedAt();
     }
 
-    public void updateTranslageLanguage(String translateLanguage){
-        this.translateLanguage=translateLanguage;
+    public void updateSex(String sex) {
+        if (sex != null) this.sex = sex;
+        touchUpdatedAt();
     }
+
+    public void updateBirthdate(String birthdate) {
+        if (birthdate != null) this.birthdate = birthdate;
+        touchUpdatedAt();
+    }
+
+    public void updateCountry(String country) {
+        if (notBlank(country)) this.country = country.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateIntroduction(String introduction) {
+        if (notBlank(introduction)) this.introduction = introduction.trim();
+        touchUpdatedAt();
+    }
+
+    public void updatePurpose(String purpose) {
+        if (notBlank(purpose)) this.purpose = purpose.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateLanguage(String language) {
+        if (notBlank(language)) this.language = language;
+        touchUpdatedAt();
+    }
+
+    public void updateTranslateLanguage(String translateLanguage) {
+        if (notBlank(translateLanguage)) this.translateLanguage = translateLanguage;
+        touchUpdatedAt();
+    }
+
+    public void updateHobby(String hobby) {
+        if (notBlank(hobby)) this.hobby = hobby;
+        touchUpdatedAt();
+    }
+
+    public void updatePassword(String password) {
+        if (notBlank(password)) this.password = password;
+        touchUpdatedAt();
+    }
+
+    public void updateEmail(String email) {
+        if (notBlank(email)) this.email = email;
+        touchUpdatedAt();
+    }
+
+    public void updateIsNewUser(boolean isNewUser) {
+        this.isNewUser = isNewUser;
+        touchUpdatedAt();
+    }
+
+    public void updateAgreedToPushNotification(boolean agreed) {
+        this.agreedToPushNotification = agreed;
+        touchUpdatedAt();
+    }
+
+    public void updateAgreedToTerms(boolean agreed) {
+        this.agreedToTerms = agreed;
+        touchUpdatedAt();
+    }
+
+    public void updateProvider(String provider) {
+        if (notBlank(provider)) this.provider = provider;
+        touchUpdatedAt();
+    }
+
+    public void updateSocialId(String socialId) {
+        if (notBlank(socialId)) this.socialId = socialId;
+        touchUpdatedAt();
+    }
+
+    public void updateCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void updateUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    // --- Helper ---
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
     }
+
+    private void touchUpdatedAt() {
+        this.updatedAt = Instant.now();
+    }
+
+
 }
