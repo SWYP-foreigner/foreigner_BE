@@ -35,8 +35,7 @@ public class TranslationService {
             return messages;
         }
 
-        // 라이브러리가 GOOGLE_APPLICATION_CREDENTIALS 환경 변수를 자동으로 읽어 인증합니다.
-        try (TranslationServiceClient client = TranslationServiceClient.create()) {
+         try (TranslationServiceClient client = TranslationServiceClient.create()) {
             LocationName parent = LocationName.of(projectId, "global");
 
             TranslateTextRequest request = TranslateTextRequest.newBuilder()

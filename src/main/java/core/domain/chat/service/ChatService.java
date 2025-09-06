@@ -14,19 +14,17 @@ import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
+import core.global.image.service.ImageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import core.global.image.entity.Image;
+
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -45,10 +43,12 @@ public class ChatService {
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final SimpMessagingTemplate messagingTemplate; // 주입 필요
+    private final ImageService imageService;
+
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -59,6 +59,7 @@ public class ChatService {
         this.imageRepository = imageRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
+        this.imageService = imageService;
     }
     private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
@@ -85,16 +86,21 @@ public class ChatService {
                     String roomImageUrl;
 
                     if (!room.getGroup()) {
-                        User opponent = room.getParticipants().stream()
+                        Optional<User> opponentOpt = room.getParticipants().stream()
                                 .map(ChatParticipant::getUser)
                                 .filter(u -> !u.getId().equals(userId))
-                                .findFirst()
-                                .orElseThrow(() -> new IllegalArgumentException("1:1 채팅방 상대방을 찾을 수 없습니다."));
+                                .findFirst();
 
-                        roomName = opponent.getLastName();
-                        roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
-                                .map(Image::getUrl)
-                                .orElse(null);
+                        if (opponentOpt.isPresent()) {
+                            User opponent = opponentOpt.get();
+                            roomName = opponent.getLastName();
+                            roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
+                                    .map(Image::getUrl)
+                                    .orElse(null);
+                        } else {
+                            roomName = "(알 수 없는 사용자)";
+                            roomImageUrl = null;
+                        }
 
                     } else {
                         roomName = room.getRoomName();
@@ -176,13 +182,13 @@ public class ChatService {
      */
     @Transactional
     public void deleteRoomIfEmpty(Long roomId) {
-        // 1. 채팅방 조회
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
         long remainingActiveParticipants = participantRepo.countByChatRoomIdAndStatus(roomId, ChatParticipantStatus.ACTIVE);
 
         if (remainingActiveParticipants == 0) {
+            chatMessageRepository.deleteByChatRoomId(roomId);
             chatRoomRepo.delete(room);
         }
     }
@@ -757,6 +763,30 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
         readerParticipant.setLastReadMessageId(lastReadMessageId);
+    }
+
+
+    @Transactional
+    public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
+        User owner = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        ChatRoom newRoom = new ChatRoom(
+                true,
+                Instant.now(),
+                request.roomName(),
+                request.description(),
+                owner
+        );
+        ChatRoom savedRoom = chatRoomRepository.save(newRoom);
+
+        ChatParticipant ownerParticipant = new ChatParticipant(savedRoom, owner);
+        chatParticipantRepository.save(ownerParticipant);
+
+        if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
+            imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
+        }
+
     }
 
 }

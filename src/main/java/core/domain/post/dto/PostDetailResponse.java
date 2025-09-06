@@ -15,7 +15,7 @@ public record PostDetailResponse(
         String content,
 
         @Schema(description = "작성자 표시명(익명이면 '익명')", example = "익명")
-        String userName,
+        String authorName,
 
         @Schema(description = "카테고리", example = "NEWS")
         BoardCategory boardCategory,

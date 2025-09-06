@@ -768,6 +768,7 @@ public class UserService {
         userRepository.deleteById(userId);
 
         redisService.deleteRefreshToken(userId);
+        imageService.deleteUserProfileImage(userId);
 
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
