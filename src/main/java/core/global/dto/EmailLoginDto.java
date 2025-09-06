@@ -24,4 +24,5 @@ public class EmailLoginDto {
     @Schema(example = "password12!")
     @NotBlank
     private String password;
+
 }
