@@ -380,13 +380,18 @@ public class PostServiceImpl implements PostService {
         User blockedUser = postRepository.findUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (!blockedUser.getEmail().equals(email)) {
+        log.info(blockedUser.getEmail());
+        log.info("user" + email);
+
+        if (blockedUser.getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
 
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        log.info(""+blockedUser.getId());
+        log.info("user" + me.getId());
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
