@@ -138,7 +138,7 @@ public class UserController {
             return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
         }
 
-        Long UserId  = jwtTokenProvider.getUserIdFromAccessToken(refreshToken);
+        Long UserId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
         Optional<User> userOptional = userrepository.getUserById(UserId);
 
         if (userOptional.isEmpty()) {
