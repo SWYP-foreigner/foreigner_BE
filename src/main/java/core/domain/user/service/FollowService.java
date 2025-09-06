@@ -10,11 +10,14 @@ import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,6 +33,24 @@ public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     private final ImageRepository imageRepository;
+
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
+        // 현재 로그인 사용자 조회
+        User me = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        long sentCount = followRepository.countByUserIdAndStatus(me.getId(), FollowStatus.PENDING);
+        long receivedCount = followRepository.countByFollowingIdAndStatus(me.getId(), FollowStatus.PENDING);
+
+        Map<String, Long> result = new HashMap<>();
+        result.put("sent", sentCount);
+        result.put("received", receivedCount);
+
+        return result;
+    }
+
     /**
      * 친구 리스트 api
      */
@@ -195,7 +216,9 @@ public class FollowService {
         }
     }
 
-
+    /**
+     *  RECEIVED/SENT 조회수 서비스
+     */
 
 
     /** 현재 로그인 사용자가 targetUserId 언팔 */
@@ -291,6 +314,7 @@ public class FollowService {
         log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환", result.size());
         return result;
     }
+
 
 
     /** 상대(fromUserId)가 나에게 보낸 요청 거절 */

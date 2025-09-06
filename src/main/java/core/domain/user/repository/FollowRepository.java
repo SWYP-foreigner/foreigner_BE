@@ -65,4 +65,10 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
             "AND f.status = :status")
     List<Follow> findAllAcceptedFollowsByUserId(@Param("userId") Long userId,
                                                 @Param("status") FollowStatus status);
+
+    // 내가 보낸 PENDING 요청 수
+    long countByUserIdAndStatus(Long userId, FollowStatus status);
+
+    // 내가 받은 PENDING 요청 수
+    long countByFollowingIdAndStatus(Long followingId, FollowStatus status);
 }
