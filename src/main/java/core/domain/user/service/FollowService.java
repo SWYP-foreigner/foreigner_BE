@@ -105,39 +105,42 @@ public class FollowService {
     public void follow(Authentication auth, Long targetUserId) {
         log.info("[FOLLOW] 요청 시작: 사용자={}, 대상={}", auth.getName(), targetUserId);
 
-        String email = auth.getName();
-        User follower = userRepository.findByEmail(email)
+        // 1. 현재 로그인 사용자 조회
+        User follower = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> {
-                    log.warn("[FOLLOW] 팔로워 사용자 찾기 실패: email={}", email);
+                    log.warn("[FOLLOW] 팔로워 사용자 찾기 실패: email={}", auth.getName());
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
 
+        // 2. 대상 사용자 조회
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> {
                     log.warn("[FOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
 
-        // 자기 자신을 팔로우하는 것을 방지하는 로직 추가
+        // 3. 자기 자신 팔로우 방지
         if (follower.getId().equals(targetUser.getId())) {
             log.warn("[FOLLOW] 자기 자신 팔로우 시도 차단: 사용자={}", follower.getId());
             throw new BusinessException(ErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
-        Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
-        if (existing != null) {
-            switch (existing.getStatus()) {
-                case PENDING -> {
-                    log.info("[FOLLOW] 이미 팔로우 신청 대기 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    return; // 이미 신청중이면 무시
-                }
-                case ACCEPTED -> {
-                    log.warn("[FOLLOW] 이미 팔로우 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
-                }
+        // 4. 기존 Follow 관계 확인
+        followRepository.findByUserAndFollowing(follower, targetUser).ifPresent(existing -> {
+            if (existing.getStatus() == FollowStatus.ACCEPTED) {
+                log.warn("[FOLLOW] 이미 팔로우 중: from={}, to={}", follower.getId(), targetUser.getId());
+                throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
+            } else if (existing.getStatus()== FollowStatus.PENDING){
+                log.warn("[FOLLOW] 이미 팔로우를 보낸 상태이다 . from={}, to={}", follower.getId(), targetUser.getId());
+                throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
             }
-        }
+            else if (existing.getStatus() == FollowStatus.PENDING) {
+                log.info("[FOLLOW] 이미 팔로우 신청 대기 중: from={}, to={}", follower.getId(), targetUser.getId());
+                return; // PENDING이면 중복 신청 막기
+            }
+        });
 
+        // 5. 팔로우 신청 생성 및 저장
         Follow follow = Follow.builder()
                 .user(follower)
                 .following(targetUser)
