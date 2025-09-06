@@ -130,9 +130,6 @@ public class FollowService {
             if (existing.getStatus() == FollowStatus.ACCEPTED) {
                 log.warn("[FOLLOW] 이미 팔로우 중: from={}, to={}", follower.getId(), targetUser.getId());
                 throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
-            } else if (existing.getStatus()== FollowStatus.PENDING){
-                log.warn("[FOLLOW] 이미 팔로우를 보낸 상태이다 . from={}, to={}", follower.getId(), targetUser.getId());
-                throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
             }
             else if (existing.getStatus() == FollowStatus.PENDING) {
                 log.info("[FOLLOW] 이미 팔로우 신청 대기 중: from={}, to={}", follower.getId(), targetUser.getId());
