@@ -64,46 +64,45 @@ public class MyPageController {
 
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
     @PatchMapping("/accept-follow/{fromUserId}")
-    public ResponseEntity<ApiResponse<String>> acceptFollowRequest(
+    public ResponseEntity<Void> acceptFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID") @PathVariable Long fromUserId) {
 
-        followService.acceptFollow(authentication,fromUserId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 수락되었습니다."));
+        followService.acceptFollow(authentication, fromUserId);
+        return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "팔로우 요청 거절 (decline) ", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
-    public ResponseEntity<ApiResponse<String>> declineFollowRequest(
+    public ResponseEntity<Void> declineFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID")
             @PathVariable Long fromUserId) {
 
-        followService.declineFollow(authentication,fromUserId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 거절되었습니다."));
+        followService.declineFollow(authentication, fromUserId);
+        return ResponseEntity.ok().build();
     }
-
 
     @Operation(summary = "친구가 되기 전에 PENDING 상태 팔로우 요청 취소",
             description = "팔로우 요청을 취소합니다.")
-    @DeleteMapping("/api/v1/mypage/users/follow/{friendId}")
-    public ResponseEntity<ApiResponse<String>> unfollowPending(
+    @DeleteMapping("/users/follow/{friendId}")
+    public ResponseEntity<Void> unfollowPending(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
-        followService. unfollowPending(authentication, friendId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 취소되었습니다."));
+        followService.unfollow(authentication, friendId);
+        return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "친구가 된 후 ACCEPTED 상태 친구 관계 해제",
             description = "친구 관계를 해제합니다.")
     @DeleteMapping("/users/follow/accepted/{friendId}")
-    public ResponseEntity<ApiResponse<String>> unfollowAccepted(
+    public ResponseEntity<Void> unfollowAccepted(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
-        followService. unfollowAccepted(authentication, friendId);
-        return ResponseEntity.ok(ApiResponse.success("친구 연결이 끊어졌습니다."));
+        followService.unfollowAccepted(authentication, friendId);
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
