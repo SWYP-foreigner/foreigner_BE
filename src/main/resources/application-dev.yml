@@ -120,6 +120,9 @@ logging:
     org.springframework.messaging: TRACE
     org.apache.tomcat.websocket: DEBUG # Tomcat의 웹소켓 구현체 로그
     core.global.search: DEBUG
+    core: INFO
+    org.springframework.web.servlet.DispatcherServlet: TRACE
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
 
 app:
   mail:
