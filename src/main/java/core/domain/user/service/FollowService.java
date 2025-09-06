@@ -164,7 +164,6 @@ public class FollowService {
     public void unfollowAccepted(Authentication authentication, Long friendId) {
         log.info("unfollowAccepted 호출됨 - friendId: {}", friendId);
 
-        // 현재 로그인한 사용자 조회
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> {
                     log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
@@ -172,25 +171,35 @@ public class FollowService {
                 });
         log.info("현재 로그인 사용자: {} ({})", me.getEmail(), me.getId());
 
-        // 자기 자신을 언팔로우 방지
         if (me.getId().equals(friendId)) {
             log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // `me`가 `friendId`를 팔로우하는 'ACCEPTED' 상태의 관계를 직접 조회합니다.
-        Follow targetFollow = followRepository
-                .findByUserIdAndFollowingIdAndStatus(me.getId(), friendId, FollowStatus.ACCEPTED)
-                .orElseThrow(() -> {
-                    log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - targetId: {}", friendId);
-                    return new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
-                });
-        log.info("찾은 ACCEPTED 팔로우: {} -> {} 상태: {}", me.getId(), targetFollow.getFollowing().getId(), targetFollow.getStatus());
+        Optional<Follow> targetFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
+                me.getId(), friendId, FollowStatus.ACCEPTED);
 
-        // 이제 `targetFollow`는 `ACCEPTED` 상태임이 보장되므로, 바로 삭제합니다.
-        followRepository.delete(targetFollow);
-        log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", me.getId(), friendId);
+        Optional<Follow> targetInverseFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
+                friendId, me.getId(), FollowStatus.ACCEPTED);
+
+        targetFollow.ifPresent(f -> {
+            followRepository.delete(f);
+            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
+        });
+
+        targetInverseFollow.ifPresent(f -> {
+            followRepository.delete(f);
+            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
+        });
+
+        if (targetFollow.isEmpty() && targetInverseFollow.isEmpty()) {
+            log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - friendId: {}", friendId);
+            throw new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
+        }
     }
+
+
+
 
     /** 현재 로그인 사용자가 targetUserId 언팔 */
     @Transactional
@@ -219,6 +228,7 @@ public class FollowService {
         followRepository.delete(follow);
         log.info("[UNFOLLOW] 언팔로우 성공: from={}, to={}", follower.getId(), targetUser.getId());
     }
+
 
     /** 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회 */
     @Transactional(readOnly = true)
