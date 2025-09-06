@@ -93,7 +93,7 @@ public class ChatService {
 
                         if (opponentOpt.isPresent()) {
                             User opponent = opponentOpt.get();
-                            roomName = opponent.getLastName();
+                            roomName = opponent.getFirstName()+" "+opponent.getLastName();
                             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                                     .map(Image::getUrl)
                                     .orElse(null);
