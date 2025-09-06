@@ -14,7 +14,7 @@ public record BoardItem(
         String contentPreview,
 
         @Schema(description = "작성자 이름 (익명일 경우 null)", nullable = true, example = "alice")
-        String userName,
+        String authorName,
 
         @Schema(description = "게시판 카테고리")
         BoardCategory boardCategory,

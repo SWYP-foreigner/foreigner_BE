@@ -9,17 +9,13 @@ import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
 import core.global.dto.UserLanguageDTO;
-import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
-import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,15 +36,16 @@ public class MyPageController {
      * 각 FollowStatus 별 팔로우 목록 조회
      * GET /api/v1/mypage/following?status=ACCEPTED
      */
-    @Operation(summary = "팔로우 목록 조회", description = "특정 상태(status)의 팔로우 목록을 조회합니다.")
-    @GetMapping("/following")
-    public ResponseEntity<List<FollowDTO>> getFollowingListByStatus(
+    @Operation(summary = "팔로우/팔로워 목록 조회", description = "팔로잉 또는 팔로워 목록을 특정 상태(status)로 조회합니다.")
+    @GetMapping("/follows")
+    public ResponseEntity<List<FollowDTO>> getFollowsByStatus(
             Authentication authentication,
-            @Parameter(description = "조회할 팔로우 상태 (서로 맞팔인 상태, 수락안한상태,보낸상태)") @RequestParam FollowStatus status) {
+            @Parameter(description = "팔로우 상태 (예: ACCEPTED, PENDING)") @RequestParam FollowStatus status,
+            @Parameter(description = "true인 경우 팔로워, false인 경우 팔로잉 목록을 조회") @RequestParam(defaultValue = "false") boolean isFollowers) {
 
-        List<FollowDTO> followingList = followService.getMyFollowingByStatus(authentication, status);
+        List<FollowDTO> list = followService.getMyFollowsByStatus(authentication, status, isFollowers);
 
-        return ResponseEntity.ok().body(followingList);
+        return ResponseEntity.ok().body(list);
     }
 
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
@@ -61,7 +58,7 @@ public class MyPageController {
         return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 수락되었습니다."));
     }
 
-    @Operation(summary = "팔로우 요청 거절", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
+    @Operation(summary = "팔로우 요청 거절 (decline) ", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
     public ResponseEntity<ApiResponse<String>> declineFollowRequest(
             Authentication authentication,
@@ -73,7 +70,7 @@ public class MyPageController {
     }
 
 
-    @Operation(summary = "친구 끊기(언팔로우) ", description = "로그인한 사용자가 특정 친구를 언팔로우합니다.")
+    @Operation(summary = "팔로우를 두번 눌러서 팔로우 취소 ", description = "팔로우를 두번 눌러 팔로우 보낸 것을 취소합니다.")
     @DeleteMapping("/users/follow/{friendId}")
     public ResponseEntity<ApiResponse<String>> unfollow(
             Authentication authentication,
@@ -105,12 +102,10 @@ public class MyPageController {
             @RequestParam(required = false) String firstName,
             @RequestParam(required = false) String lastName
     ) {
-        // 🚀 인증 관련은 서비스에서 처리
         List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
         return ResponseEntity.ok(response);
     }
 
-    // 사용자의 언어를 업데이트하는 새로운 API (인증 객체로 처리)
     @PutMapping("/user/language")
     @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
     public ResponseEntity<Void> updateUserLanguage(
