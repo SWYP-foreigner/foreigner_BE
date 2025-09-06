@@ -7,16 +7,23 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
+import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static co.elastic.clients.elasticsearch.watcher.PagerDutyContextType.Image;
 
 @Service
 @RequiredArgsConstructor
@@ -25,20 +32,54 @@ public class FollowService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
-
+    private final ImageRepository imageRepository;
     /**
-     * 친구 추천 리스트
+     * 친구 리스트 api
      */
     public List<FollowDTO> getMyAcceptedFollows(Authentication authentication) {
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<Follow> follows;
-
-        follows=followRepository.findAllAcceptedFollowsByUserId(me.getId(),FollowStatus.ACCEPTED);
+        List<Follow> follows = followRepository.findAllAcceptedFollowsByUserId(me.getId(), FollowStatus.ACCEPTED);
 
         return follows.stream()
-                .map(f -> new FollowDTO(f.getUser().getId(), f.getFollowing().getName(),f.getFollowing().getCountry(), f.getFollowing().getSex()))
+                .map(f -> {
+                    // 내가 아닌 상대방을 찾기
+                    User target = f.getUser().getId().equals(me.getId()) ? f.getFollowing() : f.getUser();
+
+                    String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, target.getId())
+                            .map(image -> image.getUrl())
+                            .orElse(null);
+
+                    List<String> languages = Arrays.stream(
+                                    Optional.ofNullable(target.getLanguage()).orElse("")
+                                            .split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+
+                    List<String> hobbies = Arrays.stream(
+                                    Optional.ofNullable(target.getHobby()).orElse("")
+                                            .split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+
+                    return new FollowDTO(
+                            target.getFirstName(),
+                            target.getLastName(),
+                            target.getSex(),
+                            target.getBirthdate(),
+                            target.getCountry(),
+                            target.getIntroduction(),
+                            target.getPurpose(),
+                            target.getEmail(),
+                            languages,
+                            hobbies,
+                            imageKey,
+                            target.getId()
+                    );
+                })
                 .toList();
     }
     /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
