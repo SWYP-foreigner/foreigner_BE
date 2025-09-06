@@ -26,6 +26,21 @@ public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
 
+    /**
+     * 친구 추천 리스트
+     */
+    public List<FollowDTO> getMyAcceptedFollows(Authentication authentication) {
+        User me = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        List<Follow> follows;
+
+        follows=followRepository.findAllAcceptedFollowsByUserId(me.getId(),FollowStatus.ACCEPTED);
+
+        return follows.stream()
+                .map(f -> new FollowDTO(f.getUser().getId(), f.getFollowing().getName(),f.getFollowing().getCountry(), f.getFollowing().getSex()))
+                .toList();
+    }
     /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
     @Transactional
     public void follow(Authentication auth, Long targetUserId) {
