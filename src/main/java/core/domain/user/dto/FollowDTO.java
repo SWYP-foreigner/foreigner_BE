@@ -22,13 +22,7 @@ public class FollowDTO {
     private String imageKey;
     private Long userId;
 
-    // 간단 버전 (id, firstname, country, gender만)
-    public FollowDTO(Long id, String firstname, String country, String sex) {
-        this.id = id;
-        this.firstname = firstname;
-        this.country = country;
-        this.gender = sex;
-    }
+
 
     // 풀 버전
     public FollowDTO(
