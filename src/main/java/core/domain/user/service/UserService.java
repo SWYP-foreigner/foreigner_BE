@@ -420,11 +420,10 @@ public class UserService {
         String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
-
-
+        Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
+        long refreshExpirationMillis = refreshExpiration.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(u.getId(), refresh, refreshExpirationMillis);
         log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
-
-
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 
