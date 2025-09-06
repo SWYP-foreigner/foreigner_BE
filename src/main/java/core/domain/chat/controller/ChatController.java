@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -287,7 +288,6 @@ public class ChatController {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-    // ChatController.java
 
     @Operation(summary = "채팅방 번역 기능 설정", description = "특정 채팅방의 메시지 번역 기능을 켜거나 끕니다.")
     @ApiResponses({
@@ -316,4 +316,16 @@ public class ChatController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    @PostMapping("/rooms/group")
+    public ResponseEntity<ApiResponse<Void>> createGroupChat(
+                                                              @Valid @RequestBody CreateGroupChatRequest request
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+        chatService.createGroupChatRoom(userId, request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
+    }
+
 }
