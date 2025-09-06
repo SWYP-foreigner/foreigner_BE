@@ -167,10 +167,12 @@ public class ContentBasedRecommender {
     @Getter @AllArgsConstructor
     private static class Scored<T> { private T item; private double score; }
 
+
     private UserUpdateDTO toDto(User u) {
         String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
                 .map(image -> image.getUrl())
                 .orElse(null);
+        log.info("imageKey :{}",imageKey);
 
         return UserUpdateDTO.builder()
                 .userId(u.getId())
