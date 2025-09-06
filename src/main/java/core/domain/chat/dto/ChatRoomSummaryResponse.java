@@ -30,7 +30,7 @@ public record ChatRoomSummaryResponse(
         String roomName;
         String roomImageUrl;
 
-        if (!room.getGroup()) { // 1:1 채팅방
+        if (!room.getGroup()) {
             User opponent = room.getParticipants().stream()
                     .map(ChatParticipant::getUser)
                     .filter(u -> !u.getId().equals(userId))
@@ -38,17 +38,18 @@ public record ChatRoomSummaryResponse(
                     .orElse(null);
 
             if (opponent == null) {
-                // 상대방 participant가 없는 경우
                 roomName = "알 수 없음";
                 roomImageUrl = null;
             } else {
-                // participant 존재 → 상태와 상관없이 이름 그대로
-                roomName = opponent.getLastName() != null ? opponent.getLastName() : opponent.getFirstName();
+                String firstName = opponent.getFirstName() != null ? opponent.getFirstName() : "";
+                String lastName = opponent.getLastName() != null ? opponent.getLastName() : "";
+                roomName = (firstName + " " + lastName).trim();
+
                 roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                         .map(Image::getUrl)
                         .orElse(null);
             }
-        } else { // 그룹 채팅방
+        } else {
             roomName = room.getRoomName();
             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
                     .map(Image::getUrl)
