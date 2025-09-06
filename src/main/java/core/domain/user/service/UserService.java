@@ -43,7 +43,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 @Service
@@ -102,14 +101,19 @@ public class UserService {
     public User createOauth(String socialId, String email, String provider) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
 
-        User u = new User();
-        u.setSocialId(socialId);
-        u.setEmail(email);
-        u.setProvider(provider);
+        // User 객체 생성 (Builder 사용 가능)
+        User u = User.builder()
+                .socialId(socialId)
+                .email(email)
+                .provider(provider)
+                .build();
+
         User saved = userRepository.save(u);
+
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
+
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
@@ -145,35 +149,35 @@ public class UserService {
 
         if (notBlank(dto.getFirstname())) {
             log.debug("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
-            user.setFirstName(dto.getFirstname().trim());
+            user.updateFirstName(dto.getFirstname().trim());
         }
         if (notBlank(dto.getLastname())) {
             log.debug("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
-            user.setLastName(dto.getLastname().trim());
+            user.updateLastName(dto.getLastname().trim());
         }
         if (dto.getGender() != null) {
             log.debug("성별 변경: {} → {}", user.getSex(), dto.getGender());
-            user.setSex(dto.getGender());
+            user.updateSex(dto.getGender());
         }
         if (dto.getBirthday() != null) {
             log.debug("생일 변경: {} → {}", user.getBirthdate(), dto.getBirthday());
-            user.setBirthdate(dto.getBirthday());
+            user.updateBirthdate(dto.getBirthday());
         }
 
         if (notBlank(dto.getCountry())) {
             log.debug("국가 변경: {} → {}", user.getCountry(), dto.getCountry().trim());
-            user.setCountry(dto.getCountry().trim());
+            user.updateCountry(dto.getCountry().trim());
         }
 
         if (notBlank(dto.getIntroduction())) {
             String intro = dto.getIntroduction().trim();
             log.debug("소개 변경: {} → {}", user.getIntroduction(), intro);
-            user.setIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro);
+            user.updateIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro);
         }
         if (notBlank(dto.getPurpose())) {
             String purpose = dto.getPurpose().trim();
             log.debug("목적 변경: {} → {}", user.getPurpose(), purpose);
-            user.setPurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
+            user.updatePurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
         }
 
         if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
@@ -188,7 +192,7 @@ public class UserService {
 
             log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
             if (!userLanguagesCsv.isEmpty()) {
-                user.setLanguage(userLanguagesCsv);
+                user.updateLanguage(userLanguagesCsv);
             }
 
             /**
@@ -211,7 +215,7 @@ public class UserService {
 
             log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
             if (!firstTranslatedLanguage.isEmpty()) {
-                user.setTranslateLanguage(firstTranslatedLanguage);
+                user.updateTranslateLanguage(firstTranslatedLanguage);
             }
         }
 
@@ -224,10 +228,9 @@ public class UserService {
                     .distinct()
                     .collect(Collectors.joining(","));
             log.debug("취미 변경: {} → {}", user.getHobby(), csv);
-            if (!csv.isEmpty()) user.setHobby(csv);
+            if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
-        user.setUpdatedAt(Instant.now());
         log.info("UpdatedAt 설정 완료: {}", user.getUpdatedAt());
 
         String finalImageKey = null;
@@ -236,7 +239,7 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
         }
 
-        user.setNewUser(false);
+        user.updateIsNewUser(false);
 
         userRepository.save(user);
         log.info("사용자 정보 저장 완료: id={}, email={}", user.getId(), user.getEmail());
@@ -320,12 +323,6 @@ public class UserService {
         imageService.deleteUserProfileImage(user.getId());
     }
 
-    /**
-     * 회원 가입 로직
-     *
-     * @param req
-     * @return
-     */
     @Transactional
     public void signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
@@ -345,18 +342,19 @@ public class UserService {
 
         String rawPw = req.getPassword();
 
+        // User 객체 생성 후 updateXXX 메서드 사용
         User u = new User();
-        u.setProvider("local");
-        u.setSocialId(buildLocalSocialId(email)); // 일반 로그인용 socialId
-        u.setEmail(email);
-        u.setPassword(passwordEncoder.encode(rawPw));
-        u.setNewUser(true);
-        u.setAgreedToTerms(req.isAgreedToTerms());
-        u.setAgreedToPushNotification(false);
+        u.updateProvider("local");
+        u.updateSocialId(buildLocalSocialId(email)); // 일반 로그인용 socialId
+        u.updateEmail(email);
+        u.updatePassword(passwordEncoder.encode(rawPw));
+        u.updateIsNewUser(true);
+        u.updateAgreedToTerms(req.isAgreedToTerms());
+        u.updateAgreedToPushNotification(false);
 
         Instant now = Instant.now();
-        u.setCreatedAt(now);
-        u.setUpdatedAt(now);
+        u.updateCreatedAt(now);
+        u.updateUpdatedAt(now);
 
         userRepository.save(u);
 
@@ -365,6 +363,7 @@ public class UserService {
 
         // ✅ 토큰 발급 및 반환 제거
     }
+
 
     private String normalizeEmail(String email) {
         if (email == null) return null;
@@ -521,19 +520,19 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (notBlank(dto.getFirstname())) user.setFirstName(dto.getFirstname().trim());
-        if (notBlank(dto.getLastname())) user.setLastName(dto.getLastname().trim());
-        if (dto.getGender() != null) user.setSex(dto.getGender());
-        if (dto.getBirthday() != null) user.setBirthdate(dto.getBirthday());
-        if (notBlank(dto.getCountry())) user.setCountry(dto.getCountry().trim());
+        if (notBlank(dto.getFirstname())) user.updateFirstName(dto.getFirstname().trim());
+        if (notBlank(dto.getLastname())) user.updateLastName(dto.getLastname().trim());
+        if (dto.getGender() != null) user.updateSex(dto.getGender());
+        if (dto.getBirthday() != null) user.updateBirthdate(dto.getBirthday());
+        if (notBlank(dto.getCountry())) user.updateCountry(dto.getCountry().trim());
 
         if (notBlank(dto.getIntroduction())) {
             String v = dto.getIntroduction().trim();
-            user.setIntroduction(v.length() > 40 ? v.substring(0, 40) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 40 ? v.substring(0, 40) : v); // 컬럼 길이 보호
         }
         if (notBlank(dto.getPurpose())) {
             String v = dto.getPurpose().trim();
-            user.setPurpose(v.length() > 40 ? v.substring(0, 40) : v);
+            user.updatePurpose(v.length() > 40 ? v.substring(0, 40) : v);
         }
 
         if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
@@ -548,7 +547,7 @@ public class UserService {
 
             log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
             if (!userLanguagesCsv.isEmpty()) {
-                user.setLanguage(userLanguagesCsv);
+                user.updateLanguage(userLanguagesCsv);
             }
 
             /**
@@ -571,7 +570,7 @@ public class UserService {
 
             log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
             if (!firstTranslatedLanguage.isEmpty()) {
-                user.setTranslateLanguage(firstTranslatedLanguage);
+                user.updateTranslateLanguage(firstTranslatedLanguage);
             }
         }
         if (dto.getHobby() != null) {
@@ -581,13 +580,13 @@ public class UserService {
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .collect(Collectors.joining(","));
-            if (!csv.isEmpty()) user.setHobby(csv);
+            if (!csv.isEmpty()) user.updateHobby(csv);
         }
         if (dto.getEmail() != null) {
             String v = dto.getEmail().trim();
-            user.setEmail(v);
+            user.updateEmail(v);
         }
-        user.setUpdatedAt(Instant.now());
+        user.updateUpdatedAt(Instant.now());
 
         String finalImageKey = null;
         if (notBlank(dto.getImageKey())) {

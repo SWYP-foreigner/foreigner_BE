@@ -68,7 +68,7 @@ public class PasswordService {
         // Note: The code verification logic has been removed as per the request.
         // The password will now be changed directly if a user with the provided email is found.
 
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.updatePassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("[비밀번호 재설정] 비밀번호 변경 완료 - email: {}", email);
 
