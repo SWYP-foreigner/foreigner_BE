@@ -84,16 +84,27 @@ public class MyPageController {
     }
 
 
-    @Operation(summary = "팔로우를 두번 눌러서 팔로우 취소 ", description = "팔로우를 두번 눌러 팔로우 보낸 것을 취소합니다.")
-    @DeleteMapping("/users/follow/{friendId}")
-    public ResponseEntity<ApiResponse<String>> unfollow(
+    @Operation(summary = "친구가 되기 전에 PENDING 상태 팔로우 요청 취소",
+            description = "팔로우 요청을 취소합니다.")
+    @DeleteMapping("/users/follow/pending/{friendId}")
+    public ResponseEntity<ApiResponse<String>> unfollowPending(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
-        followService.unfollow(authentication, friendId);
-        return ResponseEntity.ok(ApiResponse.success("팔로우가 취소되었습니다."));
+        followService. unfollowPending(authentication, friendId);
+        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 취소되었습니다."));
     }
 
+    @Operation(summary = "친구가 된 후 ACCEPTED 상태 친구 관계 해제",
+            description = "친구 관계를 해제합니다.")
+    @DeleteMapping("/users/follow/accepted/{friendId}")
+    public ResponseEntity<ApiResponse<String>> unfollowAccepted(
+            Authentication authentication,
+            @PathVariable("friendId") Long friendId) {
+
+        followService. unfollowAccepted(authentication, friendId);
+        return ResponseEntity.ok(ApiResponse.success("친구 연결이 끊어졌습니다."));
+    }
 
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(
