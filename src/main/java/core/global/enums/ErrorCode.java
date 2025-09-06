@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    ACCEPTED_EXISTS(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),
     FOLLOW_NOT_FOUND(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),
     INVALID_FOLLOW_STATUS(HttpStatus.CONFLICT, "팔로우상태가 아닙니다."),
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
