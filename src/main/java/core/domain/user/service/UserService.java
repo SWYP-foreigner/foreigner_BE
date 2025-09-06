@@ -132,6 +132,8 @@ public class UserService {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
 
+
+
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
                 ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
@@ -419,7 +421,9 @@ public class UserService {
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
 
+
         log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
+
 
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }

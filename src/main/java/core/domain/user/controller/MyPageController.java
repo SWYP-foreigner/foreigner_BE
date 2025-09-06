@@ -48,6 +48,20 @@ public class MyPageController {
         return ResponseEntity.ok().body(list);
     }
 
+
+    @Operation(
+            summary = "로그인 한 사용자의 맞팔 목록(ACCEPTED)",
+            description = "ACCEPTED 상태의 팔로우 관계만 가져옵니다."
+    )
+    @GetMapping("/follows/accepted")
+    public ResponseEntity<List<FollowDTO>> getAcceptedFollows(
+            Authentication authentication
+    ) {
+        List<FollowDTO> list = followService.getMyAcceptedFollows(authentication);
+        return ResponseEntity.ok(list);
+    }
+
+
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
     @PatchMapping("/accept-follow/{fromUserId}")
     public ResponseEntity<ApiResponse<String>> acceptFollowRequest(
