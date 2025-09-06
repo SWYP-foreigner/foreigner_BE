@@ -24,7 +24,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     long countByChatRoomIdAndStatus(Long roomId, ChatParticipantStatus status);
 
-    @Query("SELECT cp.chatRoom FROM ChatParticipant cp WHERE cp.user.id = :userId AND cp.chatRoom.roomName LIKE %:roomName%")
+    @Query("SELECT cp.chatRoom FROM ChatParticipant cp WHERE cp.user.id = :userId AND LOWER(cp.chatRoom.roomName) LIKE CONCAT('%', LOWER(:roomName), '%')")
     List<ChatRoom> findChatRoomsByUserIdAndRoomName(@Param("userId") Long userId, @Param("roomName") String roomName);
     List<ChatParticipant> findByChatRoom(ChatRoom chatRoom);
     @Modifying
