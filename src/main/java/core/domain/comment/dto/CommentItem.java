@@ -12,7 +12,7 @@ public record CommentItem(
         Long commentId,
 
         @Schema(description = "작성자 이름", example = "bob", nullable = true)
-        String username,
+        String authorName,
 
         @Schema(description = "댓글 내용", example = "좋은 글이네요!")
         String content,
