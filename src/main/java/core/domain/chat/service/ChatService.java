@@ -14,19 +14,17 @@ import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
+import core.global.image.service.ImageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import core.global.image.entity.Image;
+
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -45,10 +43,12 @@ public class ChatService {
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final SimpMessagingTemplate messagingTemplate; // 주입 필요
+    private final ImageService imageService;
+
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -59,6 +59,7 @@ public class ChatService {
         this.imageRepository = imageRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
+        this.imageService = imageService;
     }
     private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
@@ -783,13 +784,7 @@ public class ChatService {
         chatParticipantRepository.save(ownerParticipant);
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
-            Image chatRoomImage = Image.of(
-                    ImageType.CHAT_ROOM,
-                    savedRoom.getId(),
-                    request.roomImageUrl(),
-                    0
-            );
-            imageRepository.save(chatRoomImage);
+            imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
         }
 
     }

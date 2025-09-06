@@ -379,6 +379,67 @@ public class ImageServiceImpl implements ImageService {
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
     }
 
+    @Transactional
+    @Override
+    public String upsertChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
+        if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+
+        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, requestedKeyOrUrl);
+        // 존재/타입/용량 검증 (10MB 예시)
+        validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+
+        // 기존 프로필 전부 제거 (USER, relatedId=userId)
+        imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
+                .forEach(img -> {
+                    try {
+                        s3Client.deleteObject(b -> b.bucket(bucket).key(img.getUrl()));
+                    } catch (SdkException e) {
+                        log.warn("delete old profile key ignored: {}", e.getMessage());
+                    }
+                });
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+
+        String finalKey = reqKey;
+        if (isStagingKey(reqKey)) {
+            String ext = extOf(reqKey);
+            String dstKey = "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, ext);
+            try {
+                s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
+                        .destinationBucket(bucket).destinationKey(dstKey)
+                        .acl(ObjectCannedACL.PUBLIC_READ)               // ✅ 새 오브젝트에 퍼블릭 읽기 부여
+                        .metadataDirective(MetadataDirective.COPY)      // ✅ 메타/Content-Type 유지(명시)
+                );
+                s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+            } catch (SdkException e) {
+                throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            }
+            finalKey = dstKey;
+        }
+
+        // 새 Image 레코드(프로필은 항상 orderIndex=0)
+        String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+        imageRepository.save(Image.of(ImageType.CHAT_ROOM, chatRoomId, finalUrl, 0));
+        return finalUrl;
+    }
+
+    @Transactional
+    @Override
+    public void deleteChatRoomProfileImage(Long chatRoomId) {
+
+        String folder = "chatRoom/%d/".formatted(chatRoomId);
+        try {
+            // 같은 클래스 내에 deleteFolder가 있다면 그대로 호출
+            deleteFolder(folder);
+        } catch (BusinessException e) {
+            // 폴더 삭제 실패는 경고만 남기고, 아래 레거시 개별 삭제도 시도
+            log.warn("profile folder delete failed (ignored): {}", e.getMessage());
+        }
+
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+    }
+
     @Override
     public String getUserProfileKey(Long userId) {
         return imageRepository
