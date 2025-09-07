@@ -415,11 +415,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .concat(user.firstName.coalesce(""));
     }
 
-    private String getName() {
-        return user.lastName + " " + user.firstName;
-    }
-
-
     private BooleanExpression visibleTo(Long userId) {
         if (userId == null) return null; // 비로그인
 
@@ -459,7 +454,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private StringExpression getAuthorName() {
         return new CaseBuilder()
                 .when(post.anonymous.isTrue()).then("익명")
-                .otherwise(getName());
+                .otherwise(makeGetName());
     }
 
     private Expression<String> preview200() {
