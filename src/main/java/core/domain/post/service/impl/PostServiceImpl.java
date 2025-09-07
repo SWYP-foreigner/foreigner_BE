@@ -171,7 +171,9 @@ public class PostServiceImpl implements PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
+        log.info(post.getCheckCount()+" ");
         postRepository.incrementViewCount(postId);
+        log.info(post.getCheckCount()+" ");
 
         PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
         log.info(postDetail.authorName());
