@@ -283,7 +283,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         BoardCategory cat = t0.get(board.category);
         Instant createdAt = t0.get(post.createdAt);
         String link = t0.get(linkExpr);
-        Boolean liked= t0.get(likedByMe);
+        Boolean liked = t0.get(likedByMe);
         Long likeCount = t0.get(likeCountExpr);
         Long commentCount = t0.get(commentCountExpr);
         Long viewCount = t0.get(post.checkCount);
@@ -370,11 +370,11 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardItem> findPostsByIdsForSearch(Long viewerId, List<Long> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
 
-        Expression<String> preview        = preview200();
-        Expression<Long>  likeCountExpr   = likeCountExpr();
-        Expression<Long>  commentCountExpr= commentCountExpr();
-        Expression<Boolean> likedByMe     = likedByViewerId(viewerId);
-        BooleanExpression visibleToMe     = visibleTo(viewerId);
+        Expression<String> preview = preview200();
+        Expression<Long> likeCountExpr = likeCountExpr();
+        Expression<Long> commentCountExpr = commentCountExpr();
+        Expression<Boolean> likedByMe = likedByViewerId(viewerId);
+        BooleanExpression visibleToMe = visibleTo(viewerId);
 
         QImage uimg = new QImage("uimg");
         Expression<String> userImageUrlExpr =
@@ -390,7 +390,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         BoardItem.class,
                         post.id,
                         preview,
-                        user.name,
+                        makeGetName(),
                         board.category,
                         post.createdAt,
                         likedByMe,
@@ -407,6 +407,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .join(post.board, board)
                 .where(post.id.in(ids).and(visibleToMe))
                 .fetch();
+    }
+
+    private StringExpression makeGetName() {
+        return user.lastName.coalesce("")
+                .concat(" ")
+                .concat(user.firstName.coalesce(""));
+    }
+
+    private String getName() {
+        return user.lastName + " " + user.firstName;
     }
 
 
@@ -449,7 +459,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private StringExpression getAuthorName() {
         return new CaseBuilder()
                 .when(post.anonymous.isTrue()).then("익명")
-                .otherwise(user.name);
+                .otherwise(getName());
     }
 
     private Expression<String> preview200() {
