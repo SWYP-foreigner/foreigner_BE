@@ -89,6 +89,8 @@ public class PostServiceImpl implements PostService {
                 pageSize + 1,
                 null
         );
+
+        log.info(rows.get(0).authorName());
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
@@ -108,6 +110,9 @@ public class PostServiceImpl implements PostService {
                 pageSize + 1,
                 null
         );
+
+
+        log.info(rows.get(0).authorName());
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
@@ -168,7 +173,9 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        return postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        log.info(postDetail.authorName());
+        return postDetail;
     }
 
     @Override
