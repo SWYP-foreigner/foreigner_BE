@@ -50,7 +50,7 @@ public record CommentItem(
         }
         return new CommentItem(
                 c.getId(),
-                (c.getAuthor() != null) ? c.getAuthor().getName() : null,
+                (c.getAuthor() != null) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : null,
                 c.getContent(),
                 isLiked,
                 likeCount,
