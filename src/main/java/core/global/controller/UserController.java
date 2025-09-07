@@ -218,6 +218,7 @@ public class UserController {
     }
 
     @PostMapping("/email/check")
+
     @Operation(summary = "이메일 가입 중복 여부 확인")
     public ResponseEntity<ApiResponse<EmailCheckResponse>> checkRepeat(@RequestBody EmailCheckRequest request) {
         boolean exists = userService.existsByEmail(request.getEmail());
