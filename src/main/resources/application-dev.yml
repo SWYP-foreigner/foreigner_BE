@@ -44,7 +44,7 @@ spring:
           accessToken: "access_token"
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: false
     properties:
       hibernate:
@@ -53,7 +53,7 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 30
+  access-expiration: 10080
   refresh-expiration: 10080
 
 
