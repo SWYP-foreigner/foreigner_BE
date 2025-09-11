@@ -75,7 +75,7 @@ public class BookmarkController {
                                         "items": [
                                           {
                                             "bookmarkId": 555,
-                                            "authorName": "익명",
+                                            "authorName": "Anonymity",
                                             "content": "내용 프리뷰...",
                                             "likeCount": 10,
                                             "commentCount": 2,

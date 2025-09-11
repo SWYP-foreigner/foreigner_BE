@@ -14,7 +14,7 @@ public record PostDetailResponse(
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
 
-        @Schema(description = "작성자 표시명(익명이면 '익명')", example = "익명")
+        @Schema(description = "작성자 표시명(익명이면 'Anonymity')", example = "Anonymity")
         String authorName,
 
         @Schema(description = "카테고리", example = "NEWS")

@@ -155,7 +155,7 @@ public class PostController {
                                                   "success": true,
                                                   "data": {
                                                     "items": [
-                                                      { "postId": 123, "title": "제목", "contentPreview": "내용...", "authorName": "익명",
+                                                      { "postId": 123, "title": "제목", "contentPreview": "내용...", "authorName": "Anonymity",
                                                         "createdAt": "2025-08-13T07:20:35Z", "likeCount": 10, "commentCount": 2, "viewCount": 345, "score": 123456 },
                                                       { "postId": 122, "title": "다음 글", "contentPreview": "내용...", "authorName": "홍길동",
                                                         "createdAt": "2025-08-13T07:19:10Z", "likeCount": 0, "commentCount": 0, "viewCount": 12, "score": 2345 }

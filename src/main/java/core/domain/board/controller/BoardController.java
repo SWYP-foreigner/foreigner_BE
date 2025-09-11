@@ -79,7 +79,7 @@ public class BoardController {
                                                 "postId": 123,
                                                 "title": "제목",
                                                 "contentPreview": "내용 프리뷰 ...",
-                                                "authorName": "익명",
+                                                "authorName": "Anonymity",
                                                 "createdAt": "2025-08-13T07:20:35Z",
                                                 "likeCount": 10,
                                                 "commentCount": 2,

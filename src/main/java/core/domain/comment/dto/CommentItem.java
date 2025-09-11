@@ -50,7 +50,7 @@ public record CommentItem(
         }
         return new CommentItem(
                 c.getId(),
-                (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "익명",
+                (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "Anonymity",
                 c.getContent(),
                 isLiked,
                 likeCount,
