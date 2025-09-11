@@ -7,6 +7,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -43,6 +44,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
+import core.global.image.entity.Image;
 
 
 @Service
@@ -772,4 +774,51 @@ public class UserService {
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
     }
+    /**
+     * 단일 사용자 정보 조회 로직
+     */
+    public UserResponseDto findUserProfile(Long userId) {
+        // 1. 사용자 정보를 조회합니다.
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 2. 사용자의 프로필 이미지 URL을 조회합니다.
+        String imageUrl = imageRepository
+                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .map(Image::getUrl)
+                .orElse(null); // 이미지가 없는 경우 null
+
+        // 3. DTO로 변환하여 반환합니다.
+        return UserResponseDto.from(user, imageUrl);
+    }
+
+    /**
+     * 여러 사용자 정보 일괄 조회 로직 (N+1 문제 해결)
+     */
+    public List<UserResponseDto> findUsersProfiles(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1. ID 리스트를 사용해 모든 사용자를 한 번의 쿼리로 조회합니다.
+        List<User> users = userRepository.findAllByIdIn(userIds);
+
+        // 2. 조회된 사용자 ID를 다시 추출합니다.
+        List<Long> foundUserIds = users.stream().map(User::getId).toList();
+
+        // 3. 모든 사용자의 프로필 이미지를 한 번의 쿼리로 조회하여 Map으로 만듭니다. (Key: userId, Value: imageUrl)
+        Map<Long, String> imageUrlsMap = imageRepository
+                .findAllPrimaryImagesForUsers(ImageType.USER, foundUserIds)
+                .stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (first, second) -> first));
+
+        // 4. 사용자 정보와 이미지 URL을 조합하여 DTO 리스트를 생성합니다.
+        return users.stream()
+                .map(user -> {
+                    String imageUrl = imageUrlsMap.get(user.getId());
+                    return UserResponseDto.from(user, imageUrl);
+                })
+                .collect(Collectors.toList());
+    }
+
 }

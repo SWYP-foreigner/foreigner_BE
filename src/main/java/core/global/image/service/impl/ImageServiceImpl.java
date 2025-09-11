@@ -3,6 +3,7 @@ package core.global.image.service.impl;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.dto.ImageDto;
 import core.global.image.dto.PresignedUrlRequest;
 import core.global.image.dto.PresignedUrlResponse;
 import core.global.image.entity.Image;
@@ -488,5 +489,14 @@ public class ImageServiceImpl implements ImageService {
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
         if (!ct.startsWith("image/")) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
     }
+    public List<ImageDto> findImagesForChatRooms(List<Long> roomIds) {
+        if (roomIds == null || roomIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdIn(ImageType.CHAT_ROOM, roomIds);
 
+        return images.stream()
+                .map(image -> new ImageDto(image.getId(), image.getRelatedId(), image.getUrl()))
+                .collect(Collectors.toList());
+    }
 }

@@ -217,7 +217,6 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
-
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
     @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
