@@ -27,7 +27,7 @@ public class AppleTokenParser {
         }
     }
 
-    /** JJWT 0.11.x: 공개키 서명 검증 후 Claims 추출 */
+    /** JJWT 0.11.x: 공개키 서명 검증 후 Claims(페이로드의 일부분 key와 value 값) 추출 */
     public Claims extractClaims(String jwt, PublicKey publicKey) {
         try {
             return Jwts.parserBuilder()

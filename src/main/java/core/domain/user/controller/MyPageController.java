@@ -140,6 +140,7 @@ public class MyPageController {
             @RequestParam(required = false) String firstName,
             @RequestParam(required = false) String lastName
     ) {
+        // 서비스 메서드에 currentUserDetails 객체를 전달
         List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
         return ResponseEntity.ok(response);
     }
