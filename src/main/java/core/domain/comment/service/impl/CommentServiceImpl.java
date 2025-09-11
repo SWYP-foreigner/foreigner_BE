@@ -12,10 +12,7 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
-import core.global.enums.ImageType;
-import core.global.enums.LikeType;
-import core.global.enums.SortOption;
+import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
@@ -112,6 +109,7 @@ public class CommentServiceImpl implements CommentService {
                 .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
 
         List<Long> authorIds = rows.stream()
+                .filter(cmt -> !Boolean.TRUE.equals(cmt.getAnonymous()))
                 .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -176,14 +174,23 @@ public class CommentServiceImpl implements CommentService {
         }
 
         try {
-            boolean anonymous = Boolean.TRUE.equals(request.anonymous()); // null-safe
+            validateAnonymousPolicy(post.getBoard().getCategory(), request.anonymous());
             Comment toSave = (parent == null)
-                    ? Comment.createRootComment(post, user, request.comment(), anonymous)
-                    : Comment.createReplyComment(post, user, request.comment(), anonymous, parent);
+                    ? Comment.createRootComment(post, user, request.comment(), request.anonymous())
+                    : Comment.createReplyComment(post, user, request.comment(), request.anonymous(), parent);
 
             commentRepository.save(toSave);
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.INVALID_COMMENT_INPUT);
+        }
+    }
+
+    private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
+        final boolean allowAnonymous =
+                category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
+
+        if (!allowAnonymous && isAnonymous) {
+            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
         }
     }
 

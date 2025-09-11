@@ -50,12 +50,12 @@ public record CommentItem(
         }
         return new CommentItem(
                 c.getId(),
-                (c.getAuthor() != null) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : null,
+                (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "익명",
                 c.getContent(),
                 isLiked,
                 likeCount,
                 c.getCreatedAt(),
-                userImageUrl,
+                (!c.getAnonymous()) ? userImageUrl : null,
                 false
         );
     }
