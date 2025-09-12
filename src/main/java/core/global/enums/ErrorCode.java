@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    TOKEN_NOT_FOUND(HttpStatus.BAD_REQUEST,"토큰이 없습니다."),
     JWT_EXPIRED(HttpStatus.BAD_REQUEST,"jwt 토큰이 만료되었습니다. "),
     INVALID_JWT(HttpStatus.BAD_REQUEST, "jwt 토큰을 찾을 수 없습니다."),
     ACCEPTED_EXISTS(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),

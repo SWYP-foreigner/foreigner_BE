@@ -57,7 +57,7 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
-
+    private final AppleKeyGenerator appleKeyGenerator;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -201,14 +201,10 @@ public class UserController {
     }
 
 
-    @DeleteMapping("/apple/logout")
+    @DeleteMapping("/apple/withdraw")
     @Operation(summary = "애플 회원 탈퇴 (DB에서 유저 삭제)")
     public ResponseEntity<Void> logoutWithDraw(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new BusinessException(ErrorCode.INVALID_JWT);
-        }
 
         String accessToken = authHeader.substring(7);
         Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
@@ -287,15 +283,6 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    /*
-     * revoke (연동 해제)
-     */
-    @PostMapping("/apple/revoke")
-    @Operation(summary = "애플 연동 해제")
-    public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
-
-        return ResponseEntity.noContent().build();
-    }
 
     @PatchMapping("/profile/setup")
     @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성 ", description = "현재 사용자의 프로필 정보를 세팅합니다.")

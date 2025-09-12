@@ -13,14 +13,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "appleClient", url = "https://appleid.apple.com")
 public interface AppleClient {
 
-    /*
-    퍼블릭 키 조회
-    RestTemplate , OpenFeign 중 OpenFeign 방법 선택
+    /**
+     * public key 요청
      */
     @GetMapping("/auth/keys")
     ApplePublicKeyResponse getApplePublicKeys(); // ApplePublicKeyResponse를 반환
+
     /**
-     * 기본적으로 토큰 검즘
+     * 토큰을 요청
+     * 정확히는 (access+refresh+id) token 요청하고 받음
      * @param form
      * @return
      */

@@ -80,34 +80,29 @@ public class AppleAuthService {
     }
 
 
-    public AppleTokenResponse getTokenFromApple(
-            String authorizationCode,
-            String codeVerifierOrNull,
-            String redirectUriOrNull
-    ) {
-        String clientSecret = clientSecretProvider.createClientSecret();
+
+
+    public AppleTokenResponse getTokenFromApple(String authorizationCode,
+                                                String codeVerifier,
+                                                String redirectUri) {
+
+        String clientSecret = appleKeyGenerator.getClientSecret();
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("code", authorizationCode);
-        form.add("client_id", props.clientId());
+        form.add("client_id", clientId);
         form.add("client_secret", clientSecret);
-        if (redirectUriOrNull != null && !redirectUriOrNull.isBlank()) {
-            form.add("redirect_uri", redirectUriOrNull);
-        }
-        if (codeVerifierOrNull != null && !codeVerifierOrNull.isBlank()) {
-            form.add("code_verifier", codeVerifierOrNull);
-        }
+        form.add("code_verifier", codeVerifier);
+        form.add("redirect_uri", redirectUri);
 
         AppleTokenResponse token = appleClient.findAppleToken(form);
+
         if (token.getError() != null) {
-            throw new IllegalStateException("Apple token error: " + token.getError());
+            throw new BusinessException(ErrorCode.TOKEN_NOT_FOUND);
         }
         return token;
     }
-
-
-
 
     public AppleLoginResult makeToken(String identityToken, String appleRefreshToken) {
         // 1. id_token에서 유저 정보를 추출합니다.
@@ -195,7 +190,7 @@ public class AppleAuthService {
     private void revokeAppleToken(String appleRefreshToken) {
         String clientSecret = appleKeyGenerator.getClientSecret();
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("client_id", "your_client_id"); // Use your configured client ID
+        body.add("client_id", clientId); // Use your configured client ID
         body.add("client_secret", clientSecret);
         body.add("token", appleRefreshToken);
         body.add("token_type_hint", "refresh_token");
