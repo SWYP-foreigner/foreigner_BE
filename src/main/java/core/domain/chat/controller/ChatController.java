@@ -220,6 +220,17 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
     @Operation(summary = "특정 메시지 주변의 채팅 내용 조회", description = "검색 등에서 특정 메시지로 바로 이동할 때 사용합니다. 해당 메시지 기준 이전 20개, 이후 20개의 메시지를 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메세지",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
     @GetMapping("/rooms/{roomId}/messages/around")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
             @PathVariable Long roomId,
