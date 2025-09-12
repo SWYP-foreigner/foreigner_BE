@@ -53,7 +53,7 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 30
+  access-expiration: 10080
   refresh-expiration: 10080
 
 
@@ -81,6 +81,7 @@ oauth:
       redirect-uri: ${WEB_REDIRECT_URI}
 
   apple:
+    issuer: https://appleid.apple.com
     team-id: ${APPLE_TEAM_ID}
     key-id: ${APPLE_KEY_ID}
     client-id: ${APPLE_CLIENT_ID}

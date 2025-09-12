@@ -3,6 +3,7 @@ package core.global.image.service.impl;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.image.dto.ImageDto;
 import core.global.image.dto.PresignedUrlRequest;
 import core.global.image.dto.PresignedUrlResponse;
 import core.global.image.entity.Image;
@@ -121,80 +122,83 @@ public class ImageServiceImpl implements ImageService {
 
     @Transactional
     @Override
-    public void saveOrUpdatePostImages(Long postId,
-                                       List<String> toAdd,
-                                       List<String> toRemove) {
-
+    public void saveOrUpdatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
         final List<String> adds = (toAdd == null) ? List.of() : toAdd;
         final List<String> removes = (toRemove == null) ? List.of() : toRemove;
+        if (adds.isEmpty() && removes.isEmpty()) return;
 
-        if (adds.isEmpty() && removes.isEmpty()) {
-            return;
-        }
-
-        // 4) 삭제: DB는 URL 기준, S3는 key 기준 ------------- [변경]
+        // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
+        List<String> bulkDeleteKeys = new ArrayList<>();
         if (!removes.isEmpty()) {
-            // 입력이 URL/Key 섞여 와도 key로 정규화
             List<String> removeKeys = removes.stream()
                     .map(raw -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw))
                     .toList();
-
-            // DB 삭제는 "공개 URL" 기준으로
             List<String> removeUrls = removeKeys.stream()
                     .map(k -> UrlUtil.buildPublicUrlFromKey(endPoint, bucket, k))
                     .toList();
             imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, removeUrls);
-
-            // S3 삭제는 key 기준
-            for (String key : removeKeys) {
-                try {
-                    s3Client.deleteObject(b -> b.bucket(bucket).key(key));
-                } catch (SdkException e) {
-                    log.warn("이미지 삭제 실패: key={}, err={}", key, e.getMessage());
-                }
-            }
+            bulkDeleteKeys.addAll(removeKeys);
         }
 
-        // 생존 이미지 조회 & 순서 재정렬
+        // 2) 생존 조회
         List<Image> survivors = imageRepository
                 .findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
 
         int pos = 0;
-
         Set<String> survivorUrls = new HashSet<>();
         for (Image img : survivors) {
             img.changePosition(pos++);
-            // DB에 key/URL 혼재 가능 → 모두 key로 환산 후 다시 공개 URL로 통일
             String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, img.getUrl());
-            String storedUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, storedKey);
-            survivorUrls.add(storedUrl);
+            survivorUrls.add(UrlUtil.buildPublicUrlFromKey(endPoint, bucket, storedKey));
+        }
+
+        if (adds.isEmpty()) return;
+
+        final String basePrefix = "posts/" + postId;
+        final int startOrder = pos;
+
+        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(
+                Math.min(Math.max(1, adds.size()), 8) // 동시성 8 권장
+        );
+        var tasks = new ArrayList<java.util.concurrent.Callable<Image>>();
+        var stagingToDelete = new java.util.concurrent.ConcurrentLinkedQueue<String>();
+
+        for (int i = 0; i < adds.size(); i++) {
+            final int myOrder = startOrder + i;
+            final String raw = adds.get(i);
+            tasks.add(() -> {
+                String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw);
+                String finalKey = ensureFinalKey(basePrefix, myOrder, srcKey);
+                String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+
+                if (survivorUrls.contains(finalUrl)) return null;
+                // 스테이징이면, COPY 성공했으니 원본을 벌크 삭제 대상에 추가
+                if (isStagingKey(srcKey) && !srcKey.equals(finalKey)) {
+                    stagingToDelete.add(srcKey);
+                }
+                return Image.of(ImageType.POST, postId, finalUrl, myOrder);
+            });
         }
 
         List<Image> toSave = new ArrayList<>();
-        for (String raw : adds) {
-            String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw);
-            boolean staging = isStagingKey(key);
-            boolean exists = staging && existsOnS3(key);
-
-            log.info("[POST IMG] postId={}, inRaw={}, normKey={}, staging={}, exists={}",
-                    postId, raw, key, staging, exists);
-
-            // 최종 목적지 키 생성 (order 반영)
-            String finalKey = ensureFinalKey("posts/" + postId, pos, key);
-            String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
-
-            if (survivorUrls.contains(finalUrl)) {
-                log.info("[POST IMG] skip (already attached): {}", finalUrl);
-                continue;
+        try {
+            for (var f : pool.invokeAll(tasks)) {
+                Image created = f.get();
+                if (created != null) toSave.add(created);
             }
-
-            Image created = Image.of(ImageType.POST, postId, finalUrl, pos++);
-            toSave.add(created);
+        } catch (Exception e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        } finally {
+            pool.shutdown();
         }
 
-        if (!toSave.isEmpty()) {
-            imageRepository.saveAll(toSave);
-        }
+        if (!toSave.isEmpty()) imageRepository.saveAll(toSave);
+
+        // 4) 한 번에 삭제(사용자 제거 + 스테이징 원본)
+        if (!stagingToDelete.isEmpty()) bulkDeleteKeys.addAll(stagingToDelete);
+        deleteObjectsBulk(bulkDeleteKeys);
     }
 
 
@@ -205,41 +209,53 @@ public class ImageServiceImpl implements ImageService {
 
     private String ensureFinalKey(String basePrefix, int order, String srcKey) {
         String base = basePrefix.endsWith("/") ? basePrefix.substring(0, basePrefix.length() - 1) : basePrefix;
-
-        try {
-            s3Client.headObject(b -> b.bucket(bucket).key(srcKey));
-        } catch (S3Exception e) {
-            log.warn("[POST IMG] source not found for copy. key={}, status={}", srcKey, e.statusCode());
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
-        } catch (SdkException e) {
-            log.warn("[POST IMG] headObject failed. key={}, err={}", srcKey, e.getMessage());
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
-        }
-
-        // 2) 스테이징 여부 확인 (images/로 시작하면 스테이징)
-        if (!isStagingKey(srcKey)) {
-            log.info("[POST IMG] already final. key={}", srcKey);
-            return srcKey;
-        }
+        if (!isStagingKey(srcKey)) return srcKey;
 
         String basename = srcKey.substring(srcKey.lastIndexOf('/') + 1);
         String dstKey = "%s/%03d_%s".formatted(base, order, basename);
+        if (srcKey.equals(dstKey)) return srcKey;
 
-        // 3) 복사 + 삭제
         try {
-            log.info("[POST IMG] copy: src={} -> dst={}", srcKey, dstKey);
             s3Client.copyObject(b -> b
                     .sourceBucket(bucket).sourceKey(srcKey)
                     .destinationBucket(bucket).destinationKey(dstKey)
-                    .acl(ObjectCannedACL.PUBLIC_READ)               // ✅ 새 오브젝트에 퍼블릭 읽기 부여
-                    .metadataDirective(MetadataDirective.COPY)      // ✅ 메타/Content-Type 유지(명시)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .metadataDirective(MetadataDirective.COPY)
             );
-            s3Client.deleteObject(b -> b.bucket(bucket).key(srcKey));
+        } catch (S3Exception e) {
+            log.warn("[POST IMG] copy failed: src={}, dst={}, status={}, msg={}",
+                    srcKey, dstKey, e.statusCode(),
+                    e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage());
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         } catch (SdkException e) {
-            log.warn("[POST IMG] copy/delete failed. src={}, dst={}, err={}", srcKey, dstKey, e.getMessage());
+            log.warn("[POST IMG] copy failed: src={}, dst={}, err={}", srcKey, dstKey, e.getMessage());
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
-        return dstKey;
+        return dstKey; // ← 여기서 삭제하지 않음
+    }
+
+    private void deleteObjectsBulk(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return;
+
+        final int LIMIT = 1000; // S3/NCP 일반 한도
+        for (int i = 0; i < keys.size(); i += LIMIT) {
+            List<String> chunk = keys.subList(i, Math.min(i + LIMIT, keys.size()));
+            try {
+                var res = s3Client.deleteObjects(b -> b.bucket(bucket).delete(d -> d.objects(
+                        chunk.stream()
+                                .map(k -> software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder().key(k).build())
+                                .toList()
+                )));
+                if (res != null && res.errors() != null && !res.errors().isEmpty()) {
+                    for (var err : res.errors()) {
+                        log.warn("[POST IMG] bulk delete error key={}, code={}, msg={}",
+                                err.key(), err.code(), err.message());
+                    }
+                }
+            } catch (SdkException e) {
+                log.warn("[POST IMG] bulk delete failed size={}, err={}", chunk.size(), e.getMessage());
+            }
+        }
     }
 
     private boolean existsOnS3(String key) {
@@ -473,5 +489,14 @@ public class ImageServiceImpl implements ImageService {
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
         if (!ct.startsWith("image/")) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
     }
+    public List<ImageDto> findImagesForChatRooms(List<Long> roomIds) {
+        if (roomIds == null || roomIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdIn(ImageType.CHAT_ROOM, roomIds);
 
+        return images.stream()
+                .map(image -> new ImageDto(image.getId(), image.getRelatedId(), image.getUrl()))
+                .collect(Collectors.toList());
+    }
 }

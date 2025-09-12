@@ -20,6 +20,7 @@ public class UserUpdateDTO {
     private String firstname;
     private String lastname;
     private String gender;
+    private Integer age;
     private String birthday;
     private String country;
     private String introduction;

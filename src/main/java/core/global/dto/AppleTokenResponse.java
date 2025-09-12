@@ -25,5 +25,5 @@ public class AppleTokenResponse {
     private String tokenType;
 
     @JsonProperty("error")
-    private String error;   // 실패 시 에러 코드
+    private String error;
 }

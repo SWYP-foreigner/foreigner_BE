@@ -131,18 +131,19 @@ public class MyPageController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/profile/find")
-    @Operation(
-            summary = "친구리스트에서 이름(FirstName과 LastName)을 통한 검색",
-            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열. (현재 로그인 사용자 제외)"
-    )
-    public ResponseEntity<List<UserSearchDTO>> findProfile(
-            @RequestParam(required = false) String firstName,
-            @RequestParam(required = false) String lastName
-    ) {
-        List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
-        return ResponseEntity.ok(response);
-    }
+//    @GetMapping("/profile/find")
+//    @Operation(
+//            summary = "친구리스트에서 이름(FirstName과 LastName)을 통한 검색",
+//            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열. (현재 로그인 사용자 제외)"
+//    )
+//    public ResponseEntity<List<UserSearchDTO>> findProfile(
+//            @RequestParam(required = false) String firstName,
+//            @RequestParam(required = false) String lastName
+//    ) {
+//        // 서비스 메서드에 currentUserDetails 객체를 전달
+//        List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
+//        return ResponseEntity.ok(response);
+//    }
 
     @PutMapping("/user/language")
     @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")

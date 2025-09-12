@@ -86,6 +86,8 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     void deleteAllByImageTypeAndRelatedId(@Param("imageType") ImageType imageType, @Param("relatedId") Long relatedId);
 
 
-
+    @Query("SELECT i FROM Image i WHERE i.imageType = :imageType AND i.relatedId IN :relatedIds AND i.orderIndex = 0")
+    List<Image> findAllPrimaryImagesForUsers(@Param("imageType") ImageType imageType, @Param("relatedIds") List<Long> relatedIds);
+    List<Image> findAllByImageTypeAndRelatedIdIn(ImageType imageType, List<Long> relatedIds);
 
 }

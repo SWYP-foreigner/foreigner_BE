@@ -34,10 +34,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE u.id != :meId AND u.purpose IS NOT NULL AND u.country IS NOT NULL AND u.language IS NOT NULL AND u.hobby IS NOT NULL")
     Page<User> findPageNullMemberAndMember(@Param("meId") Long meId, Pageable pageable);
 
+    /**
+     * QueryDSL 수정이 필요할듯
+     */
+
+//    @Query("SELECT u FROM User u " +
+//            "JOIN Follow f ON (f.user.id = u.id AND f.following.id = :currentUserId) " +
+//            "OR (f.following.id = u.id AND f.user.id = :currentUserId) " +
+//            "WHERE f.status = 'ACCEPTED' AND " +
+//            "(:firstName IS NULL OR LOWER(u.firstName) LIKE CONCAT('%', LOWER(:firstName), '%')) AND " +
+//            "(:lastName IS NULL OR LOWER(u.lastName) LIKE CONCAT('%', LOWER(:lastName), '%'))")
+//    List<User> findAcceptedFriendsByFirstAndLastName(
+//            @Param("currentUserId") Long currentUserId,
+//            @Param("firstName") String firstName,
+//            @Param("lastName") String lastName
+//    );
 
     boolean existsByEmail(String email);
-    List<User> findByFirstNameIgnoreCaseAndIdNot(String firstName, Long excludeId);
-    List<User> findByLastNameIgnoreCaseAndIdNot(String lastName, Long excludeId);
-    List<User> findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(String firstName, String lastName, Long excludeId);
 
 }

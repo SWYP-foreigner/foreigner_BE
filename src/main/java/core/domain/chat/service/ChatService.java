@@ -369,7 +369,6 @@ public class ChatService {
         return chatMessageRepository.save(message);
     }
 
-    // ChatService.java
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
@@ -400,6 +399,7 @@ public class ChatService {
                                 userImageUrl
                         );
                     })
+                    .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
         else {
@@ -435,6 +435,7 @@ public class ChatService {
                                 userImageUrl
                         );
                     })
+                    .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
     }
@@ -788,4 +789,78 @@ public class ChatService {
 
     }
 
+
+    /**
+     * @apiNote 특정 메시지를 중심으로 이전/이후 메시지를 함께 조회합니다. (리팩토링 미적용 버전)
+     */
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+
+        List<ChatMessage> olderMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
+        Collections.reverse(olderMessages);
+
+        ChatMessage targetMessage = chatMessageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        List<ChatMessage> newerMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
+
+        List<ChatMessage> combinedMessages = new ArrayList<>();
+        combinedMessages.addAll(olderMessages);
+        combinedMessages.add(targetMessage);
+        combinedMessages.addAll(newerMessages);
+
+        boolean needsTranslation = participant.isTranslateEnabled();
+        String targetLanguage = participant.getUser().getTranslateLanguage();
+
+        if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
+            List<String> originalContents = combinedMessages.stream()
+                    .map(ChatMessage::getContent)
+                    .collect(Collectors.toList());
+            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+            return IntStream.range(0, combinedMessages.size())
+                    .mapToObj(i -> {
+                        ChatMessage message = combinedMessages.get(i);
+                        String translatedContent = translatedContents.get(i);
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                translatedContent,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
+                        );
+                    }).collect(Collectors.toList());
+        } else {
+            return combinedMessages.stream()
+                    .map(message -> {
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                null,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
+                        );
+                    }).collect(Collectors.toList());
+        }
+    }
 }

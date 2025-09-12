@@ -92,6 +92,11 @@ public class PostServiceImpl implements PostService {
                 pageSize + 1,
                 null
         );
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
@@ -111,6 +116,12 @@ public class PostServiceImpl implements PostService {
                 pageSize + 1,
                 null
         );
+
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
@@ -140,13 +151,13 @@ public class PostServiceImpl implements PostService {
     }
 
     private Map<String, Object> safeDecode(String cursor) {
+        if (cursor == null || cursor.isBlank()) return Map.of();
         try {
             return CursorCodec.decode(cursor);
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_CURSOR);
+            return Map.of();
         }
     }
-
     private Instant popularSince() {
         return Instant.now().minus(Duration.ofDays(10));
     }
@@ -169,9 +180,13 @@ public class PostServiceImpl implements PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
+        log.info(post.getCheckCount()+" ");
         postRepository.incrementViewCount(postId);
+        log.info(post.getCheckCount()+" ");
 
-        return postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        log.info(postDetail.authorName());
+        return postDetail;
     }
 
     @Override

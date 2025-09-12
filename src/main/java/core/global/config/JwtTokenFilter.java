@@ -85,7 +85,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-
+        /**
+         * 인터셉터 : 사용자가 설정에 따라
+         * 컨트롤러로 넘어가는 구조로 만든다.
+         * 시큐리티
+         */
         String authHeader = request.getHeader("Authorization");
         String requestUri = request.getRequestURI();
 
@@ -110,6 +114,9 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                         new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage())
                 );
                 return;
+                // accessToken 은 사라질 수가 없다. accessToken (로그아웃 +회원 탈퇴) 현재의 accessToken
+                //
+
             }
 
             if (!jwtTokenProvider.validateToken(token)) {
@@ -137,6 +144,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         } catch (ExpiredJwtException e) {
             log.warn("JWT 토큰 만료: {}", e.getMessage());
+            // 프론트에 인증객체가 삭제 돼었느 걸
             SecurityContextHolder.clearContext();
             jwtAuthenticationEntryPoint.commence(
                     request,

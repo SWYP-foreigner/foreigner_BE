@@ -7,8 +7,10 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -43,6 +45,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
+import core.global.image.entity.Image;
 
 
 @Service
@@ -114,6 +117,23 @@ public class UserService {
         return saved;
     }
 
+    @Transactional
+    public User findOrCreateUser(String socialId) {
+
+        String provider = "apple";
+        Optional<User> optionalUser = userRepository.findByProviderAndSocialId(provider, socialId);
+
+        if (optionalUser.isPresent()) {
+            return optionalUser.get();
+        } else {
+            // User not found, create a new one
+            User newUser = User.builder()
+                    .provider(provider)
+                    .socialId(socialId)
+                    .build();
+            return userRepository.save(newUser);
+        }
+    }
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
@@ -131,7 +151,6 @@ public class UserService {
             log.warn("인증 정보 없음 - 이메일 프로필 업데이트 불가");
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
-
 
 
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
@@ -420,11 +439,10 @@ public class UserService {
         String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
-
-
+        Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
+        long refreshExpirationMillis = refreshExpiration.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(u.getId(), refresh, refreshExpirationMillis);
         log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
-
-
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 
@@ -618,36 +636,6 @@ public class UserService {
                 .build();
     }
 
-    @Transactional
-    public void deleteUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        userRepository.delete(user);
-    }
-
-    @Transactional
-    public void deleteUser(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("토큰이 유효하지 않습니다.");
-        }
-        String accessToken = authHeader.substring(7);
-
-        // 토큰에서 유저 ID 추출
-        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-
-        userRepository.delete(user);
-
-        // 2. Redis에서 Refresh Token 삭제
-        redisService.deleteRefreshToken(userId);
-
-        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-        redisService.blacklistAccessToken(accessToken, expiration);
-    }
 
     /**
      * 두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
@@ -656,71 +644,50 @@ public class UserService {
      * @param lastName
      * @return
      */
-    @Transactional(readOnly = true)
-    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName) {
-        String email = getCurrentEmailOrThrow();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-
-        if ((firstName == null || firstName.isBlank()) &&
-            (lastName == null || lastName.isBlank())) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        Long meId = user.getId();
-
-        String fn = firstName == null ? null : firstName.trim();
-        String ln = lastName == null ? null : lastName.trim();
-
-        List<User> users;
-        if (notBlank(fn) && notBlank(ln)) {
-            users = userRepository
-                    .findByFirstNameIgnoreCaseAndLastNameIgnoreCaseAndIdNot(fn, ln, meId);
-        } else if (notBlank(fn)) {
-            users = userRepository
-                    .findByFirstNameIgnoreCaseAndIdNot(fn, meId);
-        } else { // notBlank(ln) 보장됨
-            users = userRepository
-                    .findByLastNameIgnoreCaseAndIdNot(ln, meId);
-        }
-
-        if (users.isEmpty()) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        return users.stream()
-                .filter(u -> !u.getId().equals(meId)) // 안전망
-                .map(this::toSearchDto)
-                .toList();
-    }
+//    @Transactional(readOnly = true)
+//    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName)
+//    {
+//
+//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+//        String userEmail = auth.getName();
+//
+//        User me = userRepository.findByEmail(userEmail)
+//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+//
+//        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
+//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+//        }
+//
+//
+//        String fn = firstName == null ? null : firstName.trim();
+//        String ln = lastName == null ? null : lastName.trim();
+//
+//        List<User>users;
+//
+//        if (notBlank(fn) && notBlank(ln)) {
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        } else if (notBlank(fn)) {
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        } else { // notBlank(ln) 보장됨
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        }
+//
+//        if (users.isEmpty()) {
+//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+//        }
+//
+//        return users.stream()
+//                .map(this::toSearchDto)
+//                .toList();
+//    }
 
     /**
      * 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회)
      */
-    private String getCurrentEmailOrThrow() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
 
-        if (auth instanceof JwtAuthenticationToken jwtAuth) {
-            String email = jwtAuth.getToken().getClaim("templates/email");
-            if (email == null || email.isBlank()) {
-                email = jwtAuth.getToken().getSubject(); // sub fallback
-            }
-            if (email == null || email.isBlank()) {
-                throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-            }
-            return email;
-        }
-
-        String name = auth.getName();
-        if (name == null || name.isBlank()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-        return name;
-    }
 
     private UserSearchDTO toSearchDto(User u) {
         return UserSearchDTO.builder()
@@ -773,4 +740,39 @@ public class UserService {
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
     }
+    /**
+     * 단일 사용자 정보 조회 로직
+     */
+    public UserResponseDto findUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String imageUrl = imageRepository
+                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .map(Image::getUrl)
+                .orElse(null);
+        return UserResponseDto.from(user, imageUrl);
+    }
+
+    /**
+     * 여러 사용자 정보 일괄 조회 로직 (N+1 문제 해결)
+     */
+    public List<UserResponseDto> findUsersProfiles(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<User> users = userRepository.findAllById(userIds);
+        List<Long> foundUserIds = users.stream().map(User::getId).toList();
+        Map<Long, String> imageUrlsMap = imageRepository
+                .findAllPrimaryImagesForUsers(ImageType.USER, foundUserIds)
+                .stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (first, second) -> first));
+        return users.stream()
+                .map(user -> {
+                    String imageUrl = imageUrlsMap.get(user.getId());
+                    return UserResponseDto.from(user, imageUrl);
+                })
+                .collect(Collectors.toList());
+    }
+
 }

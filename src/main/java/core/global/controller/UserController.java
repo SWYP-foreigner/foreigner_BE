@@ -1,5 +1,6 @@
 package core.global.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatMessageRepository;
@@ -7,6 +8,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.service.TranslationService;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -37,7 +39,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -54,7 +59,7 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
-
+    private final AppleKeyGenerator appleKeyGenerator;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -132,7 +137,9 @@ public class UserController {
         log.info("--- [토큰 재발급] 요청 수신 ---");
         String refreshToken = request.refreshToken();
 
-
+//  29일짜리 Refresh/api 서버에서 Refresh 토큰이 만료되면로그아웃
+        // 만약 일치하면 accessToken+refreshToken 을 다시 준다.
+        //
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             log.warn("유효하지 않은 리프레시 토큰 요청: {}", refreshToken);
             return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
@@ -173,15 +180,44 @@ public class UserController {
 
     @PostMapping("/apple/doLogin")
     @Operation(summary = "애플 로그인")
-    public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) {
-        AppleLoginResult result = service.loginWithAuthorizationCodeOnly(
+    public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) throws NoSuchAlgorithmException, InvalidKeySpecException, JsonProcessingException {
+        // 1. authorizationCode를 사용하여 Apple OAuth 서버로부터 토큰을 받습니다.
+        AppleTokenResponse appleToken = service.getTokenFromApple(
                 req.getAuthorizationCode(),
                 req.getCodeVerifier(),
-                req.getRedirectUri(),
-                req.getNonce()
+                req.getRedirectUri()
         );
+
+        // 2. 받은 토큰 응답에서 id_token을 추출합니다.
+        String identityToken = appleToken.getIdToken();
+
+        // 3. 추출한 id_token을 검증합니다.
+        // 이 과정에서 issuer, audience(clientId), nonce 등의 유효성을 확인합니다.
+        service.verifyIdentityToken(identityToken);
+
+        // 4. id_token이 유효하면, 우리 서비스의 JWT(Access/Refresh Token)를 생성하고 반환합니다.
+        // 이 부분은 서비스의 사용자 식별 로직에 따라 구현됩니다.
+        AppleLoginResult result = service.makeToken(identityToken, appleToken.getRefreshToken());
+
         return ResponseEntity.ok(result);
     }
+
+
+    @DeleteMapping("/apple/withdraw")
+    @Operation(summary = "애플 회원 탈퇴 (DB에서 유저 삭제)")
+    public ResponseEntity<Void> logoutWithDraw(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+
+        String accessToken = authHeader.substring(7);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+
+        // 탈퇴 서비스 호출
+        service.deleteUser(userId);
+
+        log.info("사용자 {} 탈퇴 처리 완료.", userId);
+        return ResponseEntity.noContent().build();
+    }
+
 
 
 
@@ -249,15 +285,6 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    /*
-     * revoke (연동 해제)
-     */
-    @PostMapping("/apple/revoke")
-    @Operation(summary = "애플 연동 해제")
-    public ResponseEntity<Void> revoke(@RequestBody AppleRevokeApiRequest req) {
-        service.revoke(req.getRefreshToken());
-        return ResponseEntity.noContent().build();
-    }
 
     @PatchMapping("/profile/setup")
     @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성 ", description = "현재 사용자의 프로필 정보를 세팅합니다.")
@@ -296,6 +323,27 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 특정 사용자 한 명의 프로필 정보를 조회합니다.
+     * @param userId 조회할 사용자의 ID
+     * @return UserResponseDto 형태의 사용자 정보
+     */
+    @GetMapping("/{userId}/info")
+    public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
+        UserResponseDto userProfile = userService.findUserProfile(userId);
+        return ResponseEntity.ok(userProfile);
+    }
+
+    /**
+     * 여러 사용자의 프로필 정보를 한 번에 조회합니다.
+     * @param userIds 조회할 사용자 ID 리스트
+     * @return UserResponseDto 리스트 형태의 사용자 정보
+     */
+    @GetMapping("/infos")
+    public ResponseEntity<List<UserResponseDto>> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
+        List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
+        return ResponseEntity.ok(userProfiles);
+    }
 
 
 }

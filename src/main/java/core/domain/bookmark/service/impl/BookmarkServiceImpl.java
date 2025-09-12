@@ -124,7 +124,7 @@ public class BookmarkServiceImpl implements BookmarkService {
         Post p = b.getPost();
 
         String authorName = Boolean.TRUE.equals(p.getAnonymous())
-                ? "익명"
+                ? "Anonymity"
                 : (p.getAuthor() != null ? p.getAuthor().getName() : null);
 
         Long postId = p.getId();

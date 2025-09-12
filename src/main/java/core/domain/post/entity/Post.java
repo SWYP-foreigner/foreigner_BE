@@ -1,6 +1,7 @@
 package core.domain.post.entity;
 
 import core.domain.board.entity.Board;
+import core.domain.comment.entity.Comment;
 import core.domain.post.dto.PostWriteRequest;
 import core.domain.post.dto.PostWriteForChatRequest;
 import core.domain.user.entity.User;
@@ -11,6 +12,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(
@@ -59,7 +62,11 @@ public class Post {
     @Column(name = "check_count", nullable = false)
     private Long checkCount = 0L;
 
+    @OneToMany(mappedBy = "post", orphanRemoval = true, cascade = CascadeType.ALL)
+    private List<Comment> comments = new ArrayList<>();
+
     public Post(PostWriteRequest request, User author, Board board) {
+
         this.author = author;
         this.board = board;
         this.content = request.content();

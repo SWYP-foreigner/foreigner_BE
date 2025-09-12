@@ -8,6 +8,10 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    TOKEN_NOT_FOUND(HttpStatus.BAD_REQUEST,"토큰이 없습니다."),
+    JWT_EXPIRED(HttpStatus.BAD_REQUEST,"jwt 토큰이 만료되었습니다. "),
+    INVALID_JWT(HttpStatus.BAD_REQUEST, "jwt 토큰을 찾을 수 없습니다."),
+    ACCEPTED_EXISTS(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),
     FOLLOW_NOT_FOUND(HttpStatus.CONFLICT, "팔로우를 찾을수없습니다."),
     INVALID_FOLLOW_STATUS(HttpStatus.CONFLICT, "팔로우상태가 아닙니다."),
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),
@@ -57,6 +61,7 @@ public enum ErrorCode {
     BOOKMARK_NOT_FOUND(HttpStatus.NOT_FOUND, "북마크가 존재하지 않습니다."),
     CHAT_ROOM_JOIN_FAILED(HttpStatus.BAD_REQUEST, "채팅방에 들어가지 못했습니다."),
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
+    MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "메시지가 존재하지 않습니다."),
     CHAT_PARTICIPANT_MINIMUM(HttpStatus.BAD_REQUEST, "채팅방에는 최소 1명(개설자)이 포함되어야 합니다."),
     CHAT_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자 중 존재하지 않는 사용자가 있습니다."),
     NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),

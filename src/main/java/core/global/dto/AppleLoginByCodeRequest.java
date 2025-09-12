@@ -17,5 +17,4 @@ public class AppleLoginByCodeRequest {
     private String authorizationCode;
     private String codeVerifier;  // PKCE 미사용 시 null/공란
     private String redirectUri;   // iOS 네이티브는 보통 빈 값(필요 시만)
-    private String nonce;         // 앱에서 보낸 "원본 raw nonce"
 }

@@ -43,7 +43,7 @@ public class AppleClientSecretProvider {
         Instant now = Instant.now();
         return Jwts.builder()
                 .setIssuer(props.teamId())
-                .setSubject(props.clientId())               // ← 2번 이슈도 함께 수정
+                .setSubject(props.clientId())
                 .setAudience("https://appleid.apple.com")
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(1800)))
