@@ -113,6 +113,11 @@ public class AppleAuthService {
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String appleSocialId = claims.getSubject();
         String provider = Ouathplatform.APPLE.toString();
+        String expectedAudience = appleProps.clientId();
+        String actualAudience = claims.getAudience();
+
+        log.info("Audience Check -> Expected from Server Config: [{}], Actual from Token: [{}]", expectedAudience, actualAudience);
+
         log.info("{}",req);
         log.info("2. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
