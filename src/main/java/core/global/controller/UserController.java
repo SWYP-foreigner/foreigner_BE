@@ -60,7 +60,6 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
-    private final AppleKeyGenerator appleKeyGenerator;
     private final AppleAuthService appleAuthService;
 
     @GetMapping("/google/callback")

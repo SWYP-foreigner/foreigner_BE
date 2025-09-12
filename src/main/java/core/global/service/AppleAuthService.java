@@ -42,12 +42,11 @@ public class AppleAuthService {
     private final AppleKeyService appleKeyService;
     private final ApplePublicKeyGenerator applePublicKeyGenerator;
     private final JwtTokenProvider jwtTokenProvider;
-
+    private final AppleOAuthProperties appleProps;
 
     @Value("${oauth.apple.issuer}")
     private String issuer;
-    @Value("${oauth.apple.client-id}")
-    private String clientId;
+
 
 
     public Claims verifyAndGetClaims(String identityToken, String nonce) {
@@ -63,7 +62,7 @@ public class AppleAuthService {
             if (!issuer.equals(claims.getIssuer())) {
                 throw new BusinessException(ErrorCode.INVALID_JWT_ISSUER);
             }
-            if (!clientId.equals(claims.getAudience())) {
+            if (!appleProps.clientId().equals(claims.getAudience()))  {
                 throw new BusinessException(ErrorCode.INVALID_JWT_AUDIENCE);
             }
             String nonceFromToken = claims.get("nonce", String.class);
