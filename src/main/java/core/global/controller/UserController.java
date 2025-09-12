@@ -250,7 +250,6 @@ public class UserController {
 
         passwordService.sendEmailVerificationCode(request.getEmail(), loc);
 
-        // body 없이 200 OK 반환
         return ResponseEntity.ok().build();
     }
 

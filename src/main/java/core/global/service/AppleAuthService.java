@@ -131,7 +131,8 @@ public class AppleAuthService {
         log.info("3. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-
+        log.info("Access Token generated for user ID {}: {}", user.getId(), accessToken);
+        log.info("Refresh Token generated for user ID {}: {}", user.getId(), refreshToken);
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
         long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
