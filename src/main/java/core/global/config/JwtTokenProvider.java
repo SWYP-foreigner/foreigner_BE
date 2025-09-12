@@ -1,15 +1,27 @@
 package core.global.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import core.global.dto.AppleTokenResponse;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
 import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
+import java.security.PublicKey;
+import java.util.Base64;
 import java.util.Date;
+import java.util.Map;
+import java.util.Objects;
 
 @Component
 public class JwtTokenProvider {
@@ -93,6 +105,25 @@ public class JwtTokenProvider {
                 .getSubject();
     }
 
+    public Map<String, String> parseHeaders(String token) throws JsonProcessingException {
+        String header = token.split("\\.")[0];
+        return new ObjectMapper().readValue(decodeHeader(header), Map.class);
+    }
+    private String decodeHeader(String token) {
+        return new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
+    }
+    public Claims getTokenClaims(String token, PublicKey publicKey) {
+        try {
+            return Jwts.parser()
+                    .setSigningKey(publicKey)
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (SignatureException | MalformedJwtException e) {
+            throw new BusinessException(ErrorCode.INVALID_JWT);
+        } catch (ExpiredJwtException e) {
+            throw new BusinessException(ErrorCode.JWT_EXPIRED);
+        }
+    }
     /**
      * 액세스 토큰에서 사용자 ID를 추출합니다.
      */
@@ -113,6 +144,11 @@ public class JwtTokenProvider {
         Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
         return true;
     }
+
+    /**
+     * Redis 엑세스 토큰이 만약 만료가 안 되면
+     *
+     */
     /**
      * 토큰의 만료 시간을 추출합니다.
      */
@@ -138,5 +174,7 @@ public class JwtTokenProvider {
                         .getSubject()
         );
     }
+
+
 
 }

@@ -46,7 +46,9 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
 
 
 
-    // 특정 사용자와 팔로우 대상의 관계를 조회 (상태 무관)
+    /**
+    특정 사용자와 팔로우 대상의 관계를 조회 (상태 무관)
+     **/
     Optional<Follow> findByUserAndFollowing(User user, User following);
 
     // Correctly finds a Follow entity by the IDs of the 'user' and 'following' objects
