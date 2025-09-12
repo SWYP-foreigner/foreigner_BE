@@ -84,6 +84,8 @@ public class User {
 
     @Column(name = "agreed_to_terms")
     private boolean agreedToTerms = false;
+    @Column(name = "apple_refresh_token")
+    private String appleRefreshToken;
 
     @Builder
     public User(String firstName,
