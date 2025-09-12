@@ -60,16 +60,14 @@ public record PostDocument(
         if (text == null || text.isBlank()) return null;
         String normalized = text.toLowerCase(Locale.ROOT);
 
-        if (boardId == null) {
-            return Map.of(
-                    "input", List.of(normalized),
-                    "weight", Math.max(0, weight)
-            );
-        }
+        List<String> ctxVals = (boardId == null)
+                ? List.of("1")
+                : List.of(String.valueOf(boardId), "1");
+
         return Map.of(
                 "input", List.of(normalized),
                 "weight", Math.max(0, weight),
-                "contexts", Map.of("boardId", List.of(String.valueOf(boardId)))
+                "contexts", Map.of("boardId", ctxVals) // 숫자 문자열만 사용
         );
     }
 }

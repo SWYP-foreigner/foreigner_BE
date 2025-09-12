@@ -28,9 +28,10 @@ public class PostSearchController {
         return searchService.search(q, boardId);
     }
 
-    @GetMapping("/suggest")
-    public List<String> suggest(@RequestParam String q) {
-        return suggestService.suggest(q);
+    @GetMapping("/{boardId}/suggest")
+    public List<String> suggestByBoard(@PathVariable Long boardId,
+                                       @RequestParam("q") String q) {
+        return suggestService.suggest(q, boardId);
     }
 
     @GetMapping("/recent")
