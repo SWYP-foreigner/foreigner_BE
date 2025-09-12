@@ -217,9 +217,22 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
-
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
+    @Operation(summary = "특정 메시지 주변의 채팅 내용 조회", description = "검색 등에서 특정 메시지로 바로 이동할 때 사용합니다. 해당 메시지 기준 이전 20개, 이후 20개의 메시지를 반환합니다.")
+    @GetMapping("/rooms/{roomId}/messages/around")
+    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
+            @PathVariable Long roomId,
+            @RequestParam Long messageId
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        List<ChatMessageResponse> responses = chatService.getMessagesAround(roomId, userId, messageId);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+
+
     @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
     @GetMapping("/rooms/group/{roomId}")
     public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(

@@ -8,6 +8,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.service.TranslationService;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -41,6 +42,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -321,6 +323,27 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 특정 사용자 한 명의 프로필 정보를 조회합니다.
+     * @param userId 조회할 사용자의 ID
+     * @return UserResponseDto 형태의 사용자 정보
+     */
+    @GetMapping("/{userId}/info")
+    public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
+        UserResponseDto userProfile = userService.findUserProfile(userId);
+        return ResponseEntity.ok(userProfile);
+    }
+
+    /**
+     * 여러 사용자의 프로필 정보를 한 번에 조회합니다.
+     * @param userIds 조회할 사용자 ID 리스트
+     * @return UserResponseDto 리스트 형태의 사용자 정보
+     */
+    @GetMapping("/infos")
+    public ResponseEntity<List<UserResponseDto>> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
+        List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
+        return ResponseEntity.ok(userProfiles);
+    }
 
 
 }

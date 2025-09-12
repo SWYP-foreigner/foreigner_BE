@@ -49,7 +49,7 @@ public class CommentController {
                             "items": [
                               {
                                 "commentId": 98765,
-                                "authorName": "익명",
+                                "authorName": "Anonymity",
                                 "content": "댓글 내용...",
                                 "createdAt": "2025-08-01T12:34:56Z",
                                 "likeCount": 10,
