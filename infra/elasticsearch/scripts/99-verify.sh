@@ -43,8 +43,25 @@ curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES}/${ALIAS_SUGG}/_search" \
   -H 'Content-Type: application/json' -d @- <<'JSON'
 { "size": 0,
   "suggest": {
-    "exact": { "prefix": "vis", "completion": { "field": "contentSuggestExact", "size": 5, "skip_duplicates": true } },
-    "fuzzy": { "prefix": "vis", "completion": { "field": "contentSuggest", "size": 5, "skip_duplicates": true, "fuzzy": { "fuzziness": "AUTO" } } }
+    "exact": {
+      "prefix": "vis",
+      "completion": {
+        "field": "contentSuggestExact",
+        "size": 5,
+        "skip_duplicates": true,
+        "contexts": { "boardId": ["1"] }
+      }
+    },
+    "fuzzy": {
+      "prefix": "vis",
+      "completion": {
+        "field": "contentSuggest",
+        "size": 5,
+        "skip_duplicates": true,
+        "fuzzy": { "fuzziness": "AUTO" },
+        "contexts": { "boardId": ["1"] }
+      }
+    }
   }
 }
 JSON
