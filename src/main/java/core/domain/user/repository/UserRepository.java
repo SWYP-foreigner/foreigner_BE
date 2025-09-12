@@ -38,17 +38,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * QueryDSL 수정이 필요할듯
      */
 
-    @Query("SELECT u FROM User u " +
-            "JOIN Follow f ON (f.user.id = u.id AND f.following.id = :currentUserId) " +
-            "OR (f.following.id = u.id AND f.user.id = :currentUserId) " +
-            "WHERE f.status = 'ACCEPTED' AND " +
-            "(:firstName IS NULL OR LOWER(u.firstName) LIKE CONCAT('%', LOWER(:firstName), '%')) AND " +
-            "(:lastName IS NULL OR LOWER(u.lastName) LIKE CONCAT('%', LOWER(:lastName), '%'))")
-    List<User> findAcceptedFriendsByFirstAndLastName(
-            @Param("currentUserId") Long currentUserId,
-            @Param("firstName") String firstName,
-            @Param("lastName") String lastName
-    );
+//    @Query("SELECT u FROM User u " +
+//            "JOIN Follow f ON (f.user.id = u.id AND f.following.id = :currentUserId) " +
+//            "OR (f.following.id = u.id AND f.user.id = :currentUserId) " +
+//            "WHERE f.status = 'ACCEPTED' AND " +
+//            "(:firstName IS NULL OR LOWER(u.firstName) LIKE CONCAT('%', LOWER(:firstName), '%')) AND " +
+//            "(:lastName IS NULL OR LOWER(u.lastName) LIKE CONCAT('%', LOWER(:lastName), '%'))")
+//    List<User> findAcceptedFriendsByFirstAndLastName(
+//            @Param("currentUserId") Long currentUserId,
+//            @Param("firstName") String firstName,
+//            @Param("lastName") String lastName
+//    );
 
     boolean existsByEmail(String email);
 

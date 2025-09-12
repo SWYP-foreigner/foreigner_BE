@@ -642,45 +642,45 @@ public class UserService {
      * @param lastName
      * @return
      */
-    @Transactional(readOnly = true)
-    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName)
-    {
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String userEmail = auth.getName();
-
-        User me = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-
-        String fn = firstName == null ? null : firstName.trim();
-        String ln = lastName == null ? null : lastName.trim();
-
-        List<User>users;
-
-        if (notBlank(fn) && notBlank(ln)) {
-            users = userRepository
-                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-        } else if (notBlank(fn)) {
-            users = userRepository
-                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-        } else { // notBlank(ln) 보장됨
-            users = userRepository
-                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-        }
-
-        if (users.isEmpty()) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        return users.stream()
-                .map(this::toSearchDto)
-                .toList();
-    }
+//    @Transactional(readOnly = true)
+//    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName)
+//    {
+//
+//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+//        String userEmail = auth.getName();
+//
+//        User me = userRepository.findByEmail(userEmail)
+//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+//
+//        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
+//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+//        }
+//
+//
+//        String fn = firstName == null ? null : firstName.trim();
+//        String ln = lastName == null ? null : lastName.trim();
+//
+//        List<User>users;
+//
+//        if (notBlank(fn) && notBlank(ln)) {
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        } else if (notBlank(fn)) {
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        } else { // notBlank(ln) 보장됨
+//            users = userRepository
+//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
+//        }
+//
+//        if (users.isEmpty()) {
+//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+//        }
+//
+//        return users.stream()
+//                .map(this::toSearchDto)
+//                .toList();
+//    }
 
     /**
      * 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회)
