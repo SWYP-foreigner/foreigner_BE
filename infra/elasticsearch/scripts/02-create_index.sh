@@ -43,7 +43,7 @@ echo "[ES] Waiting index ${NEW_INDEX} to reach ${WAIT_FOR_STATUS} (timeout=${HEA
 if ! curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" \
   "${ES}/_cluster/health/${NEW_INDEX}?wait_for_status=${WAIT_FOR_STATUS}&timeout=${HEALTH_TIMEOUT}" >/dev/null; then
   echo "[!] Shard allocation seems stuck. Allocation explain:"
-  curl -sS -X GET "${ES}/_cluster/allocation/explain" \
+  curl -sS -X GET ${AUTH_OPT[@]} "${ES}/_cluster/allocation/explain" \
     -H 'Content-Type: application/json' \
     -d "{\"index\":\"${NEW_INDEX}\",\"shard\":0,\"primary\":true}" || true
   exit 1

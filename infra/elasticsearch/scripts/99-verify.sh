@@ -33,7 +33,7 @@ curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" "${ES}/${ALIAS_SEARCH}/_count" ; echo
 echo "== Quick search smoke =="
 curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES}/${ALIAS_SEARCH}/_search" \
   -H 'Content-Type: application/json' -d @- <<'JSON'
-{ "size": 1, "_source": ["postId","content"],
+{ "size": 1, "_source": ["content"],
   "query": { "match": { "content": "visa accommodation" } } }
 JSON
 echo
