@@ -41,6 +41,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private static final List<String> EXCLUDE_URLS = List.of(
             "/api/v1/member/google/app-login",
             "/api/v1/member/google/**",
+            "/api/v1/member/apple/app-login",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**",
