@@ -117,23 +117,6 @@ public class UserService {
         return saved;
     }
 
-    @Transactional
-    public User findOrCreateUser(String socialId) {
-
-        String provider = "apple";
-        Optional<User> optionalUser = userRepository.findByProviderAndSocialId(provider, socialId);
-
-        if (optionalUser.isPresent()) {
-            return optionalUser.get();
-        } else {
-            // User not found, create a new one
-            User newUser = User.builder()
-                    .provider(provider)
-                    .socialId(socialId)
-                    .build();
-            return userRepository.save(newUser);
-        }
-    }
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);

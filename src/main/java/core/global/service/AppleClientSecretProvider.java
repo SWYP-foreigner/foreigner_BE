@@ -38,17 +38,4 @@ public class AppleClientSecretProvider {
         }
     }
 
-    /** ES256으로 client_secret(JWT) 생성 */
-    public String createClientSecret() {
-        Instant now = Instant.now();
-        return Jwts.builder()
-                .setIssuer(props.teamId())
-                .setSubject(props.clientId())
-                .setAudience("https://appleid.apple.com")
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(now.plusSeconds(1800)))
-                .setHeaderParam("kid", props.keyId())
-                .signWith(loadECPrivateKey(), SignatureAlgorithm.ES256)
-                .compact();
-    }
 }

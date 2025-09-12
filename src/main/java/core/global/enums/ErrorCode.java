@@ -41,6 +41,16 @@ public enum ErrorCode {
     INVALID_OR_EXPIRED_SESSION(HttpStatus.BAD_REQUEST, "세션이 만료되었습니다."),
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
 
+
+
+    NO_MATCHING_APPLE_KEY(HttpStatus.BAD_REQUEST, "일치하는 Apple 공개키가 없습니다."),
+    PUBLIC_KEY_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "공개키 생성에 실패했습니다."),
+    INVALID_JWT_ISSUER(HttpStatus.UNAUTHORIZED, "토큰 발급자(iss)가 유효하지 않습니다."),
+    INVALID_JWT_AUDIENCE(HttpStatus.UNAUTHORIZED, "토큰 수신자(aud)가 유효하지 않습니다."),
+    INVALID_JWT_NONCE(HttpStatus.UNAUTHORIZED, "Nonce 값이 일치하지 않습니다."),
+    INVALID_JWT_APPLE(HttpStatus.UNAUTHORIZED, "APPLE JWT 값이 일치하지 않습니다."),
+
+
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),
     PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST, "프로필은 한장만 등록 가능합니다."),
