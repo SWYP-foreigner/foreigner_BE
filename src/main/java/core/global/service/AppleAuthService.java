@@ -109,23 +109,27 @@ public class AppleAuthService {
     }
 
     public LoginResponseDto login(AppleLoginByCodeRequest req) {
+        log.info("--- [Apple 앱 로그인] 처리 시작 ---");
+        log.debug("Request DTO: {}", req);
+
         log.info("1. 클라이언트로부터 받은 Identity Token을 검증하는 중...");
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String appleSocialId = claims.getSubject();
         String provider = Ouathplatform.APPLE.toString();
-        String expectedAudience = appleProps.clientId();
-        String actualAudience = claims.getAudience();
 
-        log.info("Audience Check -> Expected from Server Config: [{}], Actual from Token: [{}]", expectedAudience, actualAudience);
-
-        log.info("{}",req);
         log.info("2. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
         boolean isNewUser;
 
         if (user == null) {
             log.info("새로운 사용자입니다. 소셜 ID로 계정 생성");
-            user = userService.createOauth(appleSocialId, req.email(),provider);
+            String emailFromToken = claims.get("email", String.class);
+            log.info("이메일 {}",emailFromToken);
+            user = userService.createOauth(
+                    appleSocialId,
+                    emailFromToken,
+                    provider
+            );
             isNewUser = true;
             log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", user.getId());
         } else {
@@ -136,14 +140,15 @@ public class AppleAuthService {
         log.info("3. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-        log.info("Access Token generated for user ID {}: {}", user.getId(), accessToken);
-        log.info("Refresh Token generated for user ID {}: {}", user.getId(), refreshToken);
+
+        log.debug("Access Token generated for user ID {}: {}", user.getId(), accessToken);
+        log.debug("Refresh Token generated for user ID {}: {}", user.getId(), refreshToken);
+
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
         long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
 
         return new LoginResponseDto(user.getId(), accessToken, refreshToken, isNewUser);
     }
-
 
 }
