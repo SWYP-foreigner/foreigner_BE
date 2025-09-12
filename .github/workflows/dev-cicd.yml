@@ -129,8 +129,9 @@ jobs:
             fi
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
 
-            curl -sS -X POST "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+            curl -sS -X POST \
               -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
               -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
             echo; echo "[ES] _reindex done"
 
