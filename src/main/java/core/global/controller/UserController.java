@@ -320,6 +320,4 @@ public class UserController {
         List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
         return ResponseEntity.ok(userProfiles);
     }
-
-
 }

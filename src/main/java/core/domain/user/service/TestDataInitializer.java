@@ -65,7 +65,8 @@ public class TestDataInitializer implements CommandLineRunner {
                     "None", // String 대신 List<String> 사용
                     "test",
                     "test" + i,
-                    "user" + i + "@example.com"
+                    "user" + i + "@example.com",
+                    "ew"
             );
             users.add(user);
         }

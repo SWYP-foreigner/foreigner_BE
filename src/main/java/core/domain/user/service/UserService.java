@@ -18,10 +18,13 @@ import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
+import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
+import core.global.service.AppleAuthService;
+import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -83,6 +86,8 @@ public class UserService {
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
     private final LikeRepository likeRepository;
+    private final AppleWithdrawalService appleWithdrawalService;
+
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
@@ -103,12 +108,25 @@ public class UserService {
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-
-        // User 객체 생성 (Builder 사용 가능)
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
                 .provider(provider)
+                .build();
+
+        User saved = userRepository.save(u);
+
+        log.info("createOauth saved: id={}", saved.getId());
+        return saved;
+    }
+    @Transactional
+    public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken) {
+        log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
+        User u = User.builder()
+                .socialId(socialId)
+                .email(email)
+                .provider(provider)
+                .appleRefreshToken(appleRefreshToken)
                 .build();
 
         User saved = userRepository.save(u);
@@ -445,7 +463,7 @@ public class UserService {
         String verificationCode = smtpService.sendVerificationEmail(
                 email,
                 ttl,
-                locale   // 여기서 앱이 보낸 언어 사용
+                locale
         );
 
         redisTemplate.opsForValue().set(
@@ -690,38 +708,53 @@ public class UserService {
      * @param userId      탈퇴할 사용자의 ID
      * @param accessToken 블랙리스트에 추가할 사용자의 Access Token
      */
+    /**
+     * 회원 탈퇴 메인 메소드 (Orchestrator)
+     */
     public void withdrawUser(Long userId, String accessToken) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-
-        if (!userRepository.existsById(userId)) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
+            appleWithdrawalService.revokeAppleToken(user);
         }
+        cleanupUserData(user);
+
+        redisService.deleteRefreshToken(userId);
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+    }
+
+    /**
+     * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
+     */
+    private void cleanupUserData(User user) {
+        Long userId = user.getId();
+        log.info(">>>> Starting data cleanup for user ID: {}", userId);
 
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
-
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
             log.info(">>>> Deleted comments on posts by userId: {}", userId);
 
             bookmarkRepository.deleteAllByPostIn(userPosts);
             log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
+
             postRepository.deleteAll(userPosts);
             log.info(">>>> Deleted posts by userId: {}", userId);
         }
+
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-        userRepository.deleteById(userId);
 
-        redisService.deleteRefreshToken(userId);
-        imageService.deleteUserProfileImage(userId);
-
-        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-        redisService.blacklistAccessToken(accessToken, expiration);
+        userRepository.delete(user);
+        log.info(">>>> Deleted user entity for userId: {}", userId);
     }
     /**
      * 단일 사용자 정보 조회 로직

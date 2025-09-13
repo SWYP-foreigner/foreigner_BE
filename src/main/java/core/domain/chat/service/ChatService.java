@@ -863,4 +863,13 @@ public class ChatService {
                     }).collect(Collectors.toList());
         }
     }
+    public void deleteMessage(Long messageId, Long currentUserId) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getSender().getId().equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+        }
+        chatMessageRepository.delete(message);
+    }
 }

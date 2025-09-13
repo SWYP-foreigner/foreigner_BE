@@ -42,13 +42,16 @@ public enum ErrorCode {
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
 
 
-
     NO_MATCHING_APPLE_KEY(HttpStatus.BAD_REQUEST, "일치하는 Apple 공개키가 없습니다."),
     PUBLIC_KEY_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "공개키 생성에 실패했습니다."),
     INVALID_JWT_ISSUER(HttpStatus.UNAUTHORIZED, "토큰 발급자(iss)가 유효하지 않습니다."),
     INVALID_JWT_AUDIENCE(HttpStatus.UNAUTHORIZED, "토큰 수신자(aud)가 유효하지 않습니다."),
     INVALID_JWT_NONCE(HttpStatus.UNAUTHORIZED, "Nonce 값이 일치하지 않습니다."),
     INVALID_JWT_APPLE(HttpStatus.UNAUTHORIZED, "APPLE JWT 값이 일치하지 않습니다."),
+    INVALID_PRIVATE_KEY_APPLE(HttpStatus.UNAUTHORIZED, "APPLE 개인키가 유효하지 않습니다."),
+    INVALID_APPLE_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "APPLE 리프레쉬 토큰을 지니고 있지 않습니다."),
+    INVALID_APPLE_REQUEST(HttpStatus.UNAUTHORIZED, "APPLE 서버에 요청에 실패했습니다"),
+
 
 
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
@@ -70,8 +73,11 @@ public enum ErrorCode {
     BOOKMARK_ALREADY_EXIST(HttpStatus.CONFLICT, "북마크가 이미 존재합니다."),
     BOOKMARK_NOT_FOUND(HttpStatus.NOT_FOUND, "북마크가 존재하지 않습니다."),
     CHAT_ROOM_JOIN_FAILED(HttpStatus.BAD_REQUEST, "채팅방에 들어가지 못했습니다."),
+
+
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
     MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "메시지가 존재하지 않습니다."),
+    FORBIDDEN_MESSAGE_DELETE(HttpStatus.BAD_REQUEST, "메세지는 보낸 사람만 삭제할 수 있습니다."),
     CHAT_PARTICIPANT_MINIMUM(HttpStatus.BAD_REQUEST, "채팅방에는 최소 1명(개설자)이 포함되어야 합니다."),
     CHAT_PARTICIPANT_NOT_FOUND(HttpStatus.NOT_FOUND, "참여자 중 존재하지 않는 사용자가 있습니다."),
     NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),

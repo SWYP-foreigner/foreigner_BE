@@ -14,13 +14,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 
 /**
@@ -43,6 +40,8 @@ public class AppleAuthService {
     private final ApplePublicKeyGenerator applePublicKeyGenerator;
     private final JwtTokenProvider jwtTokenProvider;
     private final AppleOAuthProperties appleProps;
+    private final AppleClientSecretGenerator appleClientSecretGenerator;
+    private final AppleClient appleClient;
 
     @Value("${oauth.apple.issuer}")
     private String issuer;
@@ -50,7 +49,6 @@ public class AppleAuthService {
 
 
     public Claims verifyAndGetClaims(String identityToken, String nonce) {
-        // ⭐️ [로그 추가] 시작 시 받은 값들을 확인합니다.
         log.debug("--- Apple Token Verification Start ---");
         log.debug("Received identityToken (first 30 chars): {}", identityToken != null ? identityToken.substring(0, Math.min(identityToken.length(), 30)) : "null");
         log.debug("Received nonce from request: {}", nonce);
@@ -90,7 +88,6 @@ public class AppleAuthService {
                 throw new BusinessException(ErrorCode.INVALID_JWT_AUDIENCE);
             }
 
-            // Nonce 검증
             String nonceFromToken = claims.get("nonce", String.class);
             log.debug("Comparing Nonce -> Expected: [{}], Actual: [{}]", nonce, nonceFromToken);
             if (nonce == null || !nonce.equals(nonceFromToken)) {
@@ -110,9 +107,6 @@ public class AppleAuthService {
 
     public LoginResponseDto login(AppleLoginByCodeRequest req) {
         log.info("--- [Apple 앱 로그인] 처리 시작 ---");
-        log.debug("Request DTO: {}", req);
-
-        log.info("1. 클라이언트로부터 받은 Identity Token을 검증하는 중...");
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String appleSocialId = claims.getSubject();
         String provider = Ouathplatform.APPLE.toString();
@@ -122,13 +116,18 @@ public class AppleAuthService {
         boolean isNewUser;
 
         if (user == null) {
-            log.info("새로운 사용자입니다. 소셜 ID로 계정 생성");
+            log.info("새로운 사용자입니다. Apple 서버로부터 토큰 발급 시도...");
+
+            String appleRefreshToken = requestAppleToken(req.authorizationCode());
+
+            log.info("Apple 서버로부터 refresh_token 수신 완료. 계정 생성 시작...");
             String emailFromToken = claims.get("email", String.class);
-            log.info("이메일 {}",emailFromToken);
-            user = userService.createOauth(
+
+            user = userService.createAppleOauth(
                     appleSocialId,
                     emailFromToken,
-                    provider
+                    provider,
+                    appleRefreshToken
             );
             isNewUser = true;
             log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", user.getId());
@@ -149,6 +148,26 @@ public class AppleAuthService {
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
 
         return new LoginResponseDto(user.getId(), accessToken, refreshToken, isNewUser);
+    }
+    /**
+     * authorizationCode를 사용해 Apple 서버에 토큰 발급을 요청하고, refresh_token을 반환하는 private 메소드
+     */
+    private String requestAppleToken(String authorizationCode) {
+        String clientSecret = appleClientSecretGenerator.generateClientSecret();
+
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("client_id", appleProps.clientId());
+        formData.add("client_secret", clientSecret);
+        formData.add("code", authorizationCode);
+        formData.add("grant_type", "authorization_code");
+
+        try {
+            AppleRefreshTokenResponse response = appleClient.getToken(formData);
+            return response.refreshToken();
+        } catch (Exception e) {
+            log.error("Failed to get token from Apple server.", e);
+            throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
+        }
     }
 
 }
