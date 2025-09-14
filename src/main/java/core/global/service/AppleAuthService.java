@@ -81,7 +81,7 @@ public class AppleAuthService {
             }
 
 
-            String expectedAudience = appleProps.clientId();
+            String expectedAudience = appleProps.appBundleId();
             String actualAudience = claims.getAudience();
             log.debug("Comparing Audience -> Expected: [{}], Actual: [{}]", expectedAudience, actualAudience);
             if (!expectedAudience.equals(actualAudience)) {

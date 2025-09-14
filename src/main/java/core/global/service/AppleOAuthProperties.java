@@ -7,6 +7,7 @@ public record AppleOAuthProperties(
         String teamId,
         String keyId,
         String clientId,
+        String appBundleId,
         String redirectUri,
         String privateKeyPem
 ) {}
