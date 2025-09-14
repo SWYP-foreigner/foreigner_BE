@@ -13,11 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
 
@@ -51,35 +47,20 @@ public class AppleClientSecretGenerator {
                 .compact();
     }
 
-    /**
-     * application.yml에 저장된 Base64 인코딩된 p8 private key를 PrivateKey 객체로 변환합니다.
-     * @return PrivateKey 객체
-     */
     private PrivateKey createPrivateKey() {
         try {
-            String encodedKey = appleProps.privateKeyPem();
-            log.info("--- Decoding Apple Private Key ---");
-            log.info("Original Base64 Encoded Key (first 30 chars): {}...", encodedKey.substring(0, 30));
-            log.info("Encoded Key Length: {}", encodedKey.length());
+            byte[] decodedKey = Base64.getDecoder().decode(appleProps.privateKeyPem());
+            String keyString = new String(decodedKey);
 
-            byte[] decodedKey = Base64.getDecoder().decode(encodedKey);
-            String pemString = new String(decodedKey);
-            log.info("Decoded PEM Key (first 30 chars): {}...", pemString.substring(0, 30));
-            log.info("---------------------------------");
+            try (StringReader keyReader = new StringReader(keyString);
+                 PEMParser pemParser = new PEMParser(keyReader)) {
 
-            String cleanKey = pemString
-                    .replace("-----BEGIN PRIVATE KEY-----", "")
-                    .replace("-----END PRIVATE KEY-----", "")
-                    .replaceAll("\\s+", "");
+                JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+                PrivateKeyInfo privateKeyInfo = (PrivateKeyInfo) pemParser.readObject();
+                return converter.getPrivateKey(privateKeyInfo);
+            }
 
-            byte[] keyBytes = Base64.getDecoder().decode(cleanKey);
-            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-
-            KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            return keyFactory.generatePrivate(keySpec);
-
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            log.error("Failed to parse Apple private key.", e);
+        } catch (IOException e) {
             throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
         }
     }
