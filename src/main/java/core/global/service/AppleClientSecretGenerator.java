@@ -38,7 +38,7 @@ public class AppleClientSecretGenerator {
         return Jwts.builder()
                 .setHeaderParam("kid", appleProps.keyId())
                 .setHeaderParam("alg", "ES256")
-                .setIssuer(appleProps.teamId())
+                .setIssuer(appleProps.clientId())
                 .setIssuedAt(now)
                 .setExpiration(expiration)
                 .setAudience("https://appleid.apple.com")
