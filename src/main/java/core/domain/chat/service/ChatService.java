@@ -8,6 +8,7 @@ import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
@@ -18,12 +19,13 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import core.global.enums.NotificationType;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,11 +46,11 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final SimpMessagingTemplate messagingTemplate; // 주입 필요
     private final ImageService imageService;
-
+    private final ApplicationEventPublisher eventPublisher;
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService, ApplicationEventPublisher eventPublisher) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -60,6 +62,7 @@ public class ChatService {
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
         this.imageService = imageService;
+        this.eventPublisher = eventPublisher;
     }
     private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
@@ -713,7 +716,20 @@ public class ChatService {
                     }
                 }
             }
+            if (!recipient.getId().equals(req.senderId())) {
 
+                String notificationMessage = senderUser.getFirstName() + "님으로부터 새로운 메시지";
+
+                NotificationEvent event = new NotificationEvent(
+                        recipient.getId(),
+                        NotificationType.chat,
+                        notificationMessage,
+                        chatRoom.getId(),
+                        senderUser
+                );
+
+                eventPublisher.publishEvent(event);
+            }
             ChatMessageResponse messageResponse = new ChatMessageResponse(
                     savedMessage.getId(),
                     chatRoom.getId(),
