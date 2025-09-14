@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.io.StringReader;
 import java.security.PrivateKey;
+import java.util.Base64;
 import java.util.Date;
 
 @Slf4j
@@ -46,20 +47,22 @@ public class AppleClientSecretGenerator {
                 .compact();
     }
 
-    /**
-     * application.yml에 저장된 p8 형식의 private key 문자열을 PrivateKey 객체로 변환합니다.
-     * @return PrivateKey 객체
-     */
     private PrivateKey createPrivateKey() {
-        try (StringReader keyReader = new StringReader(appleProps.privateKeyPem());
-             PEMParser pemParser = new PEMParser(keyReader)) {
+        try {
+            byte[] decodedKey = Base64.getDecoder().decode(appleProps.privateKeyPem());
+            String keyString = new String(decodedKey);
 
-            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-            PrivateKeyInfo privateKeyInfo = (PrivateKeyInfo) pemParser.readObject();
-            return converter.getPrivateKey(privateKeyInfo);
+            try (StringReader keyReader = new StringReader(keyString);
+                 PEMParser pemParser = new PEMParser(keyReader)) {
+
+                JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+                PrivateKeyInfo privateKeyInfo = (PrivateKeyInfo) pemParser.readObject();
+                return converter.getPrivateKey(privateKeyInfo);
+            }
 
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
         }
     }
+
 }
