@@ -208,6 +208,7 @@ jobs:
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
             APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
+            APPLE_APP_BUNDLE_ID="${{ secrets.APPLE_APP_BUNDLE_ID }}"
 
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
