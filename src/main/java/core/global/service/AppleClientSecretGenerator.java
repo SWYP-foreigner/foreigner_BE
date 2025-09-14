@@ -47,10 +47,23 @@ public class AppleClientSecretGenerator {
                 .compact();
     }
 
+    /**
+     * application.yml에 저장된 Base64 인코딩된 p8 private key를 PrivateKey 객체로 변환합니다.
+     * @return PrivateKey 객체
+     */
     private PrivateKey createPrivateKey() {
         try {
-            byte[] decodedKey = Base64.getDecoder().decode(appleProps.privateKeyPem());
+            String encodedKey = appleProps.privateKeyPem();
+            log.info("--- Decoding Apple Private Key ---");
+            log.info("Original Base64 Encoded Key (first 30 chars): {}...", encodedKey.substring(0, 30));
+            log.info("Encoded Key Length: {}", encodedKey.length());
+
+            byte[] decodedKey = Base64.getDecoder().decode(encodedKey);
             String keyString = new String(decodedKey);
+
+            log.info("Decoded PEM Key (first 30 chars): {}...", keyString.substring(0, 30));
+            log.info("---------------------------------");
+
 
             try (StringReader keyReader = new StringReader(keyString);
                  PEMParser pemParser = new PEMParser(keyReader)) {
@@ -61,8 +74,8 @@ public class AppleClientSecretGenerator {
             }
 
         } catch (IOException e) {
+            log.error("Failed to parse Apple private key.", e);
             throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
         }
     }
-
 }
