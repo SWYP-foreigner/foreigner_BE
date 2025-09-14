@@ -31,7 +31,7 @@ public class AppleClientSecretGenerator {
      */
     public String generateClientSecret() {
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + (1000L * 3600 * 24 * 29));
+        Date expiration = new Date(now.getTime() + (1000L * 3600 * 24 * 20));
 
         PrivateKey privateKey = createPrivateKey();
 
