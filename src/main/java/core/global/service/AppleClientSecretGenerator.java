@@ -13,7 +13,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
 
@@ -59,23 +63,25 @@ public class AppleClientSecretGenerator {
             log.info("Encoded Key Length: {}", encodedKey.length());
 
             byte[] decodedKey = Base64.getDecoder().decode(encodedKey);
-            String keyString = new String(decodedKey);
-
-            log.info("Decoded PEM Key (first 30 chars): {}...", keyString.substring(0, 30));
+            String pemString = new String(decodedKey);
+            log.info("Decoded PEM Key (first 30 chars): {}...", pemString.substring(0, 30));
             log.info("---------------------------------");
 
+            String cleanKey = pemString
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s+", "");
 
-            try (StringReader keyReader = new StringReader(keyString);
-                 PEMParser pemParser = new PEMParser(keyReader)) {
+            byte[] keyBytes = Base64.getDecoder().decode(cleanKey);
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
 
-                JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-                PrivateKeyInfo privateKeyInfo = (PrivateKeyInfo) pemParser.readObject();
-                return converter.getPrivateKey(privateKeyInfo);
-            }
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            return keyFactory.generatePrivate(keySpec);
 
-        } catch (IOException e) {
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             log.error("Failed to parse Apple private key.", e);
             throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
         }
     }
+
 }
