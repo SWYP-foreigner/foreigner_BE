@@ -38,11 +38,11 @@ public class AppleClientSecretGenerator {
         return Jwts.builder()
                 .setHeaderParam("kid", appleProps.keyId())
                 .setHeaderParam("alg", "ES256")
-                .setIssuer(appleProps.clientId())
+                .setIssuer(appleProps.teamId())
                 .setIssuedAt(now)
                 .setExpiration(expiration)
                 .setAudience("https://appleid.apple.com")
-                .setSubject(appleProps.clientId())
+                .setSubject(appleProps.appBundleId())
                 .signWith(privateKey, SignatureAlgorithm.ES256)
                 .compact();
     }
