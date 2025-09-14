@@ -9,6 +9,9 @@ public record BookmarkItem(
         @Schema(description = "북마크 ID", example = "100")
         Long bookmarkId,
 
+        @Schema(description = "게시물 ID", example = "100")
+        Long postId,
+
         @Schema(description = "작성자 이름", example = "alice")
         String authorName,
 

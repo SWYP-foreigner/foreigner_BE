@@ -141,6 +141,7 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         return new BookmarkItem(
                 b.getId(),
+                postId,
                 authorName,
                 safeTrim(p.getContent()),
                 isLiked,
