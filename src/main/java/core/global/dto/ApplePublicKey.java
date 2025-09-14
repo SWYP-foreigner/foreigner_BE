@@ -1,14 +1,11 @@
 package core.global.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
+import lombok.Getter;
+import lombok.Setter;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public record ApplePublicKey(
-        String kty,
-        String kid,
-        String use,
-        String alg,
-        String crv,
-        String x,
-        String y
-) {}
+import java.util.List;
+
+public record ApplePublicKey(String kty, String kid,String use, String alg, String n, String e) {
+}
