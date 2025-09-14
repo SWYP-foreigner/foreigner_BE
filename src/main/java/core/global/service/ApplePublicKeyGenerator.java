@@ -22,7 +22,10 @@ public class ApplePublicKeyGenerator {
      */
     public PublicKey generate(Map<String, String> tokenHeaders, ApplePublicKeyResponse publicKeyResponse) {
         ApplePublicKey matchedKey = publicKeyResponse.keys().stream()
-                .filter(key -> key.kid().equals(tokenHeaders.get("kid")) && key.alg().equals(tokenHeaders.get("alg")))
+                .filter(key ->
+                        key.kid().equals(tokenHeaders.get("kid")) &&
+                                "ES256".equals(key.alg())
+                )
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NO_MATCHING_APPLE_KEY));
 
