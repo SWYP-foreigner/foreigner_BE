@@ -161,6 +161,16 @@ public class AppleAuthService {
         formData.add("code", authorizationCode);
         formData.add("grant_type", "authorization_code");
 
+        // --- 👇 [디버깅 로그 추가] ---
+        log.info("--- Apple /auth/token Request Body ---");
+        log.info("client_id: {}", appleProps.clientId());
+        log.info("grant_type: authorization_code");
+        log.info("code (Authorization Code): {}", authorizationCode);
+        // 🚨 WARNING: 아래 로그는 매우 민감한 정보이므로, 디버깅 완료 후 반드시 삭제하세요.
+        log.info("client_secret (JWT): {}", clientSecret);
+        log.info("------------------------------------");
+        // --- [디버깅 로그 끝] ---
+
         try {
             AppleRefreshTokenResponse response = appleClient.getToken(formData);
             return response.refreshToken();
