@@ -7,5 +7,12 @@ import lombok.Setter;
 
 import java.util.List;
 
-public record ApplePublicKey(String kty, String kid,String use, String alg, String n, String e) {
-}
+public record ApplePublicKey(
+        String kty, // Key Type (EC)
+        String kid, // Key ID
+        String use, // Usage (sig)
+        String alg, // Algorithm (ES256)
+        String crv, // Curve (P-256)
+        String x,   // X Coordinate
+        String y    // Y Coordinate
+) {}
