@@ -160,13 +160,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          
+          echo "IMAGE from build: ${{ needs.build.outputs.image }}"
+          
           command -v docker >/dev/null || { echo "::error::docker not found"; exit 1; }
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
           # 1) env 파일
           sudo mkdir -p /etc/foreigner
           sudo bash -c 'cat > /etc/foreigner/foreigner.env' <<EOF
-          IMAGE='"${IMAGE}"'
+          IMAGE=${{ needs.build.outputs.image }}
 
           # NCP PostgreSQL
           SPRING_DATASOURCE_URL='${{ secrets.SPRING_DATASOURCE_URL }}'
