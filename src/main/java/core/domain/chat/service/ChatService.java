@@ -879,13 +879,19 @@ public class ChatService {
                     }).collect(Collectors.toList());
         }
     }
-    public void deleteMessage(Long messageId, Long currentUserId) {
+    /**
+     * @apiNote 메시지를 DB에서 삭제하고, 해당 채팅방에 삭제 이벤트를 브로드캐스팅합니다.
+     */
+    @Transactional
+    public void deleteMessageAndBroadcast(Long messageId, Long userId) {
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
 
-        if (!message.getSender().getId().equals(currentUserId)) {
+        if (!message.getSender().getId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
         chatMessageRepository.delete(message);
+        String destination = "/topic/rooms/" + message.getChatRoom().getId();
+        messagingTemplate.convertAndSend(destination);
     }
 }

@@ -321,19 +321,4 @@ public class ChatController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
 
-    @Operation(summary = "메시지 삭제", description = "자신이 보낸 메시지를 삭제합니다.")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "해당 유저가 보낸 메세지가 아님"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메시지")
-    })
-    @DeleteMapping("/messages")
-    public ResponseEntity<ApiResponse<Void>> deleteMessage(
-            @RequestParam Long messageId
-    ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = principal.getUserId();
-        chatService.deleteMessage(messageId, userId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 }
