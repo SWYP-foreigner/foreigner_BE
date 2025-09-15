@@ -166,9 +166,9 @@ jobs:
           
           echo "IMAGE from build(raw): '${IMAGE_FROM_BUILD}'"
           if [ -n "${IMAGE_FROM_BUILD:-}" ]; then
-          IMAGE_EFF="$IMAGE_FROM_BUILD"
+            IMAGE_EFF="$IMAGE_FROM_BUILD"
           else
-          IMAGE_EFF="${DOCKERHUB_USERNAME}/foreigner:${SHA_FROM_BUILD:-$GITHUB_SHA}"
+            IMAGE_EFF="${DOCKERHUB_USERNAME}/foreigner:${SHA_FROM_BUILD:-$GITHUB_SHA}"
           fi
           echo "IMAGE effective: ${IMAGE_EFF}"
                              
