@@ -158,18 +158,30 @@ jobs:
       - uses: actions/checkout@v4
       - name: Deploy locally on ${{ matrix.target }}
         shell: bash
+        env:
+          IMAGE_FROM_BUILD: ${{ needs.build.outputs.image }}   # build job 출력(없을 수도 있으니 fallback 씀)
+          SHA_FROM_BUILD: ${{ needs.build.outputs.sha }}
         run: |
           set -euo pipefail
           
-          echo "IMAGE from build: ${{ needs.build.outputs.image }}"
-          
+          echo "IMAGE from build(raw): '${IMAGE_FROM_BUILD}'"
+          if [ -n "${IMAGE_FROM_BUILD:-}" ]; then
+          IMAGE_EFF="$IMAGE_FROM_BUILD"
+          else
+          IMAGE_EFF="${DOCKERHUB_USERNAME}/foreigner:${SHA_FROM_BUILD:-$GITHUB_SHA}"
+          fi
+          echo "IMAGE effective: ${IMAGE_EFF}"
+                             
           command -v docker >/dev/null || { echo "::error::docker not found"; exit 1; }
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
           # 1) env 파일
           sudo mkdir -p /etc/foreigner
-          sudo bash -c 'cat > /etc/foreigner/foreigner.env' <<EOF
-          IMAGE=${{ needs.build.outputs.image }}
+          sudo env IMAGE_EFF="$IMAGE_EFF" bash -lc 'cat > /etc/foreigner/foreigner.env' <<'EOF'
+          IMAGE='"${IMAGE_EFF}"'
+
+#          sudo bash -c 'cat > /etc/foreigner/foreigner.env' <<EOF
+#          IMAGE=${{ needs.build.outputs.image }}
 
           # NCP PostgreSQL
           SPRING_DATASOURCE_URL='${{ secrets.SPRING_DATASOURCE_URL }}'
