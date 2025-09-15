@@ -141,7 +141,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets[format('PROD_HOST_{0}', matrix.host_alias)] }}
-          username: koriuser
+          username: ${{ secrets.PROD_USER }}
           key: ${{ secrets[format('PROD_SSH_KEY_{0}', matrix.host_alias)] }}
           script: |
             set -euo pipefail
@@ -166,14 +166,14 @@ jobs:
             SPRING_DATA_MONGODB_URI='${{ secrets.MONGODB_ATLAS_URI }}'
 
             # NCP Redis
-            SPRING_DATA_REDIS_HOST="${{ secrets.REDIS_HOST }}"
-            SPRING_DATA_REDIS_PORT="${{ secrets.REDIS_PORT }}"
-            SPRING_DATA_REDIS_PASSWORD="${{ secrets.REDIS_PASSWORD }}"
+            SPRING_DATA_REDIS_HOST="${{ secrets.PROD_REDIS_HOST }}"
+            SPRING_DATA_REDIS_PORT="${{ secrets.PROD_REDIS_PORT }}"
+            SPRING_DATA_REDIS_PASSWORD="${{ secrets.PROD_REDIS_PASSWORD }}"
 
             # App / ES
             JWT_SECRET='${{ secrets.JWT_SECRET }}'
-            ELASTICSEARCH_HOST='${{ secrets.ELASTICSEARCH_HOST }}'
-            SERVER_URL='${{ secrets.SERVER_URL }}'
+            ELASTICSEARCH_HOST='${{ secrets.PROD_ELASTICSEARCH_HOST }}'
+            SERVER_URL='${{ secrets.PROD_SERVER_URL }}'
 
             # (선택) 기타
             ANDROID_CLIENT_ID='${{ secrets.ANDROID_CLIENT_ID }}'
