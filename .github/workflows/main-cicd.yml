@@ -31,7 +31,6 @@ jobs:
           PROD_REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           PROD_ELASTICSEARCH_HOST: ${{ secrets.PROD_ELASTICSEARCH_HOST }}
-          PROD_SERVER_URL: ${{ secrets.PROD_SERVER_URL }}
           MONGODB_ATLAS_URI: ${{ secrets.MONGODB_ATLAS_URI }}
           ES_URL_PROD: ${{ secrets.ES_URL_PROD }}
         run: |
