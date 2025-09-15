@@ -1,6 +1,7 @@
 package core.global.dto;
 
 
+import core.global.enums.DeviceType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +13,4 @@ import lombok.NoArgsConstructor;
 @Builder
 public class GoogleLoginReq {
     private String code;
-    private String codeVerifier;
-    private String platform;
-
 }

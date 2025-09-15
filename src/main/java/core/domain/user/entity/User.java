@@ -1,80 +1,221 @@
 package core.domain.user.entity;
 
-
-import core.global.enums.Sex;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
+
 @Entity
-@Table(name = "User")
+@Table(name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"provider", "social_id"}),
+                @UniqueConstraint(columnNames = {"email"})
+        })
 @Getter
 @NoArgsConstructor
 public class User {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
     private Long id;
 
     @Column(name = "name")
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "SEX", nullable = false)
-    private Sex sex;
+    @Column(name = "first_name", nullable = true)
+    private String firstName;
 
-    @Column(name = "age", nullable = false)
-    private Integer age;
+    @Column(name = "last_name", nullable = true)
+    private String lastName;
 
-    @Column(name = "nationality")
-    private String nationality;
+    @Column(name = "SEX", nullable = true)
+    private String sex;
 
-    @Column(name = "introduction", length = 40, nullable = false)
+    @Column(name = "birth_date", nullable = true)
+    private String birthdate;
+
+    @Column(name = "nationality", nullable = true)
+    private String country;
+
+    @Column(name = "introduction", length = 40, nullable = true)
     private String introduction;
 
-    @Column(name = "visit_purpose", length = 40)
-    private String visitPurpose;
+    @Column(name = "visit_purpose", length = 40, nullable = true)
+    private String purpose;
 
-    @Column(name = "languages")
-    private String languages;
+    @Column(name = "languages", nullable = true)
+    private String language;
 
-    @Column(name = "hobby")
+    @Column(name = "translate_language", nullable = true)
+    private String translateLanguage;
+
+    @Column(name = "hobby", nullable = true)
     private String hobby;
 
-    @Column(name = "created_at", nullable = false)
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @LastModifiedDate
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @Column(name = "Provider", nullable = false)
+    @Column(name = "provider", nullable = true)
     private String provider;
 
-    @Column(name = "social_id", nullable = false)
+    @Column(name = "social_id", nullable = true)
     private String socialId;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "email", nullable = true)
     private String email;
 
+    @Column(name = "password", nullable = true)
+    private String password;
+
+    @Column(name = "is_new_user")
+    private boolean isNewUser =true;
+
+    @Column(name = "agreed_to_push_notification")
+    private boolean agreedToPushNotification = false;
+
+    @Column(name = "agreed_to_terms")
+    private boolean agreedToTerms = false;
+    @Column(name = "apple_refresh_token")
+    private String appleRefreshToken;
 
     @Builder
-    public User(String name, Sex sex, Integer age, String nationality,
-                String introduction, String visitPurpose, String languages,
-                String hobby, String provider, String socialId, String email) {
-        this.name = name;
+    public User(String firstName,
+                String lastName,
+                String sex,
+                String birthdate,
+                String country,
+                String introduction,
+                String purpose,
+                String language,
+                String hobby,
+                String provider,
+                String socialId,
+                String email,String appleRefreshToken) {
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.sex = sex;
-        this.age = age;
-        this.nationality = nationality;
+        this.birthdate = birthdate;
+        this.country = country;
         this.introduction = introduction;
-        this.visitPurpose = visitPurpose;
-        this.languages = languages;
+        this.purpose = purpose;
+        this.language = language;
         this.hobby = hobby;
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
-        this.createdAt = Instant.now();
+        this.appleRefreshToken = appleRefreshToken;
+    }
+    // --- 개별 필드 업데이트 메서드 ---
+    public void updateFirstName(String firstName) {
+        if (notBlank(firstName)) this.firstName = firstName.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateLastName(String lastName) {
+        if (notBlank(lastName)) this.lastName = lastName.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateSex(String sex) {
+        if (sex != null) this.sex = sex;
+        touchUpdatedAt();
+    }
+
+    public void updateBirthdate(String birthdate) {
+        if (birthdate != null) this.birthdate = birthdate;
+        touchUpdatedAt();
+    }
+
+    public void updateCountry(String country) {
+        if (notBlank(country)) this.country = country.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateIntroduction(String introduction) {
+        if (notBlank(introduction)) this.introduction = introduction.trim();
+        touchUpdatedAt();
+    }
+
+    public void updatePurpose(String purpose) {
+        if (notBlank(purpose)) this.purpose = purpose.trim();
+        touchUpdatedAt();
+    }
+
+    public void updateLanguage(String language) {
+        if (notBlank(language)) this.language = language;
+        touchUpdatedAt();
+    }
+
+    public void updateTranslateLanguage(String translateLanguage) {
+        if (notBlank(translateLanguage)) this.translateLanguage = translateLanguage;
+        touchUpdatedAt();
+    }
+
+    public void updateHobby(String hobby) {
+        if (notBlank(hobby)) this.hobby = hobby;
+        touchUpdatedAt();
+    }
+
+    public void updatePassword(String password) {
+        if (notBlank(password)) this.password = password;
+        touchUpdatedAt();
+    }
+
+    public void updateEmail(String email) {
+        if (notBlank(email)) this.email = email;
+        touchUpdatedAt();
+    }
+
+    public void updateIsNewUser(boolean isNewUser) {
+        this.isNewUser = isNewUser;
+        touchUpdatedAt();
+    }
+
+    public void updateAgreedToPushNotification(boolean agreed) {
+        this.agreedToPushNotification = agreed;
+        touchUpdatedAt();
+    }
+
+    public void updateAgreedToTerms(boolean agreed) {
+        this.agreedToTerms = agreed;
+        touchUpdatedAt();
+    }
+
+    public void updateProvider(String provider) {
+        if (notBlank(provider)) this.provider = provider;
+        touchUpdatedAt();
+    }
+
+    public void updateSocialId(String socialId) {
+        if (notBlank(socialId)) this.socialId = socialId;
+        touchUpdatedAt();
+    }
+
+    public void updateCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void updateUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    // --- Helper ---
+    private boolean notBlank(String s) {
+        return s != null && !s.trim().isEmpty();
+    }
+
+    private void touchUpdatedAt() {
         this.updatedAt = Instant.now();
     }
+
 
 }

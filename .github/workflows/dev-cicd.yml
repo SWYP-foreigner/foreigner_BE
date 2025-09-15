@@ -1,0 +1,252 @@
+name: Deploy Foreigner (Dev via Docker Compose)
+
+on:
+  push:
+    branches: [ dev ]
+
+concurrency:
+  group: deploy-foreigner-dev
+  cancel-in-progress: true
+
+jobs:
+  # 0) 시크릿/환경 선확인만 담당
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        run: |
+          test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "DOCKERHUB_USERNAME is empty" && exit 1)
+          test -n "${{ secrets.DOCKERHUB_TOKEN }}"     || (echo "DOCKERHUB_TOKEN is empty" && exit 1)
+          test -n "${{ secrets.DEV_HOST }}"            || (echo "DEV_HOST is empty" && exit 1)
+          test -n "${{ secrets.DEV_USER }}"            || (echo "DEV_USER is empty" && exit 1)
+          test -n "${{ secrets.DEV_SSH_KEY }}"         || (echo "DEV_SSH_KEY is empty" && exit 1)
+          test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
+          test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
+          test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
+          test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
+          test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
+          echo "All required secrets are set."
+
+  # 1) 도커 이미지 빌드/푸시만 담당
+  build:
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.IMAGE }}
+      sha: ${{ steps.meta.outputs.SHA }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+
+      - name: Export image meta
+        id: meta
+        run: |
+          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  # 2) ES 템플릿/스크립트만 서버로 업로드
+  upload-es:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Upload ES assets (scripts + template)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          source: "infra/elasticsearch/**"
+          target: "~/foreigner"
+
+  # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
+  es-rollout:
+    needs: upload-es
+    runs-on: ubuntu-latest
+    steps:
+      - name: Elasticsearch rollout on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            command -v curl >/dev/null || (echo "curl not found" && exit 1)
+            
+            export ES_URL="${{ secrets.ES_URL }}"
+            export ES_AUTH="${{ secrets.ES_AUTH }}"
+            : "${ES_URL:?ES_URL must be set}"
+            
+            CURL_AUTH=()
+            if [ -n "${ES_AUTH:-}" ]; then
+              CURL_AUTH=(-u "$ES_AUTH")
+            fi
+
+            # 연결 스모크(헤더만)
+            echo "[ES] HEAD ${ES_URL}"
+            curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
+            
+            cd ~/foreigner
+            chmod -R +x infra/elasticsearch/scripts || true
+
+            echo "[ES] Apply template"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch/scripts/01-apply_template.sh
+
+            echo "[ES] Create new index"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch/scripts/02-create_index.sh
+            NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
+            echo "[ES] New index = ${NEW_IDX}"
+
+            SRC_ALIAS="posts_search"
+            if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
+              SRC_ALIAS="posts_lab"
+            fi
+            echo "[ES] Reindex source alias = ${SRC_ALIAS}"
+
+            curl -sS -X POST \
+              -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
+            echo; echo "[ES] _reindex done"
+
+            echo "[ES] Switch aliases"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch/scripts/03-switch_alias.sh
+            
+            echo "[ES] Cleanup: keep last 1, delete the rest"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
+            bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
+
+            echo "[ES] Verify"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch/scripts/99-verify.sh
+
+  # 4) 앱 배포만(.env 작성→docker compose pull/up)
+  deploy-app:
+    needs: [ build, es-rollout ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy app on server (Docker Compose)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            command -v docker >/dev/null || (echo "docker not found" && exit 1)
+            docker compose version || (echo "docker compose not found" && exit 1)
+
+            mkdir -p ~/foreigner
+            cd ~/foreigner
+
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
+
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+            : "${IMAGE:?IMAGE is empty}"
+            echo "Using IMAGE=${IMAGE}"
+
+            cat > .env <<'EOF'
+            # --- PostgreSQL ---
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USERNAME=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+            # --- MongoDB ---
+            MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+            MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+            MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
+
+            # --- Redis ---
+            SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
+            SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
+            SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+            # --- JWT ---
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+
+            # --- OAuth: Google ---
+            ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
+            ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
+            IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
+            IOS_REDIRECT_URI=${{ secrets.IOS_REDIRECT_URI }}
+            WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
+            WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
+            WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
+
+            # --- OAuth: Apple ---
+            APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
+            APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
+            APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
+            APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
+            APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
+            APPLE_APP_BUNDLE_ID="${{ secrets.APPLE_APP_BUNDLE_ID }}"
+
+            # --- NCP Object Storage ---
+            NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
+            NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
+            NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
+
+            NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
+            NCP_EMAIL=${{ secrets.NCP_EMAIL }}
+            NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
+
+            FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
+            FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
+            FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
+
+            # --- Elasticsearch (app) ---
+            ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
+
+            SERVER_URL=${{ secrets.SERVER_URL }}
+            
+            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+            GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
+            
+            NAVER_HOST=${{ secrets.NAVER_HOST }}
+            APP_NAME=${{ secrets.APP_NAME }}
+            BASE_URL=${{ secrets.BASE_URL }}
+            
+            # --- 추가 설정 ---
+            SPRING_PROFILES_ACTIVE=dev
+            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
+            EOF
+            
+            printf 'IMAGE=%s\n' "$IMAGE" >> .env
+            chmod 600 .env || true
+            echo "Using IMAGE=${IMAGE}"
+            
+            docker compose pull
+            docker compose up -d --remove-orphans
+            
+            docker compose ps
+            docker compose logs --since=5m || true
+            docker image prune -f || true
