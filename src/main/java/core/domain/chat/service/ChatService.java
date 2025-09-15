@@ -891,7 +891,7 @@ public class ChatService {
             throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
         Map<String, String> payload = Map.of(
-                "messageId", messageId.toString(),
+                "id", messageId.toString(),
                 "type", "delete"
         );
 
