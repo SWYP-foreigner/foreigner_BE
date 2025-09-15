@@ -30,7 +30,7 @@ public class AppleWithdrawalService {
         if (appleRefreshToken == null) {
             throw new BusinessException(ErrorCode.INVALID_APPLE_REFRESH_TOKEN);
         }
-        String clientSecret = clientSecretGenerator.generateClientSecret();
+        String clientSecret = clientSecretGenerator.generateRevokeClientSecret();
         MultiValueMap<String, String> formData = createRevokeFormData(clientSecret, appleRefreshToken);
 
         try {
