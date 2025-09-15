@@ -179,8 +179,10 @@ jobs:
 
           # 1) env 파일
           sudo mkdir -p /etc/foreigner
-          sudo env IMAGE_EFF="$IMAGE_EFF" bash -lc 'cat > /etc/foreigner/foreigner.env' <<EOF
-          echo "IMAGE=${IMAGE_EFF}" | sudo tee /etc/foreigner/foreigner.env
+          
+          cat <<EOF | sudo tee /etc/foreigner/foreigner.env > /dev/null
+          IMAGE=${IMAGE_EFF}
+  
 
           # NCP PostgreSQL
           SPRING_DATASOURCE_URL='${{ secrets.SPRING_DATASOURCE_URL }}'
