@@ -3,9 +3,7 @@ package core.global.image.dto;
 
 
 public record ImageDto(
-        Long id,
-        String imageType,
-        Long relatedId,
-        String url,
-        Integer orderIndex
+        Long imageId,
+        Long relatedId, // 여기서는 chatRoomId가 됨
+        String imageUrl
 ) {}
