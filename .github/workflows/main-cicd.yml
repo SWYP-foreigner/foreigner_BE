@@ -27,7 +27,7 @@ jobs:
           SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
           SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           PROD_REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
-          PROD_REDIS_PORT: ${{ secrets.PROD_REDIS_PORT }}
+          PROD_REDIS_PORT: ${{ secrets.REDIS_PORT }}
           PROD_REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           PROD_ELASTICSEARCH_HOST: ${{ secrets.PROD_ELASTICSEARCH_HOST }}
