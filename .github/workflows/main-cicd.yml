@@ -193,7 +193,7 @@ jobs:
           
           # NCP Redis
           SPRING_DATA_REDIS_HOST=${{ secrets.PROD_REDIS_HOST }}
-          SPRING_DATA_REDIS_PORT=${{ secrets.PROD_REDIS_PORT }}
+          SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
           SPRING_DATA_REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
           
           # App / ES
