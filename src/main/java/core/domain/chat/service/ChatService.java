@@ -890,8 +890,13 @@ public class ChatService {
         if (!message.getSender().getId().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
+        Map<String, String> payload = Map.of(
+                "messageId", messageId.toString(),
+                "type", "delete"
+        );
+
         chatMessageRepository.delete(message);
         String destination = "/topic/rooms/" + message.getChatRoom().getId();
-        messagingTemplate.convertAndSend(destination);
+        messagingTemplate.convertAndSend(destination,payload);
     }
 }
