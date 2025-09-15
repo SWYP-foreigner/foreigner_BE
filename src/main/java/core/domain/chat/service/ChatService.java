@@ -703,6 +703,12 @@ public class ChatService {
                 .map(Image::getUrl)
                 .orElse(null);
 
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+                .ifPresent(participant -> {
+                    participant.setLastReadMessageId(savedMessage.getId());
+                    chatParticipantRepository.save(participant);
+                });
+
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
