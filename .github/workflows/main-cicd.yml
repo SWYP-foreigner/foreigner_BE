@@ -47,8 +47,8 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     outputs:
-      image: ${{ steps.meta.outputs.IMAGE }}
-      sha: ${{ steps.meta.outputs.SHA }}
+      image: ${{ steps.meta.outputs.image }}
+      sha: ${{ steps.meta.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -67,10 +67,12 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
-      - id: meta
+
+      - name: Export image meta
+        id: meta
         run: |
-          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "image=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
 
   # ✅ C 서버 러너에서 로컬로 ES 롤아웃 (SSH/SCP 제거)
   es-rollout:
