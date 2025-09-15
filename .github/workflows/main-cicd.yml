@@ -17,22 +17,48 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN:    ${{ secrets.DOCKERHUB_TOKEN }}
+      PROD_HOST_A:        ${{ secrets.PROD_HOST_A }}
+      PROD_HOST_B:        ${{ secrets.PROD_HOST_B }}
+      PROD_HOST_C:        ${{ secrets.PROD_HOST_C }}
+      PROD_SSH_KEY_A:     ${{ secrets.PROD_SSH_KEY_A }}
+      PROD_SSH_KEY_B:     ${{ secrets.PROD_SSH_KEY_B }}
+      PROD_SSH_KEY_C:     ${{ secrets.PROD_SSH_KEY_C }}
+      SPRING_DATASOURCE_URL:      ${{ secrets.SPRING_DATASOURCE_URL }}
+      SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+      SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+      REDIS_HOST:         ${{ secrets.REDIS_HOST }}
+      REDIS_PORT:         ${{ secrets.REDIS_PORT }}
+      REDIS_PASSWORD:     ${{ secrets.REDIS_PASSWORD }}
+      ELASTICSEARCH_HOST: ${{ secrets.ELASTICSEARCH_HOST }}
+      JWT_SECRET:         ${{ secrets.JWT_SECRET }}
+      SERVER_URL:         ${{ secrets.SERVER_URL }}
+      MONGODB_ATLAS_URI:  ${{ secrets.MONGODB_ATLAS_URI }}
     steps:
       - name: Validate required secrets
         shell: bash
         run: |
-          req(){ test -n "${!1}" || (echo "::error::$1 is empty" && exit 1); }
-          # Docker Hub
-          req DOCKERHUB_USERNAME; req DOCKERHUB_TOKEN
-          # Hosts
-          req PROD_HOST_A; req PROD_HOST_B; req PROD_HOST_C
-          # Per-host SSH keys
-          req PROD_SSH_KEY_A; req PROD_SSH_KEY_B; req PROD_SSH_KEY_C
-          # Datastores
-          req SPRING_DATASOURCE_URL; req SPRING_DATASOURCE_USERNAME; req SPRING_DATASOURCE_PASSWORD
-          req REDIS_HOST; req REDIS_PORT; req REDIS_PASSWORD
-          # App/ES
-          req ELASTICSEARCH_HOST; req JWT_SECRET; req SERVER_URL; req MONGODB_ATLAS_URI
+          set -euo pipefail
+          req() {
+            local v=$1
+            # -u 보호에서 안전하게: 미정의면 빈값 취급
+            if [[ -z "${!v:-}" ]]; then
+              echo "::error::$v is empty"
+              exit 1
+            fi
+          }
+          for v in \
+            DOCKERHUB_USERNAME DOCKERHUB_TOKEN \
+            PROD_HOST_A PROD_HOST_B PROD_HOST_C \
+            PROD_SSH_KEY_A PROD_SSH_KEY_B PROD_SSH_KEY_C \
+            SPRING_DATASOURCE_URL SPRING_DATASOURCE_USERNAME SPRING_DATASOURCE_PASSWORD \
+            REDIS_HOST REDIS_PORT REDIS_PASSWORD \
+            ELASTICSEARCH_HOST JWT_SECRET SERVER_URL MONGODB_ATLAS_URI
+          do
+            req "$v"
+          done
           echo "preflight ok"
 
   build:
