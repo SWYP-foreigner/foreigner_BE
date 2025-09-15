@@ -182,60 +182,61 @@ jobs:
           
           cat <<EOF | sudo tee /etc/foreigner/foreigner.env > /dev/null
           IMAGE=${IMAGE_EFF}
-  
-
+          
           # NCP PostgreSQL
-          SPRING_DATASOURCE_URL='${{ secrets.SPRING_DATASOURCE_URL }}'
-          SPRING_DATASOURCE_USERNAME='${{ secrets.SPRING_DATASOURCE_USERNAME }}'
-          SPRING_DATASOURCE_PASSWORD='${{ secrets.SPRING_DATASOURCE_PASSWORD }}'
-
+          SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+          
           # MongoDB Atlas
-          SPRING_DATA_MONGODB_URI='${{ secrets.MONGODB_ATLAS_URI }}'
-
+          SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
+          
           # NCP Redis
-          SPRING_DATA_REDIS_HOST="${{ secrets.PROD_REDIS_HOST }}"
-          SPRING_DATA_REDIS_PORT="${{ secrets.PROD_REDIS_PORT }}"
-          SPRING_DATA_REDIS_PASSWORD="${{ secrets.PROD_REDIS_PASSWORD }}"
-
+          SPRING_DATA_REDIS_HOST=${{ secrets.PROD_REDIS_HOST }}
+          SPRING_DATA_REDIS_PORT=${{ secrets.PROD_REDIS_PORT }}
+          SPRING_DATA_REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
+          
           # App / ES
-          JWT_SECRET='${{ secrets.JWT_SECRET }}'
-          ELASTICSEARCH_HOST='${{ secrets.PROD_ELASTICSEARCH_HOST }}'
-          SERVER_URL='${{ secrets.PROD_SERVER_URL }}'
-
-          # 기타
-          ANDROID_CLIENT_ID='${{ secrets.ANDROID_CLIENT_ID }}'
-          ANDROID_REDIRECT_URI='${{ secrets.ANDROID_REDIRECT_URI }}'
-          IOS_CLIENT_ID='${{ secrets.IOS_CLIENT_ID }}'
-          IOS_REDIRECT_URI='${{ secrets.IOS_REDIRECT_URI }}'
-          WEB_CLIENT_ID='${{ secrets.WEB_CLIENT_ID }}'
-          WEB_CLIENT_SECRET='${{ secrets.WEB_CLIENT_SECRET }}'
-          WEB_REDIRECT_URI='${{ secrets.WEB_REDIRECT_URI }}'
-          APPLE_TEAM_ID='${{ secrets.APPLE_TEAM_ID }}'
-          APPLE_KEY_ID='${{ secrets.APPLE_KEY_ID }}'
-          APPLE_CLIENT_ID='${{ secrets.APPLE_CLIENT_ID }}'
-          APPLE_REDIRECT_URI='${{ secrets.APPLE_REDIRECT_URI }}'
-          APPLE_PRIVATE_KEY_PEM='${{ secrets.APPLE_PRIVATE_KEY_PEM }}'
-          APPLE_APP_BUNDLE_ID='${{ secrets.APPLE_APP_BUNDLE_ID }}'
-          NCP_ACCESS_KEY='${{ secrets.NCP_ACCESS_KEY }}'
-          NCP_SECRET_KEY='${{ secrets.NCP_SECRET_KEY }}'
-          NCP_BUCKET_NAME='${{ secrets.NCP_BUCKET_NAME }}'
-          NCP_MAIL_HOST='${{ secrets.NCP_MAIL_HOST }}'
-          NCP_EMAIL='${{ secrets.NCP_EMAIL }}'
-          NCP_EMAIL_PASSWORD='${{ secrets.NCP_EMAIL_PASSWORD }}'
-          FEIGN_CONNECT_TIMEOUT='${{ secrets.FEIGN_CONNECT_TIMEOUT }}'
-          FEIGN_READ_TIMEOUT='${{ secrets.FEIGN_READ_TIMEOUT }}'
-          FEIGN_LOGGER_LEVEL='${{ secrets.FEIGN_LOGGER_LEVEL }}'
-          GCP_PROJECT_ID='${{ secrets.GCP_PROJECT_ID }}'
-          GCP_TRANSLATE_API_KEY='${{ secrets.GCP_TRANSLATE_API_KEY }}'
-          NAVER_HOST='${{ secrets.NAVER_HOST }}'
-          APP_NAME='${{ secrets.APP_NAME }}'
-          BASE_URL='${{ secrets.BASE_URL }}'
-
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+          SERVER_URL=${{ secrets.PROD_SERVER_URL }}
+          
+          # OAuth/기타 시크릿도 모두 따옴표 없이!
+          ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
+          ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
+          IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
+          IOS_REDIRECT_URI=${{ secrets.IOS_REDIRECT_URI }}
+          WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
+          WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
+          WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
+          APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
+          APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
+          APPLE_PRIVATE_KEY_PEM=${{ secrets.APPLE_PRIVATE_KEY_PEM }}
+          APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
+          NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
+          NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
+          NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
+          NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
+          NCP_EMAIL=${{ secrets.NCP_EMAIL }}
+          NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
+          FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
+          FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
+          FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
+          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
+          NAVER_HOST=${{ secrets.NAVER_HOST }}
+          APP_NAME=${{ secrets.APP_NAME }}
+          BASE_URL=${{ secrets.BASE_URL }}
+          
           SPRING_PROFILES_ACTIVE=prod
           JAVA_TOOL_OPTIONS=-Xms512m -Xmx1024m
           APP_PORT=8080
           EOF
-          sudo chmod 600 /etc/foreigner/foreigner.env
+          
+          sudo chgrp docker /etc/foreigner/foreigner.env 2>/dev/null || true
+          sudo chmod 640 /etc/foreigner/foreigner.env
 
           # 2) systemd 유닛
           sudo bash -c 'cat > /etc/systemd/system/foreigner.service' <<'EOF'
