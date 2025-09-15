@@ -65,6 +65,46 @@ public class ChatWebSocketController {
     public void handleTypingEvent(@Payload TypingEvent event) {
         template.convertAndSend("/topic/chatrooms/" + event.roomId(), event);
     }
+
+    /**
+     * @apiNote 메시지 읽음 상태를 업데이트하고, 해당 채팅방의 다른 참여자에게 실시간으로 알립니다.
+     * 1:1 채팅의 경우 상대방이 읽으면 readCount가 줄고, 그룹 채팅은 읽지 않은 사람 수가 줄어듭니다.
+     *
+     * @param req 읽음 상태 업데이트 요청 (roomId, readerId, lastReadMessageId)
+     */
+
+    @MessageMapping("/chat.markAsRead")
+    public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
+        try {
+            Long userId = req.userId();
+            chatService.markMessagesAsRead(req.roomId(), userId, req.lastReadMessageId());
+
+            messagingTemplate.convertAndSend(
+                    "/topic/rooms/" + req.roomId() + "/read-status",
+                    new ReadStatusResponse(req.roomId(), userId, req.lastReadMessageId())
+            );
+
+            ChatRoom chatRoom = chatService.getChatRoomById(req.roomId());
+
+            int unreadCount = chatService.countUnreadMessages(req.roomId(),userId);
+
+            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
+                    chatRoom,
+                    userId,
+                    chatService.getLastMessageContent(req.roomId()),
+                    chatService.getLastMessageTime(req.roomId()),
+                    unreadCount,
+                    imageRepository
+            );
+
+            messagingTemplate.convertAndSend("/topic/user/" + userId + "/rooms", summary);
+
+            log.info("메시지 읽음 처리 성공: roomId={}, readerId={}, lastReadMessageId={}",
+                    req.roomId(), userId, req.lastReadMessageId());
+        } catch (Exception e) {
+            log.error("메시지 읽음 처리 실패", e);
+        }
+    }
     /**
      * @apiNote 메시지 삭제를 처리하고, 해당 채팅방의 모든 참여자에게 삭제 사실을 알립니다.
      *
@@ -79,23 +119,5 @@ public class ChatWebSocketController {
             log.error("메시지 삭제 처리 중 에러 발생", e);
         }
     }
-    /**
-     * @apiNote 메시지 읽음 상태를 업데이트하고, 해당 채팅방의 다른 참여자에게 실시간으로 알립니다.
-     * 1:1 채팅의 경우 상대방이 읽으면 readCount가 줄고, 그룹 채팅은 읽지 않은 사람 수가 줄어듭니다.
-     *
-     * @param req 읽음 상태 업데이트 요청 (roomId, readerId, lastReadMessageId)
-     */
 
-/*
-    @MessageMapping("/chat.markAsRead")
-    public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
-        try {
-            // ✨ 모든 복잡한 로직을 서비스의 단일 메소드에 위임합니다.
-            chatService.markAsReadAndBroadcastUpdates(req);
-            log.info("메시지 읽음 요청 처리 완료: roomId={}, readerId={}", req.roomId(), req.userId());
-        } catch (Exception e) {
-            log.error("메시지 읽음 처리 중 에러 발생", e);
-        }
-    }
-*/
 }

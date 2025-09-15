@@ -30,17 +30,9 @@ public interface ImageService {
     /** 현재 프로필 이미지를 삭제(S3 + image 레코드) */
     void deleteUserProfileImage(Long userId);
 
-    @Transactional
-    void deleteChatRoomProfileImage(Long userId);
 
     /** 현재 프로필 이미지 key 조회(없으면 null) */
     String getUserProfileKey(Long userId);
-
-    /** key 또는 URL을 내부 key로 정규화 */
-    String normalizeKey(String keyOrUrl);
-
-    /** 내부 key → 공개 URL */
-    String toPublicUrl(String keyOrNull);
 
      List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
 }
