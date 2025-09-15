@@ -79,5 +79,23 @@ public class ChatWebSocketController {
             log.error("메시지 삭제 처리 중 에러 발생", e);
         }
     }
+    /**
+     * @apiNote 메시지 읽음 상태를 업데이트하고, 해당 채팅방의 다른 참여자에게 실시간으로 알립니다.
+     * 1:1 채팅의 경우 상대방이 읽으면 readCount가 줄고, 그룹 채팅은 읽지 않은 사람 수가 줄어듭니다.
+     *
+     * @param req 읽음 상태 업데이트 요청 (roomId, readerId, lastReadMessageId)
+     */
 
+/*
+    @MessageMapping("/chat.markAsRead")
+    public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
+        try {
+            // ✨ 모든 복잡한 로직을 서비스의 단일 메소드에 위임합니다.
+            chatService.markAsReadAndBroadcastUpdates(req);
+            log.info("메시지 읽음 요청 처리 완료: roomId={}, readerId={}", req.roomId(), req.userId());
+        } catch (Exception e) {
+            log.error("메시지 읽음 처리 중 에러 발생", e);
+        }
+    }
+*/
 }

@@ -899,4 +899,5 @@ public class ChatService {
         String destination = "/topic/rooms/" + message.getChatRoom().getId();
         messagingTemplate.convertAndSend(destination,payload);
     }
+
 }
