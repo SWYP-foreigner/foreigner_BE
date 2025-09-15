@@ -59,7 +59,7 @@ public class SecurityConfig {
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
-                                "/actuator/health",
+                                "/actuator/**",
                                 "/ws/**",
                                 "/ws"
 

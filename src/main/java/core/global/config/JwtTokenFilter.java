@@ -51,7 +51,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/api/v1/member/refresh",
             "/api/v1/member/password/**",
             "/api/v1/member/email/check",
-            "/actuator/health",
+            "/actuator/**",
             "/ws/**"
     );
 
