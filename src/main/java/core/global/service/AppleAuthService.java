@@ -156,14 +156,14 @@ public class AppleAuthService {
         String clientSecret = appleClientSecretGenerator.generateClientSecret();
 
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("client_id", appleProps.clientId());
+        formData.add("client_id", appleProps.appBundleId());
         formData.add("client_secret", clientSecret);
         formData.add("code", authorizationCode);
         formData.add("grant_type", "authorization_code");
 
         // --- 👇 [디버깅 로그 추가] ---
         log.info("--- Apple /auth/token Request Body ---");
-        log.info("client_id: {}", appleProps.clientId());
+        log.info("client_id: {}", appleProps.appBundleId());
         log.info("grant_type: authorization_code");
         log.info("code (Authorization Code): {}", authorizationCode);
         // 🚨 WARNING: 아래 로그는 매우 민감한 정보이므로, 디버깅 완료 후 반드시 삭제하세요.
