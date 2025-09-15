@@ -156,7 +156,7 @@ public class AppleAuthService {
         String clientSecret = appleClientSecretGenerator.generateClientSecret();
 
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("client_id", appleProps.appBundleId());
+        formData.add("client_id", appleProps.clientId());
         formData.add("client_secret", clientSecret);
         formData.add("code", authorizationCode);
         formData.add("grant_type", "authorization_code");

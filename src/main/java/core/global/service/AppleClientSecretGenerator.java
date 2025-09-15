@@ -42,7 +42,7 @@ public class AppleClientSecretGenerator {
                 .setIssuedAt(now)
                 .setExpiration(expiration)
                 .setAudience("https://appleid.apple.com")
-                .setSubject(appleProps.appBundleId())
+                .setSubject(appleProps.clientId())
                 .signWith(privateKey, SignatureAlgorithm.ES256)
                 .compact();
     }
