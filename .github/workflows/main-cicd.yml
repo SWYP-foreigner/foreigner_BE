@@ -165,7 +165,7 @@ jobs:
 
           # 1) env 파일
           sudo mkdir -p /etc/foreigner
-          sudo bash -c 'cat > /etc/foreigner/foreigner.env' <<'EOF'
+          sudo bash -c 'cat > /etc/foreigner/foreigner.env' <<EOF
           IMAGE='"${IMAGE}"'
 
           # NCP PostgreSQL
