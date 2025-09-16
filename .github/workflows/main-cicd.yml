@@ -199,6 +199,10 @@ jobs:
           # App / ES
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+          SPRING_ELASTICSEARCH_URIS=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+          SPRING_ELASTICSEARCH_USERNAME=${{ secrets.PROD_ELASTICSEARCH_USERNAME }}
+          SPRING_ELASTICSEARCH_PASSWORD=${{ secrets.PROD_ELASTICSEARCH_PASSWORD }}
+
           SERVER_URL=${{ secrets.PROD_SERVER_URL }}
           
           # OAuth/기타 시크릿도 모두 따옴표 없이!
