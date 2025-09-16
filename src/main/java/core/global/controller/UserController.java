@@ -13,6 +13,7 @@ import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
 import core.global.service.RedisService;
+import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

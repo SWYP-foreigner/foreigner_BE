@@ -1,6 +1,8 @@
 package core.global.service;
 
 import core.domain.user.entity.User;
+import core.domain.user.service.UserService;
+import core.global.config.JwtTokenProvider;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import feign.FeignException;

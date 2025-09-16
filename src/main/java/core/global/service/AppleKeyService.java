@@ -1,5 +1,6 @@
 package core.global.service;
 
+import core.global.service.AppleClient;
 import core.global.dto.ApplePublicKeyResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

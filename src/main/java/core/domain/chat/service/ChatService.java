@@ -26,7 +26,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import core.global.enums.NotificationType;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;

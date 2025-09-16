@@ -2,6 +2,7 @@ package core.domain.notification.service;
 
 
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;

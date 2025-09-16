@@ -10,6 +10,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -19,13 +20,14 @@ import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
-import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
+import core.global.service.AppleAuthService;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -36,7 +38,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.regex.Pattern;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -44,9 +46,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import core.global.image.entity.Image;
 
 
 @Service

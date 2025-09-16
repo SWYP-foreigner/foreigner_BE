@@ -1,11 +1,15 @@
 package core.global.service;
 
+import core.global.dto.ApplePublicKey;
 import core.global.dto.ApplePublicKeyResponse;
 import core.global.dto.AppleRefreshTokenResponse;
+import core.global.dto.AppleTokenResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Map;

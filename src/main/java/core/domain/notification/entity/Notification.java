@@ -3,7 +3,11 @@ package core.domain.notification.entity;
 import core.domain.user.entity.User;
 import core.global.enums.NotificationType;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 

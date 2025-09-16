@@ -1,12 +1,11 @@
 package core.global.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
-import core.global.dto.AppleLoginByCodeRequest;
-import core.global.dto.ApplePublicKeyResponse;
-import core.global.dto.AppleRefreshTokenResponse;
-import core.global.dto.LoginResponseDto;
+import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
@@ -19,8 +18,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 import java.security.PublicKey;
-import java.util.Date;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 애플(iOS 네이티브) 로그인/토큰 교환/연동 해제(Service 계층).
@@ -45,8 +43,8 @@ public class AppleAuthService {
     private final AppleClientSecretGenerator appleClientSecretGenerator;
     private final AppleClient appleClient;
 
-//    @Value("${oauth.apple.issuer}")
-//    private String issuer;
+    @Value("${oauth.apple.issuer}")
+    private String issuer;
 
 
 

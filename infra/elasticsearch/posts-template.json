@@ -37,12 +37,9 @@
     "mappings": {
       "dynamic": false,
       "properties": {
-        "postId":     { "type": "long" },
         "boardId":    { "type": "long" },
         "userId":     { "type": "long" },
-        "anonymous":  { "type": "boolean" },
         "createdAt":  { "type": "date", "format": "epoch_millis" },
-        "updatedAt":  { "type": "date", "format": "epoch_millis" },
         "checkCount": { "type": "long" },
 
         "content": {
@@ -59,14 +56,16 @@
           "analyzer": "english_custom",
           "preserve_separators": true,
           "preserve_position_increments": true,
-          "max_input_length": 100
+          "max_input_length": 100,
+          "contexts": [{ "name": "boardId", "type": "category" }]
         },
         "contentSuggestExact": {
           "type": "completion",
           "analyzer": "english_completion_exact",
           "preserve_separators": true,
           "preserve_position_increments": true,
-          "max_input_length": 100
+          "max_input_length": 100,
+          "contexts": [{ "name": "boardId", "type": "category" }]
         }
       }
     }
