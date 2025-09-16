@@ -243,7 +243,7 @@ public class ImageServiceImpl implements ImageService {
             try {
                 var res = s3Client.deleteObjects(b -> b.bucket(bucket).delete(d -> d.objects(
                         chunk.stream()
-                                .map(k -> ObjectIdentifier.builder().key(k).build())
+                                .map(k -> software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder().key(k).build())
                                 .toList()
                 )));
                 if (res != null && res.errors() != null && !res.errors().isEmpty()) {
