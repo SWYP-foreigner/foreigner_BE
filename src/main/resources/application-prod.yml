@@ -29,6 +29,11 @@ spring:
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: true
 
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS}
+    username: ${SPRING_ELASTICSEARCH_USERNAME}
+    password: ${SPRING_ELASTICSEARCH_PASSWORD}
+
   data:
     mongodb:
       uri: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_INITDB_DATABASE}?authSource=admin
@@ -131,9 +136,6 @@ app:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
     code-ttl-minutes: 3
-
-  search:
-    es-url: ${ELASTICSEARCH_HOST}
 
   password:
     reset:
