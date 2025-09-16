@@ -3,6 +3,7 @@ package core.domain.chat.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Service
 public class ForbiddenWordService {
 
@@ -23,7 +25,8 @@ public class ForbiddenWordService {
     public void init() {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
-            List<String> words = objectMapper.readValue(forbiddenWordsFile.getInputStream(), new TypeReference<List<String>>() {});
+            List<String> words = objectMapper.readValue(forbiddenWordsFile.getInputStream(), new TypeReference<List<String>>() {
+            });
 
             this.forbiddenWords = words;
             System.out.println("금칙어 " + this.forbiddenWords.size() + "개를 로드했습니다.");
@@ -40,6 +43,8 @@ public class ForbiddenWordService {
         }
         for (String word : forbiddenWords) {
             if (text.toLowerCase().contains(word.toLowerCase())) {
+                log.debug("text" + text);
+                log.debug("word" + word);
                 return true;
             }
         }
