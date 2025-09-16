@@ -184,8 +184,13 @@ jobs:
           # 1) env 파일
           sudo mkdir -p /etc/foreigner
           
-          cat <<EOF | sudo tee /etc/foreigner/foreigner.env > /dev/null
-          IMAGE=${IMAGE_EFF}
+          # IMAGE= 만 변수 확장 필요 → printf로 먼저 씀
+          sudo bash -c "printf 'IMAGE=%s\n' \"$IMAGE_EFF\" > /etc/foreigner/foreigner.env"
+          # 나머지는 확장 방지 위해 'EOF' 사용(Secrets는 GitHub가 미리 치환함)
+          sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
+#
+#          cat <<EOF | sudo tee /etc/foreigner/foreigner.env > /dev/null
+#          IMAGE=${IMAGE_EFF}
           
           # NCP PostgreSQL
           SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
