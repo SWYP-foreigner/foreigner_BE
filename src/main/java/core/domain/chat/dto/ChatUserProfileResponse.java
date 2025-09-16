@@ -1,7 +1,6 @@
 package core.domain.chat.dto;
 
 import core.domain.user.entity.User;
-import java.util.List;
 
 public record ChatUserProfileResponse(
         Long id,

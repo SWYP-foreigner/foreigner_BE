@@ -1,16 +1,11 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.entity.ChatMessage;
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
-import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.config.CustomUserDetails;
 import core.global.image.repository.ImageRepository;
-import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,14 +13,8 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController; // 제거
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.List;
 
 @Controller
 @RequiredArgsConstructor

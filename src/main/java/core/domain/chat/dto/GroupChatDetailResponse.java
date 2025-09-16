@@ -1,6 +1,7 @@
 package core.domain.chat.dto;
 
 import core.domain.chat.entity.ChatRoom;
+
 import java.util.List;
 
 public record GroupChatDetailResponse(

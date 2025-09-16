@@ -2,26 +2,20 @@ package core.global.config;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import core.global.dto.AppleTokenResponse;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 
 import java.nio.charset.StandardCharsets;
-import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
 import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
-import java.util.Objects;
 
 @Component
 public class JwtTokenProvider {

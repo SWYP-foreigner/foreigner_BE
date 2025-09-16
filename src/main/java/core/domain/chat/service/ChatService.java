@@ -14,6 +14,7 @@ import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
+import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;

@@ -1,7 +1,6 @@
 package core.global.dto;
 
 
-import core.global.enums.DeviceType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

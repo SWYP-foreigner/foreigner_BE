@@ -1,13 +1,5 @@
 package core.global.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.entity.ChatParticipant;
-import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.chat.service.TranslationService;
-import core.domain.comment.repository.CommentRepository;
-import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -16,12 +8,7 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.ErrorCode;
-import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
-import core.global.exception.BusinessException;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
@@ -40,8 +27,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -289,7 +274,7 @@ public class UserController {
 
 
     @DeleteMapping("/withdraw")
-    @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다.")
+    @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다..")
     public ResponseEntity<Void> withdraw(HttpServletRequest request) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();

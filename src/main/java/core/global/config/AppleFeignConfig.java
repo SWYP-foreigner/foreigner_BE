@@ -2,7 +2,6 @@ package core.global.config;
 
 import core.global.service.AppleOAuthProperties;
 import feign.Logger;
-import feign.Retryer;
 import feign.codec.Encoder;
 import feign.form.spring.SpringFormEncoder;
 import org.springframework.beans.factory.ObjectFactory;

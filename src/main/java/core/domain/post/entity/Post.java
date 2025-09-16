@@ -2,8 +2,8 @@ package core.domain.post.entity;
 
 import core.domain.board.entity.Board;
 import core.domain.comment.entity.Comment;
-import core.domain.post.dto.PostWriteRequest;
 import core.domain.post.dto.PostWriteForChatRequest;
+import core.domain.post.dto.PostWriteRequest;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
