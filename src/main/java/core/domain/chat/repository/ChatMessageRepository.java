@@ -2,7 +2,6 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatMessage;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -69,4 +68,14 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     @Modifying
     @Query("DELETE FROM ChatMessage m WHERE m.sender.id = :userId")
     void deleteAllBySenderId(@Param("userId") Long userId);
+
+    /**
+     * 특정 메시지 ID보다 작은(이전) 메시지들을 최신순으로 20개 조회합니다.
+     */
+    List<ChatMessage> findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(Long roomId, Long messageId);
+
+    /**
+     * 특정 메시지 ID보다 큰(이후) 메시지들을 순서대로 20개 조회합니다.
+     */
+    List<ChatMessage> findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long messageId);
 }

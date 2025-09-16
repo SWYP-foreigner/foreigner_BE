@@ -1,17 +1,13 @@
 package core.global.service;
 
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.Instant;
 import java.util.Base64;
-import java.util.Date;
 
 @Component
 @RequiredArgsConstructor
@@ -38,17 +34,4 @@ public class AppleClientSecretProvider {
         }
     }
 
-    /** ES256으로 client_secret(JWT) 생성 */
-    public String createClientSecret() {
-        Instant now = Instant.now();
-        return Jwts.builder()
-                .setIssuer(props.teamId())
-                .setSubject(props.clientId())
-                .setAudience("https://appleid.apple.com")
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(now.plusSeconds(1800)))
-                .setHeaderParam("kid", props.keyId())
-                .signWith(loadECPrivateKey(), SignatureAlgorithm.ES256)
-                .compact();
-    }
 }

@@ -1,13 +1,6 @@
 package core.global.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.entity.ChatParticipant;
-import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.chat.service.TranslationService;
-import core.domain.comment.repository.CommentRepository;
-import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -15,12 +8,7 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.ErrorCode;
-import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
-import core.global.exception.BusinessException;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleService;
 import core.global.service.PasswordService;
@@ -38,9 +26,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -57,7 +44,7 @@ public class UserController {
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
-    private final AppleKeyGenerator appleKeyGenerator;
+    private final AppleAuthService appleAuthService;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -134,10 +121,6 @@ public class UserController {
     public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@RequestBody TokenRefreshRequest request) {
         log.info("--- [토큰 재발급] 요청 수신 ---");
         String refreshToken = request.refreshToken();
-
-//  29일짜리 Refresh/api 서버에서 Refresh 토큰이 만료되면로그아웃
-        // 만약 일치하면 accessToken+refreshToken 을 다시 준다.
-        //
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             log.warn("유효하지 않은 리프레시 토큰 요청: {}", refreshToken);
             return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
@@ -176,44 +159,24 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
-    @PostMapping("/apple/doLogin")
-    @Operation(summary = "애플 로그인")
-    public ResponseEntity<AppleLoginResult> loginByCode(@RequestBody AppleLoginByCodeRequest req) throws NoSuchAlgorithmException, InvalidKeySpecException, JsonProcessingException {
-        // 1. authorizationCode를 사용하여 Apple OAuth 서버로부터 토큰을 받습니다.
-        AppleTokenResponse appleToken = service.getTokenFromApple(
-                req.getAuthorizationCode(),
-                req.getCodeVerifier(),
-                req.getRedirectUri()
-        );
+    @Operation(summary = "애플 소셜 로그인", description = "앱에서 받은 identityToken으로 애플 로그인을 처리하고 JWT를 발급합니다.")
+    @PostMapping("/apple/app-login")
+    public ResponseEntity<ApiResponse<LoginResponseDto>> loginWithApple(
+            @Parameter(description = "Apple 로그인 요청 데이터", required = true)
+            @RequestBody @Valid AppleLoginByCodeRequest req) {
 
-        // 2. 받은 토큰 응답에서 id_token을 추출합니다.
-        String identityToken = appleToken.getIdToken();
+        log.info("--- [Apple 앱 로그인] API 요청 수신 ---");
+        try {
+            LoginResponseDto responseDto = appleAuthService.login(req);
 
-        // 3. 추출한 id_token을 검증합니다.
-        // 이 과정에서 issuer, audience(clientId), nonce 등의 유효성을 확인합니다.
-        service.verifyIdentityToken(identityToken);
+            log.info("--- [Apple 앱 로그인] 처리 완료. 사용자 ID: {}", responseDto.userId());
+            return ResponseEntity.ok(ApiResponse.success(responseDto));
 
-        // 4. id_token이 유효하면, 우리 서비스의 JWT(Access/Refresh Token)를 생성하고 반환합니다.
-        // 이 부분은 서비스의 사용자 식별 로직에 따라 구현됩니다.
-        AppleLoginResult result = service.makeToken(identityToken, appleToken.getRefreshToken());
-
-        return ResponseEntity.ok(result);
-    }
-
-
-    @DeleteMapping("/apple/withdraw")
-    @Operation(summary = "애플 회원 탈퇴 (DB에서 유저 삭제)")
-    public ResponseEntity<Void> logoutWithDraw(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-
-        String accessToken = authHeader.substring(7);
-        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
-
-        // 탈퇴 서비스 호출
-        service.deleteUser(userId);
-
-        log.info("사용자 {} 탈퇴 처리 완료.", userId);
-        return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("--- [Apple 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
+            ApiResponse<LoginResponseDto> errorResponse = ApiResponse.fail("로그인 실패: " + e.getMessage());
+            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
 
@@ -271,7 +234,6 @@ public class UserController {
 
         passwordService.sendEmailVerificationCode(request.getEmail(), loc);
 
-        // body 없이 200 OK 반환
         return ResponseEntity.ok().build();
     }
 
@@ -321,6 +283,25 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 특정 사용자 한 명의 프로필 정보를 조회합니다.
+     * @param userId 조회할 사용자의 ID
+     * @return UserResponseDto 형태의 사용자 정보
+     */
+    @GetMapping("/{userId}/info")
+    public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
+        UserResponseDto userProfile = userService.findUserProfile(userId);
+        return ResponseEntity.ok(userProfile);
+    }
 
-
+    /**
+     * 여러 사용자의 프로필 정보를 한 번에 조회합니다.
+     * @param userIds 조회할 사용자 ID 리스트
+     * @return UserResponseDto 리스트 형태의 사용자 정보
+     */
+    @GetMapping("/infos")
+    public ResponseEntity<List<UserResponseDto>> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
+        List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
+        return ResponseEntity.ok(userProfiles);
+    }
 }

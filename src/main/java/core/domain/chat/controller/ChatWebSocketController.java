@@ -1,16 +1,11 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.entity.ChatMessage;
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.domain.chat.service.TranslationService;
-import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.config.CustomUserDetails;
 import core.global.image.repository.ImageRepository;
-import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,14 +13,8 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController; // 제거
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -105,6 +94,19 @@ public class ChatWebSocketController {
             log.error("메시지 읽음 처리 실패", e);
         }
     }
-
+    /**
+     * @apiNote 메시지 삭제를 처리하고, 해당 채팅방의 모든 참여자에게 삭제 사실을 알립니다.
+     *
+     * @param req 삭제 요청 정보 (messageId, userId)
+     */
+    @MessageMapping("/chat.deleteMessage")
+    public void deleteMessage(@Payload DeleteMessageRequest req) {
+        try {
+            chatService.deleteMessageAndBroadcast(req.messageId(), req.senderId());
+            log.info("메시지 삭제 요청 처리: messageId={}, userId={}", req.messageId(), req.senderId());
+        } catch (Exception e) {
+            log.error("메시지 삭제 처리 중 에러 발생", e);
+        }
+    }
 
 }

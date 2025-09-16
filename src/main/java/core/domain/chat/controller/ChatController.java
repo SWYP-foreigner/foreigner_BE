@@ -1,65 +1,33 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.entity.ChatMessage;
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatService;
-import core.domain.chat.service.ForbiddenWordService;
-import core.domain.chat.service.TranslationService;
-import core.domain.user.entity.User;
-import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
-
-import core.global.enums.ChatParticipantStatus;
-import core.global.enums.ErrorCode;
-import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import lombok.extern.slf4j.Slf4j;
+
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Tag(name = "채팅 API", description = "1:1 채팅, 그룹 채팅, 메시지 검색/삭제 등 채팅 기능 API")
 @RestController
 @RequestMapping("/api/v1/chat")
-
+@RequiredArgsConstructor
 public class ChatController {
     private final ChatService chatService;
     private final Logger log = LoggerFactory.getLogger(ChatController.class);
-    private final UserRepository userRepository;
-    private final ChatRoomRepository chatRoomRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final TranslationService translationService;
-    public ChatController(ChatService chatService, UserRepository userRepository, ChatRoomRepository chatRoomRepository, ChatParticipantRepository chatParticipantRepository, ChatMessageRepository chatMessageRepository, TranslationService translationService) {
-        this.chatService = chatService;
-        this.userRepository = userRepository;
-        this.chatRoomRepository = chatRoomRepository;
-        this.chatParticipantRepository = chatParticipantRepository;
-        this.chatMessageRepository = chatMessageRepository;
-        this.translationService = translationService;
-    }
 
     @Operation(summary = "1:1 새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
     @ApiResponses({
@@ -217,9 +185,33 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
-
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
+    @Operation(summary = "특정 메시지 주변의 채팅 내용 조회", description = "검색 등에서 특정 메시지로 바로 이동할 때 사용합니다. 해당 메시지 기준 이전 20개, 이후 20개의 메시지를 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메세지",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/rooms/{roomId}/messages/around")
+    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
+            @PathVariable Long roomId,
+            @RequestParam Long messageId
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        List<ChatMessageResponse> responses = chatService.getMessagesAround(roomId, userId, messageId);
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+
+
     @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
     @GetMapping("/rooms/group/{roomId}")
     public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(
@@ -283,6 +275,7 @@ public class ChatController {
                     content = @Content(schema = @Schema(implementation = Object.class))
             )
     })
+
     @GetMapping("/users/{userId}/profile")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);

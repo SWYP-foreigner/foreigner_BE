@@ -101,7 +101,7 @@ public class PostSearchService {
             log.debug("[JPA] fetched={} ids={}", items.size(),
                     items.stream().map(BoardItem::postId).toList());
 
-            var missingInDb = new java.util.LinkedHashSet<>(ids);
+            var missingInDb = new LinkedHashSet<>(ids);
             missingInDb.removeAll(items.stream().map(BoardItem::postId).toList());
             if (!missingInDb.isEmpty()) {
                 log.warn("[DIFF] presentInES_butMissingInDB={}", missingInDb);

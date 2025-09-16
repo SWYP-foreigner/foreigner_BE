@@ -1,6 +1,7 @@
 package core.global.image.controller;
 
 import core.global.dto.ApiResponse;
+import core.global.image.dto.ImageDto;
 import core.global.image.dto.PresignedUrlRequest;
 import core.global.image.dto.PresignedUrlResponse;
 import core.global.image.service.ImageService;
@@ -44,4 +45,15 @@ public class ImageController {
         imageService.deleteFolder(fileLocation);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+    /**
+     * 여러 채팅방 ID에 해당하는 이미지 정보들을 일괄 조회합니다.
+     * @param roomIds 이미지 정보를 조회할 채팅방 ID 리스트
+     * @return 각 채팅방에 대한 ImageDto 리스트
+     */
+    @GetMapping("/chat-rooms")
+    public ResponseEntity<List<ImageDto>> getImagesForChatRooms(@RequestParam("roomIds") List<Long> roomIds) {
+        List<ImageDto> images = imageService.findImagesForChatRooms(roomIds);
+        return ResponseEntity.ok(images);
+    }
+
 }

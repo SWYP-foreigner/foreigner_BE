@@ -84,6 +84,8 @@ public class User {
 
     @Column(name = "agreed_to_terms")
     private boolean agreedToTerms = false;
+    @Column(name = "apple_refresh_token")
+    private String appleRefreshToken;
 
     @Builder
     public User(String firstName,
@@ -97,7 +99,7 @@ public class User {
                 String hobby,
                 String provider,
                 String socialId,
-                String email) {
+                String email,String appleRefreshToken) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.sex = sex;
@@ -110,6 +112,7 @@ public class User {
         this.provider = provider;
         this.socialId = socialId;
         this.email = email;
+        this.appleRefreshToken = appleRefreshToken;
     }
     // --- 개별 필드 업데이트 메서드 ---
     public void updateFirstName(String firstName) {

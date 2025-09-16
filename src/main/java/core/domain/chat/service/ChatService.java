@@ -8,16 +8,19 @@ import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
+import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -44,11 +47,11 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final SimpMessagingTemplate messagingTemplate; // 주입 필요
     private final ImageService imageService;
-
+    private final ApplicationEventPublisher eventPublisher;
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService, ApplicationEventPublisher eventPublisher) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -60,6 +63,7 @@ public class ChatService {
         this.chatRoomRepository = chatRoomRepository;
         this.messagingTemplate = messagingTemplate;
         this.imageService = imageService;
+        this.eventPublisher = eventPublisher;
     }
     private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
@@ -369,7 +373,6 @@ public class ChatService {
         return chatMessageRepository.save(message);
     }
 
-    // ChatService.java
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
@@ -400,6 +403,7 @@ public class ChatService {
                                 userImageUrl
                         );
                     })
+                    .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
         else {
@@ -435,6 +439,7 @@ public class ChatService {
                                 userImageUrl
                         );
                     })
+                    .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
     }
@@ -699,6 +704,12 @@ public class ChatService {
                 .map(Image::getUrl)
                 .orElse(null);
 
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+                .ifPresent(participant -> {
+                    participant.setLastReadMessageId(savedMessage.getId());
+                    chatParticipantRepository.save(participant);
+                });
+
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
@@ -712,7 +723,20 @@ public class ChatService {
                     }
                 }
             }
+            if (!recipient.getId().equals(req.senderId())) {
 
+                String notificationMessage = senderUser.getFirstName() + "님으로부터 새로운 메시지";
+
+                NotificationEvent event = new NotificationEvent(
+                        recipient.getId(),
+                        NotificationType.chat,
+                        notificationMessage,
+                        chatRoom.getId(),
+                        senderUser
+                );
+
+                eventPublisher.publishEvent(event);
+            }
             ChatMessageResponse messageResponse = new ChatMessageResponse(
                     savedMessage.getId(),
                     chatRoom.getId(),
@@ -786,6 +810,101 @@ public class ChatService {
             imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
         }
 
+    }
+
+
+    /**
+     * @apiNote 특정 메시지를 중심으로 이전/이후 메시지를 함께 조회합니다. (리팩토링 미적용 버전)
+     */
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+
+        List<ChatMessage> olderMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
+        Collections.reverse(olderMessages);
+
+        ChatMessage targetMessage = chatMessageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        List<ChatMessage> newerMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
+
+        List<ChatMessage> combinedMessages = new ArrayList<>();
+        combinedMessages.addAll(olderMessages);
+        combinedMessages.add(targetMessage);
+        combinedMessages.addAll(newerMessages);
+
+        boolean needsTranslation = participant.isTranslateEnabled();
+        String targetLanguage = participant.getUser().getTranslateLanguage();
+
+        if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
+            List<String> originalContents = combinedMessages.stream()
+                    .map(ChatMessage::getContent)
+                    .collect(Collectors.toList());
+            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+            return IntStream.range(0, combinedMessages.size())
+                    .mapToObj(i -> {
+                        ChatMessage message = combinedMessages.get(i);
+                        String translatedContent = translatedContents.get(i);
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                translatedContent,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
+                        );
+                    }).collect(Collectors.toList());
+        } else {
+            return combinedMessages.stream()
+                    .map(message -> {
+                        User sender = message.getSender();
+                        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                                .map(Image::getUrl)
+                                .orElse(null);
+
+                        return new ChatMessageResponse(
+                                message.getId(),
+                                message.getChatRoom().getId(),
+                                sender.getId(),
+                                message.getContent(),
+                                null,
+                                message.getSentAt(),
+                                sender.getFirstName(),
+                                sender.getLastName(),
+                                senderImageUrl
+                        );
+                    }).collect(Collectors.toList());
+        }
+    }
+    /**
+     * @apiNote 메시지를 DB에서 삭제하고, 해당 채팅방에 삭제 이벤트를 브로드캐스팅합니다.
+     */
+    @Transactional
+    public void deleteMessageAndBroadcast(Long messageId, Long userId) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.getSender().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+        }
+        Map<String, String> payload = Map.of(
+                "id", messageId.toString(),
+                "type", "delete"
+        );
+
+        chatMessageRepository.delete(message);
+        String destination = "/topic/rooms/" + message.getChatRoom().getId();
+        messagingTemplate.convertAndSend(destination,payload);
     }
 
 }

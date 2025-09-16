@@ -7,9 +7,9 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
-import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -17,13 +17,15 @@ import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
+import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
+import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -34,7 +36,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.regex.Pattern;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -42,8 +44,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -81,6 +84,8 @@ public class UserService {
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
     private final LikeRepository likeRepository;
+    private final AppleWithdrawalService appleWithdrawalService;
+
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
@@ -101,8 +106,6 @@ public class UserService {
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-
-        // User 객체 생성 (Builder 사용 가능)
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
@@ -114,24 +117,22 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
-
     @Transactional
-    public User findOrCreateUser(String socialId) {
+    public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken) {
+        log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
+        User u = User.builder()
+                .socialId(socialId)
+                .email(email)
+                .provider(provider)
+                .appleRefreshToken(appleRefreshToken)
+                .build();
 
-        String provider = "apple";
-        Optional<User> optionalUser = userRepository.findByProviderAndSocialId(provider, socialId);
+        User saved = userRepository.save(u);
 
-        if (optionalUser.isPresent()) {
-            return optionalUser.get();
-        } else {
-            // User not found, create a new one
-            User newUser = User.builder()
-                    .provider(provider)
-                    .socialId(socialId)
-                    .build();
-            return userRepository.save(newUser);
-        }
+        log.info("createOauth saved: id={}", saved.getId());
+        return saved;
     }
+
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
@@ -460,7 +461,7 @@ public class UserService {
         String verificationCode = smtpService.sendVerificationEmail(
                 email,
                 ttl,
-                locale   // 여기서 앱이 보낸 언어 사용
+                locale
         );
 
         redisTemplate.opsForValue().set(
@@ -705,37 +706,87 @@ public class UserService {
      * @param userId      탈퇴할 사용자의 ID
      * @param accessToken 블랙리스트에 추가할 사용자의 Access Token
      */
+    /**
+     * 회원 탈퇴 메인 메소드 (Orchestrator)
+     */
     public void withdrawUser(Long userId, String accessToken) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-
-        if (!userRepository.existsById(userId)) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
+            appleWithdrawalService.revokeAppleToken(user);
         }
+        cleanupUserData(user);
+
+        redisService.deleteRefreshToken(userId);
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+    }
+
+    /**
+     * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
+     */
+    private void cleanupUserData(User user) {
+        Long userId = user.getId();
+        log.info(">>>> Starting data cleanup for user ID: {}", userId);
 
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
-
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
             log.info(">>>> Deleted comments on posts by userId: {}", userId);
 
             bookmarkRepository.deleteAllByPostIn(userPosts);
             log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
+
             postRepository.deleteAll(userPosts);
             log.info(">>>> Deleted posts by userId: {}", userId);
         }
+
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-        userRepository.deleteById(userId);
 
-        redisService.deleteRefreshToken(userId);
-        imageService.deleteUserProfileImage(userId);
-
-        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-        redisService.blacklistAccessToken(accessToken, expiration);
+        userRepository.delete(user);
+        log.info(">>>> Deleted user entity for userId: {}", userId);
     }
+    /**
+     * 단일 사용자 정보 조회 로직
+     */
+    public UserResponseDto findUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String imageUrl = imageRepository
+                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .map(Image::getUrl)
+                .orElse(null);
+        return UserResponseDto.from(user, imageUrl);
+    }
+
+    /**
+     * 여러 사용자 정보 일괄 조회 로직 (N+1 문제 해결)
+     */
+    public List<UserResponseDto> findUsersProfiles(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<User> users = userRepository.findAllById(userIds);
+        List<Long> foundUserIds = users.stream().map(User::getId).toList();
+        Map<Long, String> imageUrlsMap = imageRepository
+                .findAllPrimaryImagesForUsers(ImageType.USER, foundUserIds)
+                .stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (first, second) -> first));
+        return users.stream()
+                .map(user -> {
+                    String imageUrl = imageUrlsMap.get(user.getId());
+                    return UserResponseDto.from(user, imageUrl);
+                })
+                .collect(Collectors.toList());
+    }
+
 }

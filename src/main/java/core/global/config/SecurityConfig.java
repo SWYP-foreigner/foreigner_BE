@@ -42,6 +42,7 @@ public class SecurityConfig {
                                 "/api/v1/member/refresh",
                                 "/api/v1/images/presign",
                                 "/api/v1/member/google/app-login",
+                                "/api/v1/member/apple/app-login",
                                 "/api/v1/member/apple/**",
                                 "/api/v1/member/profile/**",
                                 "/api/v1/mypage/profile/**",

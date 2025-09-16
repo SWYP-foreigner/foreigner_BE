@@ -22,6 +22,9 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
 import core.global.search.dto.PostCreatedEvent;
+import core.global.search.dto.PostDeletedEvent;
+import core.global.search.dto.PostDocument;
+import core.global.search.dto.PostUpdatedEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -162,7 +165,7 @@ public class PostServiceImpl implements PostService {
     // ------- 유틸 -------
 
     private Instant truncateToMillis(Instant i) {
-        return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        return (i == null) ? null : i.truncatedTo(ChronoUnit.MILLIS);
     }
 
     @Override
@@ -255,7 +258,7 @@ public class PostServiceImpl implements PostService {
         final Post post = new Post(request, user, board);
         Post saved = postRepository.save(post);
 
-        publisher.publishEvent(new PostCreatedEvent(saved));
+        publisher.publishEvent(new PostCreatedEvent(saved.getId(), new PostDocument(saved)));
         return saved;
     }
 
@@ -266,7 +269,7 @@ public class PostServiceImpl implements PostService {
         final Post post = new Post(request, user, board);
         Post saved = postRepository.save(post);
 
-        publisher.publishEvent(new PostCreatedEvent(saved));
+        publisher.publishEvent(new PostCreatedEvent(saved.getId(), new PostDocument(saved)));
         return saved;
     }
 
@@ -282,11 +285,18 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
         }
 
-        if (request.content() != null) {
+        boolean changed = false;
+
+        if (request.content() != null && !request.content().equals(post.getContent())) {
             post.changeContent(request.content());
+            changed = true;
         }
 
         imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+
+        if (changed) {
+            publisher.publishEvent(new PostUpdatedEvent(post.getId(), new PostDocument(post)));
+        }
     }
 
     @Override
@@ -310,7 +320,10 @@ public class PostServiceImpl implements PostService {
 
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.POST, postId);
 
+        Long id = post.getId();
         postRepository.delete(post);
+        publisher.publishEvent(new PostDeletedEvent(id));
+
     }
 
     @Override

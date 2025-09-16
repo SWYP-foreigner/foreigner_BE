@@ -453,7 +453,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private StringExpression getAuthorName() {
         return new CaseBuilder()
-                .when(post.anonymous.isTrue()).then("익명")
+                .when(post.anonymous.isTrue()).then("Anonymity")
                 .otherwise(makeGetName());
     }
 

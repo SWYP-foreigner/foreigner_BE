@@ -1,24 +1,23 @@
 package core.domain.user.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.Sex;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.IntStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 //@Component
 public class TestDataInitializer implements CommandLineRunner {
@@ -65,7 +64,8 @@ public class TestDataInitializer implements CommandLineRunner {
                     "None", // String 대신 List<String> 사용
                     "test",
                     "test" + i,
-                    "user" + i + "@example.com"
+                    "user" + i + "@example.com",
+                    "ew"
             );
             users.add(user);
         }

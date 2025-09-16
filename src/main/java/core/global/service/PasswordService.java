@@ -2,14 +2,10 @@ package core.global.service;
 
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.dto.ResetToken;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
-import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.Locale;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor

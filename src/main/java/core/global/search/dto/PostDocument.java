@@ -11,12 +11,9 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PostDocument(
-        Long postId,
         Long boardId,
         Long userId,
-        Boolean anonymous,
         Long createdAt,
-        Long updatedAt,
         Long checkCount,
         String content,
         Object contentSuggest,        // 동의어/오타 허용 (english_custom)
@@ -29,16 +26,17 @@ public record PostDocument(
 
     public PostDocument(Post p) {
         this(
-                p.getId(),
                 p.getBoard() != null ? p.getBoard().getId() : null,
                 p.getAuthor() != null ? p.getAuthor().getId() : null,
-                Boolean.TRUE.equals(p.getAnonymous()),
                 p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli(),
-                p.getUpdatedAt() == null ? null : p.getUpdatedAt().toEpochMilli(),
                 p.getCheckCount(),
                 p.getContent(),
-                toCompletionValue(p.getContent(), weight(p.getCheckCount(), p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli())),
-                toCompletionValue(p.getContent(), weight(p.getCheckCount(), p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli()))
+                toCompletionValue(p.getContent(),
+                        weight(p.getCheckCount(), p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli()),
+                        p.getBoard() != null ? p.getBoard().getId() : null),
+                toCompletionValue(p.getContent(),
+                        weight(p.getCheckCount(), p.getCreatedAt() == null ? null : p.getCreatedAt().toEpochMilli()),
+                        p.getBoard() != null ? p.getBoard().getId() : null)
         );
     }
 
@@ -57,12 +55,18 @@ public record PostDocument(
         return w;
     }
 
-    private static Object toCompletionValue(String text, int weight) {
+    private static Object toCompletionValue(String text, int weight, Long boardId) {
         if (text == null || text.isBlank()) return null;
         String normalized = text.toLowerCase(Locale.ROOT);
+
+        List<String> ctxVals = (boardId == null)
+                ? List.of("1")
+                : List.of(String.valueOf(boardId), "1");
+
         return Map.of(
                 "input", List.of(normalized),
-                "weight", Math.max(0, weight)
+                "weight", Math.max(0, weight),
+                "contexts", Map.of("boardId", ctxVals) // 숫자 문자열만 사용
         );
     }
 }
