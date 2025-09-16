@@ -135,8 +135,12 @@ jobs:
         include:
           - target: A
             labels: [ self-hosted, prod, A ]
+            need_es: false
+            need_mongo: true
           - target: B
             labels: [ self-hosted, prod, B ]
+            need_es: true
+            need_mongo: false
       max-parallel: 1
     runs-on: ${{ matrix.labels }}
     env:
@@ -188,21 +192,14 @@ jobs:
           SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
           SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           
-          # MongoDB Atlas
-          SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
-          
           # NCP Redis
           SPRING_DATA_REDIS_HOST=${{ secrets.PROD_REDIS_HOST }}
           SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
           SPRING_DATA_REDIS_PASSWORD=${{ secrets.PROD_REDIS_PASSWORD }}
           
-          # App / ES
+          # App
           JWT_SECRET=${{ secrets.JWT_SECRET }}
-          ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
-          SPRING_ELASTICSEARCH_URIS=${{ secrets.PROD_ELASTICSEARCH_HOST }}
-          SPRING_ELASTICSEARCH_USERNAME=${{ secrets.PROD_ELASTICSEARCH_USERNAME }}
-          SPRING_ELASTICSEARCH_PASSWORD=${{ secrets.PROD_ELASTICSEARCH_PASSWORD }}
-
+          
           SERVER_URL=${{ secrets.PROD_SERVER_URL }}
           
           # OAuth/기타 시크릿도 모두 따옴표 없이!
@@ -238,6 +235,35 @@ jobs:
           JAVA_TOOL_OPTIONS=-Xms512m -Xmx1024m
           APP_PORT=8080
           EOF
+          
+          
+          # 1-1) ES 필요 시(A=불필요, B=필요)
+          if [ "${{ matrix.need_es }}" = "true" ]; then
+            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
+            ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+            SPRING_ELASTICSEARCH_URIS=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+            SPRING_ELASTICSEARCH_USERNAME=${{ secrets.PROD_ELASTICSEARCH_USERNAME }}
+            SPRING_ELASTICSEARCH_PASSWORD=${{ secrets.PROD_ELASTICSEARCH_PASSWORD }}
+            EOF
+          
+          else
+            # 확실히 배제(헬스 인디케이터도 OFF)
+            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
+            MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED=false
+           EOF
+          fi
+          
+          # 1-2) Mongo 필요 시(B=불필요, A=필요)
+          if [ "${{ matrix.need_mongo }}" = "true" ]; then
+            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
+            SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
+            EOF
+          else
+          # 확실히 배제(헬스 인디케이터도 OFF)
+            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
+            MANAGEMENT_HEALTH_MONGODB_ENABLED=false
+            EOF
+          fi
           
           sudo chgrp docker /etc/foreigner/foreigner.env 2>/dev/null || true
           sudo chmod 640 /etc/foreigner/foreigner.env
