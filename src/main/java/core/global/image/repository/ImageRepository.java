@@ -1,6 +1,5 @@
 package core.global.image.repository;
 
-import com.mongodb.client.MongoIterable;
 import core.global.image.entity.Image;
 import core.global.enums.ImageType;
 import org.springframework.data.jpa.repository.JpaRepository;
