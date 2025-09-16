@@ -28,7 +28,7 @@ public class BookmarkController {
             summary = "게시글 북마크 추가",
             description = "현재 로그인한 사용자가 지정한 게시글을 북마크에 추가합니다."
     )
-    @ApiResponse(responseCode = "204", description = "성공 (내용 없음)")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "성공 (내용 없음)")
     @PutMapping("/posts/{postId}/bookmarks/me")
     public ResponseEntity<Void> addBookmark(
             @Parameter(description = "게시글 ID", required = true) @PathVariable Long postId
@@ -41,7 +41,7 @@ public class BookmarkController {
             summary = "게시글 북마크 제거",
             description = "현재 로그인한 사용자가 지정한 게시글을 북마크에서 제거합니다."
     )
-    @ApiResponse(responseCode = "204", description = "성공 (내용 없음)")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "성공 (내용 없음)")
     @DeleteMapping("/posts/{postId}/bookmarks/me")
     public ResponseEntity<Void> removeBookmark(
             @Parameter(description = "게시글 ID", required = true) @PathVariable Long postId

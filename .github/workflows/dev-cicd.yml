@@ -237,7 +237,7 @@ jobs:
             
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS=-Xms256m -Xmx512m
+            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
             
             printf 'IMAGE=%s\n' "$IMAGE" >> .env

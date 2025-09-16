@@ -261,7 +261,7 @@
     // NEW: 메시지 DOM 요소를 생성하는 헬퍼 함수
     function createMessageElement(message) {
         const isMe = message.senderId === currentUser.id;
-        const senderName = message.senderName || '익명';
+        const senderName = message.senderName || 'Anonymity';
         const time = message.createdAt ? new Date(message.createdAt).toLocaleTimeString() : '';
 
         return el('div', { className: `msg ${isMe ? 'me' : 'others'}`, 'data-message-id': message.id },

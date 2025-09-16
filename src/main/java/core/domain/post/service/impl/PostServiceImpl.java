@@ -165,7 +165,7 @@ public class PostServiceImpl implements PostService {
     // ------- 유틸 -------
 
     private Instant truncateToMillis(Instant i) {
-        return (i == null) ? null : i.truncatedTo(ChronoUnit.MILLIS);
+        return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
     @Override

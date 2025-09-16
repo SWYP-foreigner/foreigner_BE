@@ -84,10 +84,10 @@ public class CommentController {
 
     @Operation(summary = "댓글 작성", description = "게시글에 댓글을 작성합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "성공",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-            @ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content)
     })
     @PostMapping("/posts/{postId}/comments")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writeComment(
@@ -102,11 +102,11 @@ public class CommentController {
 
     @Operation(summary = "댓글 수정", description = "본인이 작성한 댓글을 수정합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "수정 성공(본문 없음)", content = @Content),
-            @ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수정 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @PatchMapping("/comments/{commentId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> updateComment(
@@ -122,10 +122,10 @@ public class CommentController {
 
     @Operation(summary = "댓글 삭제", description = "본인이 작성한 댓글을 삭제합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @DeleteMapping("/comments/{commentId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> deleteComment(
@@ -139,10 +139,10 @@ public class CommentController {
 
     @Operation(summary = "좋아요 추가", description = "댓글 좋아요합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "추가 성공(본문 없음)", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "추가 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @PutMapping("/comments/{commentId}/likes/me")
     public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
@@ -156,10 +156,10 @@ public class CommentController {
 
     @Operation(summary = "좋아요 삭제", description = "댓글의 좋아요를 삭제합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @DeleteMapping("/comments/{commentId}/likes/me")
     public ResponseEntity<core.global.dto.ApiResponse<?>> deleteLike(
