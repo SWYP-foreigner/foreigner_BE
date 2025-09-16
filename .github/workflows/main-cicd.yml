@@ -130,8 +130,9 @@ jobs:
   deploy:
     needs: build
     strategy:
+      max-parallel: 1         # ← matrix 바깥
       matrix:
-        target: [ B, A ]   # B 먼저 -> A
+        target: [ B, A ]      # B 먼저 -> A
         include:
           - target: A
             labels: [ self-hosted, prod, A ]
@@ -141,7 +142,6 @@ jobs:
             labels: [ self-hosted, prod, B ]
             need_es: true
             need_mongo: false
-      max-parallel: 1
     runs-on: ${{ matrix.labels }}
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -188,9 +188,6 @@ jobs:
           sudo bash -c "printf 'IMAGE=%s\n' \"$IMAGE_EFF\" > /etc/foreigner/foreigner.env"
           # 나머지는 확장 방지 위해 'EOF' 사용(Secrets는 GitHub가 미리 치환함)
           sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
-#
-#          cat <<EOF | sudo tee /etc/foreigner/foreigner.env > /dev/null
-#          IMAGE=${IMAGE_EFF}
           
           # NCP PostgreSQL
           SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
@@ -244,30 +241,27 @@ jobs:
           
           # 1-1) ES 필요 시(A=불필요, B=필요)
           if [ "${{ matrix.need_es }}" = "true" ]; then
-            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
-            ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
-            SPRING_ELASTICSEARCH_URIS=${{ secrets.PROD_ELASTICSEARCH_HOST }}
-            SPRING_ELASTICSEARCH_USERNAME=${{ secrets.PROD_ELASTICSEARCH_USERNAME }}
-            SPRING_ELASTICSEARCH_PASSWORD=${{ secrets.PROD_ELASTICSEARCH_PASSWORD }}
-            EOF
-          
+           sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
+          ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+          SPRING_ELASTICSEARCH_URIS=${{ secrets.PROD_ELASTICSEARCH_HOST }}
+          SPRING_ELASTICSEARCH_USERNAME=${{ secrets.PROD_ELASTICSEARCH_USERNAME }}
+          SPRING_ELASTICSEARCH_PASSWORD=${{ secrets.PROD_ELASTICSEARCH_PASSWORD }}
+          EOF
           else
-            # 확실히 배제(헬스 인디케이터도 OFF)
-            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
-            MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED=false
-           EOF
+           sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
+          MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED=false
+          EOF
           fi
           
           # 1-2) Mongo 필요 시(B=불필요, A=필요)
           if [ "${{ matrix.need_mongo }}" = "true" ]; then
-            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
-            SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
-            EOF
+            sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
+          SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
+          EOF
           else
-          # 확실히 배제(헬스 인디케이터도 OFF)
-            cat <<'EOF' | sudo tee -a /etc/foreigner/foreigner.env > /dev/null
-            MANAGEMENT_HEALTH_MONGODB_ENABLED=false
-            EOF
+            sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
+          MANAGEMENT_HEALTH_MONGODB_ENABLED=false
+          EOF
           fi
           
           sudo chgrp docker /etc/foreigner/foreigner.env 2>/dev/null || true
