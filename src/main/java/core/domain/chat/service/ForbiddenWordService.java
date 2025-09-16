@@ -10,16 +10,26 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 public class ForbiddenWordService {
 
+    // 단어 토큰화 패턴(한글/영문/숫자 포함)
+    private static final Pattern WORD = Pattern.compile("\\p{L}[\\p{L}\\p{Nd}_'-]*");
+
     @Value("classpath:forbidden_words.json")
     private Resource forbiddenWordsFile;
 
     private List<String> forbiddenWords;
+
+    // 소문자 정규화된 금칙어 Set (빠른 조회)
+    private Set<String> forbiddenSet = Collections.emptySet();
 
     @PostConstruct
     public void init() {
@@ -29,6 +39,18 @@ public class ForbiddenWordService {
             });
 
             this.forbiddenWords = words;
+
+            Set<String> lowered = new HashSet<>();
+            for (String w : words) {
+                if (w != null) {
+                    String t = w.trim();
+                    if (!t.isEmpty()) {
+                        lowered.add(t.toLowerCase(Locale.ROOT));
+                    }
+                }
+            }
+            this.forbiddenSet = lowered;
+
             System.out.println("금칙어 " + this.forbiddenWords.size() + "개를 로드했습니다.");
 
         } catch (IOException e) {
@@ -38,47 +60,29 @@ public class ForbiddenWordService {
     }
 
     public boolean containsForbiddenWord(String text) {
-        if (text == null || text.isEmpty()) {
+        if (text == null || text.isBlank()) {
             return false;
         }
 
-        final java.util.Locale L = java.util.Locale.ROOT;
-        final String lowerText = text.toLowerCase(L);
-        final int ctx = 15; // 컨텍스트로 함께 보여줄 앞/뒤 글자 수
+        Matcher m = WORD.matcher(text);
 
-        for (String word : forbiddenWords) {
-            if (word == null || word.isBlank()) continue;
+        int idx = 0;
+        boolean found = false;
 
-            String wLower = word.toLowerCase(L);
-            int from = 0;
-            boolean hitThisWord = false;
+        while (m.find()) {
+            String token = m.group();
+            int start = m.start();
+            int end = m.end();
 
-            // 같은 금칙어가 여러 번 등장할 수 있으니 모두 로그
-            while (true) {
-                int pos = lowerText.indexOf(wLower, from);
-                if (pos < 0) break;
-
-                int end = pos + wLower.length();
-
-                // 컨텍스트 추출
-                int a = Math.max(0, pos - ctx);
-                int b = Math.min(text.length(), end + ctx);
-                String context = text.substring(a, b);
-
-                // 상세 로그
-                log.info("forbidden hit: word='{}', range=[{}-{}), context='{}'",
-                        word, pos, end, context);
-
-                hitThisWord = true;
-                from = end; // 다음 발생 위치 탐색
+            String normalized = token.toLowerCase(Locale.ROOT);
+            if (forbiddenSet.contains(normalized)) {
+                log.info("forbidden[{}]: '{}' (pos: {}-{})", idx, token, start, end);
+                found = true;
+            } else {
+                log.trace("ok[{}]: '{}' (pos: {}-{})", idx, token, start, end);
             }
-
-            if (hitThisWord) {
-                // 원래 로직 유지: 첫 매칭 시 true 반환
-                return true;
-            }
+            idx++;
         }
-        return false;
+        return found;
     }
-
 }
