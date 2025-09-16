@@ -125,6 +125,12 @@ logging:
     core: INFO
     org.springframework.web.servlet.DispatcherServlet: TRACE
     org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
+    org.springframework.web: DEBUG
+    org.springframework.http.converter: TRACE
+
+# 에러 본문에 메시지 포함(개발용)
+server.error.include-message: always
+server.error.include-binding-errors: always
 
 app:
   mail:
