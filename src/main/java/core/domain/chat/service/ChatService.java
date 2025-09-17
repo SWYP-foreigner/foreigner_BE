@@ -185,7 +185,6 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         participant.leave();
         deleteRoomIfEmpty(roomId);
-
         return true;
     }
     /**
@@ -485,10 +484,13 @@ public class ChatService {
         return chatRoomRepository.findByIdWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
-
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        List<ChatParticipant> activeParticipants = chatRoom.getParticipants().stream()
+                .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
+                .collect(Collectors.toList());
 
         String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
                 ImageType.CHAT_ROOM, chatRoom.getId()
@@ -500,7 +502,7 @@ public class ChatService {
                 ownerId
         ).map(Image::getUrl).orElse(null);
 
-        List<String> otherParticipantsImageUrls = chatRoom.getParticipants().stream()
+        List<String> otherParticipantsImageUrls = activeParticipants.stream()
                 .filter(participant -> !participant.getUser().getId().equals(ownerId))
                 .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
                         ImageType.USER,
@@ -512,7 +514,7 @@ public class ChatService {
         return GroupChatDetailResponse.from(
                 chatRoom,
                 roomImageUrl,
-                chatRoom.getParticipants().size(),
+                activeParticipants.size(),
                 otherParticipantsImageUrls,
                 ownerImageUrl
         );
@@ -524,6 +526,7 @@ public class ChatService {
      * @param roomId 그룹 채팅방 ID
      * @param userId 참여를 요청하는 사용자의 ID
      */
+    @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
 
         ChatRoom room = chatRoomRepo.findById(roomId)
@@ -664,7 +667,8 @@ public class ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
 
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 채팅방에 참여하지 않은 사용자입니다."));
+                .filter(participant -> participant.getStatus() != ChatParticipantStatus.LEFT)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방에 참여하지 않았거나 나간 사용자입니다."));
         List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
 
         return messages.stream()
