@@ -97,6 +97,7 @@ public class ChatController {
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId
     ) {
+        log.info("lastMessageId: 이거입니다!: {}",lastMessageId);
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
 
