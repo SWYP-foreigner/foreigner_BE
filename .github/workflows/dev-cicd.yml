@@ -86,6 +86,7 @@ jobs:
   es-rollout:
     needs: upload-es
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Elasticsearch rollout on server
         uses: appleboy/ssh-action@v1.0.3
@@ -154,7 +155,11 @@ jobs:
   deploy-app:
     needs: [ build, es-rollout ]
     runs-on: ubuntu-latest
+    if: always()
     steps:
+      - name: Note ES rollout result
+        run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
+
       - name: Deploy app on server (Docker Compose)
         uses: appleboy/ssh-action@v1.0.3
         with:
