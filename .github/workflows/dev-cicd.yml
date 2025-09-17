@@ -118,7 +118,7 @@ jobs:
             bash infra/elasticsearch/scripts/01-apply_template.sh
 
             echo "[ES] Create new index"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
             bash infra/elasticsearch/scripts/02-create_index.sh
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
@@ -130,11 +130,11 @@ jobs:
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
 
             curl -sS -X POST \
-              -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
-              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-            echo; echo "[ES] _reindex done"
-
+            -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+            "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+            -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
+  
+  
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
