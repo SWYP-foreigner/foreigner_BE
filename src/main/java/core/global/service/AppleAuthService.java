@@ -43,8 +43,7 @@ public class AppleAuthService {
     private final AppleClientSecretGenerator appleClientSecretGenerator;
     private final AppleClient appleClient;
 
-    @Value("${oauth.apple.issuer}")
-    private String issuer;
+
 
 
 
