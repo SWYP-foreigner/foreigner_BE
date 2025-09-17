@@ -319,7 +319,7 @@ public class UserService {
                 .country(user.getCountry())
                 .introduction(user.getIntroduction())
                 .purpose(user.getPurpose())
-                .language(stringToList(user.getLanguage()))
+                .language(stringToList(user.getTranslateLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(profileKey)
                 .email(user.getEmail())
