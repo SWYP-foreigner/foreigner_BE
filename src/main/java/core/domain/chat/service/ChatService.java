@@ -289,7 +289,6 @@ public class ChatService {
      */
 
 
-    @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(
             Long roomId,
             Long userId,
