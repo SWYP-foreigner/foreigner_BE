@@ -119,7 +119,9 @@ jobs:
 
             echo "[ES] Create new index"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
+            HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 \
             bash infra/elasticsearch/scripts/02-create_index.sh
+            
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
 
