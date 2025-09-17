@@ -128,9 +128,20 @@ public class ChatService {
     }
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
-        Optional<ChatRoom> existingRoom = chatRoomRepo.findByParticipantIds(currentUserId, otherUserId);
-        return existingRoom.map(chatRoom -> handleExistingRoom(chatRoom, currentUserId)).orElseGet(() -> createNewOneToOneChatRoom(currentUserId, otherUserId));
+        List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
+        List<ChatRoom> existingRooms = chatRoomRepo.findOneToOneRoomByParticipantIds(userIds);
+
+        if (!existingRooms.isEmpty()) {
+            if (existingRooms.size() > 1) {
+                log.warn("중복된 1:1 채팅방 발견. 사용자 ID: {}, {}. 첫 번째 방을 사용합니다.", currentUserId, otherUserId);
+            }
+            ChatRoom room = existingRooms.get(0);
+            return handleExistingRoom(room, currentUserId);
+        } else {
+            return createNewOneToOneChatRoom(currentUserId, otherUserId);
+        }
     }
+
 
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
 
