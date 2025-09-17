@@ -90,7 +90,7 @@ public class User {
     @Column(name = "apple_refresh_token")
     private String appleRefreshToken;
 
-    @OneToMany(mappedBy = "users", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
 
