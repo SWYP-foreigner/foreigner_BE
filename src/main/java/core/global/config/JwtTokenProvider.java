@@ -16,6 +16,7 @@ import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -61,6 +62,7 @@ public class JwtTokenProvider {
     public String createAccessToken(Long userId, String email) {
         Claims claims = Jwts.claims().setSubject(email);
         claims.put("id", userId);
+        claims.setId(UUID.randomUUID().toString());
         Date now = new Date();
         Date expiration = new Date(now.getTime() + accessTokenExpiration);
 
@@ -78,6 +80,7 @@ public class JwtTokenProvider {
      */
     public String createRefreshToken(Long userId) {
         Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
+        claims.setId(UUID.randomUUID().toString());
         Date now = new Date();
         Date expiration = new Date(now.getTime() + refreshTokenExpiration);
         return Jwts.builder()
