@@ -39,8 +39,8 @@ echo "[OK] created index: ${NEW_INDEX} (saved to ${LAST})"
 curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -H 'Content-Type: application/json' \
   -X PUT "${ES}/_cluster/settings" -d '{
     "transient": {
-      "cluster.routing.allocation.disk.watermark.low": "5gb",
-      "cluster.routing.allocation.disk.watermark.high": "3gb",
+      "cluster.routing.allocation.disk.watermark.low": "2gb",
+      "cluster.routing.allocation.disk.watermark.high": "1500mb",
       "cluster.routing.allocation.disk.watermark.flood_stage": "1gb"
     }
   }' || true

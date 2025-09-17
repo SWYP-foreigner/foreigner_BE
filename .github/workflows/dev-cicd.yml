@@ -111,9 +111,16 @@ jobs:
             echo "[ES] HEAD ${ES_URL}"
             curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
             
+            # [HOST] 안전 디스크 정리(도커 있으면): 이미지/빌더 캐시만 정리, 볼륨은 미삭제
+            if command -v docker >/dev/null 2>&1; then
+            docker system prune -af || true
+            docker builder prune -af || true
+            fi
+            
             cd ~/foreigner
             chmod -R +x infra/elasticsearch/scripts || true
-
+            
+            
             echo "[ES] Apply template"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/01-apply_template.sh
