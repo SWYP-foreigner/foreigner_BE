@@ -62,19 +62,6 @@ public class TranslationService {
 
 
 
-    @Transactional
-    public void saveUserLanguage(Authentication auth, String language) {
-        log.info("인증된 사용자 이메일: {} ,타겟렝기쥐: {}", auth.getName(),language);
-
-        User user = userRepository.findByEmail(auth.getName())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        if (language != null && !language.isEmpty()) {
-            user.updateTranslateLanguage(language);
-        }
-        userRepository.save(user);
-        log.info("사용자 언어 및 번역 언어 저장 완료: userId={}, language={}, translateLanguage={}",
-                user.getId(), user.getLanguage(), user.getTranslateLanguage());
-    }
 
 
 }
