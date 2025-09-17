@@ -60,42 +60,42 @@ public class TranslationService {
         }
     }
 
-
-
     @Transactional
     public void saveUserLanguage(Authentication auth, String language) {
-        log.info("인증된 사용자 이메일: {}", auth.getName());
+        log.info("[saveUserLanguage] 시작 - authName={}, language={}", auth.getName(), language);
 
         User user = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-    /**
-     * (EN) 이 부분에서 EN 만 추출하는 코드
-     */
+        log.info("[saveUserLanguage] 사용자 조회 완료 - userId={}, email={}", user.getId(), user.getEmail());
+
+        // (EN) 에서 EN 만 추출
         Pattern pattern = Pattern.compile("\\((.*?)\\)");
         Matcher matcher = pattern.matcher(language);
 
-        // 추출된 언어 코드를 저장할 변수
         String extractedCode = "";
 
         if (matcher.find()) {
             extractedCode = matcher.group(1).trim().toLowerCase();
+            log.info("[saveUserLanguage] 괄호 안 언어 코드 추출 - extractedCode={}", extractedCode);
+        } else {
+            log.info("[saveUserLanguage] 괄호 없음 - 원문 그대로 사용 예정");
         }
 
-        /*
-         추출된 언어 코드를 translateLanguage 필드에 저장
-         */
+        // 언어 업데이트
         if (!extractedCode.isEmpty()) {
             user.updateTranslateLanguage(extractedCode);
+            log.info("[saveUserLanguage] translateLanguage 업데이트 - translateLanguage={}", extractedCode);
         } else {
-            // 괄호가 없을 경우, 전체 문자열을 소문자로 저장
             user.updateLanguage(language.toLowerCase().trim());
+            log.info("[saveUserLanguage] language 업데이트 - language={}", language.toLowerCase().trim());
         }
 
         userRepository.save(user);
-        log.info("사용자 언어 및 번역 언어 저장 완료: userId={}, language={}, translateLanguage={}",
+        log.info("[saveUserLanguage] 저장 완료 - userId={}, language={}, translateLanguage={}",
                 user.getId(), user.getLanguage(), user.getTranslateLanguage());
     }
+
 
 
 
