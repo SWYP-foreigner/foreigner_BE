@@ -140,7 +140,7 @@ public class MyPageController {
 //    }
 
     @PutMapping("/user/language")
-    @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
+    @Operation(summary = "사용자 언어 설정.", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
     public ResponseEntity<Void> updateUserLanguage(
             Authentication auth,
             @RequestBody UserLanguageDTO dto) {
