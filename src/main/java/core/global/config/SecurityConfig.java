@@ -52,7 +52,6 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/swagger-ui.html",
-                                "/auth/test-login",
                                 "/error",
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
@@ -63,7 +62,6 @@ public class SecurityConfig {
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
-                                "/auth/test-login",
                                 "/ws/**",
                                 "/ws"
 
