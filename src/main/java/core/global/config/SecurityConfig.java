@@ -60,6 +60,7 @@ public class SecurityConfig {
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
                                 "/actuator/**",
+                                "/auth/test-login",
                                 "/ws/**",
                                 "/ws"
 
