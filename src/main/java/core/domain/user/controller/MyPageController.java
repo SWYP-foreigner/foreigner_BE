@@ -1,12 +1,18 @@
 package core.domain.user.controller;
 
-import core.global.service.TranslationService;
+import com.sun.security.auth.UserPrincipal;
+import core.domain.chat.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
+import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.entity.User;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.dto.ApiResponse;
 import core.global.dto.UserLanguageDTO;
+import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
+import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

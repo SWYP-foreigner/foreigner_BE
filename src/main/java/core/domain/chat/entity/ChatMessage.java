@@ -4,7 +4,6 @@ import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
 import java.time.Instant;
 
 @Entity

@@ -2,7 +2,6 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.dto.ChatUserProfileResponse;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
@@ -320,7 +319,7 @@ public class UserService {
                 .country(user.getCountry())
                 .introduction(user.getIntroduction())
                 .purpose(user.getPurpose())
-                .language(stringToList(user.getTranslateLanguage()))
+                .language(stringToList(user.getLanguage()))
                 .hobby(stringToList(user.getHobby()))
                 .imageKey(profileKey)
                 .email(user.getEmail())
@@ -791,18 +790,5 @@ public class UserService {
                 })
                 .collect(Collectors.toList());
     }
-    @Transactional(readOnly = true)
-    public ChatUserProfileResponse getUserChatProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
-
-        String imageUrl = images.stream()
-                .findFirst()
-                .map(Image::getUrl)
-                .orElse(null);
-
-        return ChatUserProfileResponse.from(user, imageUrl);
-    }
 }

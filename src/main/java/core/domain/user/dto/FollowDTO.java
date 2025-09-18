@@ -24,7 +24,6 @@ public class FollowDTO {
 
 
 
-
     // 풀 버전
     public FollowDTO(
             String firstname,
@@ -38,7 +37,6 @@ public class FollowDTO {
             List<String> language,
             List<String> hobby,
             String imageKey,
-
             Long userId
     ) {
         this.firstname = firstname;

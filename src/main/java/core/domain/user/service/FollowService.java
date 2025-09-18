@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static co.elastic.clients.elasticsearch.watcher.PagerDutyContextType.Image;
 
 @Service
 @RequiredArgsConstructor

@@ -1,6 +1,6 @@
 package core.domain.comment.service.impl;
 
-import core.global.service.ForbiddenWordService;
+import core.domain.chat.service.ForbiddenWordService;
 import core.domain.comment.dto.CommentItem;
 import core.domain.comment.dto.CommentUpdateRequest;
 import core.domain.comment.dto.CommentWriteRequest;

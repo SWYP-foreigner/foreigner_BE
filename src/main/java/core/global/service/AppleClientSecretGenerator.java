@@ -46,23 +46,7 @@ public class AppleClientSecretGenerator {
                 .signWith(privateKey, SignatureAlgorithm.ES256)
                 .compact();
     }
-    public String generateRevokeClientSecret() {
-        Date now = new Date();
-        Date expiration = new Date(now.getTime() + (1000L * 3600 * 24 * 20));
 
-        PrivateKey privateKey = createPrivateKey();
-
-        return Jwts.builder()
-                .setHeaderParam("kid", appleProps.keyId())
-                .setHeaderParam("alg", "ES256")
-                .setIssuer(appleProps.teamId())
-                .setIssuedAt(now)
-                .setExpiration(expiration)
-                .setAudience("https://appleid.apple.com")
-                .setSubject(appleProps.clientId())
-                .signWith(privateKey, SignatureAlgorithm.ES256)
-                .compact();
-    }
     private PrivateKey createPrivateKey() {
         log.info("--- Private Key Processing Start ---");
         try {

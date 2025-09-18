@@ -1,7 +1,7 @@
 package core.domain.chat.dto;
 
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.user.entity.User;
 import core.global.enums.ImageType;
 import core.global.image.entity.Image;

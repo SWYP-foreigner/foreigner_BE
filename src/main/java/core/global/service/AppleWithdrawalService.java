@@ -5,7 +5,6 @@ import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,19 +29,14 @@ public class AppleWithdrawalService {
         if (appleRefreshToken == null) {
             throw new BusinessException(ErrorCode.INVALID_APPLE_REFRESH_TOKEN);
         }
-        String clientSecret = clientSecretGenerator.generateRevokeClientSecret();
+        String clientSecret = clientSecretGenerator.generateClientSecret();
         MultiValueMap<String, String> formData = createRevokeFormData(clientSecret, appleRefreshToken);
 
         try {
             log.info("Sending token revocation request to Apple server for user ID: {}", user.getId());
             appleClient.revoke(formData);
             log.info("Successfully revoked Apple token for user ID: {}", user.getId());
-        } catch (FeignException e) {
-            log.error("Apple server returned an error during token revocation.");
-            log.error("Status: {}, Reason: {}", e.status(), e.contentUTF8());
-            throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
         } catch (Exception e) {
-            log.error("An unexpected error occurred during Apple token revocation.", e);
             throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
         }
     }

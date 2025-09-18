@@ -1,8 +1,8 @@
 package core.domain.post.repository;
 
 import core.domain.board.dto.BoardItem;
-import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.dto.UserPostItem;
+import core.domain.post.dto.PostDetailResponse;
 
 import java.time.Instant;
 import java.util.List;
