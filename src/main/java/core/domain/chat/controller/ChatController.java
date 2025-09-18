@@ -97,6 +97,7 @@ public class ChatController {
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId
     ) {
+        log.info("lastMessageId: 이거입니다!: {}",lastMessageId);
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
 
@@ -304,7 +305,7 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-
+        log.info("read-all 호출됨!!1");
         chatService.markAllMessagesAsReadInRoom(roomId, userId);
 
         return ResponseEntity.ok(ApiResponse.success(null));

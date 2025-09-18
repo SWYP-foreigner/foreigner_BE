@@ -1,5 +1,6 @@
 package core.global.image.service;
 
+import core.global.dto.UpsertChatRoomImageRequest;
 import core.global.image.dto.ImageDto;
 import core.global.image.dto.PresignedUrlRequest;
 import core.global.image.dto.PresignedUrlResponse;
@@ -41,6 +42,6 @@ public interface ImageService {
 
     /** 내부 key → 공개 URL */
     String toPublicUrl(String keyOrNull);
-
-     List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
+     void upsertChatRoomImage(UpsertChatRoomImageRequest request);
+    List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
 }

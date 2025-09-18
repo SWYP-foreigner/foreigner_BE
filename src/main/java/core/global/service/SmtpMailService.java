@@ -1,6 +1,5 @@
 package core.global.service;
 
-import jakarta.annotation.Nullable;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;

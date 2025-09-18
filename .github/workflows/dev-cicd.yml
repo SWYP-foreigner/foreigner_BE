@@ -86,6 +86,7 @@ jobs:
   es-rollout:
     needs: upload-es
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Elasticsearch rollout on server
         uses: appleboy/ssh-action@v1.0.3
@@ -110,16 +111,25 @@ jobs:
             echo "[ES] HEAD ${ES_URL}"
             curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
             
+            # [HOST] 안전 디스크 정리(도커 있으면): 이미지/빌더 캐시만 정리, 볼륨은 미삭제
+            if command -v docker >/dev/null 2>&1; then
+            docker system prune -af || true
+            docker builder prune -af || true
+            fi
+            
             cd ~/foreigner
             chmod -R +x infra/elasticsearch/scripts || true
-
+            
+            
             echo "[ES] Apply template"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/01-apply_template.sh
 
             echo "[ES] Create new index"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
+            HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 \
             bash infra/elasticsearch/scripts/02-create_index.sh
+            
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
 
@@ -130,11 +140,11 @@ jobs:
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
 
             curl -sS -X POST \
-              -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
-              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-            echo; echo "[ES] _reindex done"
-
+            -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+            "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+            -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
+  
+  
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
@@ -152,7 +162,11 @@ jobs:
   deploy-app:
     needs: [ build, es-rollout ]
     runs-on: ubuntu-latest
+    if: always()
     steps:
+      - name: Note ES rollout result
+        run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
+
       - name: Deploy app on server (Docker Compose)
         uses: appleboy/ssh-action@v1.0.3
         with:

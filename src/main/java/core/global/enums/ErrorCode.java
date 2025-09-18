@@ -37,7 +37,7 @@ public enum ErrorCode {
     COMMENT_ALREADY_DELETED(HttpStatus.GONE, "삭제된 댓글입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     EMAIL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "이메일이 이용 가능하지 않습니다."),
-    FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 팔로우 한 대상입니다."),
+    FOLLOW_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "You are already following this user."),
     INVALID_OR_EXPIRED_SESSION(HttpStatus.BAD_REQUEST, "세션이 만료되었습니다."),
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
 

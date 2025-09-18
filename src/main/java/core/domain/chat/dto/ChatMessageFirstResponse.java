@@ -8,7 +8,6 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 
 import java.time.Instant;
-import java.util.Optional;
 
 public record ChatMessageFirstResponse(
         Long id,
