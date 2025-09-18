@@ -27,7 +27,7 @@ public class SuggestWeightRefresher {
                     .index(SearchConstants.INDEX_POSTS_SUGGEST)
                     .conflicts(Conflicts.Proceed)   // ⬅️ enum 사용
                     .refresh(true)
-                    .script(s -> s.inline(i -> i
+                    .script(s -> s
                             .lang("painless")
                             .source("""
                                         long now = new Date().getTime();
@@ -47,7 +47,7 @@ public class SuggestWeightRefresher {
                                     "popNorm", JsonData.of(1000),
                                     "alpha", JsonData.of(0.65)
                             ))
-                    ))
+                    )
             );
             log.info("Suggest weights refreshed");
         } catch (IOException e) {
