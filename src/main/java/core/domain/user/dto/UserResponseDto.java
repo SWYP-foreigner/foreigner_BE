@@ -1,9 +1,9 @@
 
 package core.domain.user.dto;
 
-import java.time.Instant;
-
 import core.domain.user.entity.User;
+
+import java.time.Instant;
 
 public record UserResponseDto(
         Long userId,

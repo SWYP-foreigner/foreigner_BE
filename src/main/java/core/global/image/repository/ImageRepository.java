@@ -1,7 +1,7 @@
 package core.global.image.repository;
 
-import core.global.image.entity.Image;
 import core.global.enums.ImageType;
+import core.global.image.entity.Image;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -88,5 +88,9 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("SELECT i FROM Image i WHERE i.imageType = :imageType AND i.relatedId IN :relatedIds AND i.orderIndex = 0")
     List<Image> findAllPrimaryImagesForUsers(@Param("imageType") ImageType imageType, @Param("relatedIds") List<Long> relatedIds);
     List<Image> findAllByImageTypeAndRelatedIdIn(ImageType imageType, List<Long> relatedIds);
-
+    /**
+     * [추가] 특정 타입과 ID에 해당하는 '모든' 이미지 목록을 조회합니다.
+     * 채팅방의 기존 이미지를 모두 삭제하기 위해 사용됩니다.
+     */
+    List<Image> findByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
 }

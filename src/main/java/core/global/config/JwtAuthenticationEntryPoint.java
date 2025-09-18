@@ -3,7 +3,6 @@ package core.global.config;
 // import 생략
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import core.global.dto.ApiErrorResponse;
 import core.global.enums.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
