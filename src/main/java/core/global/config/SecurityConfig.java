@@ -48,10 +48,6 @@ public class SecurityConfig {
                                 "/api/v1/mypage/profile/**",
                                 "/api/v1/board/*",
                                 "/api/v1/users/**",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-resources/**",
-                                "/swagger-ui.html",
                                 "/error",
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
@@ -62,6 +58,7 @@ public class SecurityConfig {
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
+                                "/actuator/**",
                                 "/ws/**",
                                 "/ws"
 

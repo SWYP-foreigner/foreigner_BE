@@ -42,10 +42,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/api/v1/member/google/app-login",
             "/api/v1/member/google/**",
             "/api/v1/member/apple/app-login",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/swagger-resources/**",
-            "/swagger-ui.html",
             "/auth/**",
             "/api/v1/member/signup",
             "/api/v1/member/doLogin",
@@ -53,9 +49,9 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             "/api/v1/member/signup",
             "/api/v1/member/send-verification-email",
             "/api/v1/member/refresh",
-            "/swagger-ui.html",
             "/api/v1/member/password/**",
             "/api/v1/member/email/check",
+            "/actuator/**",
             "/ws/**"
     );
 

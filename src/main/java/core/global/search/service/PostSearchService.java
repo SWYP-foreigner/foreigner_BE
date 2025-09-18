@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.Time;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder;
 import co.elastic.clients.elasticsearch._types.query_dsl.FieldValueFactorModifier;
 import co.elastic.clients.elasticsearch._types.query_dsl.FunctionBoostMode;
@@ -175,11 +176,15 @@ public class PostSearchService {
                                         .weight(POP_WEIGHT))
                                 // 최신성(가우시안)
                                 .functions(fn -> fn.gauss(g -> g
+                                        .date(d -> d
                                                 .field("createdAt")
-                                                .placement(p -> p.origin(JsonData.of("now"))
-                                                        .scale(JsonData.of(RECENCY_SCALE))
-                                                        .decay(0.5)))
-                                        .weight(RECENCY_WEIGHT))
+                                                .placement(p -> p
+                                                        .origin("now")                       // 날짜 원점
+                                                        .scale(Time.of(t -> t.time(RECENCY_SCALE))) // "14d" 같은 문자열
+                                                        .decay(0.5)
+                                                )
+                                        )
+                                ).weight(RECENCY_WEIGHT))
                                 .scoreMode(FunctionScoreMode.Multiply)
                                 .boostMode(FunctionBoostMode.Multiply)))
                         .sort(ss -> ss.score(o -> o.order(SortOrder.Desc)))
