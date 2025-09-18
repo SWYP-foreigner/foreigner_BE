@@ -1,4 +1,4 @@
-package core.domain.chat.service;
+package core.global.service;
 
 import com.google.cloud.translate.v3.*;
 import core.domain.user.entity.User;
@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service

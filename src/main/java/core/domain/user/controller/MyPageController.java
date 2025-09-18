@@ -1,6 +1,6 @@
 package core.domain.user.controller;
 
-import core.domain.chat.service.TranslationService;
+import core.global.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.service.FollowService;

@@ -1,4 +1,4 @@
-package core.domain.chat.service;
+package core.global.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

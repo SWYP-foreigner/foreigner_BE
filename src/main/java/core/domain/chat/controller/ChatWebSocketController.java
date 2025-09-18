@@ -3,7 +3,7 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
-import core.domain.chat.service.TranslationService;
+import core.global.service.TranslationService;
 import core.domain.user.repository.UserRepository;
 import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;

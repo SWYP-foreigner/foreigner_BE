@@ -3,7 +3,7 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.chat.service.ForbiddenWordService;
+import core.global.service.ForbiddenWordService;
 import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
