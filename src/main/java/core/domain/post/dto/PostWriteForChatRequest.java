@@ -3,6 +3,8 @@ package core.domain.post.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.hibernate.validator.constraints.URL;
+
 import java.util.List;
 
 @Schema(description = "채팅 게시글 작성 요청")

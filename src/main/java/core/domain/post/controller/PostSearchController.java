@@ -1,9 +1,9 @@
 package core.domain.post.controller;
 
-import core.global.search.dto.SearchResultView;
 import core.global.search.service.PostSearchService;
 import core.global.search.service.PostSearchSuggestService;
 import core.global.search.service.RecentSearchRedisService;
+import core.global.search.dto.SearchResultView;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;

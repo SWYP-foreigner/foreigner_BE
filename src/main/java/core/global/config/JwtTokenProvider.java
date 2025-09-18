@@ -2,21 +2,26 @@ package core.global.config;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import core.global.dto.AppleTokenResponse;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
 import java.nio.charset.StandardCharsets;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
 import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Objects;
 
 @Component
 public class JwtTokenProvider {
@@ -62,7 +67,6 @@ public class JwtTokenProvider {
     public String createAccessToken(Long userId, String email) {
         Claims claims = Jwts.claims().setSubject(email);
         claims.put("id", userId);
-        claims.setId(UUID.randomUUID().toString());
         Date now = new Date();
         Date expiration = new Date(now.getTime() + accessTokenExpiration);
 
@@ -80,7 +84,6 @@ public class JwtTokenProvider {
      */
     public String createRefreshToken(Long userId) {
         Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
-        claims.setId(UUID.randomUUID().toString());
         Date now = new Date();
         Date expiration = new Date(now.getTime() + refreshTokenExpiration);
         return Jwts.builder()

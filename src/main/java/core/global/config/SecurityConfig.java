@@ -48,6 +48,7 @@ public class SecurityConfig {
                                 "/api/v1/mypage/profile/**",
                                 "/api/v1/board/*",
                                 "/api/v1/users/**",
+                                "/auth/test-login",
                                 "/error",
                                 "/api/v1/mypage/profile/find",
                                 "/api/v1/mypage/**",
@@ -59,6 +60,7 @@ public class SecurityConfig {
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
                                 "/actuator/**",
+                                "/auth/test-login",
                                 "/ws/**",
                                 "/ws"
 

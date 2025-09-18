@@ -1,10 +1,10 @@
 package core.domain.chat.entity;
 
-import core.domain.user.entity.User;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
+import core.domain.user.entity.User;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

@@ -1,6 +1,5 @@
 package core.domain.user.entity;
 
-import core.domain.notification.entity.Notification;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -9,8 +8,6 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "users",
@@ -89,10 +86,6 @@ public class User {
     private boolean agreedToTerms = false;
     @Column(name = "apple_refresh_token")
     private String appleRefreshToken;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Notification> notifications = new ArrayList<>();
-
 
     @Builder
     public User(String firstName,

@@ -15,7 +15,7 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
-import core.global.service.ForbiddenWordService;
+import core.domain.chat.service.ForbiddenWordService;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import org.junit.jupiter.api.*;
@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;

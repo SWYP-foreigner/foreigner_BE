@@ -1,6 +1,6 @@
 package core.domain.comment.service.impl;
 
-import core.global.service.ForbiddenWordService;
+import core.domain.chat.service.ForbiddenWordService;
 import core.domain.comment.dto.*;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
@@ -30,10 +30,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
