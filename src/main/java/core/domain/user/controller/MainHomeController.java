@@ -3,14 +3,15 @@ package core.domain.user.controller;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
-import core.global.enums.ErrorCode;
-import core.global.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Main Home (친구 둘러보기)", description = "친구 찾기, 팔로우, 채팅 관련 API")
 @RestController

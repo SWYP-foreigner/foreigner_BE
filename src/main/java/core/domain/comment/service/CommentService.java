@@ -1,6 +1,7 @@
 package core.domain.comment.service;
 
 import core.domain.comment.dto.*;
+import core.domain.comment.dto.UserCommentItem;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;

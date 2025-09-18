@@ -38,7 +38,7 @@ COMBINED_PAYLOAD=$(cat <<JSON
 JSON
 )
 
-curl "${CURL_OPTS[@]}" ${AUTH_OPT[@]} -X POST "${ES_URL}/_aliases" \
+curl "${CURL_OPTS[@]}" "${AUTH_OPT[@]}" -X POST "${ES_URL}/_aliases" \
   -H 'Content-Type: application/json' -d "${COMBINED_PAYLOAD}"
 
 echo "[OK] aliases -> ${NEW_INDEX}"

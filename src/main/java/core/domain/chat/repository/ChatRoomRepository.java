@@ -63,4 +63,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipantsAndUsers(@Param("roomId") Long roomId);
 
+    @Query("SELECT cr FROM ChatRoom cr JOIN cr.participants p " +
+            "WHERE p.user.id IN :userIds AND cr.group = false " +
+            "GROUP BY cr.id " +
+            "HAVING COUNT(DISTINCT p.user.id) = 2")
+    List<ChatRoom> findOneToOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
+
 }
