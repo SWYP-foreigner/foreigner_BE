@@ -29,6 +29,7 @@ spring:
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: true
 
+  data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
       port: ${SPRING_DATA_REDIS_PORT}
