@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@Profile({"dev","local"})
+@Profile({"dev","local", "main"})
 @RequiredArgsConstructor
 public class BoardDataInitializer implements CommandLineRunner {
 
