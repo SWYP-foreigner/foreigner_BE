@@ -84,9 +84,12 @@ dependencies {
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
-//	implementation 'org.springframework.data:spring-data-elasticsearch:5.3.0'
-    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+    implementation 'org.springframework.data:spring-data-elasticsearch:5.3.0'
+	implementation 'co.elastic.clients:elasticsearch-java:8.14.0'
+	implementation 'org.elasticsearch.client:elasticsearch-rest-client:8.14.0'
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
 
 }
 
