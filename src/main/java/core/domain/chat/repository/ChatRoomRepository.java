@@ -1,5 +1,6 @@
 package core.domain.chat.repository;
 
+import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.global.enums.ChatParticipantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -68,5 +69,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
             "GROUP BY cr.id " +
             "HAVING COUNT(DISTINCT p.user.id) = 2")
     List<ChatRoom> findOneToOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
+    List<ChatRoom> findAllByOwnerId(Long ownerId);
 
 }

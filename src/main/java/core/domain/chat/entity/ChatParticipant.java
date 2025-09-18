@@ -68,6 +68,7 @@ public class ChatParticipant {
         this.status = ChatParticipantStatus.ACTIVE;
         this.lastLeftAt = null;
     }
+
     public void setLastReadMessageId(Long messageId) {
         this.lastReadMessageId = messageId;
     }

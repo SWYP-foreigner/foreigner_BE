@@ -1,6 +1,7 @@
 package core.global.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RedisService {
 
     private final StringRedisTemplate redisTemplate;
@@ -26,8 +28,12 @@ public class RedisService {
      */
     public void saveRefreshToken(Long userId, String refreshToken, long expirationMillis) {
         String key = getRefreshTokenKey(userId);
+        log.info("[Redis] RefreshToken 저장 시도 - key: {}, refreshToken: {}, TTL(ms): {}", key, refreshToken, expirationMillis);
         redisTemplate.opsForValue().set(key, refreshToken, expirationMillis, TimeUnit.MILLISECONDS);
+        String storedToken = redisTemplate.opsForValue().get(key);
+        log.info("[Redis] RefreshToken 저장 완료 - key: {}, 실제 저장된 값: {}", key, storedToken);
     }
+
 
     /**
      * Refresh Token 조회

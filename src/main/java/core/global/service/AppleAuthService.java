@@ -45,9 +45,6 @@ public class AppleAuthService {
 
     @Value("${oauth.apple.issuer}")
     private String issuer;
-
-
-
     public Claims verifyAndGetClaims(String identityToken, String nonce) {
         log.debug("--- Apple Token Verification Start ---");
         log.debug("Received identityToken (first 30 chars): {}", identityToken != null ? identityToken.substring(0, Math.min(identityToken.length(), 30)) : "null");
@@ -73,7 +70,7 @@ public class AppleAuthService {
             log.info("3-2. 서명 검증 성공 및 Claims 추출 완료. Subject(sub): {}", claims.getSubject());
 
             log.info("4-1. Claims 유효성 검증 시작...");
-            String expectedIssuer = "https://appleid.apple.com"; // appleProps.issuer() 사용도 가능
+            String expectedIssuer = "https://appleid.apple.com";
             String actualIssuer = claims.getIssuer();
             log.debug("Comparing Issuer -> Expected: [{}], Actual: [{}]", expectedIssuer, actualIssuer);
             if (!expectedIssuer.equals(actualIssuer)) {

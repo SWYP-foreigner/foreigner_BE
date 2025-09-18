@@ -78,5 +78,9 @@ public class ChatRoom {
         this.description = description;
         this.owner = owner;
     }
-
+    public void changeOwner(User newOwner) {
+        if (newOwner != null) {
+            this.owner = newOwner;
+        }
+    }
 }

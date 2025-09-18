@@ -3,8 +3,11 @@ package core.domain.user.service;
 
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.dto.ChatUserProfileResponse;
+import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -88,6 +91,7 @@ public class UserService {
     private final FollowRepository followRepository;
     private final LikeRepository likeRepository;
     private final AppleWithdrawalService appleWithdrawalService;
+    private final ChatRoomRepository chatRoomRepository;
 
 
     private static String nullToEmpty(String s) {
@@ -732,17 +736,27 @@ public class UserService {
     private void cleanupUserData(User user) {
         Long userId = user.getId();
         log.info(">>>> Starting data cleanup for user ID: {}", userId);
+        List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
+
+        for (ChatRoom chatRoom : ownedChatRooms) {
+            List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
+
+            if (!participants.isEmpty()) {
+                User newOwner = participants.get(0).getUser();
+                chatRoom.changeOwner(newOwner);
+                chatRoomRepository.save(chatRoom);
+                log.info(">>>> Chat room {} owner changed to user {}", chatRoom.getId(), newOwner.getId());
+            } else {
+                chatRoomRepository.delete(chatRoom);
+                log.info(">>>> Chat room {} deleted as it had no other participants.", chatRoom.getId());
+            }
+        }
 
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
-            log.info(">>>> Deleted comments on posts by userId: {}", userId);
-
             bookmarkRepository.deleteAllByPostIn(userPosts);
-            log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
-
             postRepository.deleteAll(userPosts);
-            log.info(">>>> Deleted posts by userId: {}", userId);
         }
 
         commentRepository.deleteAllByAuthorId(userId);
