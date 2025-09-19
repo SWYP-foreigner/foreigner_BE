@@ -126,12 +126,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.createdAt
                 );
 
-        double TAU_HOURS = 24.0;   // 최신성 시간 스케일(크면 감쇠 느림)
-
-        // 포화값: 이 값에서 해당 항목이 대략 10점에 근접
-        double L_SAT = 10.0;       // 좋아요 10개 ≈ 만점
-        double C_SAT = 10.0;       // 댓글 10개 ≈ 만점
-        double V_SAT = 100.0;      // 조회 100회 ≈ 만점
+        double TAU_HOURS = 24.0;   // 최신성 시간 스케일(클수록 감쇠 느림)
 
         int wR = 2;  // 최신성
         int wL = 3;  // 좋아요
@@ -139,16 +134,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         int wV = 1;  // 조회
 
         NumberExpression<Double> recency_base =
-                Expressions.numberTemplate(Double.class, "10 * exp(-(({0}) / {1}))", ageHours, TAU_HOURS);
+                Expressions.numberTemplate(Double.class, "exp(-(({0}) / {1}))", ageHours, TAU_HOURS);
 
         NumberExpression<Double> likes_base =
-                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", likes, L_SAT);
+                Expressions.numberTemplate(Double.class, "ln(1 + {0})", likes);
 
         NumberExpression<Double> comments_base =
-                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", comments, C_SAT);
+                Expressions.numberTemplate(Double.class, "ln(1 + {0})", comments);
 
         NumberExpression<Double> views_base =
-                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", views, V_SAT);
+                Expressions.numberTemplate(Double.class, "ln(1 + {0})", views);
 
         // ====== 가중합 → 최종 Long 점수 ======
         NumberExpression<Double> scoreDouble =
@@ -159,6 +154,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         NumberExpression<Long> score =
                 Expressions.numberTemplate(Long.class, "cast(round({0}, 0) as long)", scoreDouble);
+
 
         // ── 커서 조건(무한스크롤)
         BooleanExpression ltCursor = null;
