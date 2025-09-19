@@ -139,10 +139,9 @@ public class UserController {
         User user = userOptional.get();
 
         String storedRefreshToken = redisService.getRefreshToken(user.getId());
-
+        log.warn("사용자의 요청한 리프레쉬 토큰 : {}",refreshToken);
+        log.warn("레디스의 요청한 리프레쉬 토큰 : {}",storedRefreshToken);
         if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
-
-
             log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", user.getId());
             redisService.deleteRefreshToken(user.getId());
             return new ResponseEntity<>(ApiResponse.fail("Refresh token mismatch or blacklisted"), HttpStatus.UNAUTHORIZED);
