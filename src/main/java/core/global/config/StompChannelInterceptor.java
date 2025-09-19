@@ -65,13 +65,16 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 log.error("STOMP JWT 처리 중 예외 발생: {}", e.getMessage(), e);
                 throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
-        } else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+        }
+        else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             Authentication auth = (Authentication) accessor.getUser();
             if (auth != null) {
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.debug("STOMP AUTHORIZED: SecurityContextHolder에 인증 정보 설정 완료, command={}", accessor.getCommand());
             } else {
                 log.warn("STOMP UNAUTHORIZED: WebSocket 세션에 인증 정보가 없습니다, command={}", accessor.getCommand());
+                // 이 부분에 예외를 추가해야 합니다.
+                throw new BadCredentialsException("인증 정보 없이 STOMP 메시지를 보낼 수 없습니다.");
             }
         }
         return message;
