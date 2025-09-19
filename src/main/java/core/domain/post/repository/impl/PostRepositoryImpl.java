@@ -135,8 +135,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         // ── 최종 점수(정수)
         NumberExpression<Long> score =
-                recencyPoints.multiply(3L)
-                        .add(views.multiply(1L))
+                recencyPoints.multiply(2L)
+                        .add(views.multiply(2L))
                         .add(likes.multiply(3L))
                         .add(comments.multiply(3L));
 
