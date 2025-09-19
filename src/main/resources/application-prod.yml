@@ -49,7 +49,7 @@ spring:
           accessToken: "access_token"
   jpa:
     hibernate:
-      ddl-auto: drop
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
