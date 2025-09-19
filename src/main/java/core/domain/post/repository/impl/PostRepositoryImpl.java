@@ -450,7 +450,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private Expression<String> nullIfAnonymous(Expression<String> expr) {
         return new CaseBuilder()
                 .when(post.anonymous.isTrue())
-                .then((String) null)
+                .then(Expressions.nullExpression(String.class))
                 .otherwise(expr);
     }
 
