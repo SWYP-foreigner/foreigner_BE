@@ -126,19 +126,39 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.createdAt
                 );
 
-        NumberExpression<Long> recencyPoints =
-                Expressions.numberTemplate(
-                        Long.class,
-                        "cast(round(1000 * exp(-(({0}) / 24.0)), 0) as long)",
-                        ageHours
-                );
+        double TAU_HOURS = 24.0;   // 최신성 시간 스케일(크면 감쇠 느림)
 
-        // ── 최종 점수(정수)
+        // 포화값: 이 값에서 해당 항목이 대략 10점에 근접
+        double L_SAT = 10.0;       // 좋아요 10개 ≈ 만점
+        double C_SAT = 10.0;       // 댓글 10개 ≈ 만점
+        double V_SAT = 100.0;      // 조회 100회 ≈ 만점
+
+        int wR = 2;  // 최신성
+        int wL = 3;  // 좋아요
+        int wC = 4;  // 댓글
+        int wV = 1;  // 조회
+
+        NumberExpression<Double> recency_base =
+                Expressions.numberTemplate(Double.class, "10 * exp(-(({0}) / {1}))", ageHours, TAU_HOURS);
+
+        NumberExpression<Double> likes_base =
+                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", likes, L_SAT);
+
+        NumberExpression<Double> comments_base =
+                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", comments, C_SAT);
+
+        NumberExpression<Double> views_base =
+                Expressions.numberTemplate(Double.class, "10 * (ln(1 + {0}) / ln(1 + {1}))", views, V_SAT);
+
+        // ====== 가중합 → 최종 Long 점수 ======
+        NumberExpression<Double> scoreDouble =
+                recency_base.multiply(wR)
+                        .add(likes_base.multiply(wL))
+                        .add(comments_base.multiply(wC))
+                        .add(views_base.multiply(wV));
+
         NumberExpression<Long> score =
-                recencyPoints.multiply(2L)
-                        .add(views.multiply(2L))
-                        .add(likes.multiply(3L))
-                        .add(comments.multiply(3L));
+                Expressions.numberTemplate(Long.class, "cast(round({0}, 0) as long)", scoreDouble);
 
         // ── 커서 조건(무한스크롤)
         BooleanExpression ltCursor = null;
