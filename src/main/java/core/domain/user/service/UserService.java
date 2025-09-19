@@ -5,8 +5,8 @@ import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.chat.repository.ChatRoomRepository;
+//import core.domain.chat.repository.ChatParticipantRepository;
+//import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -89,8 +89,8 @@ public class UserService {
     private final LikeRepository likeRepository;
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatMessageRepository chatMessageRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
-    private final ChatRoomRepository chatRoomRepository;
+//    private final ChatParticipantRepository chatParticipantRepository;
+//    private final ChatRoomRepository chatRoomRepository;
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
