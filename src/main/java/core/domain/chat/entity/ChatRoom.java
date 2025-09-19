@@ -1,6 +1,5 @@
 package core.domain.chat.entity;
 
-import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,14 +32,13 @@ public class ChatRoom {
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> participants = new ArrayList<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id")
-    private User owner;
+    @Column(name = "owner_id")
+    private Long ownerId;
     public void addParticipant(ChatParticipant participant) {
         participants.add(participant);
     }
     /**
-        테스트 데이터 생성용 생성자
+     테스트 데이터 생성용 생성자
      */
     public ChatRoom(Boolean group, Instant createdAt) {
         this.group = group;
@@ -69,14 +67,23 @@ public class ChatRoom {
      * @param createdAt   채팅방 생성 시각
      * @param roomName    채팅방 이름
      * @param description 채팅방 설명
-     * @param owner       채팅방 소유자 (생성한 유저)
+     * @param ownerId       채팅방 소유자 (생성한 유저)
      */
-    public ChatRoom(Boolean group, Instant createdAt, String roomName, String description, User owner) {
+    public ChatRoom(Boolean group, Instant createdAt, String roomName, String description, Long ownerId) {
         this.group = group;
         this.createdAt = createdAt;
         this.roomName = roomName;
         this.description = description;
-        this.owner = owner;
+        this.ownerId = ownerId;
+    }
+
+    /**
+     *
+     * 채팅방의 방장을 새로운 사용자로 변경합니다.
+     * @param newOwnerId 새로운 방장이 될 사용자의 ID
+     */
+    public void changeOwner(Long newOwnerId) {
+        this.ownerId = newOwnerId;
     }
 
 }

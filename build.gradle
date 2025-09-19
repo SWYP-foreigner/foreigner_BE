@@ -35,7 +35,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	// --- OpenAPI(UI) ---
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
-
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 	// --- OpenFeign ---
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 	implementation 'org.bouncycastle:bcpkix-jdk15on:1.70'

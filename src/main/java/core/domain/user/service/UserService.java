@@ -2,7 +2,6 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.dto.ChatUserProfileResponse;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
@@ -81,13 +80,13 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
     private final CommentRepository commentRepository;
     private final BookmarkRepository bookmarkRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
     private final PostRepository postRepository;
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
     private final LikeRepository likeRepository;
     private final AppleWithdrawalService appleWithdrawalService;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
 
 
     private static String nullToEmpty(String s) {
@@ -791,6 +790,8 @@ public class UserService {
                 })
                 .collect(Collectors.toList());
     }
+    // 더이상 안쓰는 채팅 dto 추후 사용한다면 수정필요
+    /*
     @Transactional(readOnly = true)
     public ChatUserProfileResponse getUserChatProfile(Long userId) {
         User user = userRepository.findById(userId)
@@ -804,5 +805,5 @@ public class UserService {
                 .orElse(null);
 
         return ChatUserProfileResponse.from(user, imageUrl);
-    }
+    }*/
 }

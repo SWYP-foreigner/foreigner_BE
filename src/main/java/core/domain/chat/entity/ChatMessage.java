@@ -1,42 +1,47 @@
 package core.domain.chat.entity;
 
-import core.domain.user.entity.User;
-import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.Instant;
 
-@Entity
-@Table(name = "chat_message")
+@Document(collection = "chat_messages")
 @Getter
 @NoArgsConstructor
 public class ChatMessage {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "message_id")
-    private Long id;
+    private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chatroom_id", nullable = false)
-    private ChatRoom chatRoom;
+    @Field("room_id")
+    private Long chatRoomId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_id", nullable = false)
-    private User sender;
+    @Field("sender_id")
+    private Long senderId;
 
-    @Column(name = "content", columnDefinition = "TEXT", nullable = false)
+    @Field("content")
     private String content;
 
-    @Column(name = "sent_at", updatable = false)
+    @Field("sent_at")
     private Instant sentAt;
-    @Column(name = "read_count", nullable = false)
-    private int readCount = 0;
-    public ChatMessage(ChatRoom chatRoom, User sender, String content) {
-        this.chatRoom = chatRoom;
-        this.sender = sender;
+
+    @Field("read_count")
+    private int readCount;
+
+    public ChatMessage(Long chatRoomId, Long senderId, String content, int readCount) {
+        this.chatRoomId = chatRoomId;
+        this.senderId = senderId;
+        this.content = content;
+        this.sentAt = Instant.now();
+        this.readCount = readCount;
+    }
+    public ChatMessage(Long chatRoomId, Long senderId, String content) {
+        this.chatRoomId = chatRoomId;
+        this.senderId = senderId;
         this.content = content;
         this.sentAt = Instant.now();
     }
-
 }

@@ -1,6 +1,5 @@
 package core.global.controller;
 
-import core.domain.chat.dto.ChatUserProfileResponse;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -306,11 +305,14 @@ public class UserController {
         List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
         return ResponseEntity.ok(userProfiles);
     }
-
+    /**
+     * 추후 수정예정
+     */
+    /*
     @Operation(summary = "유저 프로필 조회", description = "userId를 통해 유저의 상세 프로필 정보를 조회합니다.")
     @GetMapping("/{userId}/chat_profile")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserChatProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = userService.getUserChatProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
-    }
+    }*/
 }
