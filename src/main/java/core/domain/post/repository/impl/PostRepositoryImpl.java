@@ -70,15 +70,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Boolean> likedByMe = likedByViewerId(userId);
 
-        QImage u = new QImage("u");
-        Expression<String> userImageUrlExpr =
-                JPAExpressions
-                        .select(u.url)
-                        .from(u)
-                        .where(
-                                u.imageType.eq(IMAGE_TYPE_USER)
-                                        .and(u.relatedId.eq(user.id))
-                        );
+        Expression<String> userImageUrlOrNull = nullIfAnonymous(userImageUrlExpr());
 
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
@@ -96,7 +88,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
-                        userImageUrlExpr,
+                        userImageUrlOrNull,
                         contentThumbnailUrlExpr,
                         postImageCountExpr(),
                         Expressions.numberTemplate(Long.class, "NULL")
@@ -166,14 +158,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<String> preview = preview200();
 
-        // Images
-        QImage u = new QImage("u");
-        Expression<String> userImageUrlExpr =
-                JPAExpressions
-                        .select(u.url)
-                        .from(u)
-                        .where(u.imageType.eq(IMAGE_TYPE_USER)
-                                .and(u.relatedId.eq(user.id)));
+        Expression<String> userImageUrlOrNull = nullIfAnonymous(userImageUrlExpr());
 
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
@@ -191,7 +176,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         likes,
                         comments,
                         views,
-                        userImageUrlExpr,
+                        userImageUrlOrNull,
                         contentThumbnailUrlExpr,
                         postImageCountExpr(),
                         score
@@ -459,6 +444,26 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private Expression<String> preview200() {
         return Expressions.stringTemplate("substring({0}, 1, 200)", post.content);
+    }
+
+    // 익명일 때 null 로 바꿔주는 CASE 식
+    private Expression<String> nullIfAnonymous(Expression<String> expr) {
+        return new CaseBuilder()
+                .when(post.anonymous.isTrue())
+                .then((String) null)
+                .otherwise(expr);
+    }
+
+    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
+    private Expression<String> userImageUrlExpr() {
+        QImage u = new QImage("u");
+        return JPAExpressions
+                .select(u.url)
+                .from(u)
+                .where(
+                        u.imageType.eq(IMAGE_TYPE_USER)
+                                .and(u.relatedId.eq(user.id))
+                );
     }
 
     private Expression<String> firstPostImageUrlExpr() {
