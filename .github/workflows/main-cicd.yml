@@ -137,11 +137,11 @@ jobs:
           - target: A
             labels: [ self-hosted, prod, A ]
             need_es: false
-            need_mongo: true
+            need_mongo: true     # ← 변경 없음(이미 true)
           - target: B
             labels: [ self-hosted, prod, B ]
             need_es: true
-            need_mongo: false
+            need_mongo: true     # ← **변경: false → true**
     runs-on: ${{ matrix.labels }}
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -177,7 +177,7 @@ jobs:
             IMAGE_EFF="${DOCKERHUB_USERNAME}/foreigner:${SHA_FROM_BUILD:-$GITHUB_SHA}"
           fi
           echo "IMAGE effective: ${IMAGE_EFF}"
-                             
+          
           command -v docker >/dev/null || { echo "::error::docker not found"; exit 1; }
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
@@ -238,7 +238,6 @@ jobs:
           APP_PORT=8080
           EOF
           
-          
           # 1-1) ES 필요 시(A=불필요, B=필요)
           if [ "${{ matrix.need_es }}" = "true" ]; then
            sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
@@ -253,7 +252,7 @@ jobs:
           EOF
           fi
           
-          # 1-2) Mongo 필요 시(B=불필요, A=필요)
+          # 1-2) Mongo 필요 시(A/B 모두 필요로 변경)
           if [ "${{ matrix.need_mongo }}" = "true" ]; then
             sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
           SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
