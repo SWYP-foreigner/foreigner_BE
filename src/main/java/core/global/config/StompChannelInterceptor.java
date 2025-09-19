@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -31,7 +32,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
         log.debug("preSend 진입: command={}, destination={}", accessor.getCommand(), accessor.getDestination());
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // === 최초 연결 시 JWT를 검증하고 WebSocket 세션에 인증 정보 저장 ===
             log.info("STOMP CONNECT 요청 처리 시작");
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
@@ -42,11 +42,11 @@ public class StompChannelInterceptor implements ChannelInterceptor {
             String token = authHeader.substring(7);
 
             try {
+                // 토큰 유효성 검증 로직 (기존과 동일)
                 if (redisService.isBlacklisted(token)) {
                     log.warn("STOMP JWT 토큰이 블랙리스트에 있습니다.");
                     throw new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
                 }
-
                 if (!jwtTokenProvider.validateToken(token)) {
                     log.warn("STOMP JWT 토큰이 유효하지 않습니다.");
                     throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
@@ -58,7 +58,14 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
                 Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
 
-                accessor.setUser(auth);
+                // [수정 1] 세션 속성에 직접 인증 정보 저장
+                // accessor.setUser()가 불안정하게 동작하는 문제를 해결하기 위해 세션 속성에 직접 저장하는 방식을 사용합니다.
+                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                if (sessionAttributes != null) {
+                    sessionAttributes.put("userAuth", auth);
+                }
+
+                // accessor.setUser(auth); // 기존 방식도 함께 사용 가능 (다른 곳에서 필요할 수 있음)
                 log.info("STOMP JWT 인증 완료: WebSocket 세션에 사용자 정보 등록 (userId: {})", userId);
 
             } catch (Exception e) {
@@ -66,12 +73,23 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
         } else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
-            Authentication auth = (Authentication) accessor.getUser();
+
+            // [수정 2] 세션 속성에서 직접 인증 정보 조회
+            Authentication auth = null;
+            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            if (sessionAttributes != null) {
+                auth = (Authentication) sessionAttributes.get("userAuth");
+            }
+
             if (auth != null) {
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.debug("STOMP AUTHORIZED: SecurityContextHolder에 인증 정보 설정 완료, command={}", accessor.getCommand());
             } else {
                 log.warn("STOMP UNAUTHORIZED: WebSocket 세션에 인증 정보가 없습니다, command={}", accessor.getCommand());
+
+                // [수정 3] 인증되지 않은 메시지가 컨트롤러로 전달되지 않도록 차단
+                // null을 반환하면 해당 메시지는 더 이상 처리되지 않고 소멸됩니다.
+                return null;
             }
         }
         return message;
