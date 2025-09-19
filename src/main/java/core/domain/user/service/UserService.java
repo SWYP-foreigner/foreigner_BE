@@ -2,8 +2,11 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -87,7 +90,7 @@ public class UserService {
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatParticipantRepository chatParticipantRepository;
-
+    private final ChatRoomRepository chatRoomRepository;
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
@@ -718,30 +721,43 @@ public class UserService {
         if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
         }
-        cleanupUserData(user);
+        //cleanupUserData(user);
 
         redisService.deleteRefreshToken(userId);
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
     }
 
+
     /**
      * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
+     * 추후 채팅컨테이너랑 연계해서 수정필요
      */
+    /*
     private void cleanupUserData(User user) {
         Long userId = user.getId();
         log.info(">>>> Starting data cleanup for user ID: {}", userId);
+        List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
+
+        for (ChatRoom chatRoom : ownedChatRooms) {
+            List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
+
+            if (!participants.isEmpty()) {
+                User newOwner = participants.get(0).getUser();
+                chatRoom.changeOwner(newOwner);
+                chatRoomRepository.save(chatRoom);
+                log.info(">>>> Chat room {} owner changed to user {}", chatRoom.getId(), newOwner.getId());
+            } else {
+                chatRoomRepository.delete(chatRoom);
+                log.info(">>>> Chat room {} deleted as it had no other participants.", chatRoom.getId());
+            }
+        }
 
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
-            log.info(">>>> Deleted comments on posts by userId: {}", userId);
-
             bookmarkRepository.deleteAllByPostIn(userPosts);
-            log.info(">>>> Deleted bookmarks on posts by userId: {}", userId);
-
             postRepository.deleteAll(userPosts);
-            log.info(">>>> Deleted posts by userId: {}", userId);
         }
 
         commentRepository.deleteAllByAuthorId(userId);
@@ -755,7 +771,7 @@ public class UserService {
 
         userRepository.delete(user);
         log.info(">>>> Deleted user entity for userId: {}", userId);
-    }
+    }*/
     /**
      * 단일 사용자 정보 조회 로직
      */
