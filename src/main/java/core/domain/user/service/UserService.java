@@ -2,16 +2,14 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.dto.ChatUserProfileResponse;
-import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
+//import core.domain.chat.repository.ChatMessageRepository;
+//import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
-import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -81,8 +79,8 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider;
     private final CommentRepository commentRepository;
     private final BookmarkRepository bookmarkRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
+//    private final ChatMessageRepository chatMessageRepository;
+//    private final ChatParticipantRepository chatParticipantRepository;
     private final PostRepository postRepository;
     private final ImageRepository imageRepository;
     private final FollowRepository followRepository;
@@ -751,8 +749,8 @@ public class UserService {
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
 
-        chatParticipantRepository.deleteAllByUserId(userId);
-        chatMessageRepository.deleteAllBySenderId(userId);
+//        chatParticipantRepository.deleteAllByUserId(userId);
+//        chatMessageRepository.deleteAllBySenderId(userId);
 
         userRepository.delete(user);
         log.info(">>>> Deleted user entity for userId: {}", userId);
@@ -791,18 +789,18 @@ public class UserService {
                 })
                 .collect(Collectors.toList());
     }
-    @Transactional(readOnly = true)
-    public ChatUserProfileResponse getUserChatProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
-
-        String imageUrl = images.stream()
-                .findFirst()
-                .map(Image::getUrl)
-                .orElse(null);
-
-        return ChatUserProfileResponse.from(user, imageUrl);
-    }
+//    @Transactional(readOnly = true)
+//    public ChatUserProfileResponse getUserChatProfile(Long userId) {
+//        User user = userRepository.findById(userId)
+//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+//
+//        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
+//
+//        String imageUrl = images.stream()
+//                .findFirst()
+//                .map(Image::getUrl)
+//                .orElse(null);
+//
+//        return ChatUserProfileResponse.from(user, imageUrl);
+//    }
 }
