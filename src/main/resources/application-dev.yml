@@ -119,6 +119,8 @@ google:
 logging:
   level:
     root: INFO
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
     core.global.config.JwtTokenFilter: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web.socket: TRACE
