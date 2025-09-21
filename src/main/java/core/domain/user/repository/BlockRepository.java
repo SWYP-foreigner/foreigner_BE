@@ -1,6 +1,5 @@
 package core.domain.user.repository;
 
-import core.domain.chat.entity.ChatMessage;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,7 +21,10 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
 
     @Query("select count(b) > 0 from BlockUser b " +
            "where b.user.email = :email or b.blocked.email = :email")
-    boolean existsBlockedByEmail(@Param("email") String  email);
     Optional<BlockUser> findByUserAndBlocked(User user, User blocked);
     List<BlockUser> findByUser(User user);
+    @Query("select count(b) > 0 from BlockUser b " +
+            "where b.user.email = :email and b.blocked.email = :email")
+    boolean existsBlockedByEmail(@Param("email") String  email, @Param("email") String authorEmail);
+
 }
