@@ -19,7 +19,7 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
     boolean existsBlock(@Param("myId") Long myId, @Param("counterId") Long counterId);
 
     @Query("select count(b) > 0 from BlockUser b " +
-           "where b.user.email = :email or b.blocked.email = :email")
-    boolean existsBlockedByEmail(@Param("email") String  email);
+           "where b.user.email = :email and b.blocked.email = :authorEmail")
+    boolean existsBlockedByEmail(@Param("email") String  email, @Param("authorEmail") String authorEmail);
 
 }

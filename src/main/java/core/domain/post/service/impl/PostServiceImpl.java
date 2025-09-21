@@ -3,7 +3,6 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.global.service.ForbiddenWordService;
 import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -25,6 +24,7 @@ import core.global.search.dto.PostCreatedEvent;
 import core.global.search.dto.PostDeletedEvent;
 import core.global.search.dto.PostDocument;
 import core.global.search.dto.PostUpdatedEvent;
+import core.global.service.ForbiddenWordService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -173,20 +173,16 @@ public class PostServiceImpl implements PostService {
     public PostDetailResponse getPostDetail(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        if(blockRepository.existsBlockedByEmail(email)){
-            throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
-        }
-
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
-        log.info(post.getCheckCount()+" ");
-        postRepository.incrementViewCount(postId);
-        log.info(post.getCheckCount()+" ");
+        if(blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
+            throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
+        }
 
-        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
-        log.info(postDetail.authorName());
-        return postDetail;
+        postRepository.incrementViewCount(postId);
+
+        return postRepository.findPostDetail(email, postId);
     }
 
     @Override
@@ -420,7 +416,7 @@ public class PostServiceImpl implements PostService {
 
         log.info(""+blockedUser.getId());
         log.info("user" + me.getId());
-        if (blockRepository.existsBlock(me.getId(), blockedUser.getId())) {
+        if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
 
