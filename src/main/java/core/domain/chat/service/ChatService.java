@@ -92,19 +92,16 @@ public class ChatService {
 
                     if (opponentOpt.isPresent()) {
                         User opponent = opponentOpt.get();
-                        // Optional을 변수에 담아서 확인
-                        Optional<BlockUser> blockByMeOpt = blockRepository.findBlockRelationship(currentUser, opponent);
-                        Optional<BlockUser> blockByOpponentOpt = blockRepository.findBlockRelationship(opponent, currentUser);
+                        Long opponentId = opponent.getId();
 
-                        boolean isBlockedByMe = blockByMeOpt.isPresent();
-                        boolean isBlockedByOpponent = blockByOpponentOpt.isPresent();
+                        boolean isBlockedByMe = blockRepository.existsBlock(userId, opponentId);
 
-                        // [로그 추가] 각 채팅방마다 차단 여부 검사 결과를 로그로 찍어봅니다.
-                        log.info(">>> [차단 검사] RoomID: {}, OpponentID: {}, isBlockedByMe: {}, isBlockedByOpponent: {}",
-                                room.getId(), opponent.getId(), isBlockedByMe, isBlockedByOpponent);
+                        log.info(">>> [차단 검사] RoomID: {}, OpponentID: {}, isBlockedByMe: {}",
+                                room.getId(), opponentId, isBlockedByMe);
 
-                        return !(isBlockedByMe || isBlockedByOpponent);
+                        return !isBlockedByMe; // '내가 차단한 경우만 숨김'이 일반적
                     }
+
                     return true;
                 })
                 .map(room -> new ChatRoomWithTime(room, getLastMessageTime(room.getId())))
