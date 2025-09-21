@@ -96,7 +96,7 @@ public class ChatService {
                         User opponent = opponentOpt.get();
                         boolean isBlockedByMe = blockRepository.findBlockRelationship(currentUser, opponent).isPresent();
                         boolean isBlockedByOpponent = blockRepository.findBlockRelationship(opponent, currentUser).isPresent();
-                        return !isBlockedByMe && !isBlockedByOpponent;
+                        return !(isBlockedByMe || isBlockedByOpponent);
                     }
                     return true;
                 })
