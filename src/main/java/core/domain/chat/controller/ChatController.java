@@ -322,5 +322,8 @@ public class ChatController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
 
-
+    @PostMapping("/declaration")
+    public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
