@@ -301,10 +301,10 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public void blockUser(Long postId) {
+    public void blockUser(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User blockedUser = postRepository.findUserByPostId(postId)
+        User blockedUser = commentRepository.findUserByCommentId(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if (blockedUser.getEmail().equals(email)) {
