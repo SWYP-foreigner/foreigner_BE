@@ -94,8 +94,8 @@ public class ChatService {
                     // 상대방이 존재하고, 나와 상대방 중 한 명이라도 차단 관계가 있다면 false 반환
                     if (opponentOpt.isPresent()) {
                         User opponent = opponentOpt.get();
-                        boolean isBlockedByMe = blockRepository.findByUserAndBlocked(currentUser, opponent).isPresent();
-                        boolean isBlockedByOpponent = blockRepository.findByUserAndBlocked(opponent, currentUser).isPresent();
+                        boolean isBlockedByMe = blockRepository.findBlockRelationship(currentUser, opponent).isPresent();
+                        boolean isBlockedByOpponent = blockRepository.findBlockRelationship(opponent, currentUser).isPresent();
                         return !isBlockedByMe && !isBlockedByOpponent;
                     }
                     return true;
@@ -766,9 +766,9 @@ public class ChatService {
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
-            boolean isBlocked = blockRepository.findByUserAndBlocked(recipient, senderUser).isPresent();
+            boolean isBlocked = blockRepository.findBlockRelationship(recipient, senderUser).isPresent();
             if (isBlocked) {
-                continue; // 차단한 사용자에게는 메시지 발송 건너뛰기
+                continue;
             }
 
             if (participant.isTranslateEnabled()) {
@@ -965,22 +965,4 @@ public class ChatService {
     }
 
 
-    @Transactional
-    public void blockUser(Long userId, Long targetUserId) {
-        if (userId.equals(targetUserId)) {
-            throw new IllegalArgumentException("자신을 차단할 수 없습니다.");
-        }
-
-        User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다: " + userId));
-
-        User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new EntityNotFoundException("차단할 사용자를 찾을 수 없습니다: " + targetUserId));
-
-        if (blockRepository.findByUserAndBlocked(currentUser, targetUser).isPresent()) {
-            throw new IllegalStateException("이미 차단된 사용자입니다.");
-        }
-        BlockUser blockUser = new BlockUser(currentUser, targetUser);
-        blockRepository.save(blockUser);
-    }
 }

@@ -19,9 +19,9 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
            "where b.user.id = :myId and b.blocked.id = :counterId")
     boolean existsBlock(@Param("myId") Long myId, @Param("counterId") Long counterId);
 
-    @Query("select count(b) > 0 from BlockUser b " +
-           "where b.user.email = :email or b.blocked.email = :email")
-    Optional<BlockUser> findByUserAndBlocked(User user, User blocked);
+    @Query("SELECT b FROM BlockUser b WHERE b.user = :user AND b.blocked = :blockedUser")
+    Optional<BlockUser> findBlockRelationship(@Param("user") User user, @Param("blockedUser") User blockedUser);
+
     List<BlockUser> findByUser(User user);
     @Query("select count(b) > 0 from BlockUser b " +
             "where b.user.email = :email and b.blocked.email = :email")
