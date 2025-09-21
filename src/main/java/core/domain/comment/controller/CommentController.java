@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -169,6 +170,24 @@ public class CommentController {
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 좋아요 삭제 완료"));
+    }
+
+    @Operation(summary = "댓글 차단", description = "댓글을 차단합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @PostMapping("/comments/{commentId}/block")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
+            @PathVariable @Positive Long commentId
+    ) {
+        commentService.blockUser(commentId);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("차단 성공"));
     }
 
 

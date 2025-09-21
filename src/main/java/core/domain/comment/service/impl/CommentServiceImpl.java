@@ -1,5 +1,7 @@
 package core.domain.comment.service.impl;
 
+import core.domain.user.entity.BlockUser;
+import core.domain.user.repository.BlockRepository;
 import core.global.service.ForbiddenWordService;
 import core.domain.comment.dto.CommentItem;
 import core.domain.comment.dto.CommentUpdateRequest;
@@ -43,6 +45,7 @@ public class CommentServiceImpl implements CommentService {
     private final ImageRepository imageRepository;
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
+    private final BlockRepository blockRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -294,6 +297,28 @@ public class CommentServiceImpl implements CommentService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         likeRepository.deleteByUserEmailAndIdAndType(email, commentId, LikeType.COMMENT);
+    }
+
+    @Override
+    @Transactional
+    public void blockUser(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User blockedUser = postRepository.findUserByPostId(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (blockedUser.getEmail().equals(email)) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        blockRepository.save(new BlockUser(me, blockedUser));
     }
 
 
