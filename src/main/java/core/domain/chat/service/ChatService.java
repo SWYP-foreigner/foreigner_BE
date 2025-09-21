@@ -166,12 +166,20 @@ public class ChatService {
         List<User> blockedUsers = blockRepository.findByUser(currentUser)
                 .stream()
                 .map(BlockUser::getBlocked)
-                .collect(Collectors.toList());
+                .toList();
 
-        Optional<ChatMessage> lastMessage = chatMessageRepository.findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(roomId, blockedUsers);
+        Optional<ChatMessage> lastMessage;
 
-        return lastMessage.map(ChatMessage::getContent).orElse("새로운 메시지가 없습니다.");
+        if (blockedUsers.isEmpty()) {
+            lastMessage = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(roomId);
+        } else {
+            lastMessage = chatMessageRepository.findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(roomId, blockedUsers);
+        }
+
+        return lastMessage.map(ChatMessage::getContent)
+                .orElse("새로운 메시지가 없습니다.");
     }
+
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
         List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
