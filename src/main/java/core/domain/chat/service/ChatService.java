@@ -353,15 +353,23 @@ public class ChatService {
 
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
+        List<Long> blockedIds = getBlockedUserIds(userId);
+        if (!blockedIds.isEmpty()) {
+            messages = messages.stream()
+                    .filter(msg -> !blockedIds.contains(msg.getSender().getId()))
+                    .toList();
+        }
+
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
             List<String> originalContents = messages.stream()
                     .map(ChatMessage::getContent)
                     .collect(Collectors.toList());
             List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
 
+            List<ChatMessage> finalMessages = messages;
             return IntStream.range(0, messages.size())
                     .mapToObj(i -> {
-                        ChatMessage message = messages.get(i);
+                        ChatMessage message = finalMessages.get(i);
                         String translatedContent = translatedContents.get(i);
                         User sender = message.getSender();
                         String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
@@ -381,7 +389,6 @@ public class ChatService {
                         );
                     }).collect(Collectors.toList());
         }
-
         else {
             return messages.stream()
                     .map(message -> {
@@ -404,6 +411,7 @@ public class ChatService {
                     }).collect(Collectors.toList());
         }
     }
+
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
@@ -722,6 +730,13 @@ public class ChatService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방에 참여하지 않았거나 나간 사용자입니다."));
         List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
 
+        List<Long> blockedIds = getBlockedUserIds(userId);
+        if (!blockedIds.isEmpty()) {
+            messages = messages.stream()
+                    .filter(msg -> !blockedIds.contains(msg.getSender().getId()))
+                    .toList();
+        }
+
         return messages.stream()
                 .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, imageRepository))
                 .collect(Collectors.toList());
@@ -976,5 +991,11 @@ public class ChatService {
         messagingTemplate.convertAndSend(destination,payload);
     }
 
+    private List<Long> getBlockedUserIds(Long userId) {
+        return blockRepository.findByUserId(userId).stream()
+                .map(BlockUser::getBlocked)
+                .map(User::getId)
+                .toList();
+    }
 
 }
