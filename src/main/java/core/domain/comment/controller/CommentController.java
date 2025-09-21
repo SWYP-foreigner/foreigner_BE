@@ -221,7 +221,7 @@ public class CommentController {
     }
 
 
-    @Operation(summary = "게시글 차단", description = "게시글을 차단합니다.")
+    @Operation(summary = "댓글 차단", description = "댓글을 차단합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
