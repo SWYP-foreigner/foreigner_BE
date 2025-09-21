@@ -74,7 +74,7 @@ jobs:
           echo "image=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
           echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-  # ✅ C 서버 러너에서 로컬로 ES 롤아웃 (SSH/SCP 제거)
+  # ✅ C 서버 러너에서 로컬로 ES 롤아웃
   es-rollout:
     needs: build
     if: ${{ github.event.inputs.skip_es != 'true' }}
@@ -126,18 +126,14 @@ jobs:
           echo "[ES] verify"
           ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" bash scripts/99-verify.sh
 
-  # ✅ A/B 서버 러너에서 로컬 배포 (systemd + docker)
+  # ✅ B 서버 러너에서 로컬 배포 (systemd + docker)
   deploy:
     needs: build
     strategy:
-      max-parallel: 1         # ← matrix 바깥
+      max-parallel: 1
       matrix:
-        target: [ B, A ]      # B 먼저 -> A
+        target: [ B ]
         include:
-          - target: A
-            labels: [ self-hosted, prod, A ]
-            need_es: false
-            need_mongo: true     # ← 변경 없음(이미 true)
           - target: B
             labels: [ self-hosted, prod, B ]
             need_es: true
@@ -238,7 +234,7 @@ jobs:
           APP_PORT=8080
           EOF
           
-          # 1-1) ES 필요 시(A=불필요, B=필요)
+          # 1-1) ES 필요 시(B=필요)
           if [ "${{ matrix.need_es }}" = "true" ]; then
            sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
           ELASTICSEARCH_HOST=${{ secrets.PROD_ELASTICSEARCH_HOST }}
@@ -252,7 +248,7 @@ jobs:
           EOF
           fi
           
-          # 1-2) Mongo 필요 시(A/B 모두 필요로 변경)
+          # 1-2) Mongo 필요 시(B=불필요)
           if [ "${{ matrix.need_mongo }}" = "true" ]; then
             sudo tee -a /etc/foreigner/foreigner.env > /dev/null <<'EOF'
           SPRING_DATA_MONGODB_URI=${{ secrets.MONGODB_ATLAS_URI }}
