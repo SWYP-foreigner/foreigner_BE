@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
@@ -20,6 +21,7 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.service.TranslationService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -27,7 +29,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import core.domain.user.repository.BlockRepository;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -49,10 +51,12 @@ public class ChatService {
     private final SimpMessagingTemplate messagingTemplate; // 주입 필요
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BlockRepository blockRepository;
+
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
                        UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService, ApplicationEventPublisher eventPublisher) {
+                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService, ApplicationEventPublisher eventPublisher, BlockRepository blockRepository) {
         this.chatRoomRepo = chatRoomRepo;
         this.participantRepo = participantRepo;
 
@@ -65,6 +69,7 @@ public class ChatService {
         this.messagingTemplate = messagingTemplate;
         this.imageService = imageService;
         this.eventPublisher = eventPublisher;
+        this.blockRepository = blockRepository;
     }
     private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
@@ -75,6 +80,26 @@ public class ChatService {
         List<ChatRoom> rooms = chatRoomRepo.findActiveChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
         return rooms.stream()
+                // 🚨 차단 필터링 로직
+                .filter(room -> {
+                    if (room.getGroup()) {
+                        return true; // 그룹 채팅방은 차단 여부와 상관없이 항상 포함
+                    }
+                    // 1:1 채팅방일 경우 상대방을 찾음
+                    Optional<User> opponentOpt = room.getParticipants().stream()
+                            .map(ChatParticipant::getUser)
+                            .filter(u -> !u.getId().equals(userId))
+                            .findFirst();
+
+                    // 상대방이 존재하고, 나와 상대방 중 한 명이라도 차단 관계가 있다면 false 반환
+                    if (opponentOpt.isPresent()) {
+                        User opponent = opponentOpt.get();
+                        boolean isBlockedByMe = blockRepository.findByUserAndBlocked(currentUser, opponent).isPresent();
+                        boolean isBlockedByOpponent = blockRepository.findByUserAndBlocked(opponent, currentUser).isPresent();
+                        return !isBlockedByMe && !isBlockedByOpponent;
+                    }
+                    return true;
+                })
                 .map(room -> new ChatRoomWithTime(room, getLastMessageTime(room.getId())))
                 .sorted(Comparator.comparing(
                         ChatRoomWithTime::lastMessageTime,
@@ -84,21 +109,22 @@ public class ChatService {
                     ChatRoom room = roomWithTime.room();
                     Instant lastMessageTime = roomWithTime.lastMessageTime();
 
-                    String lastMessageContent = getLastMessageContent(room.getId());
+                    // 그룹 채팅방의 마지막 메시지는 차단된 유저 메시지를 제외
+                    String lastMessageContent =getLastNonBlockedMessageContent(room.getId(), userId);
                     int unreadCount = countUnreadMessages(room.getId(), userId);
                     int participantCount = room.getParticipants().size();
                     String roomName;
                     String roomImageUrl;
 
                     if (!room.getGroup()) {
-                        Optional<User> opponentOpt = room.getParticipants().stream()
+                        User opponent = room.getParticipants().stream()
                                 .map(ChatParticipant::getUser)
                                 .filter(u -> !u.getId().equals(userId))
-                                .findFirst();
+                                .findFirst()
+                                .orElse(null);
 
-                        if (opponentOpt.isPresent()) {
-                            User opponent = opponentOpt.get();
-                            roomName = opponent.getFirstName()+" "+opponent.getLastName();
+                        if (opponent != null) {
+                            roomName = opponent.getFirstName() + " " + opponent.getLastName();
                             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                                     .map(Image::getUrl)
                                     .orElse(null);
@@ -114,7 +140,6 @@ public class ChatService {
                                 .orElse(null);
                     }
 
-
                     return new ChatRoomSummaryResponse(
                             room.getId(),
                             roomName,
@@ -126,6 +151,19 @@ public class ChatService {
                     );
                 })
                 .toList();
+    }
+    private String getLastNonBlockedMessageContent(Long roomId, Long userId) {
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        List<User> blockedUsers = blockRepository.findByUser(currentUser)
+                .stream()
+                .map(BlockUser::getBlocked)
+                .collect(Collectors.toList());
+
+        Optional<ChatMessage> lastMessage = chatMessageRepository.findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(roomId, blockedUsers);
+
+        return lastMessage.map(ChatMessage::getContent).orElse("새로운 메시지가 없습니다.");
     }
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
@@ -728,6 +766,10 @@ public class ChatService {
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
+            boolean isBlocked = blockRepository.findByUserAndBlocked(recipient, senderUser).isPresent();
+            if (isBlocked) {
+                continue; // 차단한 사용자에게는 메시지 발송 건너뛰기
+            }
 
             if (participant.isTranslateEnabled()) {
                 String targetLanguage = recipient.getTranslateLanguage();
@@ -923,5 +965,22 @@ public class ChatService {
     }
 
 
+    @Transactional
+    public void blockUser(Long userId, Long targetUserId) {
+        if (userId.equals(targetUserId)) {
+            throw new IllegalArgumentException("자신을 차단할 수 없습니다.");
+        }
 
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다: " + userId));
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new EntityNotFoundException("차단할 사용자를 찾을 수 없습니다: " + targetUserId));
+
+        if (blockRepository.findByUserAndBlocked(currentUser, targetUser).isPresent()) {
+            throw new IllegalStateException("이미 차단된 사용자입니다.");
+        }
+        BlockUser blockUser = new BlockUser(currentUser, targetUser);
+        blockRepository.save(blockUser);
+    }
 }

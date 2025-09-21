@@ -1,6 +1,7 @@
 package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatMessage;
+import core.domain.user.entity.User;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -79,4 +80,5 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      * 특정 메시지 ID보다 큰(이후) 메시지들을 순서대로 20개 조회합니다.
      */
     List<ChatMessage> findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long messageId);
+    Optional<ChatMessage> findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(Long chatRoomId, List<User> senders);
 }

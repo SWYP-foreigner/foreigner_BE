@@ -2,6 +2,7 @@ package core.domain.user.service;
 
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
@@ -34,7 +35,7 @@ public class ContentBasedRecommender {
     private static final double W_COUNTRY = 0.2;
     private static final double W_AGE = 0.3;   // 너가 바꾼 가중치 유지
     private static final double W_LANG = 0.1;  // 너가 바꾼 가중치 유지
-
+    private final BlockRepository blockRepository;
     /**
      랜덤 랭킹용 파라미터 (원하면 @Value 로 빼서 설정 가능)
      * POOL_MULTIPLIER = 5;
@@ -65,15 +66,25 @@ public class ContentBasedRecommender {
         if (!page.hasContent()) {
             return List.of();
         }
+        List<User> filteredUsers = page.getContent().stream()
+                .filter(candidate -> !isBlocked(me, candidate))
+                .toList();
+
+        log.info(">>>> [디버깅 1.5] 차단 필터링 후 남은 후보 수: {}", filteredUsers.size());
+        log.info(">>>> 리미트 수 : {}",limit);
+
+        if (filteredUsers.isEmpty()) {
+            log.info(">>>> [디버깅 1.6] 차단 필터링 후 남은 후보가 없습니다.");
+            return List.of();
+        }
 
         List<Scored<User>> scored = new ArrayList<>();
-        for (User cand : page.getContent()) {
+        for (User cand : filteredUsers) {
             double s = score(me, cand, meAge, meLangs);
             scored.add(new Scored<>(cand, s));
         }
 
         log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
-        log.info(">>>> 리미트 수 : {}",limit);
 
         scored.sort((a, b) -> Double.compare(b.score, a.score));
 
@@ -84,7 +95,6 @@ public class ContentBasedRecommender {
                     .toList();
         }
 
-        // 5. 확률적 재랭킹 로직 실행
         log.info(">>>> [디버깅 4] 후보 수가 충분하여 확률적 재랭킹을 시작합니다.");
         int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
         int finalLimit = Math.min(limit, poolK);
@@ -92,6 +102,7 @@ public class ContentBasedRecommender {
 
         return chosen.stream().map(this::toDto).toList();
     }
+
 
     /** Gumbel-Top-k: key = score/T + Gumbel(0,1) 로 정렬 → 상위 limit 선택(중복 없음) */
     private List<User> pickGumbelTopK(List<Scored<User>> pool, int limit, double temperature) {
@@ -183,5 +194,9 @@ public class ContentBasedRecommender {
                 .hobby(csvToSet(u.getHobby()).stream().toList())
                 .imageKey(imageKey)
                 .build();
+    }
+    private boolean isBlocked(User me, User candidate) {
+        return blockRepository.existsBlock(me.getId(), candidate.getId()) ||
+                blockRepository.existsBlock(candidate.getId(), me.getId());
     }
 }
