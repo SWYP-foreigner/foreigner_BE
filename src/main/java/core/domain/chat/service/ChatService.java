@@ -793,10 +793,13 @@ public class ChatService {
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
-            boolean isBlocked = blockRepository.findBlockRelationship(recipient, senderUser).isPresent();
-            if (isBlocked) {
+            boolean isBlockedByRecipient = blockRepository.findBlockRelationship(recipient, senderUser).isPresent();
+            boolean isBlockedByMe = blockRepository.findBlockRelationship(senderUser, recipient).isPresent();
+
+            if (isBlockedByRecipient || isBlockedByMe) {
                 continue;
             }
+
 
             if (participant.isTranslateEnabled()) {
                 String targetLanguage = recipient.getTranslateLanguage();
