@@ -83,19 +83,26 @@ public class ChatService {
                 // 🚨 차단 필터링 로직
                 .filter(room -> {
                     if (room.getGroup()) {
-                        return true; // 그룹 채팅방은 차단 여부와 상관없이 항상 포함
+                        return true;
                     }
-                    // 1:1 채팅방일 경우 상대방을 찾음
                     Optional<User> opponentOpt = room.getParticipants().stream()
                             .map(ChatParticipant::getUser)
                             .filter(u -> !u.getId().equals(userId))
                             .findFirst();
 
-                    // 상대방이 존재하고, 나와 상대방 중 한 명이라도 차단 관계가 있다면 false 반환
                     if (opponentOpt.isPresent()) {
                         User opponent = opponentOpt.get();
-                        boolean isBlockedByMe = blockRepository.findBlockRelationship(currentUser, opponent).isPresent();
-                        boolean isBlockedByOpponent = blockRepository.findBlockRelationship(opponent, currentUser).isPresent();
+                        // Optional을 변수에 담아서 확인
+                        Optional<BlockUser> blockByMeOpt = blockRepository.findBlockRelationship(currentUser, opponent);
+                        Optional<BlockUser> blockByOpponentOpt = blockRepository.findBlockRelationship(opponent, currentUser);
+
+                        boolean isBlockedByMe = blockByMeOpt.isPresent();
+                        boolean isBlockedByOpponent = blockByOpponentOpt.isPresent();
+
+                        // [로그 추가] 각 채팅방마다 차단 여부 검사 결과를 로그로 찍어봅니다.
+                        log.info(">>> [차단 검사] RoomID: {}, OpponentID: {}, isBlockedByMe: {}, isBlockedByOpponent: {}",
+                                room.getId(), opponent.getId(), isBlockedByMe, isBlockedByOpponent);
+
                         return !(isBlockedByMe || isBlockedByOpponent);
                     }
                     return true;
