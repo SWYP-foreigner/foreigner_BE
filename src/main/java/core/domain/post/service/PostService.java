@@ -32,4 +32,5 @@ public interface PostService {
 
     void blockUser(@Positive Long postId);
 
+    void blockPost(@Positive Long postId);
 }

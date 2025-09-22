@@ -3,6 +3,8 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.post.entity.BlockPost;
+import core.domain.post.repository.BlockPostRepository;
 import core.global.service.ForbiddenWordService;
 import core.domain.post.dto.*;
 import core.domain.post.entity.Post;
@@ -55,6 +57,7 @@ public class PostServiceImpl implements PostService {
     private final ForbiddenWordService forbiddenWordService;
     private final ImageService imageService;
     private final BlockRepository blockRepository;
+    private final BlockPostRepository blockPostRepository;
     private final ApplicationEventPublisher publisher;
 
     //임시
@@ -481,6 +484,28 @@ public class PostServiceImpl implements PostService {
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
+    }
+
+    @Override
+    @Transactional
+    public void blockPost(Long postId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+
+        if (post.getAuthor().getEmail().equals(email)) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (blockPostRepository.existsBlock(me.getId(), post.getId())) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        blockPostRepository.save(new BlockPost(me, post));
     }
 
 

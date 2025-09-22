@@ -246,8 +246,26 @@ public class PostController {
                 .body(core.global.dto.ApiResponse.success("좋아요 해제"));
     }
 
+    @Operation(summary = "게시글 차단(신고)", description = "게시글을 차단합니다. 해당 게시물에만 유저에게 보이지 않습니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+    })
+    @PostMapping("/posts/{postId}/declaration")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> blockPost(
+            @PathVariable @Positive Long postId
+    ) {
+        postService.blockPost(postId);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("차단 성공"));
+    }
 
-    @Operation(summary = "게시글 차단", description = "게시글을 차단합니다.")
+
+    @Operation(summary = "유저 차단(차단)", description = "유저을 차단합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
