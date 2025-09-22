@@ -4,6 +4,7 @@ import com.mongodb.Block;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,4 +29,8 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
             "where b.user.email = :email and b.blocked.email = :email")
     boolean existsBlockedByEmail(@Param("email") String  email, @Param("email") String authorEmail);
     List<BlockUser> findByUserId(Long userId);
+
+    @Modifying
+    @Query("delete from BlockUser b where b.user = :user or b.blocked = :user")
+    void deleteAllByUserOrBlocked(@Param("user") User user);
 }

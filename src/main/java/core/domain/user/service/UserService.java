@@ -14,8 +14,10 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
 import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.dto.UserWithdrawalEvent;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.config.JwtTokenProvider;
@@ -34,6 +36,7 @@ import core.global.service.SmtpMailService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -74,8 +77,9 @@ public class UserService {
     // 예: [코드] 형태 추출
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
-
+    private final ApplicationEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
+    private final BlockRepository blockRepository;
     private final SmtpMailService smtpService;
     private final RedisTemplate<String, String> redisTemplate;
     private final UserRepository userRepository;
@@ -723,21 +727,24 @@ public class UserService {
     /**
      * 회원 탈퇴 메인 메소드 (Orchestrator)
      */
+    @Transactional
     public boolean withdrawUser(Long userId, String accessToken) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        boolean isApple=false;
+        boolean isApple = false;
+
         if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
-            isApple=true;
+            isApple = true;
         }
-        cleanupUserData(user);
 
-        redisService.deleteRefreshToken(userId);
-        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-        redisService.blacklistAccessToken(accessToken, expiration);
+        cleanupUserData(user); // DB 작업들
+
+        eventPublisher.publishEvent(new UserWithdrawalEvent(userId, accessToken));
+
         return isApple;
     }
+
 
     /**
      * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
@@ -773,7 +780,7 @@ public class UserService {
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
-
+        blockRepository.deleteAllByUserOrBlocked(user);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
 
