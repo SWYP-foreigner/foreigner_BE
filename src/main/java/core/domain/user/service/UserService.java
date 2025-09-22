@@ -10,6 +10,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
+import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserSearchDTO;
@@ -77,6 +78,7 @@ public class UserService {
     // 예: [코드] 형태 추출
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
+    private final BlockPostRepository blockPostRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
     private final BlockRepository blockRepository;
@@ -767,7 +769,7 @@ public class UserService {
                 log.info(">>>> Chat room {} deleted as it had no other participants.", chatRoom.getId());
             }
         }
-
+        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
