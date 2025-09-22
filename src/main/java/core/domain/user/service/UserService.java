@@ -723,18 +723,20 @@ public class UserService {
     /**
      * 회원 탈퇴 메인 메소드 (Orchestrator)
      */
-    public void withdrawUser(Long userId, String accessToken) {
+    public boolean withdrawUser(Long userId, String accessToken) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
+        boolean isApple=false;
         if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
+            isApple=true;
         }
         cleanupUserData(user);
 
         redisService.deleteRefreshToken(userId);
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
+        return isApple;
     }
 
     /**
