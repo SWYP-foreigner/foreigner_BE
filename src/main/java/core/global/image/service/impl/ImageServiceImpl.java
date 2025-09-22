@@ -345,6 +345,12 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
+    private boolean hasAllowedImageExtension(String key) {
+        String k = (key == null ? "" : key).toLowerCase();
+        return k.endsWith(".png") || k.endsWith(".jpg") || k.endsWith(".jpeg")
+               || k.endsWith(".webp") || k.endsWith(".gif");
+    }
+
     @Override
     @Transactional
     public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {
@@ -361,7 +367,19 @@ public class ImageServiceImpl implements ImageService {
 
         // 존재/타입/용량 검증
         log.info("userId: {} - Validating image metadata for key: '{}'", userId, reqKey);
-        validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+        boolean skip = requestedKeyOrUrl.startsWith("https://cdn.ko-ri.cloud/default/")
+                       || "true".equalsIgnoreCase(System.getenv("IMAGE_VALIDATION_BYPASS"))
+                       || "true".equalsIgnoreCase(System.getProperty("image.validation.bypass"));
+
+        if (!skip) {
+            validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+        } else {
+            // 최소 안전장치: 확장자만 확인
+            if (!hasAllowedImageExtension(reqKey)) {
+                throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+            }
+            log.warn("TEMP BYPASS: headObject 검증을 생략했습니다. urlOrKey={}, key={}", requestedKeyOrUrl, reqKey);
+        }
         log.info("userId: {} - Image validation successful for key: '{}'", userId, reqKey);
 
         // 기존 프로필 전부 제거
