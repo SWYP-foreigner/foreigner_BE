@@ -63,6 +63,13 @@ public final class UrlUtil {
     }
 
 
+    public static String buildCdnUrlFromKey(String cdnBaseUrl, String key) {
+        String clean = trimSlashes(key);
+        String encoded = encodePathSegments(clean);
+        String base = cdnBaseUrl.replaceAll("/+$", "");
+        return base + "/" + encoded;
+    }
+
     /**
      * 주어진 key를 path-style 공개 URL로 변환(세그먼트 인코딩 포함)
      */
@@ -78,25 +85,36 @@ public final class UrlUtil {
      * path-style 혹은 virtual-hosted-style 공개 URL prefix 제거 → key로 변환(디코딩 포함)
      */
     public static String toKeyFromUrlOrKey(String endPoint, String bucket, String urlOrKey) {
-        if (!isAbsoluteUrl(urlOrKey)) {
-            return trimSlashes(urlOrKey);
-        }
-        String ep = endPoint.replaceAll("/+$", "");
-        String pathStylePrefix = ep + "/" + trimSlashes(bucket) + "/";
-        if (urlOrKey.startsWith(pathStylePrefix)) {
-            String rest = urlOrKey.substring(pathStylePrefix.length());
-            return trimSlashes(urlDecode(rest));
+        if (urlOrKey == null || urlOrKey.isBlank()) return null;
+        String s = urlOrKey.trim();
+
+        // 원본 엔드포인트 + 버킷을 제거
+        String originPrefix = endPoint.replaceAll("/+$", "") + "/" + trimSlashes(bucket) + "/";
+        if (s.startsWith(originPrefix)) {
+            return trimSlashes(s.substring(originPrefix.length()));
         }
 
-        String host = ep.replaceFirst("^https?://", "");
-        String vhostPrefix = "https://" + trimSlashes(bucket) + "." + host + "/";
-        if (urlOrKey.startsWith(vhostPrefix)) {
-            String rest = urlOrKey.substring(vhostPrefix.length());
-            return trimSlashes(urlDecode(rest));
-        }
-
-        return trimSlashes(urlDecode(urlOrKey));
+        // CDN 베이스가 별도 설정이라면, 아래 오버로드를 사용하세요 (2-b 참고)
+        // 그 외: 이미 key라고 가정
+        return trimSlashes(s);
     }
+
+    public static String toKeyFromUrlOrKey(String endPoint, String bucket, String cdnBaseUrl, String urlOrKey) {
+        if (urlOrKey == null || urlOrKey.isBlank()) return null;
+        String s = urlOrKey.trim();
+
+        String originPrefix = endPoint.replaceAll("/+$", "") + "/" + trimSlashes(bucket) + "/";
+        if (s.startsWith(originPrefix)) {
+            return trimSlashes(s.substring(originPrefix.length()));
+        }
+
+        String cdnPrefix = cdnBaseUrl.replaceAll("/+$", "") + "/";
+        if (s.startsWith(cdnPrefix)) {
+            return trimSlashes(s.substring(cdnPrefix.length()));
+        }
+        return trimSlashes(s);
+    }
+
 
     /**
      * fileLocation + fileName을 안전하게 조합하여 key 생성(디코딩 & 슬래시 정리)
