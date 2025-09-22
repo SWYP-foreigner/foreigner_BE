@@ -326,7 +326,7 @@ public class ChatController {
         ChatRoomGroupResponse response = new ChatRoomGroupResponse(isGroup);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-    @PostMapping("/block/{userId}")
+    @PostMapping("/block/{targetUserId}")
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
             @PathVariable @Positive Long targetUserId
     ) {
