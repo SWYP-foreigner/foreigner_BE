@@ -6,7 +6,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "block_post")
+@Table(
+        name = "block_post",
+        uniqueConstraints = @UniqueConstraint(name = "uk_block_post_user_post", columnNames = {"user_id", "post_id"})
+)
 @Getter
 @NoArgsConstructor
 public class BlockPost {

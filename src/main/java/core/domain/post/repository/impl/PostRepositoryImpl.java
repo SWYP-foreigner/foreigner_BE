@@ -11,6 +11,7 @@ import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
 import core.domain.post.dto.PostDetailResponse;
 import core.domain.post.dto.UserPostItem;
+import core.domain.post.entity.QBlockPost;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
 import core.domain.user.entity.QBlockUser;
@@ -75,6 +76,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
         BooleanExpression visibleToMe = visibleTo(userId);
+        BooleanExpression notBlocked = notBlockedByViewerId(userId);
 
         return query
                 .select(Projections.constructor(
@@ -96,7 +98,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe))
+                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
                 .orderBy(post.createdAt.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
@@ -179,6 +181,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
 
         BooleanExpression visibleToMe = visibleTo(userId);
+        BooleanExpression notBlocked = notBlockedByViewerId(userId);
 
         return query
                 .select(Projections.constructor(
@@ -200,7 +203,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, sinceFilter, search, ltCursor, visibleToMe))
+                .where(allOf(boardFilter, sinceFilter, search, ltCursor, visibleToMe, notBlocked))
                 .orderBy(
                         score.desc(),
                         post.id.desc()
@@ -243,6 +246,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<String> linkExpr = Expressions.constant("CHAT LINK");
 
         Expression<Boolean> likedByMe = likedByViewerEmail(email);
+        BooleanExpression notBlocked = notBlockedByViewerEmail(email);
 
         List<Tuple> rows = query
                 .select(
@@ -267,7 +271,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         image.imageType.eq(IMAGE_TYPE_POST)
                                 .and(image.relatedId.eq(post.id))
                 )
-                .where(post.id.eq(postId))
+                .where(allOf(post.id.eq(postId), notBlocked))
                 .orderBy(image.id.asc())
                 .fetch();
 
@@ -414,6 +418,33 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return user.lastName.coalesce("")
                 .concat(" ")
                 .concat(user.firstName.coalesce(""));
+    }
+
+    private BooleanExpression notBlockedByViewerId(Long userId) {
+        if (userId == null) return null; // 비로그인 때는 필터 생략
+        QBlockPost bp = QBlockPost.blockPost;
+        return JPAExpressions
+                .selectOne()
+                .from(bp)
+                .where(
+                        bp.user.id.eq(userId)
+                                .and(bp.post.id.eq(post.id))
+                )
+                .notExists();
+    }
+
+
+    private BooleanExpression notBlockedByViewerEmail(String email) {
+        if (email == null || email.isBlank()) return null;
+        QBlockPost bp = QBlockPost.blockPost;
+        return JPAExpressions
+                .selectOne()
+                .from(bp)
+                .where(
+                        bp.user.email.eq(email)
+                                .and(bp.post.id.eq(post.id))
+                )
+                .notExists();
     }
 
     private BooleanExpression visibleTo(Long userId) {
