@@ -108,9 +108,8 @@ public class AppleAuthService {
         String appleSocialId = claims.getSubject();
         String provider = Ouathplatform.APPLE.toString();
 
+        log.info("2. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
-        log.info("{}",user.isNewUser());
-        log.info("{}, {}", user.getId(),user.getProvider());
         if (user == null) {
             log.info("새로운 사용자입니다. Apple 서버로부터 토큰 발급 시도...");
             String appleRefreshToken = requestAppleToken(req.authorizationCode());
@@ -152,7 +151,7 @@ public class AppleAuthService {
             log.info("기존 사용자 발견. 사용자 ID: {}", user.getId());
         }
         boolean isNewUserResponse = user.isNewUser();
-
+        log.info("{},{}",user.isNewUser(),user.getProvider());
         log.info("3. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
