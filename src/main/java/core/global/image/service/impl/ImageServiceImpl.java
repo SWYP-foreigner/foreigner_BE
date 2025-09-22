@@ -287,6 +287,10 @@ public class ImageServiceImpl implements ImageService {
 //        String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);
 
         String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, keyOrUrl);
+
+        if (key.startsWith("default/")) {
+            return;
+        }
         boolean exists = existsOnS3(key);
         log.info("[DEL][ONE] key={}, existsBefore={}", key, exists);
         if (!exists) {
