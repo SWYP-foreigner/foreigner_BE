@@ -12,10 +12,7 @@ import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
-import core.domain.user.dto.UserResponseDto;
-import core.domain.user.dto.UserSearchDTO;
-import core.domain.user.dto.UserUpdateDTO;
-import core.domain.user.dto.UserWithdrawalEvent;
+import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -836,5 +833,26 @@ public class UserService {
                 .orElse(null);
 
         return ChatUserProfileResponse.from(user, imageUrl);
+    }
+
+    /**
+     * 사용자의 애플 계정 상태를 확인하는 메서드
+     *
+     * @param userId 확인할 사용자의 ID
+     * @return UserAppleStatusResponse 사용자의 애플 계정 상태 정보
+     */
+    @Transactional(readOnly = true)
+    public UserAppleStatusResponse checkUserAppleStatus(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        boolean isApple = Ouathplatform.APPLE.toString().equals(user.getProvider());
+
+        boolean isRejoiningWithoutFullName = false;
+        if (isApple) {
+            isRejoiningWithoutFullName = (user.getFirstName() == null || user.getFirstName().isBlank());
+        }
+
+        return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
     }
 }
