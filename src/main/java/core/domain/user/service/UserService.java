@@ -177,13 +177,15 @@ public class UserService {
                     log.error("존재하지 않는 사용자: {}", email);
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
-        if (user.getProvider()!=Ouathplatform.APPLE.toString()) {
+        log.info("{},{}", user.getProvider(),Ouathplatform.APPLE.toString());
+        if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
+
             if (notBlank(dto.getFirstname())) {
-                log.debug("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
+                log.info("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
                 user.updateFirstName(dto.getFirstname().trim());
             }
             if (notBlank(dto.getLastname())) {
-                log.debug("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
+                log.info("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
                 user.updateLastName(dto.getLastname().trim());
             }
         }
