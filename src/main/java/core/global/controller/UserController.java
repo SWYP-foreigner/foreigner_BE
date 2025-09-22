@@ -169,7 +169,6 @@ public class UserController {
         log.info("--- [Apple 앱 로그인] API 요청 수신 ---");
         try {
             LoginResponseDto responseDto = appleAuthService.login(req);
-
             log.info("--- [Apple 앱 로그인] 처리 완료. 사용자 ID: {}", responseDto.userId());
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 

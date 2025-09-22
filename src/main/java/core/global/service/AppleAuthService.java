@@ -122,7 +122,8 @@ public class AppleAuthService {
                     appleSocialId,
                     emailFromToken,
                     provider,
-                    appleRefreshToken
+                    appleRefreshToken,
+                    req.fullName()
             );
             log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", user.getId());
         } else {

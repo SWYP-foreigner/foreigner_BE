@@ -125,13 +125,17 @@ public class UserService {
         return saved;
     }
     @Transactional
-    public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken) {
+    public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken
+    , AppleLoginByCodeRequest.FullNameDto name) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
+        log.info("firstname={}, lastname={}",name.familyName(),name.givenName());
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
                 .provider(provider)
                 .appleRefreshToken(appleRefreshToken)
+                .firstName(name.familyName())
+                .lastName(name.givenName())
                 .build();
 
         User saved = userRepository.save(u);
@@ -173,14 +177,15 @@ public class UserService {
                     log.error("존재하지 않는 사용자: {}", email);
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
-
-        if (notBlank(dto.getFirstname())) {
-            log.debug("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
-            user.updateFirstName(dto.getFirstname().trim());
-        }
-        if (notBlank(dto.getLastname())) {
-            log.debug("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
-            user.updateLastName(dto.getLastname().trim());
+        if (user.getProvider()!=Ouathplatform.APPLE.toString()) {
+            if (notBlank(dto.getFirstname())) {
+                log.debug("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
+                user.updateFirstName(dto.getFirstname().trim());
+            }
+            if (notBlank(dto.getLastname())) {
+                log.debug("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
+                user.updateLastName(dto.getLastname().trim());
+            }
         }
         if (dto.getGender() != null) {
             log.debug("성별 변경: {} → {}", user.getSex(), dto.getGender());
@@ -371,8 +376,8 @@ public class UserService {
 
         // User 객체 생성 후 updateXXX 메서드 사용
         User u = new User();
-        u.updateProvider("local");
-        u.updateSocialId(buildLocalSocialId(email)); // 일반 로그인용 socialId
+        u.updateProvider(Ouathplatform.local.toString());
+        u.updateSocialId(buildLocalSocialId(email));
         u.updateEmail(email);
         u.updatePassword(passwordEncoder.encode(rawPw));
         u.updateIsNewUser(true);
@@ -432,7 +437,7 @@ public class UserService {
 
         log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
-        if (!"local".equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }

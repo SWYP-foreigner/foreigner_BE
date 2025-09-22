@@ -29,7 +29,7 @@ public class FriednCommendController {
     @GetMapping("/content-based")
     @Operation(summary = "친구 추천 기능", description = "콘텐츠 기반 필터링으로 친구를 추천합니다.")
     public ResponseEntity<List<UserUpdateDTO>> recommend(
-            @RequestParam(defaultValue = "20") int limit
+            @RequestParam(defaultValue = "50") int limit
     ) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
