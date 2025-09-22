@@ -112,12 +112,9 @@ public class AppleAuthService {
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
         if (user == null) {
             log.info("새로운 사용자입니다. Apple 서버로부터 토큰 발급 시도...");
-
             String appleRefreshToken = requestAppleToken(req.authorizationCode());
-
             log.info("Apple 서버로부터 refresh_token 수신 완료. 계정 생성 시작...");
             String emailFromToken = claims.get("email", String.class);
-
             user = userService.createAppleOauth(
                     appleSocialId,
                     emailFromToken,
