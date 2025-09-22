@@ -103,17 +103,47 @@ public final class UrlUtil {
         if (urlOrKey == null || urlOrKey.isBlank()) return null;
         String s = urlOrKey.trim();
 
-        String originPrefix = endPoint.replaceAll("/+$", "") + "/" + trimSlashes(bucket) + "/";
-        if (s.startsWith(originPrefix)) {
-            return trimSlashes(s.substring(originPrefix.length()));
+        // 키만 들어온 경우 그대로 정리해서 반환
+        // (http/https가 아니면 URL로 보지 않고 키로 취급)
+        if (!s.startsWith("http://") && !s.startsWith("https://")) {
+            return trimSlashes(s);
         }
 
-        String cdnPrefix = cdnBaseUrl.replaceAll("/+$", "") + "/";
-        if (s.startsWith(cdnPrefix)) {
-            return trimSlashes(s.substring(cdnPrefix.length()));
+        // 공통 정규화
+        String ep = endPoint.replaceAll("/+$", "");
+        String bucketTrimmed = trimSlashes(bucket);
+
+        // 1) path-style: https://endpoint/bucket/Key...
+        String pathStylePrefix = ep + "/" + bucketTrimmed + "/";
+        if (s.startsWith(pathStylePrefix)) {
+            String rest = s.substring(pathStylePrefix.length());
+            return trimSlashes(urlDecode(rest));
         }
-        return trimSlashes(s);
+
+        // 2) vhost-style: https://bucket.endpoint/Key...
+        //    (endpoint의 스킴을 따라가도록 처리)
+        String scheme = ep.startsWith("http://") ? "http://" : "https://";
+        String hostNoScheme = ep.replaceFirst("^https?://", ""); // endpoint에서 스킴 제거
+        String vhostPrefix = scheme + bucketTrimmed + "." + hostNoScheme + "/";
+        if (s.startsWith(vhostPrefix)) {
+            String rest = s.substring(vhostPrefix.length());
+            return trimSlashes(urlDecode(rest));
+        }
+
+        // 3) CDN: https://cdnBase/.../Key...
+        if (cdnBaseUrl != null && !cdnBaseUrl.isBlank()) {
+            String cdnPrefix = cdnBaseUrl.replaceAll("/+$", "") + "/";
+            if (s.startsWith(cdnPrefix)) {
+                String rest = s.substring(cdnPrefix.length());
+                return trimSlashes(urlDecode(rest));
+            }
+        }
+
+        // 4) 위 경우에 모두 해당하지 않으면, 전체를 디코드 후 정리
+        //    (특수 케이스 URL이거나 이미 키 형태일 수 있음)
+        return trimSlashes(urlDecode(s));
     }
+
 
 
     /**
