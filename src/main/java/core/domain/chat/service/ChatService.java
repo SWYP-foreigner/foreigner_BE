@@ -1000,5 +1000,16 @@ public class ChatService {
                 .map(User::getId)
                 .toList();
     }
+    /**
+     * roomId에 해당하는 채팅방이 그룹인지 확인
+     * @param roomId 채팅방 ID
+     * @return 그룹이면 true, 1:1이면 false
+     */
+    public boolean isChatRoomGroup(Long roomId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        return Boolean.TRUE.equals(room.getGroup());
+    }
 
 }

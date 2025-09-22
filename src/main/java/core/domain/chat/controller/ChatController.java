@@ -7,6 +7,7 @@ import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -326,4 +327,13 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    @GetMapping("/isGroup")
+    public ResponseEntity<ApiResponse<ChatRoomGroupResponse>> isChatRoomGroup(
+            @RequestParam Long roomId) {
+        boolean isGroup = chatService.isChatRoomGroup(roomId);
+        ChatRoomGroupResponse response = new ChatRoomGroupResponse(isGroup);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
 }
