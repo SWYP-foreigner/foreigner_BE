@@ -108,8 +108,9 @@ public class AppleAuthService {
         String appleSocialId = claims.getSubject();
         String provider = Ouathplatform.APPLE.toString();
 
-        log.info("2. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
+        log.info("{}",user.isNewUser());
+        log.info("{}, {}", user.getId(),user.getProvider());
         if (user == null) {
             log.info("새로운 사용자입니다. Apple 서버로부터 토큰 발급 시도...");
             String appleRefreshToken = requestAppleToken(req.authorizationCode());
@@ -123,7 +124,7 @@ public class AppleAuthService {
                     req.fullName()
             );
             log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", user.getId());
-        }  else if (!user.isNewUser() && user.getProvider().equals(Ouathplatform.APPLE.toString())) {
+        } else if (!user.isNewUser() && user.getProvider().equals(Ouathplatform.APPLE.toString())) {
             AppleLoginByCodeRequest.FullNameDto fullName = req.fullName();
             if (fullName != null) {
                 log.info("기존 사용자 ID {}의 이름 정보 업데이트를 시도합니다.", user.getId());
