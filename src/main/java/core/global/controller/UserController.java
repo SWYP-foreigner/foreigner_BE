@@ -1,6 +1,7 @@
 package core.global.controller;
 
 import core.domain.chat.dto.ChatUserProfileResponse;
+import core.domain.user.dto.UserAppleStatusResponse;
 import core.domain.user.dto.UserResponseDto;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
@@ -310,6 +311,12 @@ public class UserController {
     @GetMapping("/{userId}/chat_profile")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserChatProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = userService.getUserChatProfile(userId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @Operation(summary = "애플 유저인지 판별", description = "사용자가 애플 유저인지, 그리고 이름 정보가 없는 재가입 유저인지 판별합니다.")
+    @GetMapping("/{userId}/is-apple")
+    public ResponseEntity<ApiResponse<UserAppleStatusResponse>> getUserInfoIsApple(@PathVariable Long userId) {
+        UserAppleStatusResponse response = userService.checkUserAppleStatus(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
