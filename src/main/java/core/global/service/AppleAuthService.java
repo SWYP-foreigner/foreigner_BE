@@ -123,7 +123,31 @@ public class AppleAuthService {
                     req.fullName()
             );
             log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", user.getId());
-        } else {
+        }  else if (!user.isNewUser() && user.getProvider().equals(Ouathplatform.APPLE.toString())) {
+            AppleLoginByCodeRequest.FullNameDto fullName = req.fullName();
+            if (fullName != null) {
+                log.info("기존 사용자 ID {}의 이름 정보 업데이트를 시도합니다.", user.getId());
+
+                boolean needsUpdate = false;
+                if (fullName.givenName() != null && !fullName.givenName().isBlank()) {
+                    user.updateFirstName(fullName.givenName()); // User 엔티티에 이 메서드 필요
+                    log.info("FirstName 업데이트: {}", fullName.givenName());
+                    needsUpdate = true;
+                }
+                if (fullName.familyName() != null && !fullName.familyName().isBlank()) {
+                    user.updateLastName(fullName.familyName()); // User 엔티티에 이 메서드 필요
+                    log.info("LastName 업데이트: {}", fullName.familyName());
+                    needsUpdate = true;
+                }
+
+
+                if (needsUpdate) {
+                    userService.updateUser(user,fullName);
+                    log.info("사용자 이름 정보 업데이트를 완료했습니다.");
+                }
+            }
+        }
+        else {
             log.info("기존 사용자 발견. 사용자 ID: {}", user.getId());
         }
         boolean isNewUserResponse = user.isNewUser();

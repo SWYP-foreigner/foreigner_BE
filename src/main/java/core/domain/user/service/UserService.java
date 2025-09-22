@@ -146,7 +146,37 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
-
+    /**
+     * 사용자 정보(이름)를 업데이트합니다.
+     * @param user 업데이트할 User 엔티티
+     * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
+     */
+    @Transactional
+    public void updateUser(User user, AppleLoginByCodeRequest.FullNameDto fullName) {
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (fullName != null) {
+            log.info("Updating user info for userId: {}", user.getId());
+            boolean isUpdated = false;
+            if (fullName.givenName() != null && !fullName.givenName().isBlank()) {
+                user.updateFirstName(fullName.givenName());
+                log.info("Updated firstName to: {}", fullName.givenName());
+                isUpdated = true;
+            }
+            if (fullName.familyName() != null && !fullName.familyName().isBlank()) {
+                user.updateLastName(fullName.familyName());
+                log.info("Updated lastName to: {}", fullName.familyName());
+                isUpdated = true;
+            }
+            if (isUpdated) {
+                userRepository.save(user);
+                log.info("Successfully saved user info update for userId: {}", user.getId());
+            } else {
+                log.info("No new name information provided for userId: {}. Skipping update.", user.getId());
+            }
+        }
+    }
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
