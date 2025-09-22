@@ -41,8 +41,6 @@ public class ImageServiceImpl implements ImageService {
     private String bucket;
     @Value("${ncp.s3.endpoint}")
     private String endPoint;
-    @Value("${cdn.base-url}")
-    private String cdnBaseUrl;
 
     private static String extOf(String key) {
         int dot = key.lastIndexOf('.');
