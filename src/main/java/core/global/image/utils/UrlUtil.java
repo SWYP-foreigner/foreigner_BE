@@ -84,66 +84,91 @@ public final class UrlUtil {
     /**
      * path-style 혹은 virtual-hosted-style 공개 URL prefix 제거 → key로 변환(디코딩 포함)
      */
+//    public static String toKeyFromUrlOrKey(String endPoint, String bucket, String urlOrKey) {
+//        if (urlOrKey == null || urlOrKey.isBlank()) return null;
+//        String s = urlOrKey.trim();
+//
+//        // 원본 엔드포인트 + 버킷을 제거
+//        String originPrefix = endPoint.replaceAll("/+$", "") + "/" + trimSlashes(bucket) + "/";
+//        if (s.startsWith(originPrefix)) {
+//            return trimSlashes(s.substring(originPrefix.length()));
+//        }
+//
+//        // CDN 베이스가 별도 설정이라면, 아래 오버로드를 사용하세요 (2-b 참고)
+//        // 그 외: 이미 key라고 가정
+//        return trimSlashes(s);
+//    }
+//
+//    public static String toKeyFromUrlOrKey(String endPoint, String bucket, String cdnBaseUrl, String urlOrKey) {
+//        if (urlOrKey == null || urlOrKey.isBlank()) return null;
+//        String s = urlOrKey.trim();
+//
+//        // 0) 절대 URL이 아니면 키로 간주
+//        if (!s.startsWith("http://") && !s.startsWith("https://")) {
+//            return trimSlashes(s);
+//        }
+//
+//        // 공통 정규화
+//        String ep = endPoint.replaceAll("/+$", "");
+//        String bucketTrimmed = trimSlashes(bucket);
+//
+//        // 1) path-style: https://{endpoint}/{bucket}/{key...}
+//        String pathStylePrefix = ep + "/" + bucketTrimmed + "/";
+//        if (s.startsWith(pathStylePrefix)) {
+//            String rest = s.substring(pathStylePrefix.length());
+//            return trimSlashes(urlDecode(rest));
+//        }
+//
+//        // 2) vhost-style: https://{bucket}.{endpoint-host}/{key...}
+//        //    - endpoint의 host 부분만 추출
+//        String hostNoScheme = ep.replaceFirst("^https?://", "");
+//        //    - http/https 둘 다 허용
+//        String vhostPrefixHttps = "https://" + bucketTrimmed + "." + hostNoScheme + "/";
+//        String vhostPrefixHttp  = "http://"  + bucketTrimmed + "." + hostNoScheme + "/";
+//        if (s.startsWith(vhostPrefixHttps)) {
+//            String rest = s.substring(vhostPrefixHttps.length());
+//            return trimSlashes(urlDecode(rest));
+//        }
+//        if (s.startsWith(vhostPrefixHttp)) {
+//            String rest = s.substring(vhostPrefixHttp.length());
+//            return trimSlashes(urlDecode(rest));
+//        }
+//
+//        // 3) CDN: https://{cdnBaseUrl}/{key...}
+//        if (cdnBaseUrl != null && !cdnBaseUrl.isBlank()) {
+//            String cdnPrefix = cdnBaseUrl.replaceAll("/+$", "") + "/";
+//            if (s.startsWith(cdnPrefix)) {
+//                String rest = s.substring(cdnPrefix.length());
+//                return trimSlashes(urlDecode(rest));
+//            }
+//        }
+//
+//        // 4) 그 외: 전체를 디코드 후 정리(예외적 URL 또는 이미 키일 수 있음)
+//        return trimSlashes(urlDecode(s));
+//    }
+
+
     public static String toKeyFromUrlOrKey(String endPoint, String bucket, String urlOrKey) {
-        if (urlOrKey == null || urlOrKey.isBlank()) return null;
-        String s = urlOrKey.trim();
-
-        // 원본 엔드포인트 + 버킷을 제거
-        String originPrefix = endPoint.replaceAll("/+$", "") + "/" + trimSlashes(bucket) + "/";
-        if (s.startsWith(originPrefix)) {
-            return trimSlashes(s.substring(originPrefix.length()));
+        if (!isAbsoluteUrl(urlOrKey)) {
+            return trimSlashes(urlOrKey);
         }
-
-        // CDN 베이스가 별도 설정이라면, 아래 오버로드를 사용하세요 (2-b 참고)
-        // 그 외: 이미 key라고 가정
-        return trimSlashes(s);
-    }
-
-    public static String toKeyFromUrlOrKey(String endPoint, String bucket, String cdnBaseUrl, String urlOrKey) {
-        if (urlOrKey == null || urlOrKey.isBlank()) return null;
-        String s = urlOrKey.trim();
-
-        // 키만 들어온 경우 그대로 정리해서 반환
-        // (http/https가 아니면 URL로 보지 않고 키로 취급)
-        if (!s.startsWith("http://") && !s.startsWith("https://")) {
-            return trimSlashes(s);
-        }
-
-        // 공통 정규화
         String ep = endPoint.replaceAll("/+$", "");
-        String bucketTrimmed = trimSlashes(bucket);
-
-        // 1) path-style: https://endpoint/bucket/Key...
-        String pathStylePrefix = ep + "/" + bucketTrimmed + "/";
-        if (s.startsWith(pathStylePrefix)) {
-            String rest = s.substring(pathStylePrefix.length());
+        String pathStylePrefix = ep + "/" + trimSlashes(bucket) + "/";
+        if (urlOrKey.startsWith(pathStylePrefix)) {
+            String rest = urlOrKey.substring(pathStylePrefix.length());
             return trimSlashes(urlDecode(rest));
         }
 
-        // 2) vhost-style: https://bucket.endpoint/Key...
-        //    (endpoint의 스킴을 따라가도록 처리)
-        String scheme = ep.startsWith("http://") ? "http://" : "https://";
-        String hostNoScheme = ep.replaceFirst("^https?://", ""); // endpoint에서 스킴 제거
-        String vhostPrefix = scheme + bucketTrimmed + "." + hostNoScheme + "/";
-        if (s.startsWith(vhostPrefix)) {
-            String rest = s.substring(vhostPrefix.length());
+        String host = ep.replaceFirst("^https?://", "");
+        String vhostPrefix = "https://" + trimSlashes(bucket) + "." + host + "/";
+        if (urlOrKey.startsWith(vhostPrefix)) {
+            String rest = urlOrKey.substring(vhostPrefix.length());
             return trimSlashes(urlDecode(rest));
+
         }
 
-        // 3) CDN: https://cdnBase/.../Key...
-        if (cdnBaseUrl != null && !cdnBaseUrl.isBlank()) {
-            String cdnPrefix = cdnBaseUrl.replaceAll("/+$", "") + "/";
-            if (s.startsWith(cdnPrefix)) {
-                String rest = s.substring(cdnPrefix.length());
-                return trimSlashes(urlDecode(rest));
-            }
-        }
-
-        // 4) 위 경우에 모두 해당하지 않으면, 전체를 디코드 후 정리
-        //    (특수 케이스 URL이거나 이미 키 형태일 수 있음)
-        return trimSlashes(urlDecode(s));
+        return trimSlashes(urlDecode(urlOrKey));
     }
-
 
 
     /**
