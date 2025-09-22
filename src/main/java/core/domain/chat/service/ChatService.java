@@ -836,8 +836,11 @@ public class ChatService {
                     senderUser.getLastName(),
                     userImageUrl
             );
-            messagingTemplate.convertAndSend("/topic/rooms/" + chatRoom.getId() + "/messages", messageResponse);
-
+            String destination = String.format("/topic/user/%s/%s/messages",
+                    recipient.getId(),
+                    chatRoom.getId()
+            );
+            messagingTemplate.convertAndSend(destination, messageResponse);
             int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
             ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
                     chatRoom,
