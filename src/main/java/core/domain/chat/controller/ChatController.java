@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,16 +140,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
-    @Operation(summary = "유저 차단")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
-    })
-    @PostMapping("/users/block/{targetUserId}")
-    public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable Long targetUserId) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = principal.getUserId();
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
 
 
     @Operation(summary = "그룹 채팅 참여")
@@ -334,6 +325,15 @@ public class ChatController {
         boolean isGroup = chatService.isChatRoomGroup(roomId);
         ChatRoomGroupResponse response = new ChatRoomGroupResponse(isGroup);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @PostMapping("/block/{userId}")
+    public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
+            @PathVariable @Positive Long targetUserId
+    ) {
+        chatService.blockChatUser(targetUserId);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(core.global.dto.ApiResponse.success("차단 성공"));
     }
 
 }

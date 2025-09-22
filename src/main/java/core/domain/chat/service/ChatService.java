@@ -27,6 +27,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import core.domain.user.repository.BlockRepository;
@@ -835,8 +836,8 @@ public class ChatService {
                     senderUser.getLastName(),
                     userImageUrl
             );
+            messagingTemplate.convertAndSend("/topic/rooms/" + chatRoom.getId() + "/messages", messageResponse);
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", messageResponse);
-
             int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
             ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
                     chatRoom,
@@ -846,6 +847,7 @@ public class ChatService {
                     unreadCount,
                     imageRepository
             );
+
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
     }
@@ -1011,5 +1013,29 @@ public class ChatService {
 
         return Boolean.TRUE.equals(room.getGroup());
     }
+    @Transactional
+    public void blockChatUser(Long userId) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User blockedUser = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        log.info(blockedUser.getEmail());
+        log.info("user" + email);
+
+        if (blockedUser.getEmail().equals(email)) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        log.info(""+blockedUser.getId());
+        log.info("user" + me.getId());
+        if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
+            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+        }
+
+        blockRepository.save(new BlockUser(me, blockedUser));
+    }
 }
