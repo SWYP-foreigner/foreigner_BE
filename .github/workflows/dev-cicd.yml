@@ -228,6 +228,7 @@ jobs:
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
+            NCP_CDN_URL=${{ secrets.NCP_CDN_URL }}
 
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
