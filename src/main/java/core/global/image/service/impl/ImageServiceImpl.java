@@ -26,7 +26,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -340,46 +341,76 @@ public class ImageServiceImpl implements ImageService {
     @Override
     @Transactional
     public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {
+        log.info("START - upsertUserProfileImage for userId: {}, requestedKeyOrUrl: '{}'", userId, requestedKeyOrUrl);
+
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
+            log.error("FAIL - requestedKeyOrUrl is null or blank for userId: {}", userId);
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
-        // 존재/타입/용량 검증 (10MB 예시)
-        validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+        log.info("userId: {} - Converted requested input to S3 key: '{}'", userId, reqKey);
 
-        // 기존 프로필 전부 제거 (USER, relatedId=userId)
+        // 존재/타입/용량 검증
+        log.info("userId: {} - Validating image metadata for key: '{}'", userId, reqKey);
+        validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+        log.info("userId: {} - Image validation successful for key: '{}'", userId, reqKey);
+
+        // 기존 프로필 전부 제거
+        log.info("userId: {} - Deleting old profile images...", userId);
         imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
                 .forEach(img -> {
+                    log.info("userId: {} - Found old image to delete: url='{}'", userId, img.getUrl());
                     try {
                         String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
                         s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+                        log.info("userId: {} - Successfully deleted old S3 object with key: '{}'", userId, oldKey);
                     } catch (SdkException e) {
-                        log.warn("delete old profile key ignored: {}", e.getMessage());
+                        // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
+                        log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
+                                userId, img.getUrl(), e.getMessage());
                     }
                 });
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+        log.info("userId: {} - Finished deleting old DB image records.", userId);
 
         String finalKey = reqKey;
         if (isStagingKey(reqKey)) {
+            log.info("userId: {} - Detected staging key: '{}'. Moving to permanent location.", userId, reqKey);
             String ext = extOf(reqKey);
             String dstKey = "users/%d/profile.%s".formatted(userId, ext);
+            log.info("userId: {} - Generated destination key: '{}'", userId, dstKey);
             try {
+                log.info("userId: {} - Attempting to copy S3 object from '{}' to '{}'", userId, reqKey, dstKey);
                 s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
                         .destinationBucket(bucket).destinationKey(dstKey)
-                        .acl(ObjectCannedACL.PUBLIC_READ)               // ✅ 새 오브젝트에 퍼블릭 읽기 부여
-                        .metadataDirective(MetadataDirective.COPY)      // ✅ 메타/Content-Type 유지(명시)
+                        .acl(ObjectCannedACL.PUBLIC_READ)
+                        .metadataDirective(MetadataDirective.COPY)
                 );
+                log.info("userId: {} - Successfully copied S3 object.", userId);
+
+                log.info("userId: {} - Attempting to delete original staging S3 object: '{}'", userId, reqKey);
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+                log.info("userId: {} - Successfully deleted staging S3 object.", userId);
+
             } catch (SdkException e) {
+                log.error("FAIL - S3 operation failed while moving staging key '{}' for userId: {}", reqKey, userId, e);
                 throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
             finalKey = dstKey;
+        } else {
+            log.info("userId: {} - Using non-staging key '{}' as the final key.", userId, reqKey);
         }
 
-        // 새 Image 레코드(프로필은 항상 orderIndex=0)
+        // 새 Image 레코드 저장
+        log.info("userId: {} - Final key is '{}'", userId, finalKey);
         String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
+        log.info("userId: {} - Generated final CDN URL: '{}'", userId, finalUrl);
+
+        log.info("userId: {} - Saving new profile image record to DB...", userId);
         imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
+
+        log.info("SUCCESS - upsertUserProfileImage for userId: {}. Returning URL: '{}'", userId, finalUrl);
         return finalUrl;
     }
 
