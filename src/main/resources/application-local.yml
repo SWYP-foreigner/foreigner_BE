@@ -133,3 +133,6 @@ app:
 
   api:
     base-url: ${BASE_URL}
+
+cdn:
+  base-url: ${NCP_CDN_URL}

@@ -42,6 +42,9 @@ public class ImageServiceImpl implements ImageService {
     @Value("${ncp.s3.endpoint}")
     private String endPoint;
 
+    @Value("${cdn.base-url}")
+    private String cdnBaseUrl;
+
     private static String extOf(String key) {
         int dot = key.lastIndexOf('.');
         String ext = (dot > -1 && dot < key.length() - 1) ? key.substring(dot + 1) : "jpg";
@@ -133,10 +136,10 @@ public class ImageServiceImpl implements ImageService {
         List<String> bulkDeleteKeys = new ArrayList<>();
         if (!removes.isEmpty()) {
             List<String> removeKeys = removes.stream()
-                    .map(raw -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw))
+                    .map(raw -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw))
                     .toList();
             List<String> removeUrls = removeKeys.stream()
-                    .map(k -> UrlUtil.buildPublicUrlFromKey(endPoint, bucket, k))
+                    .map(k -> UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, k))
                     .toList();
             imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, removeUrls);
             bulkDeleteKeys.addAll(removeKeys);
@@ -151,10 +154,8 @@ public class ImageServiceImpl implements ImageService {
         for (Image img : survivors) {
             img.changePosition(pos++);
 
-            String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, img.getUrl());
-            survivorUrls.add(UrlUtil.buildPublicUrlFromKey(endPoint, bucket, storedKey));
-//            String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-//            survivorUrls.add(UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, storedKey));
+            String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
+            survivorUrls.add(UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, storedKey));
         }
 
         if (adds.isEmpty()) return;
@@ -173,13 +174,9 @@ public class ImageServiceImpl implements ImageService {
             final int myOrder = startOrder + i;
             final String raw = adds.get(i);
             tasks.add(() -> {
-//                String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
-//                String finalKey = ensureFinalKey(basePrefix, myOrder, srcKey);
-//                String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-
-                String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, raw);
+                String srcKey  = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
                 String finalKey = ensureFinalKey(basePrefix, myOrder, srcKey);
-                String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+                String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
 
                 if (survivorUrls.contains(finalUrl)) return null;
                 // 스테이징이면, COPY 성공했으니 원본을 벌크 삭제 대상에 추가
@@ -284,9 +281,7 @@ public class ImageServiceImpl implements ImageService {
      */
     @Override
     public void deleteObject(String keyOrUrl) {
-//        String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);
-
-        String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, keyOrUrl);
+        String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);
 
         if (key.startsWith("default/")) {
             return;
@@ -309,8 +304,7 @@ public class ImageServiceImpl implements ImageService {
      */
     @Override
     public void deleteFolder(String fileLocation) {
-//        String prefix = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, fileLocation);
-        String prefix = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, fileLocation);
+        String prefix = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, fileLocation);
         if (!prefix.endsWith("/")) prefix += "/";
 
         log.info(prefix);
@@ -365,8 +359,7 @@ public class ImageServiceImpl implements ImageService {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-//        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
-        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, requestedKeyOrUrl);
+        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
         log.info("userId: {} - Converted requested input to S3 key: '{}'", userId, reqKey);
 
         // 존재/타입/용량 검증
@@ -392,11 +385,10 @@ public class ImageServiceImpl implements ImageService {
                 .forEach(img -> {
                     log.info("userId: {} - Found old image to delete: url='{}'", userId, img.getUrl());
                     try {
-//                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-//                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
+                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
 
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(img.getUrl()));
-//                        log.info("userId: {} - Successfully deleted old S3 object with key: '{}'", userId, oldKey);
+                        log.info("userId: {} - Successfully deleted old S3 object with key: '{}'", userId, oldKey);
                     } catch (SdkException e) {
                         // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
                         log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
@@ -436,8 +428,7 @@ public class ImageServiceImpl implements ImageService {
 
         // 새 Image 레코드 저장
         log.info("userId: {} - Final key is '{}'", userId, finalKey);
-//        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
         log.info("userId: {} - Generated final CDN URL: '{}'", userId, finalUrl);
 
         log.info("userId: {} - Saving new profile image record to DB...", userId);
@@ -470,8 +461,7 @@ public class ImageServiceImpl implements ImageService {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-//        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
-        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, requestedKeyOrUrl);
+        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
         // 존재/타입/용량 검증 (10MB 예시)
         validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
 
@@ -479,9 +469,8 @@ public class ImageServiceImpl implements ImageService {
         imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
                 .forEach(img -> {
                     try {
-//                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-//                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(img.getUrl()));
+                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
+                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
                     } catch (SdkException e) {
                         log.warn("delete old profile key ignored: {}", e.getMessage());
                     }
@@ -506,8 +495,7 @@ public class ImageServiceImpl implements ImageService {
         }
 
         // 새 Image 레코드(프로필은 항상 orderIndex=0)
-//        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, finalKey);
+        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
         imageRepository.save(Image.of(ImageType.CHAT_ROOM, chatRoomId, finalUrl, 0));
         return finalUrl;
     }
@@ -539,15 +527,13 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public String normalizeKey(String keyOrUrl) {
         return (keyOrUrl == null || keyOrUrl.isBlank()) ? null
-                : UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, keyOrUrl);
-//                : UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);
+                : UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);
     }
 
     @Override
     public String toPublicUrl(String keyOrNull) {
         if (keyOrNull == null || keyOrNull.isBlank()) return null;
-//        return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
-        return UrlUtil.buildPublicUrlFromKey(endPoint, bucket, keyOrNull);
+        return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
     }
 
     // 내부 검증/확장자 유틸 (이미 클래스에 없다면 추가)
