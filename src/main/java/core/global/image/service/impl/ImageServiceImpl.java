@@ -358,12 +358,6 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    private boolean hasAllowedImageExtension(String key) {
-        String k = (key == null ? "" : key).toLowerCase();
-        return k.endsWith(".png") || k.endsWith(".jpg") || k.endsWith(".jpeg")
-               || k.endsWith(".webp") || k.endsWith(".gif");
-    }
-
     @Override
     @Transactional
     public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {

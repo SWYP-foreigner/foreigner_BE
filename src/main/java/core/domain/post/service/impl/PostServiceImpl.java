@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
@@ -59,50 +60,6 @@ public class PostServiceImpl implements PostService {
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
     private final ApplicationEventPublisher publisher;
-
-    //임시
-
-    private static final Logger log = LoggerFactory.getLogger(PostServiceImpl.class);
-
-    /** BoardItem 리스트를 info 레벨로 요약 로깅 */
-    private void logBoardItemsInfo(String tag, List<BoardItem> rows) {
-        if (rows == null) {
-            log.info("[{}] rows=null", tag);
-            return;
-        }
-        log.info("[{}] size={}", tag, rows.size());
-
-        // 너무 길어지는 걸 방지: 최대 20개만 출력
-        int limit = Math.min(rows.size(), 20);
-        for (int i = 0; i < limit; i++) {
-            BoardItem b = rows.get(i);
-            // contentPreview는 60자까지만
-            String preview = b.contentPreview();
-            if (preview != null && preview.length() > 60) {
-                preview = preview.substring(0, 57) + "...";
-            }
-            log.info(
-                    "[{}][{}] id={} createdAt={} likes={} comments={} views={} likedByMe={} author={} score={} userImg={} contentImg={} imgCount={}",
-                    tag, i,
-                    b.postId(),
-                    b.createdAt(),
-                    b.likeCount(),
-                    b.commentCount(),
-                    b.viewCount(),
-                    b.isLiked(),
-                    b.authorName(),
-                    b.score(),              // 🔸 LATEST면 null, POPULAR면 값
-                    b.userImageUrl(),
-                    b.contentImageUrl(),
-                    b.imageCount()
-            );
-        }
-        if (rows.size() > limit) {
-            log.info("[{}] ...and {} more", tag, (rows.size() - limit));
-        }
-    }
-
-
 
     @Override
     @Transactional(readOnly = true)
@@ -145,17 +102,11 @@ public class PostServiceImpl implements PostService {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
-        var page = CursorPages.ofLatest(
+        return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
                 BoardItem::postId
         );
-
-        logBoardItemsInfo("LATEST:raw", rows);
-        log.info("[LATEST:page] hasNext={} nextCursor={}", page.hasNext(), page.nextCursor());
-        logBoardItemsInfo("LATEST:page.items", page.items());
-
-        return page;
     }
 
     private CursorPageResponse<BoardItem> handlePopular(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
@@ -176,16 +127,11 @@ public class PostServiceImpl implements PostService {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
-        logBoardItemsInfo("POPULAR:raw", rows);
-        var page = CursorPages.ofPopular(
+        return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
                 BoardItem::postId
         );
-        log.info("[POPULAR:page] hasNext={} nextCursor={}", page.hasNext(), page.nextCursor());
-        logBoardItemsInfo("POPULAR:page.items", page.items());
-
-        return page;
     }
 
     // ------- 커서 파싱 -------
@@ -239,9 +185,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
         }
 
-        log.info(post.getCheckCount()+" ");
         postRepository.incrementViewCount(postId);
-        log.info(post.getCheckCount()+" ");
 
         PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
         log.info(postDetail.authorName());
