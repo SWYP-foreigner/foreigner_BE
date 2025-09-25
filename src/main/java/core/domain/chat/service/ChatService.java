@@ -11,6 +11,7 @@ import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ErrorCode;
@@ -21,7 +22,6 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.service.TranslationService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -30,7 +30,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import core.domain.user.repository.BlockRepository;
+
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,12 +40,12 @@ import java.util.stream.IntStream;
 @Slf4j
 public class ChatService {
 
+    private static final int MESSAGE_PAGE_SIZE = 20;
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ChatParticipantRepository chatParticipantRepository;
-    private static final int MESSAGE_PAGE_SIZE = 20;
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -72,7 +72,6 @@ public class ChatService {
         this.eventPublisher = eventPublisher;
         this.blockRepository = blockRepository;
     }
-    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
@@ -115,7 +114,7 @@ public class ChatService {
                     Instant lastMessageTime = roomWithTime.lastMessageTime();
 
                     // 그룹 채팅방의 마지막 메시지는 차단된 유저 메시지를 제외
-                    String lastMessageContent =getLastNonBlockedMessageContent(room.getId(), userId);
+                    String lastMessageContent = getLastNonBlockedMessageContent(room.getId(), userId);
                     int unreadCount = countUnreadMessages(room.getId(), userId);
                     int participantCount = room.getParticipants().size();
                     String roomName;
@@ -157,6 +156,7 @@ public class ChatService {
                 })
                 .toList();
     }
+
     private String getLastNonBlockedMessageContent(Long roomId, Long userId) {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -193,7 +193,6 @@ public class ChatService {
             return createNewOneToOneChatRoom(currentUserId, otherUserId);
         }
     }
-
 
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
 
@@ -239,6 +238,7 @@ public class ChatService {
         deleteRoomIfEmpty(roomId);
         return true;
     }
+
     /**
      * 채팅방의 모든 참여자가 나갔는지 확인하고, 비어있으면 삭제합니다.
      * 이 메서드는 leaveRoom()에서 호출되어 채팅방 삭제 로직을 분리합니다.
@@ -258,10 +258,10 @@ public class ChatService {
         }
     }
 
-
     public List<ChatParticipant> getParticipants(Long roomId) {
         return participantRepo.findByChatRoomId(roomId);
     }
+
     public List<ChatRoomParticipantsResponse> getRoomParticipants(Long roomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -286,14 +286,14 @@ public class ChatService {
                 })
                 .collect(Collectors.toList());
     }
+
     /**
-            * @apiNote 채팅방 메시지를 무한 스크롤로 조회하는 핵심 로직입니다.
-     * 이 메서드는 항상 ChatMessage 엔티티 목록을 반환합니다.
-     *
-             * @param roomId 채팅방 ID
-     * @param userId 조회하는 사용자 ID
+     * @param roomId        채팅방 ID
+     * @param userId        조회하는 사용자 ID
      * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
      * @return ChatMessage 엔티티 목록
+     * @apiNote 채팅방 메시지를 무한 스크롤로 조회하는 핵심 로직입니다.
+     * 이 메서드는 항상 ChatMessage 엔티티 목록을 반환합니다.
      */
     @Transactional(readOnly = true)
     public List<ChatMessage> getRawMessages(Long roomId, Long userId, Long lastMessageId) {
@@ -330,13 +330,12 @@ public class ChatService {
     }
 
     /**
-     * @apiNote 채팅방 메시지를 조회하고, 번역 요청에 따라 ChatMessageResponse 목록을 반환합니다.
-     * 이 메서드가 컨트롤러에서 호출되는 주된 엔드포인트가 됩니다.
-     *
-     * @param roomId 채팅방 ID
-     * @param userId 조회하는 사용자 ID
+     * @param roomId        채팅방 ID
+     * @param userId        조회하는 사용자 ID
      * @param lastMessageId 마지막으로 조회된 메시지 ID (무한 스크롤용)
      * @return ChatMessageResponse 목록
+     * @apiNote 채팅방 메시지를 조회하고, 번역 요청에 따라 ChatMessageResponse 목록을 반환합니다.
+     * 이 메서드가 컨트롤러에서 호출되는 주된 엔드포인트가 됩니다.
      */
 
 
@@ -389,8 +388,7 @@ public class ChatService {
                                 senderImageUrl
                         );
                     }).collect(Collectors.toList());
-        }
-        else {
+        } else {
             return messages.stream()
                     .map(message -> {
                         User sender = message.getSender();
@@ -412,7 +410,6 @@ public class ChatService {
                     }).collect(Collectors.toList());
         }
     }
-
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
@@ -441,7 +438,6 @@ public class ChatService {
         ChatMessage message = new ChatMessage(room, sender, content);
         return chatMessageRepository.save(message);
     }
-
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
@@ -474,8 +470,7 @@ public class ChatService {
                     })
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
-        }
-        else {
+        } else {
             List<ChatMessage> allMessages = chatMessageRepository.findByChatRoomIdOrderByIdAsc(roomId);
             if (allMessages.isEmpty()) {
                 return new ArrayList<>();
@@ -513,14 +508,12 @@ public class ChatService {
         }
     }
 
-    private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
     /**
+     * @param roomId            메시지를 읽은 채팅방 ID
+     * @param readerId          메시지를 읽은 사용자 ID
+     * @param lastReadMessageId 마지막으로 읽은 메시지 ID
      * @apiNote 메시지 읽음 상태를 업데이트합니다.
      * 그룹 채팅에서 '누가 읽었는지'를 관리하는 로직입니다.
-     *
-     * @param roomId 메시지를 읽은 채팅방 ID
-     * @param readerId 메시지를 읽은 사용자 ID
-     * @param lastReadMessageId 마지막으로 읽은 메시지 ID
      */
     @Transactional
     public void markMessagesAsRead(Long roomId, Long readerId, Long lastReadMessageId) {
@@ -540,10 +533,12 @@ public class ChatService {
                 .map(ChatMessage::getSentAt)
                 .orElse(null);
     }
+
     public ChatRoom getChatRoomById(Long roomId) {
         return chatRoomRepository.findByIdWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
+
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -615,8 +610,10 @@ public class ChatService {
                         }
                 );
     }
+
     /**
      * 그룹 채팅방을 이름 키워드로 검색합니다.
+     *
      * @param keyword 검색 키워드
      * @return 검색 결과 DTO 목록
      */
@@ -670,7 +667,6 @@ public class ChatService {
         return chatMessageRepository.countUnreadMessages(roomId, lastReadId, userId);
     }
 
-
     @Transactional
     public List<GroupChatMainResponse> getLatestGroupChats(Long lastChatRoomId) {
         List<ChatRoom> latestRooms;
@@ -699,6 +695,7 @@ public class ChatService {
                 userCount
         );
     }
+
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
         List<ChatRoom> popularRooms = chatRoomRepository.findTopByGroupTrueOrderByParticipantCountDesc(limit);
@@ -721,6 +718,7 @@ public class ChatService {
                 userCount
         );
     }
+
     @Transactional
     public List<ChatMessageFirstResponse> getFirstMessages(Long roomId, Long userId) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
@@ -743,9 +741,9 @@ public class ChatService {
                 .collect(Collectors.toList());
     }
 
-
     /**
      * 사용자 프로필 조회 서비스 메서드
+     *
      * @param userId 조회할 사용자의 ID
      * @return UserProfileResponse DTO
      */
@@ -766,7 +764,6 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
         participant.toggleTranslation(enable);
     }
-
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
@@ -851,6 +848,7 @@ public class ChatService {
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
     }
+
     @Transactional
     public void markAllMessagesAsReadInRoom(Long roomId, Long readerId) {
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
@@ -877,11 +875,12 @@ public class ChatService {
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
 
-
     @Transactional
     public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        log.info("owner " + owner.getId() + "userId " + userId);
 
         ChatRoom newRoom = new ChatRoom(
                 true,
@@ -890,17 +889,28 @@ public class ChatService {
                 request.description(),
                 owner
         );
+
+        log.info("roomName" + newRoom.getRoomName());
+
         ChatRoom savedRoom = chatRoomRepository.save(newRoom);
 
+        log.info("roomId" + savedRoom.getId());
+
         ChatParticipant ownerParticipant = new ChatParticipant(savedRoom, owner);
+
+        log.info("chatParti " + ownerParticipant.getChatRoom().getRoomName());
+        log.info("chatParti " + ownerParticipant.getChatRoom().getId());
+
         chatParticipantRepository.save(ownerParticipant);
+
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
             imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
+        }else{
+            log.warn("no Image!!");
         }
 
     }
-
 
     /**
      * @apiNote 특정 메시지를 중심으로 이전/이후 메시지를 함께 조회합니다. (리팩토링 미적용 버전)
@@ -975,6 +985,7 @@ public class ChatService {
                     }).collect(Collectors.toList());
         }
     }
+
     /**
      * @apiNote 메시지를 DB에서 삭제하고, 해당 채팅방에 삭제 이벤트를 브로드캐스팅합니다.
      */
@@ -993,7 +1004,7 @@ public class ChatService {
 
         chatMessageRepository.delete(message);
         String destination = "/topic/rooms/" + message.getChatRoom().getId();
-        messagingTemplate.convertAndSend(destination,payload);
+        messagingTemplate.convertAndSend(destination, payload);
     }
 
     private List<Long> getBlockedUserIds(Long userId) {
@@ -1002,8 +1013,10 @@ public class ChatService {
                 .map(User::getId)
                 .toList();
     }
+
     /**
      * roomId에 해당하는 채팅방이 그룹인지 확인
+     *
      * @param roomId 채팅방 ID
      * @return 그룹이면 true, 1:1이면 false
      */
@@ -1013,6 +1026,7 @@ public class ChatService {
 
         return Boolean.TRUE.equals(room.getGroup());
     }
+
     @Transactional
     public void blockChatUser(Long userId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -1030,12 +1044,18 @@ public class ChatService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        log.info(""+blockedUser.getId());
+        log.info("" + blockedUser.getId());
         log.info("user" + me.getId());
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
+    }
+
+    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {
+    }
+
+    private record MessagePair(ChatMessage originalMessage, String translatedContent) {
     }
 }

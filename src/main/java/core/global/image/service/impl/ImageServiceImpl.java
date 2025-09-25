@@ -1,6 +1,5 @@
 package core.global.image.service.impl;
 
-import core.global.dto.UpsertChatRoomImageRequest;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
@@ -27,7 +26,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static software.amazon.awssdk.services.s3.model.ObjectIdentifier.*;
+import static software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder;
 
 @Slf4j
 @Service
@@ -365,29 +364,31 @@ public class ImageServiceImpl implements ImageService {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-        log.info("requestedKeyOrUrl"+requestedKeyOrUrl);
+        log.info("requestedKeyOrUrl" + requestedKeyOrUrl);
 
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
 
-        log.info("isDefaultIncoming"+isDefaultIncoming);
+        log.info("isDefaultIncoming" + isDefaultIncoming);
 
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
 
-        imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .forEach(img -> {
-                    if (isDefaultUrlOrKey(img.getUrl())) return;
-                    try {
-                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-                    } catch (SdkException e) {
-                        // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
-                        log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
-                                userId, img.getUrl(), e.getMessage());
-                    }
-                });
+        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+
+        if (!isDefaultUrlOrKey(image.getUrl())) {
+            try {
+                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
+                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+            } catch (SdkException e) {
+                // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
+                log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
+                        userId, image.getUrl(), e.getMessage());
+            }
+        }
+
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
 
         String finalKey = reqKey;
@@ -438,25 +439,31 @@ public class ImageServiceImpl implements ImageService {
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
+
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+
+        log.info("isDefaultIncoming " + isDefaultIncoming);
 
         // 존재/타입/용량 검증 (10MB 예시)
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
 
-        // 기존 프로필 전부 제거 (USER, relatedId=userId)
-        imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
-                .forEach(img -> {
-                    if (isDefaultUrlOrKey(img.getUrl())) return;
-                    try {
-                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-                    } catch (SdkException e) {
-                        log.warn("delete old profile key ignored: {}", e.getMessage());
-                    }
-                });
+        log.info("requestedKeyOrUrl " + requestedKeyOrUrl);
+
+        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+
+        if (!isDefaultUrlOrKey(image.getUrl())) {
+            try {
+                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
+                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+            } catch (SdkException e) {
+                log.warn("delete old profile key ignored: {}", e.getMessage());
+            }
+        }
+
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
 
         String finalKey = reqKey;
@@ -525,6 +532,7 @@ public class ImageServiceImpl implements ImageService {
         return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
     }
 
+
     // 내부 검증/확장자 유틸 (이미 클래스에 없다면 추가)
     private void validateImageHeadOrThrow(String key, long maxBytes) {
         HeadObjectResponse head;
@@ -550,27 +558,4 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 채팅방 프로필 이미지를 교체(Replace)합니다.
-     * 기존 이미지가 존재하면 모두 삭제한 후, 새로운 이미지를 삽입하여 항상 단 하나의 이미지만 존재하도록 보장합니다.
-     *
-     * @param request 채팅방 ID와 새로운 이미지 URL 정보
-     */
-    @Transactional
-    public void upsertChatRoomImage(UpsertChatRoomImageRequest request) {
-        List<Image> existingImages = imageRepository
-                .findByImageTypeAndRelatedId(ImageType.CHAT_ROOM, request.chatRoomId());
-
-        if (!existingImages.isEmpty()) {
-            imageRepository.deleteAll(existingImages);
-        }
-
-        Image newImage = Image.builder()
-                .imageType(ImageType.CHAT_ROOM)
-                .relatedId(request.chatRoomId())
-                .url(request.imageUrl())
-                .orderIndex(0)
-                .build();
-        imageRepository.save(newImage);
-    }
 }
