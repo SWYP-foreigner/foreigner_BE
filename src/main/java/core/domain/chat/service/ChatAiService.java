@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 public class ChatAiService {
 
     private static final Long AI_USER_ID = 1L;
-    private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE = 50;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
@@ -91,8 +91,6 @@ public class ChatAiService {
                         .content(msg.getContent())
                         .build())
                 .collect(Collectors.toList());
-
-
         String aiContent = clovaXService.getAiResponse(chatHistory)
                 .block()
                 .getResult()
