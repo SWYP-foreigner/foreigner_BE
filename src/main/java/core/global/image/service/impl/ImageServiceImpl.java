@@ -37,7 +37,6 @@ public class ImageServiceImpl implements ImageService {
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
     private final ImageRepository imageRepository;
-    private final ImageService imageService;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -530,6 +529,7 @@ public class ImageServiceImpl implements ImageService {
         if (keyOrNull == null || keyOrNull.isBlank()) return null;
         return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
     }
+
 
     // 내부 검증/확장자 유틸 (이미 클래스에 없다면 추가)
     private void validateImageHeadOrThrow(String key, long maxBytes) {

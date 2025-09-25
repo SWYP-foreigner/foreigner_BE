@@ -42,6 +42,5 @@ public interface ImageService {
 
     /** 내부 key → 공개 URL */
     String toPublicUrl(String keyOrNull);
-     void upsertChatRoomImage(UpsertChatRoomImageRequest request);
     List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
 }
