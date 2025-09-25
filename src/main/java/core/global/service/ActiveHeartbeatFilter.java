@@ -1,4 +1,4 @@
-package core.global.web;
+package core.global.service;
 
 import core.global.service.AuthUtils;
 import core.global.service.EventsIndexService;
