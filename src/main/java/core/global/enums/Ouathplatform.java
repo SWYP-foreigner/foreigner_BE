@@ -1,5 +1,5 @@
 package core.global.enums;
 
 public enum Ouathplatform {
-    GOOGLE,APPLE,local
+    GOOGLE,APPLE,local,SYSTEM
 }

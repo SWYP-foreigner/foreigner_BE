@@ -100,6 +100,9 @@ ncp:
     region: kr-standard
     endpoint: https://kr.object.ncloudstorage.com
     bucket: ${NCP_BUCKET}
+  clova:
+    apiUrl: https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003
+    apiKey: ${CLOVA_STUDIO_API_KEY}
 
 swagger:
   server-url: http://localhost:8080

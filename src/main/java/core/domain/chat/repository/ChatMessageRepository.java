@@ -3,6 +3,8 @@ package core.domain.chat.repository;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.user.entity.User;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -81,4 +83,16 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
      */
     List<ChatMessage> findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long messageId);
     Optional<ChatMessage> findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(Long chatRoomId, List<User> senders);
+    List<ChatMessage> findTop10ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+    List<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long chatRoomId);
+
+    /**
+     * 무한 스크롤을 위한 메시지 조회 (커서 기반)
+     * @param roomId 채팅방 ID
+     * @param lastMessageId 마지막으로 조회된 메시지의 ID (커서)
+     * @param pageable 페이지 크기 정보 (항상 20개씩)
+     * @return Slice<ChatMessage> - hasNext()로 다음 페이지 유무 확인 가능
+     */
+    Slice<ChatMessage> findByChatRoomIdAndIdLessThanOrderByIdDesc(Long roomId, Long lastMessageId, Pageable pageable);
+    Slice<ChatMessage> findByChatRoomIdOrderByIdDesc(Long roomId, Pageable pageable);
 }

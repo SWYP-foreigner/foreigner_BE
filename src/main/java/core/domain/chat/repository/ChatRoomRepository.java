@@ -71,4 +71,12 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     List<ChatRoom> findOneToOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
     List<ChatRoom> findAllByOwnerId(Long ownerId);
 
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "JOIN cr.participants p1 " +
+            "JOIN cr.participants p2 " +
+            "WHERE cr.group = false " +
+            "AND p1.user.id = :userId1 " +
+            "AND p2.user.id = :userId2")
+    Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
 }

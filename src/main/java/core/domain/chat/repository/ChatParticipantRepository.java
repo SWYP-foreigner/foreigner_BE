@@ -44,5 +44,6 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     void deleteAllByUserId(@Param("userId") Long userId);
 
 
+
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
 }
