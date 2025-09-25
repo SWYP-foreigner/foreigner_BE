@@ -12,10 +12,10 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "notification") // 테이블 이름을 소문자와 스네이크 케이스로 변경하는 것을 권장합니다.
+@Table(name = "notification")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA 엔티티는 기본 생성자가 필요합니다.
-@AllArgsConstructor(access = AccessLevel.PRIVATE) // Builder를 통한 생성을 강제하기 위해 private으로 설정
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Notification {
 
     @Id
@@ -25,7 +25,7 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user; // 알림을 받는 사람
+    private User user;
 
     @Column(name = "message", nullable = false, length = 255)
     private String message;
@@ -36,7 +36,7 @@ public class Notification {
     @Column(name = "is_read", nullable = false)
     private boolean read;
 
-    @Column(name = "reference_id") // 채팅방 ID, 게시글 ID 등
+    @Column(name = "reference_id")
     private Long referenceId;
 
     @Enumerated(EnumType.STRING)
@@ -49,8 +49,8 @@ public class Notification {
         this.message = message;
         this.referenceId = referenceId;
         this.notificationType = notificationType;
-        this.createdAt = Instant.now(); // ⭐️ 생성 시 자동으로 현재 시간 저장
-        this.read = false; // ⭐️ 생성 시 기본값은 '안 읽음'
+        this.createdAt = Instant.now();
+        this.read = false;
     }
 
     /**
