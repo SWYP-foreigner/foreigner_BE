@@ -412,8 +412,15 @@ public class ImageServiceImpl implements ImageService {
         log.debug("[UPI:{}] candidate: isStaging={} candidateFinalKey='{}' candidateFinalUrl='{}'",
                 traceId, reqIsStaging, candidateFinalKey, candidateFinalUrl);
 
-        // 6) 동일 URL이면 no-op
-        if (existingOpt.isPresent() && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)) {
+        // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        // 5.5) 스테이징 이동 여부 계산 (추가)
+        boolean isStagingMove = (!isDefaultIncoming && reqIsStaging);
+        // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        // 6) 동일 URL이면 no-op (단, 스테이징 이동이면 예외적으로 진행)
+        if (existingOpt.isPresent()
+            && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)
+            && !isStagingMove) { // <-- 여기 한 줄이 핵심 변경
             log.info("[UPI:{}] no_op.same_url userId={} url='{}'", traceId, userId, candidateFinalUrl);
             log.info("[UPI:{}] method=end status=no-op elapsed_ms={}", traceId, (System.nanoTime() - methodStartNs) / 1_000_000.0);
             return candidateFinalUrl;
@@ -495,6 +502,7 @@ public class ImageServiceImpl implements ImageService {
 
         return finalUrl;
     }
+
 
 
     @Override
