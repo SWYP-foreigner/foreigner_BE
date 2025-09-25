@@ -388,9 +388,9 @@ public class ImageServiceImpl implements ImageService {
                 log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
                         userId, image.getUrl(), e.getMessage());
             }
-
-            imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
         }
+
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
 
         String finalKey = reqKey;
         if (!isDefaultIncoming && isStagingKey(reqKey)) {
