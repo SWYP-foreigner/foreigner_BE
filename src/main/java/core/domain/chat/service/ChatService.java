@@ -875,39 +875,39 @@ public class ChatService {
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
 
+    /**
+     * 새로운 그룹 채팅방을 생성합니다.
+     * @param userId 생성 요청을 한 사용자(소유자)의 ID
+     * @param request 채팅방 생성에 필요한 정보 DTO
+     */
     @Transactional
     public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        log.info("owner " + owner.getId() + "userId " + userId);
+        if (request.roomName() == null || request.roomName().isBlank()) {
+            throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
+        }
 
         ChatRoom newRoom = new ChatRoom(
                 true,
                 Instant.now(),
-                request.roomName(),
+                request.roomName().trim(),
                 request.description(),
                 owner
         );
-
-        log.info("roomName" + newRoom.getRoomName());
-
         ChatRoom savedRoom = chatRoomRepository.save(newRoom);
 
-        log.info("roomId" + savedRoom.getId());
-
         ChatParticipant ownerParticipant = new ChatParticipant(savedRoom, owner);
-
-        log.info("chatParti " + ownerParticipant.getChatRoom().getRoomName());
-        log.info("chatParti " + ownerParticipant.getChatRoom().getId());
-
         chatParticipantRepository.save(ownerParticipant);
 
-
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
-            imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
-        }else{
-            log.warn("no Image!!");
+            try {
+                imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
+            } catch (Exception e) {
+                log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
+                throw new BusinessException(ErrorCode.IMAGE_PROCESSING_FAILED);
+            }
         }
     }
 

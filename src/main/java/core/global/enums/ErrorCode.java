@@ -42,6 +42,7 @@ public enum ErrorCode {
     INVALID_OR_EXPIRED_TOKEN(HttpStatus.BAD_REQUEST,"토큰 시간이 만료되었습니다."),
 
 
+    IMAGE_PROCESSING_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 처리 중 오류가 발생했습니다."),
     NO_MATCHING_APPLE_KEY(HttpStatus.BAD_REQUEST, "일치하는 Apple 공개키가 없습니다."),
     PUBLIC_KEY_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "공개키 생성에 실패했습니다."),
     INVALID_JWT_ISSUER(HttpStatus.UNAUTHORIZED, "토큰 발급자(iss)가 유효하지 않습니다."),

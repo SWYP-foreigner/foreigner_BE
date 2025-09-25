@@ -62,7 +62,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방", content = @Content)
     })
     @DeleteMapping("/rooms/{roomId}")
-    public ResponseEntity<ApiResponse<Void>> leaveRoom( // 메서드 이름은 deleteRoom이 더 명확할 수 있습니다.
+    public ResponseEntity<ApiResponse<Void>> leaveRoom(
                                                         @PathVariable Long roomId
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
