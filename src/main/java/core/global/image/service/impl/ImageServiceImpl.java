@@ -1,6 +1,5 @@
 package core.global.image.service.impl;
 
-import core.global.dto.UpsertChatRoomImageRequest;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
@@ -27,7 +26,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static software.amazon.awssdk.services.s3.model.ObjectIdentifier.*;
+import static software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder;
 
 @Slf4j
 @Service
@@ -365,12 +364,12 @@ public class ImageServiceImpl implements ImageService {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-        log.info("requestedKeyOrUrl"+requestedKeyOrUrl);
+        log.info("requestedKeyOrUrl" + requestedKeyOrUrl);
 
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
 
-        log.info("isDefaultIncoming"+isDefaultIncoming);
+        log.info("isDefaultIncoming" + isDefaultIncoming);
 
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
@@ -440,14 +439,18 @@ public class ImageServiceImpl implements ImageService {
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
+
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+
+        log.info("isDefaultIncoming " + isDefaultIncoming);
 
         // 존재/타입/용량 검증 (10MB 예시)
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
 
+        log.info("requestedKeyOrUrl " + requestedKeyOrUrl);
 
         Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
@@ -459,10 +462,9 @@ public class ImageServiceImpl implements ImageService {
             } catch (SdkException e) {
                 log.warn("delete old profile key ignored: {}", e.getMessage());
             }
-
-            imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
         }
 
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
 
         String finalKey = reqKey;
         if (!isDefaultIncoming && isStagingKey(reqKey)) {

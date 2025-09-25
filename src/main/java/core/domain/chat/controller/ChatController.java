@@ -309,6 +309,7 @@ public class ChatController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
+        log.info("userId"+ userId);
         chatService.createGroupChatRoom(userId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
