@@ -754,15 +754,12 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<Image> images = imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
+        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
 
-        String imageUrl = images.stream()
-                .findFirst()
-                .map(Image::getUrl)
-                .orElse(null);
-
-        return ChatUserProfileResponse.from(user, imageUrl);
+        return ChatUserProfileResponse.from(user, image.getUrl());
     }
+
     @Transactional
     public void toggleTranslation(Long roomId, Long userId, boolean enable) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)

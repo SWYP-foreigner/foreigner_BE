@@ -85,6 +85,7 @@ public enum ErrorCode {
     INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 커서값입니다."),
 
     IMAGE_STAGING_NOT_FOUND(HttpStatus.BAD_REQUEST, "스테이징 이미지가 존재하지 않습니다. 이미 이동되었을 수 있습니다."),
+    IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미지를 찾을 수 없습니다."),
     IMAGE_COPY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 복사에 실패했습니다."),
     IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 삭제에 실패했습니다."),
     IMAGE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "이미지 업로드에 실패했습니다."),
