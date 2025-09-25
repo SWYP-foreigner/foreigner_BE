@@ -233,6 +233,7 @@ jobs:
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
+            CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
 
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
