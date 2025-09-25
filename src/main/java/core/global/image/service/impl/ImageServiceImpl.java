@@ -360,62 +360,150 @@ public class ImageServiceImpl implements ImageService {
     @Override
     @Transactional
     public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {
+        final long methodStartNs = System.nanoTime();
+        final String traceId = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+        log.info("[UPI:{}] method=start userId={} requestedKeyOrUrl_present={} len={}",
+                traceId, userId, requestedKeyOrUrl != null, (requestedKeyOrUrl == null ? 0 : requestedKeyOrUrl.length()));
+        log.debug("[UPI:{}] raw.requestedKeyOrUrl='{}'", traceId, requestedKeyOrUrl);
+
+        // 1) 입력 검증
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
+            log.warn("[UPI:{}] fail.input_validation reason=null_or_blank", traceId);
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-        log.info("requestedKeyOrUrl" + requestedKeyOrUrl);
-
+        // 2) URL/Key 판정 및 변환
+        long t0 = System.nanoTime();
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
+        log.debug("[UPI:{}] isDefaultIncoming={}", traceId, isDefaultIncoming);
+
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+        long t1 = System.nanoTime();
+        log.debug("[UPI:{}] url_to_key.done reqKey='{}' elapsed_ms={}", traceId, reqKey, (t1 - t0) / 1_000_000.0);
 
-        log.info("isDefaultIncoming" + isDefaultIncoming);
-
+        // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
         if (!isDefaultIncoming) {
-            validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
+            long vh0 = System.nanoTime();
+            long maxBytes = 10L * 1024 * 1024;
+            log.debug("[UPI:{}] validateImageHead start key='{}' maxBytes={}", traceId, reqKey, maxBytes);
+            validateImageHeadOrThrow(reqKey, maxBytes);
+            long vh1 = System.nanoTime();
+            log.info("[UPI:{}] validateImageHead ok elapsed_ms={}", traceId, (vh1 - vh0) / 1_000_000.0);
+        } else {
+            log.info("[UPI:{}] skip.validateImageHead reason=default_incoming", traceId);
         }
 
-        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+        // 4) 기존 이미지 조회
+        long q0 = System.nanoTime();
+        Optional<Image> existingOpt =
+                imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
+        long q1 = System.nanoTime();
+        log.info("[UPI:{}] repo.findFirst done present={} elapsed_ms={}",
+                traceId, existingOpt.isPresent(), (q1 - q0) / 1_000_000.0);
+        existingOpt.ifPresent(img -> log.debug("[UPI:{}] existing.url='{}' orderIndex={}", traceId, img.getUrl(), img.getOrderIndex()));
 
-        if (!isDefaultUrlOrKey(image.getUrl())) {
-            try {
-                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
-                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-            } catch (SdkException e) {
-                // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
-                log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
-                        userId, image.getUrl(), e.getMessage());
+        // 5) 최종 후보 키/URL 계산
+        boolean reqIsStaging = isStagingKey(reqKey);
+        String candidateFinalKey = (!isDefaultIncoming && reqIsStaging)
+                ? "users/%d/profile.%s".formatted(userId, extOf(reqKey))
+                : reqKey;
+        String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
+        log.debug("[UPI:{}] candidate: isStaging={} candidateFinalKey='{}' candidateFinalUrl='{}'",
+                traceId, reqIsStaging, candidateFinalKey, candidateFinalUrl);
+
+        // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        // 5.5) 스테이징 이동 여부 계산 (추가)
+        boolean isStagingMove = (!isDefaultIncoming && reqIsStaging);
+        // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        // 6) 동일 URL이면 no-op (단, 스테이징 이동이면 예외적으로 진행)
+        if (existingOpt.isPresent()
+            && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)
+            && !isStagingMove) { // <-- 여기 한 줄이 핵심 변경
+            log.info("[UPI:{}] no_op.same_url userId={} url='{}'", traceId, userId, candidateFinalUrl);
+            log.info("[UPI:{}] method=end status=no-op elapsed_ms={}", traceId, (System.nanoTime() - methodStartNs) / 1_000_000.0);
+            return candidateFinalUrl;
+        }
+
+        // 7) 기존 S3 삭제 (기본이미지 아니면)
+        existingOpt.ifPresent(old -> {
+            boolean oldIsDefault = isDefaultUrlOrKey(old.getUrl());
+            if (!oldIsDefault) {
+                try {
+                    long d0 = System.nanoTime();
+                    String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, old.getUrl());
+                    log.info("[UPI:{}] s3.delete start key='{}'", traceId, oldKey);
+                    s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+                    long d1 = System.nanoTime();
+                    log.info("[UPI:{}] s3.delete ok key='{}' elapsed_ms={}", traceId, oldKey, (d1 - d0) / 1_000_000.0);
+                } catch (SdkException e) {
+                    log.warn("[UPI:{}] s3.delete ignore error userId={} url='{}' err='{}'",
+                            traceId, userId, old.getUrl(), e.getMessage());
+                }
+            } else {
+                log.info("[UPI:{}] skip.s3.delete reason=existing_is_default", traceId);
             }
-        }
+        });
 
+        // 8) 기존 DB 레코드 삭제
+        long del0 = System.nanoTime();
+        log.info("[UPI:{}] repo.deleteByImageTypeAndRelatedId start userId={}", traceId, userId);
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+        long del1 = System.nanoTime();
+        log.info("[UPI:{}] repo.deleteByImageTypeAndRelatedId ok elapsed_ms={}", traceId, (del1 - del0) / 1_000_000.0);
 
+        // 9) staging → 영구 이동 또는 as-is 사용
         String finalKey = reqKey;
-        if (!isDefaultIncoming && isStagingKey(reqKey)) {
-            String ext = extOf(reqKey);
-            String dstKey = "users/%d/profile.%s".formatted(userId, ext);
+        if (!isDefaultIncoming && reqIsStaging) {
+            String dstKey = "users/%d/profile.%s".formatted(userId, extOf(reqKey));
             try {
-                log.info("userId: {} - Attempting to copy S3 object from '{}' to '{}'", userId, reqKey, dstKey);
-                s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
+                long c0 = System.nanoTime();
+                log.info("[UPI:{}] s3.copy start src='{}' dst='{}' bucket='{}'", traceId, reqKey, dstKey, bucket);
+                s3Client.copyObject(b -> b
+                        .sourceBucket(bucket).sourceKey(reqKey)
                         .destinationBucket(bucket).destinationKey(dstKey)
                         .acl(ObjectCannedACL.PUBLIC_READ)
-                        .metadataDirective(MetadataDirective.COPY)
-                );
+                        .metadataDirective(MetadataDirective.COPY));
+                long c1 = System.nanoTime();
+                log.info("[UPI:{}] s3.copy ok elapsed_ms={}", traceId, (c1 - c0) / 1_000_000.0);
 
+                long r0 = System.nanoTime();
+                log.info("[UPI:{}] s3.delete staging start key='{}'", traceId, reqKey);
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+                long r1 = System.nanoTime();
+                log.info("[UPI:{}] s3.delete staging ok elapsed_ms={}", traceId, (r1 - r0) / 1_000_000.0);
+
+                finalKey = dstKey;
             } catch (SdkException e) {
-                log.error("FAIL - S3 operation failed while moving staging key '{}' for userId: {}", reqKey, userId, e);
+                log.error("[UPI:{}] s3.staging_move failed userId={} src='{}' dst='{}' err='{}'",
+                        traceId, userId, reqKey, dstKey, e.getMessage());
                 throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
-            finalKey = dstKey;
+        } else {
+            log.info("[UPI:{}] use.key.as_is reason={} key='{}'",
+                    traceId, isDefaultIncoming ? "default_incoming" : "non_staging", reqKey);
         }
 
-        // 새 Image 레코드 저장
+        // 10) 저장
         String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
+        long s0 = System.nanoTime();
+        Image toSave = Image.of(ImageType.USER, userId, finalUrl, 0);
+        log.info("[UPI:{}] repo.save start userId={} finalKey='{}' finalUrl='{}'", traceId, userId, finalKey, finalUrl);
+        Image saved = imageRepository.save(toSave);
+        long s1 = System.nanoTime();
+        log.info("[UPI:{}] repo.save ok id={} elapsed_ms={}", traceId,
+                (saved != null ? saved.getId() : null), (s1 - s0) / 1_000_000.0);
+
+        // 11) 종료 로그
+        long elapsedMs = (System.nanoTime() - methodStartNs) / 1_000_000;
+        log.info("[UPI:{}] method=end status=success userId={} finalUrl='{}' total_elapsed_ms={}",
+                traceId, userId, finalUrl, elapsedMs);
+
         return finalUrl;
     }
+
+
 
     @Override
     @Transactional
@@ -452,38 +540,53 @@ public class ImageServiceImpl implements ImageService {
 
         log.info("requestedKeyOrUrl " + requestedKeyOrUrl);
 
-        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+        Optional<Image> existingOpt =
+                imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId);
 
-        if (!isDefaultUrlOrKey(image.getUrl())) {
-            try {
-                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
-                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-            } catch (SdkException e) {
-                log.warn("delete old profile key ignored: {}", e.getMessage());
-            }
+        // (신규) 후보 finalKey/Url 계산 (staging이면 이동 후 키, 아니면 reqKey 그대로, default는 그대로)
+        String candidateFinalKey = (!isDefaultIncoming && isStagingKey(reqKey))
+                ? "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, extOf(reqKey))
+                : reqKey;
+        String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
+
+        if (existingOpt.isPresent() && Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)) {
+            log.info("[CHAT_ROOM {}] same URL as existing - no-op", chatRoomId);
+            return candidateFinalUrl;
         }
+
+        // 기존 S3 삭제 (있고, default가 아니면)
+        existingOpt.ifPresent(old -> {
+            if (!isDefaultUrlOrKey(old.getUrl())) {
+                try {
+                    String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, old.getUrl());
+                    s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+                } catch (SdkException e) {
+                    log.warn("[CHAT_ROOM {}] old S3 delete ignored: {}", chatRoomId, e.getMessage());
+                }
+            } else {
+                log.info("[CHAT_ROOM {}] old image is default - skip S3 delete", chatRoomId);
+            }
+        });
 
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
 
         String finalKey = reqKey;
         if (!isDefaultIncoming && isStagingKey(reqKey)) {
-            String ext = extOf(reqKey);
-            String dstKey = "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, ext);
+            String dstKey = "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, extOf(reqKey));
             try {
                 s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
                         .destinationBucket(bucket).destinationKey(dstKey)
                         .acl(ObjectCannedACL.PUBLIC_READ)
-                        .metadataDirective(MetadataDirective.COPY)
-                );
+                        .metadataDirective(MetadataDirective.COPY));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
             } catch (SdkException e) {
                 throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
             finalKey = dstKey;
+        } else {
+            log.info("[CHAT_ROOM {}] use key as-is (default or non-staging): {}", chatRoomId, reqKey);
         }
 
-        // 새 Image 레코드(프로필은 항상 orderIndex=0)
         String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
         imageRepository.save(Image.of(ImageType.CHAT_ROOM, chatRoomId, finalUrl, 0));
         return finalUrl;
