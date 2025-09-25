@@ -104,6 +104,7 @@ ncp:
     apiUrl: https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003
     apiKey: ${CLOVA_STUDIO_API_KEY}
 
+swagger:
   server-url: ${SERVER_URL}
 
 springdoc:

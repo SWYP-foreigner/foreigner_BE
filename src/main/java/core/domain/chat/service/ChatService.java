@@ -909,7 +909,6 @@ public class ChatService {
         }else{
             log.warn("no Image!!");
         }
-
     }
 
     /**
