@@ -79,7 +79,7 @@ jobs:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          source: "infra/elasticsearch/**"
+          source: "infra/elasticsearch/**,infra/elasticsearch-events/**"
           target: "~/foreigner"
 
   # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
@@ -157,6 +157,27 @@ jobs:
             echo "[ES] Verify"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/99-verify.sh
+            
+            # --- events 롤아웃 ---
+            echo "[ES(events)] Apply template"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
+
+            echo "[ES(events)] Create index"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" \
+            bash infra/elasticsearch-events/scripts/events-02-create_index.sh
+
+            echo "[ES(events)] Switch aliases"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
+            bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
+
+            echo "[ES(events)] Verify"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
+            bash infra/elasticsearch-events/scripts/events-99-verify.sh
+            
 
   # 4) 앱 배포만(.env 작성→docker compose pull/up)
   deploy-app:

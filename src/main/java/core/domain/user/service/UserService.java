@@ -95,6 +95,7 @@ public class UserService {
     private final LikeRepository likeRepository;
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatRoomRepository chatRoomRepository;
+    private final ApplicationEventPublisher publisher;
 
 
     private static String nullToEmpty(String s) {
@@ -489,6 +490,9 @@ public class UserService {
         long refreshExpirationMillis = refreshExpiration.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(u.getId(), refresh, refreshExpirationMillis);
         log.info("[LOGIN] 로그인 성공: id={}, email={}, expiresInMs={}", u.getId(), u.getEmail(), expiresInMs);
+
+        publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "email"));
+
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 

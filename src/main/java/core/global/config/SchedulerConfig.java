@@ -1,4 +1,4 @@
-package core.global.service;
+package core.global.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
