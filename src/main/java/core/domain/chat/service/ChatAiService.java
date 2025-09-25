@@ -173,5 +173,19 @@ public class ChatAiService {
 
         return new MessageSliceResponse(messageResponses, messageSlice.hasNext());
     }
-
+    /**
+     * 사용자가 신고한 AI 메시지를 DB에서 삭제합니다.
+     * @param userId 신고를 요청한 사용자 ID
+     * @param messageId 삭제할 메시지 ID
+     */
+    @Transactional
+    public void deleteReportedMessage(Long userId, Long messageId) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+        validateParticipant(userId, message.getChatRoom());
+        if (!message.getSender().getId().equals(AI_USER_ID)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+        }
+        chatMessageRepository.delete(message);
+    }
 }

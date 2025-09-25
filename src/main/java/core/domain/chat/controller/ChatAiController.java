@@ -87,4 +87,20 @@ public class ChatAiController {
         MessageSliceResponse messages = chatAiService.getChatMessages(principal.getUserId(), roomId, lastMessageId);
         return ResponseEntity.ok(ApiResponse.success(messages));
     }
+
+    @Operation(summary = "AI 메시지 신고 및 삭제", description = "AI가 생성한 부적절한 메시지를 신고하고 채팅방에서 삭제합니다.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "메시지 신고 및 삭제 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 사용자"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "메시지를 삭제할 권한이 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메시지")
+    })
+    @DeleteMapping("/messages/{messageId}")
+    public ResponseEntity<ApiResponse<Void>> reportAndDeleteMessage(
+            @PathVariable Long messageId
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        chatAiService.deleteReportedMessage(principal.getUserId(), messageId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
