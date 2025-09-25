@@ -365,13 +365,12 @@ public class ImageServiceImpl implements ImageService {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
+        log.info("requestedKeyOrUrl"+requestedKeyOrUrl);
+
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
 
-        // 존재/타입/용량 검증
-        boolean skip = requestedKeyOrUrl.startsWith("https://cdn.ko-ri.cloud/default/")
-                       || "true".equalsIgnoreCase(System.getenv("IMAGE_VALIDATION_BYPASS"))
-                       || "true".equalsIgnoreCase(System.getProperty("image.validation.bypass"));
+        log.info("isDefaultIncoming"+isDefaultIncoming);
 
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
