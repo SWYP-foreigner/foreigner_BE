@@ -26,8 +26,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -132,6 +131,16 @@ public class ImageServiceImpl implements ImageService {
         final List<String> removes = (toRemove == null) ? List.of() : toRemove;
         if (adds.isEmpty() && removes.isEmpty()) return;
 
+        for (int i = 0; i < adds.size(); i++) {
+            String url = adds.get(i);
+            log.info("ADD[{}] 유효한 URL 확인: {}", i, url);
+        }
+
+        for (int i = 0; i < removes.size(); i++) {
+            String url = removes.get(i);
+            log.info("REMOVE[{}] 유효한 URL 확인: {}", i, url);
+        }
+
         // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
         List<String> bulkDeleteKeys = new ArrayList<>();
         if (!removes.isEmpty()) {
@@ -174,7 +183,7 @@ public class ImageServiceImpl implements ImageService {
             final int myOrder = startOrder + i;
             final String raw = adds.get(i);
             tasks.add(() -> {
-                String srcKey  = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
+                String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
                 String finalKey = ensureFinalKey(basePrefix, myOrder, srcKey);
                 String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
 
@@ -457,6 +466,7 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     @Override
     public String upsertChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
+        log.info("requestedKeyOrUrl" + requestedKeyOrUrl);
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
             throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
@@ -549,6 +559,7 @@ public class ImageServiceImpl implements ImageService {
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
         if (!ct.startsWith("image/")) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
     }
+
     public List<ImageDto> findImagesForChatRooms(List<Long> roomIds) {
         if (roomIds == null || roomIds.isEmpty()) {
             return Collections.emptyList();
