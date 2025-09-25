@@ -376,19 +376,21 @@ public class ImageServiceImpl implements ImageService {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
 
-        imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .forEach(img -> {
-                    if (isDefaultUrlOrKey(img.getUrl())) return;
-                    try {
-                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-                    } catch (SdkException e) {
-                        // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
-                        log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
-                                userId, img.getUrl(), e.getMessage());
-                    }
-                });
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+
+        if (!isDefaultUrlOrKey(image.getUrl())) {
+            try {
+                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
+                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+            } catch (SdkException e) {
+                // S3에서 오래된 파일 삭제 실패는 전체 로직을 중단시키지 않으므로 WARN 레벨로 처리
+                log.error("userId: {} - Failed to delete old S3 object, but proceeding. Key: '{}', Error: {}",
+                        userId, image.getUrl(), e.getMessage());
+            }
+
+            imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+        }
 
         String finalKey = reqKey;
         if (!isDefaultIncoming && isStagingKey(reqKey)) {
@@ -446,18 +448,21 @@ public class ImageServiceImpl implements ImageService {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
 
-        // 기존 프로필 전부 제거 (USER, relatedId=userId)
-        imageRepository.findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
-                .forEach(img -> {
-                    if (isDefaultUrlOrKey(img.getUrl())) return;
-                    try {
-                        String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-                        s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
-                    } catch (SdkException e) {
-                        log.warn("delete old profile key ignored: {}", e.getMessage());
-                    }
-                });
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+
+        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+
+        if (!isDefaultUrlOrKey(image.getUrl())) {
+            try {
+                String oldKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, image.getUrl());
+                s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
+            } catch (SdkException e) {
+                log.warn("delete old profile key ignored: {}", e.getMessage());
+            }
+
+            imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+        }
+
 
         String finalKey = reqKey;
         if (!isDefaultIncoming && isStagingKey(reqKey)) {
