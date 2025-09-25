@@ -59,8 +59,15 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
      * @param participantStatus 조회할 참여 상태 (ACTIVE)
      * @return ACTIVE 상태인 채팅방 목록
      */
-    @Query("SELECT cr FROM ChatRoom cr JOIN ChatParticipant cp ON cr.id = cp.chatRoom.id WHERE cp.user.id = :userId AND cp.status = :participantStatus")
-    List<ChatRoom> findActiveChatRoomsByUserId(@Param("userId") Long userId, @Param("participantStatus") ChatParticipantStatus participantStatus);
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "JOIN cr.participants cp " +
+            "WHERE cp.user.id = :userId AND cp.status = :participantStatus " +
+            "AND NOT EXISTS (" +
+            "  SELECT 1 FROM ChatParticipant cp2 " +
+            "  WHERE cp2.chatRoom = cr AND cp2.user.provider = 'SYSTEM'" +
+            ")")
+    List<ChatRoom> findActiveHumanChatRoomsByUserId(@Param("userId") Long userId, @Param("participantStatus") ChatParticipantStatus participantStatus);
+
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipantsAndUsers(@Param("roomId") Long roomId);
 

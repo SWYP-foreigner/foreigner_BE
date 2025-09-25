@@ -77,7 +77,7 @@ public class ChatService {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<ChatRoom> rooms = chatRoomRepo.findActiveChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
+        List<ChatRoom> rooms = chatRoomRepo.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
         return rooms.stream()
                 // 🚨 차단 필터링 로직
