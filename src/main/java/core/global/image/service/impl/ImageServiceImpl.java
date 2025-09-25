@@ -37,6 +37,7 @@ public class ImageServiceImpl implements ImageService {
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
     private final ImageRepository imageRepository;
+    private final ImageService imageService;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -555,27 +556,4 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 채팅방 프로필 이미지를 교체(Replace)합니다.
-     * 기존 이미지가 존재하면 모두 삭제한 후, 새로운 이미지를 삽입하여 항상 단 하나의 이미지만 존재하도록 보장합니다.
-     *
-     * @param request 채팅방 ID와 새로운 이미지 URL 정보
-     */
-    @Transactional
-    public void upsertChatRoomImage(UpsertChatRoomImageRequest request) {
-        List<Image> existingImages = imageRepository
-                .findByImageTypeAndRelatedId(ImageType.CHAT_ROOM, request.chatRoomId());
-
-        if (!existingImages.isEmpty()) {
-            imageRepository.deleteAll(existingImages);
-        }
-
-        Image newImage = Image.builder()
-                .imageType(ImageType.CHAT_ROOM)
-                .relatedId(request.chatRoomId())
-                .url(request.imageUrl())
-                .orderIndex(0)
-                .build();
-        imageRepository.save(newImage);
-    }
 }

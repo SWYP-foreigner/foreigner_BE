@@ -70,7 +70,7 @@ public class ImageController {
     public ResponseEntity<ApiResponse<Void>> upsertChatRoomImage(
             @Valid @RequestBody UpsertChatRoomImageRequest request
     ) {
-        imageService.upsertChatRoomImage(request);
+        imageService.upsertChatRoomProfileImage(request.chatRoomId(), request.imageUrl());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
