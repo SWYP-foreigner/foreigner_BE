@@ -6,6 +6,7 @@ import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
+import core.global.metrics.annotation.TrackEvent;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -41,6 +42,7 @@ public class ChatController {
             )
     })
     @PostMapping("/rooms/oneTone")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
             @RequestBody CreateRoomRequest request
     ) {
@@ -58,6 +60,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> ChatRooms() {
         log.info(">>>> 시작 ");
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -77,6 +80,7 @@ public class ChatController {
             )
     })
     @DeleteMapping("/rooms/{roomId}/leave")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
@@ -95,6 +99,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/messages")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId
@@ -116,6 +121,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/first_messages")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
             @PathVariable Long roomId
     ) {
@@ -135,6 +141,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/participants")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId) {
         List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
         return ResponseEntity.ok(ApiResponse.success(responses));
@@ -149,6 +156,7 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @PostMapping("/rooms/group/{roomId}/join")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
@@ -170,6 +178,7 @@ public class ChatController {
             )
     })
     @GetMapping("/search")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
             @RequestParam Long roomId,
             @RequestParam String keyword
@@ -193,6 +202,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/messages/around")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
             @PathVariable Long roomId,
             @RequestParam Long messageId
@@ -207,6 +217,7 @@ public class ChatController {
 
     @Operation(summary = "그룹 채팅 상세 정보 조회", description = "그룹 채팅방의 상세 정보(이름, 오너, 참여자 목록 등)를 조회합니다.")
     @GetMapping("/rooms/group/{roomId}")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(
             @PathVariable Long roomId) {
         GroupChatDetailResponse response = chatService.getGroupChatDetails(roomId);
@@ -214,6 +225,7 @@ public class ChatController {
     }
     @Operation(summary = "그룹 채팅방 검색", description = "채팅방 이름 키워드를 통해 그룹 채팅방을 검색합니다.")
     @GetMapping("/rooms/group/search")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<GroupChatSearchResponse>>> searchGroupChats(@RequestParam String keyword) {
         List<GroupChatSearchResponse> response = chatService.searchGroupChatRooms(keyword);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -226,6 +238,7 @@ public class ChatController {
             ),
     })
     @GetMapping("/rooms/search")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> searchRooms(
             @RequestParam("roomName") String roomName
     ) {
@@ -241,6 +254,7 @@ public class ChatController {
             )
     })
     @GetMapping("/group/latest")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getLatestGroupChats(
             @RequestParam(required = false) Long lastChatRoomId) {
         List<GroupChatMainResponse> response = chatService.getLatestGroupChats(lastChatRoomId);
@@ -255,6 +269,7 @@ public class ChatController {
             )
     })
     @GetMapping("/group/popular")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getPopularGroupChats() {
         List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -270,6 +285,7 @@ public class ChatController {
     })
 
     @GetMapping("/users/{userId}/profile")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -281,6 +297,7 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 참여자를 찾을 수 없음")
     })
     @PostMapping("/rooms/{roomId}/translation")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> toggleTranslation(
             @PathVariable Long roomId,
             @RequestBody ToggleTranslationRequest request
@@ -294,6 +311,7 @@ public class ChatController {
     }
 
     @PostMapping("/rooms/{roomId}/read-all")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
@@ -304,6 +322,7 @@ public class ChatController {
     }
 
     @PostMapping("/rooms/group")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> createGroupChat(
                                                               @Valid @RequestBody CreateGroupChatRequest request
     ) {
@@ -316,11 +335,13 @@ public class ChatController {
     }
 
     @PostMapping("/declaration")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @GetMapping("/isGroup")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<ChatRoomGroupResponse>> isChatRoomGroup(
             @RequestParam Long roomId) {
         boolean isGroup = chatService.isChatRoomGroup(roomId);
@@ -328,6 +349,7 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
     @PostMapping("/block/{targetUserId}")
+    @TrackEvent("chat")
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
             @PathVariable @Positive Long targetUserId
     ) {

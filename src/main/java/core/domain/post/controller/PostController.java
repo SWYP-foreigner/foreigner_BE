@@ -3,6 +3,7 @@ package core.domain.post.controller;
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
 import core.domain.post.dto.PostWriteForChatRequest;
+import core.global.metrics.annotation.TrackEvent;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -43,6 +44,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @GetMapping("/posts/{postId}")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> getPostDetail(
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable @Positive Long postId) {
@@ -61,6 +63,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
     })
     @PostMapping("/boards/{boardId}/posts")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writePost(
             @PathVariable @Positive Long boardId,
             @Valid @RequestBody PostWriteRequest writeRequest) {
@@ -80,6 +83,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
     })
     @PostMapping("/chat/rooms/{roomId}/share")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> writePostForChat(
             @PathVariable @Positive Long roomId,
             @Valid @RequestBody PostWriteForChatRequest writeRequest) {
@@ -100,6 +104,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "충돌", content = @Content)
     })
     @PutMapping("/posts/{postId}")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> updatePost(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
             @Valid @RequestBody PostUpdateRequest updateRequest) {
@@ -118,6 +123,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @DeleteMapping("/posts/{postId}")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> deletePost(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
@@ -175,6 +181,7 @@ public class PostController {
             ))
     })
     @GetMapping("/my/posts")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserPostItem>>> getMyPostList(
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
@@ -198,6 +205,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @PutMapping("/posts/{postId}/likes/me")
+    @TrackEvent("post")    
     public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
     ) {
@@ -218,6 +226,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
     })
     @GetMapping("/posts/{postId}/write-options")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<CommentWriteAnonymousAvailableResponse>> getWriteOptions(
             @Parameter(description = "게시글 ID", example = "10")
             @PathVariable @Positive(message = "postId는 양수여야 합니다.") Long postId) {
@@ -237,6 +246,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @DeleteMapping("/posts/{postId}/likes/me")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> unlike(
             @PathVariable @Positive Long postId
     ) {
@@ -255,6 +265,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @PostMapping("/posts/{postId}/declaration")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockPost(
             @PathVariable @Positive Long postId
     ) {
@@ -274,6 +285,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @PostMapping("/posts/{postId}/block")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
             @PathVariable @Positive Long postId
     ) {
