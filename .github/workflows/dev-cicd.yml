@@ -27,46 +27,14 @@ jobs:
           test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
           echo "All required secrets are set."
 
-  # 1) 도커 이미지 빌드/푸시만 담당
   build:
     needs: preflight
     runs-on: ubuntu-latest
-
     env:
-      # plain 로그가 있어야 Scan URL을 깔끔히 뽑기 쉬움
       BUILDKIT_PROGRESS: plain
-
-
-    outputs:
-      image: ${{ steps.meta.outputs.IMAGE }}
-      sha: ${{ steps.meta.outputs.SHA }}
-      build_sec: ${{ steps.build_sum.outputs.duration }}   # ADD
-      img_size: ${{ steps.img.outputs.size }}             # ADD
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-          # --- (A) Gradle Build Scan: scan-only (빠른 메타 확인 용) ---
-          # runner에서 JDK만 잠깐 깔고 `./gradlew help --scan`으로 링크 생성
-      - name: Set up Java (for Gradle scan-only)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Gradle Build Scan (scan-only)
-        run: |
-          set -e
-          chmod +x ./gradlew
-          # 의존성 전체 빌드가 아니라 scan만 생성(가벼움)
-          ./gradlew -q help --no-daemon --scan | tee scan.log || true
-          URL=$(grep -oE 'https://scans\.gradle\.com/s/[a-zA-Z0-9]+' scan.log | tail -1 || true)
-          {
-            echo "### 🔗 Gradle Build Scan (scan-only)"
-            echo "${URL:-N/A}"
-          } >> "$GITHUB_STEP_SUMMARY"  
-      
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -77,7 +45,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: ⏱️ Start build timer      # ADD
+      - name: ⏱️ Start build timer
         id: build_t0
         run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
 
@@ -97,55 +65,49 @@ jobs:
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
-      - name: 📦 Image manifest size     # ADD
+      - name: 📦 Image size (compressed & uncompressed)
         id: img
+        shell: bash
         run: |
+          set -e
           IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
-          docker buildx imagetools inspect "$IMAGE" > inspect.txt
-          SIZE=$(grep -i -m1 'Size:' inspect.txt | awk '{print $2$3}')
-          echo "size=$SIZE" >> $GITHUB_OUTPUT
 
-      - name: ✅ Build metrics            # ADD
+          # (1) 압축 크기(있으면)
+          COMP=""
+          if docker buildx imagetools inspect "$IMAGE" > inspect.txt 2>/dev/null; then
+            COMP=$(grep -i -m1 'Size:' inspect.txt | awk '{print $2$3}' || true)
+          fi
+          echo "size=${COMP}" >> $GITHUB_OUTPUT
+
+          # (2) 비압축 크기(항상 가능)
+          docker pull -q "$IMAGE" >/dev/null
+          BYTES=$(docker image inspect "$IMAGE" --format '{{.Size}}' || echo 0)
+          MB=$(( BYTES/1024/1024 ))
+          echo "size_uncompressed=${MB}MB" >> $GITHUB_OUTPUT
+
+      - name: ✅ Build metrics
         id: build_sum
         run: |
           end=$(date +%s)
           echo "duration=$(( end - ${{ steps.build_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
 
-      - name: Run Dive (CI mode) using local Docker daemon
+      - name: 📊 Build Summary
         run: |
-          set -e
-          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
-          # 로컬에 확실히 존재하도록 pull (이미 push 직후라도 네트워크 지연 대비)
-          docker pull "$IMAGE"
-          # 도커 소켓을 마운트하고 '로컬 도커'를 소스로 지정
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            wagoodman/dive:latest \
-            --ci \
-            --source docker "$IMAGE" \
-            | tee dive.txt
-        continue-on-error: true  # 리포팅 용도이므로 실패해도 파이프라인 계속
+          echo "## 🧱 Build Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${{ steps.build_sum.outputs.duration }} s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image (compressed) | ${{ steps.img.outputs.size || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image (uncompressed) | ${{ steps.img.outputs.size_uncompressed }} |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload Dive report (text)
-        uses: actions/upload-artifact@v4
-        with:
-          name: dive-report
-          path: dive.txt
-
-      - name: Export image meta
-        id: meta
-        run: |
-          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
-
-  # 2) ES 템플릿/스크립트만 서버로 업로드
+  # 2) ES 템플릿/스크립트 업로드 (측정 없음)
   upload-es:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Upload ES assets (scripts + template)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -155,7 +117,6 @@ jobs:
           source: "infra/elasticsearch/**,infra/elasticsearch-events/**"
           target: "~/foreigner"
 
-  # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
   es-rollout:
     needs: upload-es
     runs-on: ubuntu-latest
@@ -170,103 +131,53 @@ jobs:
           script: |
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
-            
             export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
             : "${ES_URL:?ES_URL must be set}"
-            
             CURL_AUTH=()
-            if [ -n "${ES_AUTH:-}" ]; then
-              CURL_AUTH=(-u "$ES_AUTH")
-            fi
-
-            # 연결 스모크(헤더만)
+            if [ -n "${ES_AUTH:-}" ]; then CURL_AUTH=(-u "$ES_AUTH"); fi
             echo "[ES] HEAD ${ES_URL}"
             curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
-            
-            # [HOST] 안전 디스크 정리(도커 있으면): 이미지/빌더 캐시만 정리, 볼륨은 미삭제
             if command -v docker >/dev/null 2>&1; then
-            docker system prune -af || true
-            docker builder prune -af || true
+              docker system prune -af || true
+              docker builder prune -af || true
             fi
-            
             cd ~/foreigner
             chmod -R +x infra/elasticsearch/scripts || true
-            
-            
             echo "[ES] Apply template"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/01-apply_template.sh
-
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" bash infra/elasticsearch/scripts/01-apply_template.sh
             echo "[ES] Create new index"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
-            HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 \
-            bash infra/elasticsearch/scripts/02-create_index.sh
-            
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 bash infra/elasticsearch/scripts/02-create_index.sh
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
-
             SRC_ALIAS="posts_search"
             if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
               SRC_ALIAS="posts_lab"
             fi
             echo "[ES] Reindex source alias = ${SRC_ALIAS}"
-
-            curl -sS -X POST \
-            -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
-            "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-            -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-  
-  
+            curl -sS -X POST -H 'Content-Type: application/json' "${CURL_AUTH[@]}" "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
             echo "[ES] Switch aliases"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/03-switch_alias.sh
-            
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" bash infra/elasticsearch/scripts/03-switch_alias.sh
             echo "[ES] Cleanup: keep last 1, delete the rest"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
-            bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
-
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
             echo "[ES] Verify"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/99-verify.sh
-            
-            # --- events 롤아웃 ---
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" bash infra/elasticsearch/scripts/99-verify.sh
             echo "[ES(events)] Apply template"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
-
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
             echo "[ES(events)] Create index"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" \
-            bash infra/elasticsearch-events/scripts/events-02-create_index.sh
-
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" bash infra/elasticsearch-events/scripts/events-02-create_index.sh
             echo "[ES(events)] Switch aliases"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
-            bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
-
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
             echo "[ES(events)] Verify"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
-            bash infra/elasticsearch-events/scripts/events-99-verify.sh
-            
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" bash infra/elasticsearch-events/scripts/events-99-verify.sh
 
-  # 4) 앱 배포만(.env 작성→docker compose pull/up)
   deploy-app:
     needs: [ build, es-rollout ]
     runs-on: ubuntu-latest
     if: always()
-    outputs:
-      deploy_sec: ${{ steps.dep_sum.outputs.duration }}   # ADD
     steps:
       - name: Note ES rollout result
         run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
-
-      - name: ⏱️ Start deploy timer      # ADD
-        id: dep_t0
-        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
-
       - name: Deploy app on server (Docker Compose)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -277,36 +188,28 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-
             mkdir -p ~/foreigner
             cd ~/foreigner
-
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
-
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             : "${IMAGE:?IMAGE is empty}"
             echo "Using IMAGE=${IMAGE}"
-
             cat > .env <<'EOF'
             # --- PostgreSQL ---
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
             # --- MongoDB ---
             MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
             MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
             MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
-
             # --- Redis ---
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
             # --- JWT ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-
             # --- OAuth: Google ---
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
@@ -315,7 +218,6 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
-
             # --- OAuth: Apple ---
             APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
@@ -323,67 +225,35 @@ jobs:
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
             APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
             APPLE_APP_BUNDLE_ID="${{ secrets.APPLE_APP_BUNDLE_ID }}"
-
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
             NCP_CDN_URL=${{ secrets.NCP_CDN_URL }}
-
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
-
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
             FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
-
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
-
             SERVER_URL=${{ secrets.SERVER_URL }}
-            
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-            
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-            
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
-            
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
             echo "Using IMAGE=${IMAGE}"
-            
             docker compose pull
             docker compose up -d --remove-orphans
-            
             docker compose ps
             docker compose logs --since=5m || true
             docker image prune -f || true
-
-      - name: ✅ Deploy metrics           # ADD
-        id: dep_sum
-        run: |
-          end=$(date +%s)
-          echo "duration=$(( end - ${{ steps.dep_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
-
-  summary:
-    needs: [ build, es-rollout, deploy-app ]   # ADD
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📊 Pipeline Metrics
-        run: |
-          echo "## 📊 Pipeline Metrics (dev)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Section | Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|---:|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | Duration | ${{ needs.build.outputs.build_sec }} s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | Image (compressed) | ${{ needs.build.outputs.img_size }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| ES rollout | Duration | ${{ needs.es-rollout.outputs.es_sec || 'N/A' }} s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deploy | Duration | ${{ needs.deploy-app.outputs.deploy_sec || 'N/A' }} s |" >> $GITHUB_STEP_SUMMARY
