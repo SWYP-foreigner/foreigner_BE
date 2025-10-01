@@ -25,21 +25,11 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew clean bootJar -x test --no
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# (헬스체크용) curl 최소 설치
-RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
+# JAR 복사 + 소유권을 한 번에 처리(중복 레이어 방지)
+COPY --from=build --chown=10001:0 /workspace/build/libs/*.jar /app/app.jar
 
-# 필요 시 애플리케이션 포트/엔드포인트 맞추세요
-HEALTHCHECK --interval=10s --timeout=3s --retries=12 \
-  CMD curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"' || exit 1
-
-# 산출물 이름이 바뀌어도 대응되는 와일드카드
-COPY --from=build /workspace/build/libs/*.jar /app/app.jar
-
-EXPOSE 8080
-# 비루트 실행(선택) — 권장
-RUN useradd -r -u 10001 appuser && chown -R appuser:appuser /app
+# 비루트 실행 (useradd / chown 불필요)
 USER 10001
 
+EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]
