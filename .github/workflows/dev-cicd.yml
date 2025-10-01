@@ -31,12 +31,42 @@ jobs:
   build:
     needs: preflight
     runs-on: ubuntu-latest
+
+    env:
+      # plain 로그가 있어야 Scan URL을 깔끔히 뽑기 쉬움
+      BUILDKIT_PROGRESS: plain
+
+
     outputs:
       image: ${{ steps.meta.outputs.IMAGE }}
       sha: ${{ steps.meta.outputs.SHA }}
+      build_sec: ${{ steps.build_sum.outputs.duration }}   # ADD
+      img_size: ${{ steps.img.outputs.size }}             # ADD
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+          # --- (A) Gradle Build Scan: scan-only (빠른 메타 확인 용) ---
+          # runner에서 JDK만 잠깐 깔고 `./gradlew help --scan`으로 링크 생성
+      - name: Set up Java (for Gradle scan-only)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle Build Scan (scan-only)
+        run: |
+          set -e
+          chmod +x ./gradlew
+          # 의존성 전체 빌드가 아니라 scan만 생성(가벼움)
+          ./gradlew -q help --no-daemon --scan | tee scan.log || true
+          URL=$(grep -oE 'https://scans\.gradle\.com/s/[a-zA-Z0-9]+' scan.log | tail -1 || true)
+          {
+            echo "### 🔗 Gradle Build Scan (scan-only)"
+            echo "${URL:-N/A}"
+          } >> "$GITHUB_STEP_SUMMARY"  
+      
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,6 +76,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: ⏱️ Start build timer      # ADD
+        id: build_t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
 
       - name: Build & Push Docker Image
         uses: docker/build-push-action@v6
@@ -62,6 +96,27 @@ jobs:
           cache-to: |
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+
+      - name: 📦 Image manifest size     # ADD
+        id: img
+        run: |
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+          docker buildx imagetools inspect "$IMAGE" > inspect.txt
+          SIZE=$(grep -i -m1 'Size:' inspect.txt | awk '{print $2$3}')
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: ✅ Build metrics            # ADD
+        id: build_sum
+        run: |
+          end=$(date +%s)
+          echo "duration=$(( end - ${{ steps.build_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
+
+      - name: Analyze image layers with Dive
+        uses: yuichielectric/dive-action@0.0.4
+        with:
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
+          # PR에 자동 코멘트 남기고 싶을 때만 아래 줄 사용 + 권한 필요(아래 참고)
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Export image meta
         id: meta
@@ -188,9 +243,15 @@ jobs:
     needs: [ build, es-rollout ]
     runs-on: ubuntu-latest
     if: always()
+    outputs:
+      deploy_sec: ${{ steps.dep_sum.outputs.duration }}   # ADD
     steps:
       - name: Note ES rollout result
         run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
+
+      - name: ⏱️ Start deploy timer      # ADD
+        id: dep_t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
 
       - name: Deploy app on server (Docker Compose)
         uses: appleboy/ssh-action@v1.0.3
@@ -291,3 +352,24 @@ jobs:
             docker compose ps
             docker compose logs --since=5m || true
             docker image prune -f || true
+
+      - name: ✅ Deploy metrics           # ADD
+        id: dep_sum
+        run: |
+          end=$(date +%s)
+          echo "duration=$(( end - ${{ steps.dep_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
+
+  summary:
+    needs: [ build, es-rollout, deploy-app ]   # ADD
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📊 Pipeline Metrics
+        run: |
+          echo "## 📊 Pipeline Metrics (dev)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Section | Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---:|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | Duration | ${{ needs.build.outputs.build_sec }} s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | Image (compressed) | ${{ needs.build.outputs.img_size }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ES rollout | Duration | ${{ needs.es-rollout.outputs.es_sec || 'N/A' }} s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy | Duration | ${{ needs.deploy-app.outputs.deploy_sec || 'N/A' }} s |" >> $GITHUB_STEP_SUMMARY

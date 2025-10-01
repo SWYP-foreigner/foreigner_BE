@@ -1,0 +1,136 @@
+name: Compare Docker Build (Baseline vs Optimized)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '빌드할 ref (브랜치/태그/커밋)'
+        required: true
+        default: 'dev'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    env:
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ----------------- Baseline: 최적화 전(임시 Dockerfile 생성) -----------------
+      - name: Write baseline Dockerfile (simple, no cache-mount, naive layering)
+        run: |
+          cat > Dockerfile.baseline <<'EOF'
+          FROM gradle:8.14.3-jdk21 AS build
+          WORKDIR /app
+          # (의도적으로) 레이어/캐시 최적화 없이 전체 복사
+          COPY . .
+          RUN chmod +x ./gradlew || true
+          RUN ./gradlew clean bootJar -x test --no-daemon
+
+          FROM eclipse-temurin:21-jre
+          WORKDIR /app
+          COPY --from=build /app/build/libs/*.jar /app/app.jar
+          EXPOSE 8080
+          ENTRYPOINT ["java","-jar","/app/app.jar"]
+          EOF
+
+      - name: Build BASELINE (no push)
+        id: baseline
+        run: |
+          set -e
+          TAG="baseline:${{ github.run_id }}"
+          START=$(date +%s)
+          docker buildx build \
+            --file ./Dockerfile.baseline \
+            --tag "${TAG}" \
+            --provenance=false \
+            --load \
+            --progress=plain \
+            . | tee baseline.log
+          END=$(date +%s)
+          DURATION=$((END-START))
+
+          TOTAL_STEPS=$(grep -cE '^#' baseline.log || true)
+          CACHED_STEPS=$(grep -cE ' CACHED$|using cache' baseline.log || true)
+          CONTEXT_LINE=$(grep -i -m1 'transferring context' baseline.log || true)
+          SIZE_BYTES=$(docker image inspect "${TAG}" --format '{{.Size}}' || echo 0)
+          SIZE_MB=$(( SIZE_BYTES/1024/1024 ))
+
+          {
+            echo "REF=${{ inputs.ref }}"
+            echo "TAG=${TAG}"
+            echo "DURATION_SEC=${DURATION}"
+            echo "TOTAL_STEPS=${TOTAL_STEPS}"
+            echo "CACHED_STEPS=${CACHED_STEPS}"
+            echo "HIT_RATE=$(( TOTAL_STEPS>0 ? 100*CACHED_STEPS/TOTAL_STEPS : 0 ))"
+            echo "CONTEXT_LINE=${CONTEXT_LINE}"
+            echo "SIZE_MB=${SIZE_MB}"
+          } | tee baseline.env
+
+      # ----------------- Optimized: 현재 레포의 Dockerfile 그대로 -----------------
+      - name: Build OPTIMIZED (no push)
+        id: optimized
+        run: |
+          set -e
+          TAG="optimized:${{ github.run_id }}"
+          START=$(date +%s)
+          docker buildx build \
+            --file ./Dockerfile \
+            --tag "${TAG}" \
+            --cache-from type=gha \
+            --provenance=false \
+            --load \
+            --progress=plain \
+            . | tee optimized.log
+          END=$(date +%s)
+          DURATION=$((END-START))
+
+          TOTAL_STEPS=$(grep -cE '^#' optimized.log || true)
+          CACHED_STEPS=$(grep -cE ' CACHED$|using cache' optimized.log || true)
+          CONTEXT_LINE=$(grep -i -m1 'transferring context' optimized.log || true)
+          SIZE_BYTES=$(docker image inspect "${TAG}" --format '{{.Size}}' || echo 0)
+          SIZE_MB=$(( SIZE_BYTES/1024/1024 ))
+
+          {
+            echo "REF=${{ inputs.ref }}"
+            echo "TAG=${TAG}"
+            echo "DURATION_SEC=${DURATION}"
+            echo "TOTAL_STEPS=${TOTAL_STEPS}"
+            echo "CACHED_STEPS=${CACHED_STEPS}"
+            echo "HIT_RATE=$(( TOTAL_STEPS>0 ? 100*CACHED_STEPS/TOTAL_STEPS : 0 ))"
+            echo "CONTEXT_LINE=${CONTEXT_LINE}"
+            echo "SIZE_MB=${SIZE_MB}"
+          } | tee optimized.env
+
+      # ----------------- 요약/비교 출력 + 로그 아티팩트 업로드 -----------------
+      - name: Summarize
+        run: |
+          . ./baseline.env
+          echo "## 📊 Build Compare (${REF})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Variant | Time(s) | Cache(hit/total) | Hit% | Context | Image Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|---:|---:|---|---:|" >> $GITHUB_STEP_SUMMARY
+          BL_DUR=$DURATION_SEC; BL_H="$CACHED_STEPS/$TOTAL_STEPS"; BL_RATE=$HIT_RATE; BL_CTX="$CONTEXT_LINE"; BL_SZ=$SIZE_MB
+          . ./optimized.env
+          OP_DUR=$DURATION_SEC; OP_H="$CACHED_STEPS/$TOTAL_STEPS"; OP_RATE=$HIT_RATE; OP_CTX="$CONTEXT_LINE"; OP_SZ=$SIZE_MB
+          echo "| Baseline | ${BL_DUR} | ${BL_H} | ${BL_RATE}% | ${BL_CTX:-N/A} | ${BL_SZ} MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Optimized | ${OP_DUR} | ${OP_H} | ${OP_RATE}% | ${OP_CTX:-N/A} | ${OP_SZ} MB |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: compare-logs
+          path: |
+            baseline.log
+            optimized.log
+            baseline.env
+            optimized.env

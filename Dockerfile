@@ -18,7 +18,8 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew --version
 COPY src ./src
 
 # Spring Boot fat jar 만들기(테스트 스킵은 선택)
-RUN --mount=type=cache,target=/root/.gradle ./gradlew clean bootJar -x test --no-daemon
+RUN --mount=type=cache,target=/root/.gradle ./gradlew clean bootJar -x test --no-daemon --scan
+
 
 ########## runtime stage ##########
 FROM eclipse-temurin:21-jre
