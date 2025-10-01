@@ -56,8 +56,12 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
       - name: Export image meta
         id: meta
