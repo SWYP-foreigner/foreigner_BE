@@ -67,6 +67,12 @@ jobs:
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
+      - name: Set meta
+        id: meta
+        run: |
+          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+
       - name: 📦 Image size (compressed & uncompressed)
         id: img
         shell: bash
@@ -300,34 +306,26 @@ jobs:
 
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
+            
+            FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON}}
 
             SERVER_URL=${{ secrets.SERVER_URL }}
-            
+
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-            
+
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-            
+
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
-            
+
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
-#            echo "Using IMAGE=${IMAGE}"
-#
-#            docker compose pull
-#            docker compose up -d --remove-orphans
-#
-#            docker compose ps
-#            docker compose logs --since=5m || true
-#            docker image prune -f || true
-            
-            
-            
+
             # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
             ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
             if [ -f "$ACTIVE_FILE" ]; then
@@ -346,8 +344,8 @@ jobs:
             fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
 
-            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose 파일 사용)
-            COMPOSE_APP="docker-compose.app.yml"   # 앱만 포함된 파일이어야 함
+            # 2) 새 슬롯에 이미지 배포
+            COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
 
             docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
@@ -356,19 +354,17 @@ jobs:
             docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
               --env-file .env --env-file "$NEXT_ENV" up -d --remove-orphans
 
-            # 3) 헬스체크 대기 (Dockerfile HEALTHCHECK 또는 스모크)
+            # 3) 헬스체크 대기
             echo "Waiting for health on ${NEXT_SLOT}..."
-            # 우선 compose ps를 보고, 필요하면 포트로 직접 스모크 테스트
             ATTEMPTS=24; SLEEP=5; ok=0
             for i in $(seq 1 $ATTEMPTS); do
-              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -q "(healthy)"; then
+              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -qi "healthy"; then
                 ok=1; break
               fi
               sleep $SLEEP
             done
 
             if [ "$ok" -ne 1 ]; then
-              # 포트 스모크 (APP_PORT 읽어서 /actuator/health)
               APP_PORT="$(grep -E '^APP_PORT=' "$NEXT_ENV" | cut -d= -f2)"
               if command -v curl >/dev/null 2>&1 && [ -n "${APP_PORT:-}" ]; then
                 for i in $(seq 1 $ATTEMPTS); do
@@ -386,7 +382,7 @@ jobs:
               exit 1
             fi
 
-            # 4) Nginx 업스트림 전환 (무중단)
+            # 4) Nginx 업스트림 전환
             if [ "$NEXT_SLOT" = "blue" ]; then
               sudo ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
             else
