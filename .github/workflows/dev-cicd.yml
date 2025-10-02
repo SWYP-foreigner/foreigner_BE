@@ -260,11 +260,6 @@ jobs:
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
-            # --- MongoDB ---
-            MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
-            MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
-            MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
-
             # --- Redis ---
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
@@ -381,7 +376,7 @@ jobs:
                 ensure_network
               else
                 echo "[base] bringing up infra stack (first-time or not running)..."
-                mkdir -p data/pgdata data/redis data/mongo || true
+                mkdir -p data/pgdata data/redis || true
                 docker compose -p "$BASE_PROJ" -f "$BASE_COMPOSE" up -d --remove-orphans
                 ensure_network
               fi
