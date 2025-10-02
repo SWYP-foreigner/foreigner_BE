@@ -25,6 +25,7 @@ jobs:
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
+          test -n "${{ secrets.DEV_SUDO_PASSWORD }}" || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
   # 1) 도커 이미지 빌드/푸시만 담당
@@ -286,8 +287,8 @@ jobs:
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
-            APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
-            APPLE_APP_BUNDLE_ID="${{ secrets.APPLE_APP_BUNDLE_ID }}"
+            APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
+            APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
 
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
@@ -307,7 +308,7 @@ jobs:
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             
-            FIREBASE_CREDENTIALS_JSON=${{ secrets.FIREBASE_CREDENTIALS_JSON}}
+            FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
 
             SERVER_URL=${{ secrets.SERVER_URL }}
 
@@ -322,7 +323,18 @@ jobs:
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
-
+            
+            cat > apple_key.pem <<'PEM'
+            ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
+            PEM
+            
+            cat > firebase.json <<'JSON'
+            ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+            JSON
+            
+            chmod 600 apple_key.pem firebase.json || true
+            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
+            
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
             
