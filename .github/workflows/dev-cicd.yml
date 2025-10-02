@@ -367,14 +367,27 @@ jobs:
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             
             BASE_COMPOSE="docker-compose.base.yml"
+            BASE_PROJ="foreigner-base"
+            BASE_NET="foreigner_net"
+            
+            ensure_network() {
+             docker network inspect "$BASE_NET" >/dev/null 2>&1 || docker network create "$BASE_NET"
+            }
+            
             if [ -f "$BASE_COMPOSE" ]; then
-              echo "[base] bringing up infra stack..."
-              mkdir -p data/pgdata data/redis data/mongo || true
-              docker compose -p "foreigner-base" -f "$BASE_COMPOSE" up -d --remove-orphans
-              docker network inspect "foreigner_net" >/dev/null 2>&1 || docker network create "foreigner_net"
+              # base 스택이 이미 떠 있는지 판별(컨테이너 네이밍 프리픽스 기준)
+              if docker ps --format '{{.Names}}' | grep -q "^${BASE_PROJ}-"; then
+                echo "[base] stack is already running. skipping up -d"
+                ensure_network
+              else
+                echo "[base] bringing up infra stack (first-time or not running)..."
+                mkdir -p data/pgdata data/redis data/mongo || true
+                docker compose -p "$BASE_PROJ" -f "$BASE_COMPOSE" up -d --remove-orphans
+                ensure_network
+              fi
             else
               echo "[base] $BASE_COMPOSE not found (skip base stack)."
-              docker network inspect "foreigner_net" >/dev/null 2>&1 || docker network create "foreigner_net"
+              ensure_network
             fi
 
             # NEXT 슬롯용 env 파일 보장
