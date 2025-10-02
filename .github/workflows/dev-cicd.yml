@@ -60,8 +60,12 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
       - name: 📦 Image size (compressed & uncompressed)
         id: img
@@ -313,11 +317,89 @@ jobs:
             
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
-            echo "Using IMAGE=${IMAGE}"
+#            echo "Using IMAGE=${IMAGE}"
+#
+#            docker compose pull
+#            docker compose up -d --remove-orphans
+#
+#            docker compose ps
+#            docker compose logs --since=5m || true
+#            docker image prune -f || true
             
-            docker compose pull
-            docker compose up -d --remove-orphans
             
-            docker compose ps
-            docker compose logs --since=5m || true
+            
+            # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
+            ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
+            if [ -f "$ACTIVE_FILE" ]; then
+              ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
+            else
+              ACTIVE_SLOT="blue"
+              echo "$ACTIVE_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
+            fi
+
+            if [ "$ACTIVE_SLOT" = "blue" ]; then
+              NEXT_SLOT="green"
+              NEXT_ENV=".env.green"
+            else
+              NEXT_SLOT="blue"
+              NEXT_ENV=".env.blue"
+            fi
+            echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
+
+            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose 파일 사용)
+            COMPOSE_APP="docker-compose.app.yml"   # 앱만 포함된 파일이어야 함
+            test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
+
+            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
+              --env-file .env --env-file "$NEXT_ENV" pull
+
+            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
+              --env-file .env --env-file "$NEXT_ENV" up -d --remove-orphans
+
+            # 3) 헬스체크 대기 (Dockerfile HEALTHCHECK 또는 스모크)
+            echo "Waiting for health on ${NEXT_SLOT}..."
+            # 우선 compose ps를 보고, 필요하면 포트로 직접 스모크 테스트
+            ATTEMPTS=24; SLEEP=5; ok=0
+            for i in $(seq 1 $ATTEMPTS); do
+              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -q "(healthy)"; then
+                ok=1; break
+              fi
+              sleep $SLEEP
+            done
+
+            if [ "$ok" -ne 1 ]; then
+              # 포트 스모크 (APP_PORT 읽어서 /actuator/health)
+              APP_PORT="$(grep -E '^APP_PORT=' "$NEXT_ENV" | cut -d= -f2)"
+              if command -v curl >/dev/null 2>&1 && [ -n "${APP_PORT:-}" ]; then
+                for i in $(seq 1 $ATTEMPTS); do
+                  if curl -fsS "http://127.0.0.1:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'; then
+                    ok=1; break
+                  fi
+                  sleep $SLEEP
+                done
+              fi
+            fi
+
+            if [ "$ok" -ne 1 ]; then
+              echo "New slot failed to become healthy. Recent logs:"
+              docker compose -p "foreigner-${NEXT_SLOT}" logs --since=10m || true
+              exit 1
+            fi
+
+            # 4) Nginx 업스트림 전환 (무중단)
+            if [ "$NEXT_SLOT" = "blue" ]; then
+              sudo ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+            else
+              sudo ln -sf /etc/nginx/conf.d/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+            fi
+            echo "$NEXT_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
+            sudo nginx -t
+            sudo nginx -s reload
+
+            # 5) 이전 슬롯 종료 및 정리
+            if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
+              docker compose -p "foreigner-${ACTIVE_SLOT}" -f "$COMPOSE_APP" down || true
+            fi
+
             docker image prune -f || true
+            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" ps
