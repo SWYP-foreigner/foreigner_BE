@@ -333,7 +333,6 @@ jobs:
             JSON
             
             chmod 600 apple_key.pem firebase.json || true
-            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
             
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
@@ -366,6 +365,8 @@ jobs:
               NEXT_ENV=".env.blue"
             fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
+            
+            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
 
             # 2) 새 슬롯에 이미지 배포
             COMPOSE_APP="docker-compose.app.yml"
