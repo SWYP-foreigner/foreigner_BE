@@ -366,9 +366,22 @@ jobs:
             fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             
-            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
+            BASE_COMPOSE="docker-compose.base.yml"
+            if [ -f "$BASE_COMPOSE" ]; then
+              echo "[base] bringing up infra stack..."
+              mkdir -p data/pgdata data/redis data/mongo || true
+              docker compose -p "foreigner-base" -f "$BASE_COMPOSE" up -d --remove-orphans
+              docker network inspect "foreigner_net" >/dev/null 2>&1 || docker network create "foreigner_net"
+            else
+              echo "[base] $BASE_COMPOSE not found (skip base stack)."
+              docker network inspect "foreigner_net" >/dev/null 2>&1 || docker network create "foreigner_net"
+            fi
 
-            # 2) 새 슬롯에 이미지 배포
+            # NEXT 슬롯용 env 파일 보장
+            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
+            
+            
+            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose)
             COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
 
