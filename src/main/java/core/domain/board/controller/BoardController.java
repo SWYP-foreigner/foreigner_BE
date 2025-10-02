@@ -6,6 +6,7 @@ import core.domain.board.service.BoardService;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.enums.SortOption;
+import core.global.metrics.annotation.TrackEvent;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -136,6 +137,7 @@ public class BoardController {
             )
     })
     @GetMapping("/{boardId}/posts")
+    @TrackEvent("post")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BoardItem>>> getPostList(
             @PathVariable Long boardId,
             @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,

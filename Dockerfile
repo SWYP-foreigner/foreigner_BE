@@ -2,6 +2,12 @@
 FROM gradle:8.14.3-jdk21 AS builder
 WORKDIR /app
 
+
+
+
+
+
+
 # 캐시 효율을 위해 빌드 스크립트/래퍼 먼저 복사
 COPY gradlew .
 COPY gradle gradle
@@ -21,8 +27,21 @@ RUN ./gradlew clean bootJar -x test --no-daemon
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+
+
+
+
+
+
+
+
+
 # 산출물 이름이 바뀌어도 대응되는 와일드카드
 COPY --from=builder /app/build/libs/*.jar /app/app.jar
 
 EXPOSE 8080
+
+
+
+
 ENTRYPOINT ["java","-jar","/app/app.jar"]

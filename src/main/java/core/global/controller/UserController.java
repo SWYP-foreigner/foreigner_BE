@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,11 +44,11 @@ public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
     private final GoogleService googleService;
-    private final AppleAuthService service;
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
     private final AppleAuthService appleAuthService;
+    private final ApplicationEventPublisher publisher;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -94,6 +95,7 @@ public class UserController {
             log.info("이 사용자는 새로운 유저입니까? (isNewUser DB 값): {}", isNewUserResponse);
 
             LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken, isNewUserResponse);
+            publisher.publishEvent(new UserLoggedInEvent(originalUser.getId().toString(), "google"));
 
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
@@ -171,6 +173,7 @@ public class UserController {
         try {
             LoginResponseDto responseDto = appleAuthService.login(req);
             log.info("--- [Apple 앱 로그인] 처리 완료. 사용자 ID: {}", responseDto.userId());
+            publisher.publishEvent(new UserLoggedInEvent(responseDto.userId().toString(), "apple"));
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 
         } catch (Exception e) {

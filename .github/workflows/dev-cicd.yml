@@ -47,6 +47,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: ⏱️ Start build timer
+        id: build_t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Build & Push Docker Image
         uses: docker/build-push-action@v6
         with:
@@ -59,13 +63,43 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
-      - name: Export image meta
-        id: meta
+      - name: 📦 Image size (compressed & uncompressed)
+        id: img
+        shell: bash
         run: |
-          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+          set -e
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
 
-  # 2) ES 템플릿/스크립트만 서버로 업로드
+          # (1) 압축 크기(있으면)
+          COMP=""
+          if docker buildx imagetools inspect "$IMAGE" > inspect.txt 2>/dev/null; then
+            COMP=$(grep -i -m1 'Size:' inspect.txt | awk '{print $2$3}' || true)
+          fi
+          echo "size=${COMP}" >> $GITHUB_OUTPUT
+
+          # (2) 비압축 크기(항상 가능)
+          docker pull -q "$IMAGE" >/dev/null
+          BYTES=$(docker image inspect "$IMAGE" --format '{{.Size}}' || echo 0)
+          MB=$(( BYTES/1024/1024 ))
+          echo "size_uncompressed=${MB}MB" >> $GITHUB_OUTPUT
+
+      - name: ✅ Build metrics
+        id: build_sum
+        run: |
+          end=$(date +%s)
+          echo "duration=$(( end - ${{ steps.build_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
+
+      - name: 📊 Build Summary
+        run: |
+          echo "## 🧱 Build Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${{ steps.build_sum.outputs.duration }} s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image (compressed) | ${{ steps.img.outputs.size || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image (uncompressed) | ${{ steps.img.outputs.size_uncompressed }} |" >> $GITHUB_STEP_SUMMARY
+
+  # 2) ES 템플릿/스크립트 업로드 (측정 없음)
   upload-es:
     needs: build
     runs-on: ubuntu-latest
@@ -79,7 +113,7 @@ jobs:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          source: "infra/elasticsearch/**"
+          source: "infra/elasticsearch/**,infra/elasticsearch-events/**"
           target: "~/foreigner"
 
   # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
@@ -143,12 +177,12 @@ jobs:
             -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
             "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
             -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-  
-  
+            
+            
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
-            
+
             echo "[ES] Cleanup: keep last 1, delete the rest"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
@@ -157,6 +191,27 @@ jobs:
             echo "[ES] Verify"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/99-verify.sh
+
+            # --- events 롤아웃 ---
+            echo "[ES(events)] Apply template"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
+
+            echo "[ES(events)] Create index"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" \
+            bash infra/elasticsearch-events/scripts/events-02-create_index.sh
+
+            echo "[ES(events)] Switch aliases"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
+            bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
+
+            echo "[ES(events)] Verify"
+            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
+            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
+            bash infra/elasticsearch-events/scripts/events-99-verify.sh
+
 
   # 4) 앱 배포만(.env 작성→docker compose pull/up)
   deploy-app:

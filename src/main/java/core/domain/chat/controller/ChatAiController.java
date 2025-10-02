@@ -3,6 +3,7 @@ import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatAiService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
+import core.global.metrics.annotation.TrackEvent;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,6 +30,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 사용자", content = @Content)
     })
     @PostMapping("/rooms")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<ChatAiRoomResponse>> createAiRoom() {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         ChatAiRoomResponse response = chatAiService.createAiChatRoom(principal.getUserId());
@@ -45,6 +47,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방", content = @Content)
     })
     @PostMapping("/rooms/{roomId}/messages")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<AiMessageResponse>> sendMessage(
             @PathVariable Long roomId,
             @RequestBody AiMessageRequest request
@@ -62,6 +65,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방", content = @Content)
     })
     @DeleteMapping("/rooms/{roomId}")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> leaveRoom(
                                                         @PathVariable Long roomId
     ) {
@@ -79,6 +83,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방", content = @Content)
     })
     @GetMapping("/rooms/{roomId}/messages")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<MessageSliceResponse>> getMessages(
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId
@@ -96,6 +101,7 @@ public class ChatAiController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메시지")
     })
     @DeleteMapping("/messages/{messageId}")
+    @TrackEvent("chat")
     public ResponseEntity<ApiResponse<Void>> reportAndDeleteMessage(
             @PathVariable Long messageId
     ) {
