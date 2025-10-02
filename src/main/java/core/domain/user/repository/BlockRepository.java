@@ -1,6 +1,5 @@
 package core.domain.user.repository;
 
-import com.mongodb.Block;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;

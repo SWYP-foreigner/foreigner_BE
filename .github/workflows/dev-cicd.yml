@@ -25,6 +25,7 @@ jobs:
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
+          test -n "${{ secrets.DEV_SUDO_PASSWORD }}" || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
   # 1) 도커 이미지 빌드/푸시만 담당
@@ -66,6 +67,12 @@ jobs:
           cache-to: |
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
+
+      - name: Set meta
+        id: meta
+        run: |
+          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: 📦 Image size (compressed & uncompressed)
         id: img
@@ -253,11 +260,6 @@ jobs:
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
-            # --- MongoDB ---
-            MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
-            MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
-            MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
-
             # --- Redis ---
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
@@ -280,8 +282,8 @@ jobs:
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
-            APPLE_PRIVATE_KEY_PEM="${{ secrets.APPLE_PRIVATE_KEY_PEM }}"
-            APPLE_APP_BUNDLE_ID="${{ secrets.APPLE_APP_BUNDLE_ID }}"
+            APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
+            APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
 
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
@@ -300,41 +302,54 @@ jobs:
 
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
+            
+            FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
 
             SERVER_URL=${{ secrets.SERVER_URL }}
-            
+
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-            
+
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-            
+
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
             
+            cat > apple_key.pem <<'PEM'
+            ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
+            PEM
+            
+            cat > firebase.json <<'JSON'
+            ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+            JSON
+            
+            chmod 600 apple_key.pem firebase.json || true
+            
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
-#            echo "Using IMAGE=${IMAGE}"
-#
-#            docker compose pull
-#            docker compose up -d --remove-orphans
-#
-#            docker compose ps
-#            docker compose logs --since=5m || true
-#            docker image prune -f || true
             
-            
-            
+            SUDO_PASS='${{ secrets.DEV_SUDO_PASSWORD }}'
+            if sudo -n true 2>/dev/null; then
+            # NOPASSWD 이미 설정됨
+            srun()   { sudo "$@"; }
+            swrite() { sudo sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+            else
+            # 비번 필요 → -S로 표준입력에서 비번 공급
+            srun()   { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' "$@"; }
+            swrite() { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+            fi
+
             # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
             ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
             if [ -f "$ACTIVE_FILE" ]; then
               ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
             else
               ACTIVE_SLOT="blue"
-              echo "$ACTIVE_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
+              swrite "$ACTIVE_FILE" "$ACTIVE_SLOT"
             fi
 
             if [ "$ACTIVE_SLOT" = "blue" ]; then
@@ -345,9 +360,37 @@ jobs:
               NEXT_ENV=".env.blue"
             fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
+            
+            BASE_COMPOSE="docker-compose.base.yml"
+            BASE_PROJ="foreigner-base"
+            BASE_NET="foreigner_net"
+            
+            ensure_network() {
+             docker network inspect "$BASE_NET" >/dev/null 2>&1 || docker network create "$BASE_NET"
+            }
+            
+            if [ -f "$BASE_COMPOSE" ]; then
+              # base 스택이 이미 떠 있는지 판별(컨테이너 네이밍 프리픽스 기준)
+              if docker ps --format '{{.Names}}' | grep -q "^${BASE_PROJ}-"; then
+                echo "[base] stack is already running. skipping up -d"
+                ensure_network
+              else
+                echo "[base] bringing up infra stack (first-time or not running)..."
+                mkdir -p data/pgdata data/redis || true
+                docker compose -p "$BASE_PROJ" -f "$BASE_COMPOSE" up -d --remove-orphans
+                ensure_network
+              fi
+            else
+              echo "[base] $BASE_COMPOSE not found (skip base stack)."
+              ensure_network
+            fi
 
-            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose 파일 사용)
-            COMPOSE_APP="docker-compose.app.yml"   # 앱만 포함된 파일이어야 함
+            # NEXT 슬롯용 env 파일 보장
+            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
+            
+            
+            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose)
+            COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
 
             docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
@@ -356,19 +399,17 @@ jobs:
             docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
               --env-file .env --env-file "$NEXT_ENV" up -d --remove-orphans
 
-            # 3) 헬스체크 대기 (Dockerfile HEALTHCHECK 또는 스모크)
+            # 3) 헬스체크 대기
             echo "Waiting for health on ${NEXT_SLOT}..."
-            # 우선 compose ps를 보고, 필요하면 포트로 직접 스모크 테스트
             ATTEMPTS=24; SLEEP=5; ok=0
             for i in $(seq 1 $ATTEMPTS); do
-              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -q "(healthy)"; then
+              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -qi "healthy"; then
                 ok=1; break
               fi
               sleep $SLEEP
             done
 
             if [ "$ok" -ne 1 ]; then
-              # 포트 스모크 (APP_PORT 읽어서 /actuator/health)
               APP_PORT="$(grep -E '^APP_PORT=' "$NEXT_ENV" | cut -d= -f2)"
               if command -v curl >/dev/null 2>&1 && [ -n "${APP_PORT:-}" ]; then
                 for i in $(seq 1 $ATTEMPTS); do
@@ -386,15 +427,15 @@ jobs:
               exit 1
             fi
 
-            # 4) Nginx 업스트림 전환 (무중단)
+            # 4) Nginx 업스트림 전환
             if [ "$NEXT_SLOT" = "blue" ]; then
-              sudo ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/sites-available/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
             else
-              sudo ln -sf /etc/nginx/conf.d/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/sites-available/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
             fi
-            echo "$NEXT_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
-            sudo nginx -t
-            sudo nginx -s reload
+            swrite "$ACTIVE_FILE" "$NEXT_SLOT"
+            srun nginx -t
+            srun nginx -s reload
 
             # 5) 이전 슬롯 종료 및 정리
             if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
