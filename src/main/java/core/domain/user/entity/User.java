@@ -1,5 +1,6 @@
 package core.domain.user.entity;
 
+import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.notification.entity.Notification;
 import jakarta.persistence.*;
 import lombok.Builder;
@@ -93,7 +94,8 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
-
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserNotificationSetting> notificationSettings = new ArrayList<>();
     @Builder
     public User(String firstName,
                 String lastName,
