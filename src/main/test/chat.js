@@ -9,7 +9,7 @@ const validCombinations = new SharedArray("valid_combinations", function () {
 });
 
 export const options = {
-    vus: 500,
+    vus: 200,
     duration: "1m",
 };
 
