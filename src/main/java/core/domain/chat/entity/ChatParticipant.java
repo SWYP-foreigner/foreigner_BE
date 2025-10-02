@@ -5,6 +5,7 @@ import core.global.enums.ChatParticipantStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Instant;
 
@@ -44,6 +45,9 @@ public class ChatParticipant {
     @Column(name = "translate_enabled", nullable = false)
     private boolean translateEnabled = false;
 
+    @ColumnDefault("true")
+    @Column(name = "notifications_enabled", nullable = false)
+    private boolean notificationsEnabled = true;
     public void toggleTranslation(boolean enabled) {
         this.translateEnabled = enabled;
     }
@@ -53,6 +57,7 @@ public class ChatParticipant {
         this.user = user;
         this.status = ChatParticipantStatus.ACTIVE;
         this.joinedAt = Instant.now();
+        this.notificationsEnabled = true;
     }
     public void delete() {
         this.status = ChatParticipantStatus.LEFT;

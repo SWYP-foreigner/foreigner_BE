@@ -93,7 +93,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-aop'       // AOP
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-
+	implementation 'com.google.firebase:firebase-admin:9.2.0'
 }
 
 dependencyManagement {

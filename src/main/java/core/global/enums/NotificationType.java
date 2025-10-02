@@ -1,5 +1,5 @@
 package core.global.enums;
 
 public enum NotificationType {
-    comment,chat,fallow,accept
+    post,comment,chat,follow,receive
 }
