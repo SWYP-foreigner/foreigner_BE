@@ -429,9 +429,9 @@ jobs:
 
             # 4) Nginx 업스트림 전환
             if [ "$NEXT_SLOT" = "blue" ]; then
-              srun ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/sites-available/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
             else
-              srun ln -sf /etc/nginx/conf.d/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/sites-available/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
             fi
             swrite "$ACTIVE_FILE" "$NEXT_SLOT"
             srun nginx -t
