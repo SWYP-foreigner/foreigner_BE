@@ -325,6 +325,17 @@ jobs:
 
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
             chmod 600 .env || true
+            
+            SUDO_PASS='${{ secrets.DEV_SUDO_PASSWORD }}'
+            if sudo -n true 2>/dev/null; then
+            # NOPASSWD 이미 설정됨
+            srun()   { sudo "$@"; }
+            swrite() { sudo sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+            else
+            # 비번 필요 → -S로 표준입력에서 비번 공급
+            srun()   { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' "$@"; }
+            swrite() { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+            fi
 
             # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
             ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
@@ -332,7 +343,7 @@ jobs:
               ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
             else
               ACTIVE_SLOT="blue"
-              echo "$ACTIVE_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
+              swrite "$ACTIVE_FILE" "$ACTIVE_SLOT"
             fi
 
             if [ "$ACTIVE_SLOT" = "blue" ]; then
@@ -384,13 +395,13 @@ jobs:
 
             # 4) Nginx 업스트림 전환
             if [ "$NEXT_SLOT" = "blue" ]; then
-              sudo ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/conf.d/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
             else
-              sudo ln -sf /etc/nginx/conf.d/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+              srun ln -sf /etc/nginx/conf.d/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
             fi
-            echo "$NEXT_SLOT" | sudo tee "$ACTIVE_FILE" >/dev/null
-            sudo nginx -t
-            sudo nginx -s reload
+            swrite "$ACTIVE_FILE" "$NEXT_SLOT"
+            srun nginx -t
+            srun nginx -s reload
 
             # 5) 이전 슬롯 종료 및 정리
             if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
