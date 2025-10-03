@@ -295,11 +295,9 @@ jobs:
             
             # --- upstream 전환 → gateway reload ---
             if [ "$NEXT_SLOT" = "blue" ]; then
-            sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
-            -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
+              sed -i -E 's|^[[:space:]]*server app-green:8080;[[:space:]]*$|    server app-blue:8080;|' nginx/conf.d/default.conf
             else
-            sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
-            -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
+              sed -i -E 's|^[[:space:]]*server app-blue:8080;[[:space:]]*$|    server app-green:8080;|' nginx/conf.d/default.conf
             fi
             
             GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
@@ -309,14 +307,20 @@ jobs:
             # --- 활성 슬롯 기록 ---
             echo "$NEXT_SLOT" > "$ACTIVE_FILE"
             
+            # --- 드레인 대기(웹소켓/롱요청 보호) ---
+            SLEEP_DRAIN="${SLEEP_DRAIN:-20}"   # 필요시 환경변수로 조절
+            echo "Drain wait ${SLEEP_DRAIN}s before removing inactive slot..."
+            sleep "$SLEEP_DRAIN"
+            
             # --- (싱글 액티브) 이전 슬롯 정리: stop+rm 보장 ---
             INACTIVE="app-${ACTIVE_SLOT}"
-            docker compose -p foreigner -f "$COMPOSE_APP" rm -sf "$INACTIVE" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             
             # (보호) 혹시라도 둘 다 올라가 있으면, 비활성 슬롯은 내려버림
             if docker compose -p foreigner -f "$COMPOSE_APP" ps "$INACTIVE" | grep -q 'Up'; then
-            docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
-            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
+              docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
+              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
             
             # (선택) 오브젝트, 네트워크는 유지 / 이미지 캐시만 정리
