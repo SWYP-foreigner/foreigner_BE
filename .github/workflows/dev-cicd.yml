@@ -242,6 +242,14 @@ jobs:
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
             
+            if command -v jq >/dev/null 2>&1; then
+              FIREBASE_JSON_COMPACT="$(jq -c . < firebase.json)"
+            else
+              FIREBASE_JSON_COMPACT="$(tr -d '\n' < firebase.json)"
+            fi
+            # 공백/특수문자 안전하게 기록
+            printf 'FIREBASE_CREDENTIALS_JSON=%s\n' "$FIREBASE_JSON_COMPACT" >> .env
+            
             # 이미지 변수는 .env에 한 번만 기록
             {
               echo "IMAGE=${IMAGE}"
