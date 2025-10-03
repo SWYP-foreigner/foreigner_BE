@@ -137,3 +137,7 @@ app:
 
 cdn:
   base-url: ${NCP_CDN_URL}
+
+firebase:
+  credentials:
+    json-string: ${FIREBASE_CREDENTIALS_JSON}
