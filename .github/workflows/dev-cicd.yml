@@ -293,25 +293,35 @@ jobs:
             done
             [ "$ok" -eq 1 ] || { echo "health check failed for app-${NEXT_SLOT}"; docker compose -p foreigner -f "$COMPOSE_APP" logs "app-${NEXT_SLOT}" --since=10m || true; exit 1; }
             
-            # upstream 전환 → gateway reload (목표 상태 보장 교체)
+            # --- upstream 전환 → gateway reload ---
             if [ "$NEXT_SLOT" = "blue" ]; then
-              sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
-                     -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
+            sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
+            -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
             else
-              sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
-                     -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
+            sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
+            -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
             fi
+            
             GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
             docker exec "$GW_ID" nginx -t
             docker exec "$GW_ID" nginx -s reload
             
+            # --- 활성 슬롯 기록 ---
             echo "$NEXT_SLOT" > "$ACTIVE_FILE"
             
-            # 이전 슬롯 정리(선택)
-            if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
-              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-${ACTIVE_SLOT}" || true
+            # --- (싱글 액티브) 이전 슬롯 정리: stop+rm 보장 ---
+            INACTIVE="app-${ACTIVE_SLOT}"
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -sf "$INACTIVE" || true
+            
+            # (보호) 혹시라도 둘 다 올라가 있으면, 비활성 슬롯은 내려버림
+            if docker compose -p foreigner -f "$COMPOSE_APP" ps "$INACTIVE" | grep -q 'Up'; then
+            docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
             
+            # (선택) 오브젝트, 네트워크는 유지 / 이미지 캐시만 정리
             docker image prune -f || true
+            
+            # 최종 상태 출력
             docker compose -p foreigner -f "$COMPOSE_APP" ps
-            echo "✅ switched to ${NEXT_SLOT}"
+            echo "✅ switched to ${NEXT_SLOT} (single-active)"
