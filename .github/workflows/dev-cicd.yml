@@ -9,7 +9,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 0) 시크릿/환경 선확인만 담당
   preflight:
     runs-on: ubuntu-latest
     steps:
@@ -25,34 +24,21 @@ jobs:
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
-          test -n "${{ secrets.DEV_SUDO_PASSWORD }}" || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
+          test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
-  # 1) 도커 이미지 빌드/푸시만 담당
   build:
     needs: preflight
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.meta.outputs.IMAGE }}
-      sha: ${{ steps.meta.outputs.SHA }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: ⏱️ Start build timer
-        id: build_t0
-        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: Build & Push Docker Image
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -68,57 +54,12 @@ jobs:
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
-      - name: Set meta
-        id: meta
-        run: |
-          echo "IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: 📦 Image size (compressed & uncompressed)
-        id: img
-        shell: bash
-        run: |
-          set -e
-          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
-
-          # (1) 압축 크기(있으면)
-          COMP=""
-          if docker buildx imagetools inspect "$IMAGE" > inspect.txt 2>/dev/null; then
-            COMP=$(grep -i -m1 'Size:' inspect.txt | awk '{print $2$3}' || true)
-          fi
-          echo "size=${COMP}" >> $GITHUB_OUTPUT
-
-          # (2) 비압축 크기(항상 가능)
-          docker pull -q "$IMAGE" >/dev/null
-          BYTES=$(docker image inspect "$IMAGE" --format '{{.Size}}' || echo 0)
-          MB=$(( BYTES/1024/1024 ))
-          echo "size_uncompressed=${MB}MB" >> $GITHUB_OUTPUT
-
-      - name: ✅ Build metrics
-        id: build_sum
-        run: |
-          end=$(date +%s)
-          echo "duration=$(( end - ${{ steps.build_t0.outputs.start }} ))" >> $GITHUB_OUTPUT
-
-      - name: 📊 Build Summary
-        run: |
-          echo "## 🧱 Build Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
-          echo "| Duration | ${{ steps.build_sum.outputs.duration }} s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image (compressed) | ${{ steps.img.outputs.size || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image (uncompressed) | ${{ steps.img.outputs.size_uncompressed }} |" >> $GITHUB_STEP_SUMMARY
-
-  # 2) ES 템플릿/스크립트 업로드 (측정 없음)
   upload-es:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Upload ES assets (scripts + template)
+      - uses: actions/checkout@v4
+      - name: Upload ES assets
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEV_HOST }}
@@ -127,13 +68,12 @@ jobs:
           source: "infra/elasticsearch/**,infra/elasticsearch-events/**"
           target: "~/foreigner"
 
-  # 3) ES 롤아웃만(템플릿→새 인덱스→(옵션)_reindex→별칭→검증)
   es-rollout:
     needs: upload-es
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - name: Elasticsearch rollout on server
+      - name: Elasticsearch rollout
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_HOST }}
@@ -142,30 +82,26 @@ jobs:
           script: |
             set -euo pipefail
             command -v curl >/dev/null || (echo "curl not found" && exit 1)
-            
+
             export ES_URL="${{ secrets.ES_URL }}"
             export ES_AUTH="${{ secrets.ES_AUTH }}"
             : "${ES_URL:?ES_URL must be set}"
-            
-            CURL_AUTH=()
-            if [ -n "${ES_AUTH:-}" ]; then
-              CURL_AUTH=(-u "$ES_AUTH")
-            fi
 
-            # 연결 스모크(헤더만)
+            CURL_AUTH=()
+            if [ -n "${ES_AUTH:-}" ]; then CURL_AUTH=(-u "$ES_AUTH"); fi
+
             echo "[ES] HEAD ${ES_URL}"
             curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
-            
-            # [HOST] 안전 디스크 정리(도커 있으면): 이미지/빌더 캐시만 정리, 볼륨은 미삭제
+
+            # (옵션) 호스트 도커 캐시 정리
             if command -v docker >/dev/null 2>&1; then
-            docker system prune -af || true
-            docker builder prune -af || true
+              docker system prune -af || true
+              docker builder prune -af || true
             fi
-            
+
             cd ~/foreigner
             chmod -R +x infra/elasticsearch/scripts || true
-            
-            
+
             echo "[ES] Apply template"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/01-apply_template.sh
@@ -174,7 +110,7 @@ jobs:
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
             HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 \
             bash infra/elasticsearch/scripts/02-create_index.sh
-            
+
             NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
             echo "[ES] New index = ${NEW_IDX}"
 
@@ -182,19 +118,16 @@ jobs:
             if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
               SRC_ALIAS="posts_lab"
             fi
-            echo "[ES] Reindex source alias = ${SRC_ALIAS}"
+            echo "[ES] Reindex from ${SRC_ALIAS}"
+            curl -sS -X POST -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
+              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
+              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
 
-            curl -sS -X POST \
-            -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
-            "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-            -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-            
-            
             echo "[ES] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/03-switch_alias.sh
 
-            echo "[ES] Cleanup: keep last 1, delete the rest"
+            echo "[ES] Cleanup old indices"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
             bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
@@ -203,28 +136,19 @@ jobs:
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch/scripts/99-verify.sh
 
-            # --- events 롤아웃 ---
-            echo "[ES(events)] Apply template"
+            echo "[events] Apply/rollout"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
-
-            echo "[ES(events)] Create index"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" \
             bash infra/elasticsearch-events/scripts/events-02-create_index.sh
-
-            echo "[ES(events)] Switch aliases"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
             bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
-
-            echo "[ES(events)] Verify"
             ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
             ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
             bash infra/elasticsearch-events/scripts/events-99-verify.sh
 
-
-  # 4) 앱 배포만(.env 작성→docker compose pull/up)
   deploy-app:
     needs: [ build, es-rollout ]
     runs-on: ubuntu-latest
@@ -233,7 +157,7 @@ jobs:
       - name: Note ES rollout result
         run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
 
-      - name: Deploy app on server (Docker Compose)
+      - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_HOST }}
@@ -243,32 +167,29 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-
+            
             mkdir -p ~/foreigner
             cd ~/foreigner
-
+            
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
-
+            
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             : "${IMAGE:?IMAGE is empty}"
             echo "Using IMAGE=${IMAGE}"
-
+            
+            # 공통 .env
             cat > .env <<'EOF'
-            # --- PostgreSQL ---
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-            # --- Redis ---
+            
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
-            # --- JWT ---
+            
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-
-            # --- OAuth: Google ---
+            
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
             IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
@@ -276,45 +197,39 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
-
-            # --- OAuth: Apple ---
+            
             APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
             APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
             APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
-
-            # --- NCP Object Storage ---
+            
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
             NCP_CDN_URL=${{ secrets.NCP_CDN_URL }}
-
+            
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
-
+            
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
             FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
-
-            # --- Elasticsearch (app) ---
-            ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             
+            ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
-
             SERVER_URL=${{ secrets.SERVER_URL }}
-
+            
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-
+            
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-
-            # --- 추가 설정 ---
+            
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
@@ -327,120 +242,76 @@ jobs:
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
             
-            chmod 600 apple_key.pem firebase.json || true
-            
-            printf 'IMAGE=%s\n' "$IMAGE" >> .env
-            chmod 600 .env || true
-            
-            SUDO_PASS='${{ secrets.DEV_SUDO_PASSWORD }}'
-            if sudo -n true 2>/dev/null; then
-            # NOPASSWD 이미 설정됨
-            srun()   { sudo "$@"; }
-            swrite() { sudo sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+            if command -v jq >/dev/null 2>&1; then
+              FIREBASE_JSON_COMPACT="$(jq -c . < firebase.json)"
             else
-            # 비번 필요 → -S로 표준입력에서 비번 공급
-            srun()   { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' "$@"; }
-            swrite() { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' sh -c "printf '%s\n' \"$2\" > \"$1\""; }
+              FIREBASE_JSON_COMPACT="$(tr -d '\n' < firebase.json)"
             fi
-
-            # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
-            ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
+            # 공백/특수문자 안전하게 기록
+            printf 'FIREBASE_CREDENTIALS_JSON=%s\n' "$FIREBASE_JSON_COMPACT" >> .env
+            
+            # 이미지 변수는 .env에 한 번만 기록
+            {
+              echo "IMAGE=${IMAGE}"
+              echo "IMAGE_BLUE=${IMAGE}"
+              echo "IMAGE_GREEN=${IMAGE}"
+            } >> .env
+            
+            chmod 600 .env apple_key.pem firebase.json || true
+            
+            # compose/네트워크 확인
+            COMPOSE_APP="docker-compose.app.yml"
+            test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
+            docker network inspect foreigner_net >/dev/null 2>&1 || docker network create foreigner_net
+            
+            # gateway부터(호스트 8080 바인딩)
+            docker compose -p foreigner -f "$COMPOSE_APP" up -d gateway
+            
+            # 활성 슬롯 기록 파일 (프로젝트 내부)
+            ACTIVE_FILE="nginx/conf.d/.active"
             if [ -f "$ACTIVE_FILE" ]; then
               ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
             else
               ACTIVE_SLOT="blue"
-              swrite "$ACTIVE_FILE" "$ACTIVE_SLOT"
+              echo "$ACTIVE_SLOT" > "$ACTIVE_FILE"
             fi
-
-            if [ "$ACTIVE_SLOT" = "blue" ]; then
-              NEXT_SLOT="green"
-              NEXT_ENV=".env.green"
-            else
-              NEXT_SLOT="blue"
-              NEXT_ENV=".env.blue"
-            fi
+            if [ "$ACTIVE_SLOT" = "blue" ]; then NEXT_SLOT="green"; else NEXT_SLOT="blue"; fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             
-            BASE_COMPOSE="docker-compose.base.yml"
-            BASE_PROJ="foreigner-base"
-            BASE_NET="foreigner_net"
+            # 다음 슬롯만 pull/up (IMAGE_*는 .env에서 주입)
+            docker compose -p foreigner -f "$COMPOSE_APP" pull "app-${NEXT_SLOT}" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" up -d --no-deps "app-${NEXT_SLOT}"
             
-            ensure_network() {
-             docker network inspect "$BASE_NET" >/dev/null 2>&1 || docker network create "$BASE_NET"
-            }
-            
-            if [ -f "$BASE_COMPOSE" ]; then
-              # base 스택이 이미 떠 있는지 판별(컨테이너 네이밍 프리픽스 기준)
-              if docker ps --format '{{.Names}}' | grep -q "^${BASE_PROJ}-"; then
-                echo "[base] stack is already running. skipping up -d"
-                ensure_network
-              else
-                echo "[base] bringing up infra stack (first-time or not running)..."
-                mkdir -p data/pgdata data/redis || true
-                docker compose -p "$BASE_PROJ" -f "$BASE_COMPOSE" up -d --remove-orphans
-                ensure_network
-              fi
-            else
-              echo "[base] $BASE_COMPOSE not found (skip base stack)."
-              ensure_network
-            fi
-
-            # NEXT 슬롯용 env 파일 보장
-            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
-            
-            
-            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose)
-            COMPOSE_APP="docker-compose.app.yml"
-            test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
-
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
-              --env-file .env --env-file "$NEXT_ENV" pull
-
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
-              --env-file .env --env-file "$NEXT_ENV" up -d --remove-orphans
-
-            # 3) 헬스체크 대기
-            echo "Waiting for health on ${NEXT_SLOT}..."
-            ATTEMPTS=24; SLEEP=5; ok=0
+            # 내부 헬스체크
+            ATTEMPTS=30; SLEEP=3; ok=0
             for i in $(seq 1 $ATTEMPTS); do
-              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -qi "healthy"; then
+              if docker run --rm --network foreigner_net curlimages/curl -fsS \
+                   "http://app-${NEXT_SLOT}:8080/actuator/health" | grep -q '"status":"UP"'; then
                 ok=1; break
               fi
               sleep $SLEEP
             done
-
-            if [ "$ok" -ne 1 ]; then
-              APP_PORT="$(grep -E '^APP_PORT=' "$NEXT_ENV" | cut -d= -f2)"
-              if command -v curl >/dev/null 2>&1 && [ -n "${APP_PORT:-}" ]; then
-                for i in $(seq 1 $ATTEMPTS); do
-                  if curl -fsS "http://127.0.0.1:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'; then
-                    ok=1; break
-                  fi
-                  sleep $SLEEP
-                done
-              fi
-            fi
-
-            if [ "$ok" -ne 1 ]; then
-              echo "New slot failed to become healthy. Recent logs:"
-              docker compose -p "foreigner-${NEXT_SLOT}" logs --since=10m || true
-              exit 1
-            fi
-
-            # 4) Nginx 업스트림 전환
+            [ "$ok" -eq 1 ] || { echo "health check failed for app-${NEXT_SLOT}"; docker compose -p foreigner -f "$COMPOSE_APP" logs "app-${NEXT_SLOT}" --since=10m || true; exit 1; }
+            
+            # upstream 전환 → gateway reload (목표 상태 보장 교체)
             if [ "$NEXT_SLOT" = "blue" ]; then
-              srun ln -sf /etc/nginx/sites-available/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+              sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
+                     -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
             else
-              srun ln -sf /etc/nginx/sites-available/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+              sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
+                     -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
             fi
-            swrite "$ACTIVE_FILE" "$NEXT_SLOT"
-            srun nginx -t
-            srun nginx -s reload
-
-            # 5) 이전 슬롯 종료 및 정리
+            GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
+            docker exec "$GW_ID" nginx -t
+            docker exec "$GW_ID" nginx -s reload
+            
+            echo "$NEXT_SLOT" > "$ACTIVE_FILE"
+            
+            # 이전 슬롯 정리(선택)
             if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
-              docker compose -p "foreigner-${ACTIVE_SLOT}" -f "$COMPOSE_APP" down || true
+              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-${ACTIVE_SLOT}" || true
             fi
-
+            
             docker image prune -f || true
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" ps
+            docker compose -p foreigner -f "$COMPOSE_APP" ps
+            echo "✅ switched to ${NEXT_SLOT}"
