@@ -154,6 +154,9 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
+      - name: Note ES rollout result
+        run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
+
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -164,29 +167,29 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-
+            
             mkdir -p ~/foreigner
             cd ~/foreigner
-
+            
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
-
+            
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             : "${IMAGE:?IMAGE is empty}"
             echo "Using IMAGE=${IMAGE}"
-
+            
             # 공통 .env
             cat > .env <<'EOF'
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
+            
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
+            
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-
+            
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
             IOS_CLIENT_ID=${{ secrets.IOS_CLIENT_ID }}
@@ -194,103 +197,113 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
-
+            
             APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
             APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
             APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
-
+            
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
             NCP_CDN_URL=${{ secrets.NCP_CDN_URL }}
-
+            
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
-
+            
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
             FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
-
+            
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
             SERVER_URL=${{ secrets.SERVER_URL }}
-
+            
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-
+            
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-
+            
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
-
+            
             cat > apple_key.pem <<'PEM'
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
-
+            
             cat > firebase.json <<'JSON'
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
-
+            
+            # 이미지 변수는 .env에 한 번만 기록
+            {
+              echo "IMAGE=${IMAGE}"
+              echo "IMAGE_BLUE=${IMAGE}"
+              echo "IMAGE_GREEN=${IMAGE}"
+            } >> .env
+            
             chmod 600 .env apple_key.pem firebase.json || true
-            printf 'IMAGE=%s\n' "$IMAGE" >> .env
-
-            # compose 파일 확인 및 네트워크 보장
+            
+            # compose/네트워크 확인
             COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
             docker network inspect foreigner_net >/dev/null 2>&1 || docker network create foreigner_net
-
-            # gateway부터(호스트 8080 바인딩 주인)
+            
+            # gateway부터(호스트 8080 바인딩)
             docker compose -p foreigner -f "$COMPOSE_APP" up -d gateway
-
+            
             # 활성 슬롯 기록 파일 (프로젝트 내부)
             ACTIVE_FILE="nginx/conf.d/.active"
-            if [ -f "$ACTIVE_FILE" ]; then ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"; else ACTIVE_SLOT="blue"; echo "$ACTIVE_SLOT" > "$ACTIVE_FILE"; fi
+            if [ -f "$ACTIVE_FILE" ]; then
+              ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
+            else
+              ACTIVE_SLOT="blue"
+              echo "$ACTIVE_SLOT" > "$ACTIVE_FILE"
+            fi
             if [ "$ACTIVE_SLOT" = "blue" ]; then NEXT_SLOT="green"; else NEXT_SLOT="blue"; fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
-
-            # 블루/그린 같은 이미지 사용
-            export IMAGE_BLUE="$IMAGE"
-            export IMAGE_GREEN="$IMAGE"
-
-            # 다음 슬롯만 pull/up
+            
+            # 다음 슬롯만 pull/up (IMAGE_*는 .env에서 주입)
             docker compose -p foreigner -f "$COMPOSE_APP" pull "app-${NEXT_SLOT}" || true
             docker compose -p foreigner -f "$COMPOSE_APP" up -d --no-deps "app-${NEXT_SLOT}"
-
+            
             # 내부 헬스체크
             ATTEMPTS=30; SLEEP=3; ok=0
             for i in $(seq 1 $ATTEMPTS); do
-              if docker run --rm --network foreigner_net curlimages/curl -fsS "http://app-${NEXT_SLOT}:8080/actuator/health" | grep -q '"status":"UP"'; then
+              if docker run --rm --network foreigner_net curlimages/curl -fsS \
+                   "http://app-${NEXT_SLOT}:8080/actuator/health" | grep -q '"status":"UP"'; then
                 ok=1; break
               fi
               sleep $SLEEP
             done
             [ "$ok" -eq 1 ] || { echo "health check failed for app-${NEXT_SLOT}"; docker compose -p foreigner -f "$COMPOSE_APP" logs "app-${NEXT_SLOT}" --since=10m || true; exit 1; }
-
-            # upstream 전환(sed) → gateway reload
+            
+            # upstream 전환 → gateway reload (목표 상태 보장 교체)
             if [ "$NEXT_SLOT" = "blue" ]; then
-              sed -i 's/server app-green:8080;/server app-blue:8080;/' nginx/conf.d/default.conf || true
+              sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
+                     -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
             else
-              sed -i 's/server app-blue:8080;/server app-green:8080;/' nginx/conf.d/default.conf || true
+              sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
+                     -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
             fi
             GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
             docker exec "$GW_ID" nginx -t
             docker exec "$GW_ID" nginx -s reload
-
+            
             echo "$NEXT_SLOT" > "$ACTIVE_FILE"
-
-            # 이전 슬롯 내려서 리소스 회수(선택)
+            
+            # 이전 슬롯 정리(선택)
             if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
               docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-${ACTIVE_SLOT}" || true
             fi
-
+            
             docker image prune -f || true
             docker compose -p foreigner -f "$COMPOSE_APP" ps
             echo "✅ switched to ${NEXT_SLOT}"
