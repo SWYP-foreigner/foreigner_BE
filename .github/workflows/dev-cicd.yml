@@ -79,7 +79,10 @@ jobs:
         shell: bash
         run: |
           set -e
-          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
+          IMAGE_TAG="${{ github.sha }}"
+          REG="${{ secrets.DOCKERHUB_USERNAME }}"
+          export IMAGE_BLUE="$REG/foreigner:$IMAGE_TAG"
+          export IMAGE_GREEN="$REG/foreigner:$IMAGE_TAG"
 
           # (1) 압축 크기(있으면)
           COMP=""
@@ -243,31 +246,32 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-
+            
             mkdir -p ~/foreigner
             cd ~/foreigner
-
+            
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             echo "${{ secrets.GCP_SA_KEY_JSON }}" | base64 --decode > gcp-key.json
-
+            
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}"
             : "${IMAGE:?IMAGE is empty}"
             echo "Using IMAGE=${IMAGE}"
-
+            
+            # --- 공통 .env 생성 ---
             cat > .env <<'EOF'
             # --- PostgreSQL ---
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USERNAME=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
+            
             # --- Redis ---
             SPRING_DATA_REDIS_HOST=${{ secrets.REDIS_HOST }}
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
+            
             # --- JWT ---
             JWT_SECRET=${{ secrets.JWT_SECRET }}
-
+            
             # --- OAuth: Google ---
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
@@ -276,7 +280,7 @@ jobs:
             WEB_CLIENT_ID=${{ secrets.WEB_CLIENT_ID }}
             WEB_CLIENT_SECRET=${{ secrets.WEB_CLIENT_SECRET }}
             WEB_REDIRECT_URI=${{ secrets.WEB_REDIRECT_URI }}
-
+            
             # --- OAuth: Apple ---
             APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
@@ -284,36 +288,35 @@ jobs:
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
             APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
             APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
-
+            
             # --- NCP Object Storage ---
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
             NCP_SECRET_KEY=${{ secrets.NCP_SECRET_KEY }}
             NCP_BUCKET_NAME=${{ secrets.NCP_BUCKET_NAME }}
             NCP_CDN_URL=${{ secrets.NCP_CDN_URL }}
-
+            
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
-
+            
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
             FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
-
+            
             # --- Elasticsearch (app) ---
             ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             
             FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
-
             SERVER_URL=${{ secrets.SERVER_URL }}
-
+            
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
-
+            
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
             BASE_URL=${{ secrets.BASE_URL }}
-
+            
             # --- 추가 설정 ---
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
@@ -326,121 +329,77 @@ jobs:
             cat > firebase.json <<'JSON'
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
+            chmod 600 .env apple_key.pem firebase.json || true
             
-            chmod 600 apple_key.pem firebase.json || true
-            
+            # 이미지 태그 정보(참고용)
             printf 'IMAGE=%s\n' "$IMAGE" >> .env
-            chmod 600 .env || true
             
-            SUDO_PASS='${{ secrets.DEV_SUDO_PASSWORD }}'
-            if sudo -n true 2>/dev/null; then
-            # NOPASSWD 이미 설정됨
-            srun()   { sudo "$@"; }
-            swrite() { sudo sh -c "printf '%s\n' \"$2\" > \"$1\""; }
-            else
-            # 비번 필요 → -S로 표준입력에서 비번 공급
-            srun()   { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' "$@"; }
-            swrite() { printf '%s\n' "$SUDO_PASS" | sudo -S -p '' sh -c "printf '%s\n' \"$2\" > \"$1\""; }
-            fi
-
-            # 1) 활성 슬롯 파악 (없으면 blue로 초기화)
-            ACTIVE_FILE=/etc/nginx/conf.d/foreigner-active
+            # compose 파일 존재 확인
+            COMPOSE_APP="docker-compose.app.yml"
+            test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
+            
+            # 내부 네트워크 보장
+            docker network inspect foreigner_net >/dev/null 2>&1 || docker network create foreigner_net
+            
+            # gateway 먼저 띄워 호스트 8080 확보
+            docker compose -p foreigner -f "$COMPOSE_APP" up -d gateway
+            
+            # 현재 활성 슬롯 기록 파일(프로젝트 안에 둠)
+            ACTIVE_FILE="nginx/conf.d/.active"
             if [ -f "$ACTIVE_FILE" ]; then
-              ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
+            ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
             else
-              ACTIVE_SLOT="blue"
-              swrite "$ACTIVE_FILE" "$ACTIVE_SLOT"
+            ACTIVE_SLOT="blue"
+            echo "$ACTIVE_SLOT" > "$ACTIVE_FILE"
             fi
-
+            
             if [ "$ACTIVE_SLOT" = "blue" ]; then
-              NEXT_SLOT="green"
-              NEXT_ENV=".env.green"
+            NEXT_SLOT="green"
             else
-              NEXT_SLOT="blue"
-              NEXT_ENV=".env.blue"
+            NEXT_SLOT="blue"
             fi
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             
-            BASE_COMPOSE="docker-compose.base.yml"
-            BASE_PROJ="foreigner-base"
-            BASE_NET="foreigner_net"
+            # 블루/그린 모두 같은 이미지 사용(원하면 분리 가능)
+            export IMAGE_BLUE="$IMAGE"
+            export IMAGE_GREEN="$IMAGE"
             
-            ensure_network() {
-             docker network inspect "$BASE_NET" >/dev/null 2>&1 || docker network create "$BASE_NET"
-            }
+            # 다음 슬롯 서비스만 pull & up
+            docker compose -p foreigner -f "$COMPOSE_APP" pull "app-${NEXT_SLOT}" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" up -d --no-deps "app-${NEXT_SLOT}"
             
-            if [ -f "$BASE_COMPOSE" ]; then
-              # base 스택이 이미 떠 있는지 판별(컨테이너 네이밍 프리픽스 기준)
-              if docker ps --format '{{.Names}}' | grep -q "^${BASE_PROJ}-"; then
-                echo "[base] stack is already running. skipping up -d"
-                ensure_network
-              else
-                echo "[base] bringing up infra stack (first-time or not running)..."
-                mkdir -p data/pgdata data/redis || true
-                docker compose -p "$BASE_PROJ" -f "$BASE_COMPOSE" up -d --remove-orphans
-                ensure_network
-              fi
-            else
-              echo "[base] $BASE_COMPOSE not found (skip base stack)."
-              ensure_network
-            fi
-
-            # NEXT 슬롯용 env 파일 보장
-            [ -f "$NEXT_ENV" ] || touch "$NEXT_ENV"
-            
-            
-            # 2) 새 슬롯에 이미지 배포 (앱 전용 compose)
-            COMPOSE_APP="docker-compose.app.yml"
-            test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP on server"; exit 1; }
-
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
-              --env-file .env --env-file "$NEXT_ENV" pull
-
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" \
-              --env-file .env --env-file "$NEXT_ENV" up -d --remove-orphans
-
-            # 3) 헬스체크 대기
-            echo "Waiting for health on ${NEXT_SLOT}..."
-            ATTEMPTS=24; SLEEP=5; ok=0
+            # 내부 헬스 체크 (컨테이너 DNS 사용)
+            ATTEMPTS=30; SLEEP=3; ok=0
             for i in $(seq 1 $ATTEMPTS); do
-              if docker compose -p "foreigner-${NEXT_SLOT}" ps | grep -qi "healthy"; then
-                ok=1; break
-              fi
-              sleep $SLEEP
+            if docker run --rm --network foreigner_net curlimages/curl -fsS \
+            "http://app-${NEXT_SLOT}:8080/actuator/health" | grep -q '"status":"UP"'; then
+            ok=1; break
+            fi
+            sleep $SLEEP
             done
-
-            if [ "$ok" -ne 1 ]; then
-              APP_PORT="$(grep -E '^APP_PORT=' "$NEXT_ENV" | cut -d= -f2)"
-              if command -v curl >/dev/null 2>&1 && [ -n "${APP_PORT:-}" ]; then
-                for i in $(seq 1 $ATTEMPTS); do
-                  if curl -fsS "http://127.0.0.1:${APP_PORT}/actuator/health" | grep -q '"status":"UP"'; then
-                    ok=1; break
-                  fi
-                  sleep $SLEEP
-                done
-              fi
-            fi
-
-            if [ "$ok" -ne 1 ]; then
-              echo "New slot failed to become healthy. Recent logs:"
-              docker compose -p "foreigner-${NEXT_SLOT}" logs --since=10m || true
-              exit 1
-            fi
-
-            # 4) Nginx 업스트림 전환
+            [ "$ok" -eq 1 ] || { echo "health check failed for app-${NEXT_SLOT}"; docker compose -p foreigner -f "$COMPOSE_APP" logs "app-${NEXT_SLOT}" --since=10m || true; exit 1; }
+          
+            # upstream 전환: default.conf에서 target 바꾸기 → gateway reload
             if [ "$NEXT_SLOT" = "blue" ]; then
-              srun ln -sf /etc/nginx/sites-available/foreigner-blue.conf  /etc/nginx/conf.d/foreigner-upstream.conf
+            sed -i 's/server app-green:8080;/server app-blue:8080;/' nginx/conf.d/default.conf || true
+            sed -i 's/server app-blue:8080;/server app-blue:8080;/'  nginx/conf.d/default.conf || true
             else
-              srun ln -sf /etc/nginx/sites-available/foreigner-green.conf /etc/nginx/conf.d/foreigner-upstream.conf
+            sed -i 's/server app-blue:8080;/server app-green:8080;/' nginx/conf.d/default.conf || true
+            sed -i 's/server app-green:8080;/server app-green:8080;/'  nginx/conf.d/default.conf || true
             fi
-            swrite "$ACTIVE_FILE" "$NEXT_SLOT"
-            srun nginx -t
-            srun nginx -s reload
-
-            # 5) 이전 슬롯 종료 및 정리
+            
+            GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
+            docker exec "$GW_ID" nginx -t
+            docker exec "$GW_ID" nginx -s reload
+            
+            # 전환 완료 기록
+            echo "$NEXT_SLOT" > "$ACTIVE_FILE"
+            
+            # 이전 슬롯 내리기(선택)
             if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
-              docker compose -p "foreigner-${ACTIVE_SLOT}" -f "$COMPOSE_APP" down || true
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-${ACTIVE_SLOT}" || true
             fi
-
+            
             docker image prune -f || true
-            docker compose -p "foreigner-${NEXT_SLOT}" -f "$COMPOSE_APP" ps
+            docker compose -p foreigner -f "$COMPOSE_APP" ps
+            echo "✅ switched to ${NEXT_SLOT}"
