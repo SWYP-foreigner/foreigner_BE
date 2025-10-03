@@ -1,6 +1,5 @@
 package core.domain.userdevicetoken.entity;
 
-
 import core.domain.user.entity.User;
 import core.global.enums.DeviceType;
 import jakarta.persistence.*;
@@ -35,4 +34,16 @@ public class UserDeviceToken {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    public UserDeviceToken(User user, String deviceToken) {
+        this.user = user;
+        this.deviceToken = deviceToken;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    public void updateUser(User user) {
+        this.user = user;
+        this.updatedAt = Instant.now();
+    }
 }
