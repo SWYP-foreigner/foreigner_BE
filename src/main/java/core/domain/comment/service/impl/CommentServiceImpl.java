@@ -192,11 +192,11 @@ public class CommentServiceImpl implements CommentService {
                 // 게시글에 댓글 작성 시 → 게시글 작성자에게 알림
                 if (!post.getAuthor().getId().equals(user.getId())) {
                     NotificationEvent event = new NotificationEvent(
-                            post.getAuthor().getId(),
+                            post.getAuthor(),
+                            user,
                             NotificationType.post,
-                            "내 게시글에 새 댓글이 달렸습니다.",
                             post.getId(),
-                            user
+                            request.comment()
                     );
                     eventPublisher.publishEvent(event);
                 }
@@ -204,11 +204,11 @@ public class CommentServiceImpl implements CommentService {
                 // 대댓글 작성 시 → 부모 댓글 작성자에게 알림
                 if (!parent.getAuthor().getId().equals(user.getId())) {
                     NotificationEvent event = new NotificationEvent(
-                            parent.getAuthor().getId(),
+                            parent.getAuthor(),
+                            user,
                             NotificationType.comment,
-                            "내 댓글에 새 대댓글이 달렸습니다.",
                             post.getId(),
-                            user
+                            request.comment()
                     );
                     eventPublisher.publishEvent(event);
                 }
