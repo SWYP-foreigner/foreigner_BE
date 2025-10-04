@@ -264,6 +264,31 @@ jobs:
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
             docker network inspect foreigner_net >/dev/null 2>&1 || docker network create foreigner_net
             
+            # --- 필수 변수/상태 초기화 ---------------------------------------------------------
+            : "${COMPOSE_APP:?COMPOSE_APP is required}"   # COMPOSE_APP 미설정 보호
+            
+            ACTIVE_FILE="nginx/conf.d/.active"
+            # 폴더 없을 수 있으니 보호
+            mkdir -p "$(dirname "$ACTIVE_FILE")"
+            
+            if [ -f "$ACTIVE_FILE" ]; then
+              ACTIVE_SLOT="$(tr -d '\n' < "$ACTIVE_FILE")"
+            else
+              ACTIVE_SLOT="blue"
+              printf '%s\n' "$ACTIVE_SLOT" > "$ACTIVE_FILE"
+            fi
+            
+            case "$ACTIVE_SLOT" in
+              blue)  NEXT_SLOT="green" ;;
+              green) NEXT_SLOT="blue"  ;;
+              *)     echo "WARN: unknown ACTIVE_SLOT=$ACTIVE_SLOT -> default NEXT_SLOT=green" >&2
+                     NEXT_SLOT="green" ;;
+            esac
+            
+            export ACTIVE_SLOT NEXT_SLOT
+            echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
+            # -------------------------------------------------------------------------------
+            
             # --- 0) 다음 슬롯 기동 + 헬스 대기 ------------------------------------------------
             docker compose -p foreigner -f "$COMPOSE_APP" up -d "app-$NEXT_SLOT"
             
