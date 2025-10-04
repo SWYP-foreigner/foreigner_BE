@@ -1,8 +1,11 @@
 package core.domain.notification.service;
 
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.notification.dto.NotificationSettingListResponse;
 import core.domain.notification.dto.NotificationSettingResponse;
 import core.domain.notification.dto.NotificationSettingStatusResponse;
+import core.domain.notification.entity.Notification;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.entity.UserDeviceToken;
@@ -28,7 +31,7 @@ public class UserNotificationService {
     private final UserRepository userRepository;
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
-
+    private final NotificationRepository notificationRepository;
     /**
      * FCM 기기 토큰을 등록하거나 갱신합니다. (람다 제거 버전)
      */
@@ -41,16 +44,10 @@ public class UserNotificationService {
             UserDeviceToken existingToken = optionalToken.get();
             existingToken.updateUser(user);
         } else {
-            // 토큰이 존재하지 않을 경우, 새로 생성
             UserDeviceToken newToken = new UserDeviceToken(user, deviceToken);
             userDeviceTokenRepository.save(newToken);
         }
     }
-    /* 참고: UserDeviceToken 엔티티에 updateUser 메서드 추가 필요
-    public void updateUser(User user) {
-        this.user = user;
-    }
-    */
 
     /**
      * 사용자의 알림 설정 상태를 확인합니다. (이 메서드는 원래 람다를 사용하지 않았습니다)
@@ -78,8 +75,6 @@ public class UserNotificationService {
         }
 
         user.updateAgreedToPushNotification(agreed);
-
-        // for-each 루프를 사용하여 List 생성
         List<UserNotificationSetting> settings = new ArrayList<>();
         for (NotificationType type : NotificationType.values()) {
             UserNotificationSetting setting = UserNotificationSetting.builder()
@@ -122,7 +117,6 @@ public class UserNotificationService {
         return new NotificationSettingListResponse(settingResponses);
     }
 
-    // --- Helper Method ---
     /**
      * ID로 사용자를 찾습니다. (람다 제거 버전)
      */
@@ -133,5 +127,20 @@ public class UserNotificationService {
         } else {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
+    }
+
+    /**
+     * 수신된 이벤트와 생성된 메시지를 바탕으로 Notification 엔티티를 생성하고 DB에 저장합니다.
+     * @param event 알림 이벤트 데이터
+     * @param message 최종적으로 생성된 메시지 문자열
+     */
+    public void createAndSaveNotification(NotificationEvent event, String message) {
+        Notification notification = Notification.builder()
+                .user(event.recipient())
+                .message(message)
+                .referenceId(event.referenceId())
+                .notificationType(event.notificationType())
+                .build();
+        notificationRepository.save(notification);
     }
 }

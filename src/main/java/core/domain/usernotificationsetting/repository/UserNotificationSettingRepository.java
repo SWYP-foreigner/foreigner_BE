@@ -17,5 +17,7 @@ public interface UserNotificationSettingRepository extends JpaRepository<UserNot
     boolean existsByUser(User user);
 
     boolean existsByUserIdAndNotificationTypeAndEnabledTrue(Long id, NotificationType type);
+
+    Optional<UserNotificationSetting> findByUserAndNotificationType(User user, NotificationType notificationType);
 }
 

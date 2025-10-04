@@ -264,54 +264,80 @@ jobs:
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
             docker network inspect foreigner_net >/dev/null 2>&1 || docker network create foreigner_net
             
-            # gateway부터(호스트 8080 바인딩)
-            docker compose -p foreigner -f "$COMPOSE_APP" up -d gateway
+            # --- 필수 변수/상태 초기화 ---------------------------------------------------------
+            : "${COMPOSE_APP:?COMPOSE_APP is required}"   # COMPOSE_APP 미설정 보호
             
-            # 활성 슬롯 기록 파일 (프로젝트 내부)
             ACTIVE_FILE="nginx/conf.d/.active"
+            # 폴더 없을 수 있으니 보호
+            mkdir -p "$(dirname "$ACTIVE_FILE")"
+            
             if [ -f "$ACTIVE_FILE" ]; then
-              ACTIVE_SLOT="$(cat "$ACTIVE_FILE")"
+              ACTIVE_SLOT="$(tr -d '\n' < "$ACTIVE_FILE")"
             else
               ACTIVE_SLOT="blue"
-              echo "$ACTIVE_SLOT" > "$ACTIVE_FILE"
+              printf '%s\n' "$ACTIVE_SLOT" > "$ACTIVE_FILE"
             fi
-            if [ "$ACTIVE_SLOT" = "blue" ]; then NEXT_SLOT="green"; else NEXT_SLOT="blue"; fi
+            
+            case "$ACTIVE_SLOT" in
+              blue)  NEXT_SLOT="green" ;;
+              green) NEXT_SLOT="blue"  ;;
+              *)     echo "WARN: unknown ACTIVE_SLOT=$ACTIVE_SLOT -> default NEXT_SLOT=green" >&2
+                     NEXT_SLOT="green" ;;
+            esac
+            
+            export ACTIVE_SLOT NEXT_SLOT
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
+            # -------------------------------------------------------------------------------
             
-            # 다음 슬롯만 pull/up (IMAGE_*는 .env에서 주입)
-            docker compose -p foreigner -f "$COMPOSE_APP" pull "app-${NEXT_SLOT}" || true
-            docker compose -p foreigner -f "$COMPOSE_APP" up -d --no-deps "app-${NEXT_SLOT}"
+            # --- 0) 다음 슬롯 기동 + 헬스 대기 ------------------------------------------------
+            docker compose -p foreigner -f "$COMPOSE_APP" up -d "app-$NEXT_SLOT"
             
-            # 내부 헬스체크
-            ATTEMPTS=30; SLEEP=3; ok=0
-            for i in $(seq 1 $ATTEMPTS); do
-              if docker run --rm --network foreigner_net curlimages/curl -fsS \
-                   "http://app-${NEXT_SLOT}:8080/actuator/health" | grep -q '"status":"UP"'; then
-                ok=1; break
-              fi
-              sleep $SLEEP
-            done
-            [ "$ok" -eq 1 ] || { echo "health check failed for app-${NEXT_SLOT}"; docker compose -p foreigner -f "$COMPOSE_APP" logs "app-${NEXT_SLOT}" --since=10m || true; exit 1; }
-            
-            # upstream 전환 → gateway reload (목표 상태 보장 교체)
-            if [ "$NEXT_SLOT" = "blue" ]; then
-              sed -i -e 's/server app-green:8080;/server app-blue:8080;/g' \
-                     -e 's/server app-blue:8080;/server app-blue:8080;/g' nginx/conf.d/default.conf
-            else
-              sed -i -e 's/server app-blue:8080;/server app-green:8080;/g' \
-                     -e 's/server app-green:8080;/server app-green:8080;/g' nginx/conf.d/default.conf
-            fi
             GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
+            
+            # 게이트웨이에서 Docker DNS에 등록되었는지 먼저 확인(최대 60초)
+            for i in $(seq 1 60); do
+            if docker exec "$GW_ID" getent hosts "app-$NEXT_SLOT" >/dev/null 2>&1; then
+            break
+            fi
+            sleep 1
+            done
+            
+            # --- 1) 활성 슬롯 교체 (변수 한 줄만 토글) ---------------------------------------
+            if [ "$NEXT_SLOT" = "blue" ]; then
+            sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-blue:8080;|' nginx/conf.d/default.conf
+            else
+            sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-green:8080;|' nginx/conf.d/default.conf
+            fi
+            
+            # --- 2) 게이트웨이 reload ----------------------------------------------------------
             docker exec "$GW_ID" nginx -t
             docker exec "$GW_ID" nginx -s reload
             
+            # --- 2.5) (선택) 전환 검증: 현재 업스트림 확인 -----------------------------------
+            docker exec "$GW_ID" sh -lc 'apk add --no-cache curl 2>/dev/null || true; curl -skI https://dev.ko-ri.cloud/ | grep -i x-upstream || true'
+            
+            # --- 3) 활성 슬롯 기록 ------------------------------------------------------------
             echo "$NEXT_SLOT" > "$ACTIVE_FILE"
             
-            # 이전 슬롯 정리(선택)
-            if [ "$ACTIVE_SLOT" != "$NEXT_SLOT" ]; then
-              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-${ACTIVE_SLOT}" || true
+            # --- 4) 드레인 대기(웹소켓/롱요청 보호) ------------------------------------------
+            SLEEP_DRAIN="${SLEEP_DRAIN:-20}"
+            echo "Drain wait ${SLEEP_DRAIN}s before removing inactive slot..."
+            sleep "$SLEEP_DRAIN"
+            
+            # --- 5) 이전 슬롯 정리 ------------------------------------------------------------
+            INACTIVE="app-${ACTIVE_SLOT}"
+            docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
+            
+            # (보호) 혹시라도 둘 다 떠 있으면 비활성은 내려버림
+            if docker compose -p foreigner -f "$COMPOSE_APP" ps "$INACTIVE" | grep -q 'Up'; then
+            docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
+            docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
             
+            # (선택) 이미지 캐시 정리
             docker image prune -f || true
+            
+            # 최종 상태 출력
             docker compose -p foreigner -f "$COMPOSE_APP" ps
-            echo "✅ switched to ${NEXT_SLOT}"
+            echo "✅ switched to ${NEXT_SLOT} (single-active)"

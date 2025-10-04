@@ -1,5 +1,6 @@
 package core.domain.userdevicetoken.repository;
 
+import core.domain.user.entity.User;
 import core.domain.userdevicetoken.entity.UserDeviceToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -11,4 +12,6 @@ public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken
     Optional<UserDeviceToken> findByDeviceToken(String deviceToken);
 
     List<UserDeviceToken> findAllByUserId(Long id);
+
+    List<UserDeviceToken> findAllByUser(User user);
 }

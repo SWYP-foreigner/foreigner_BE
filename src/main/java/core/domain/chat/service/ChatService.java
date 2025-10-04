@@ -806,17 +806,13 @@ public class ChatService {
                 }
             }
             if (!recipient.getId().equals(req.senderId())) {
-
-                String notificationMessage = senderUser.getFirstName() + "님으로부터 새로운 메시지";
-
                 NotificationEvent event = new NotificationEvent(
-                        recipient.getId(),
+                        recipient,
+                        senderUser,
                         NotificationType.chat,
-                        notificationMessage,
                         chatRoom.getId(),
-                        senderUser
+                        originalContent
                 );
-
                 eventPublisher.publishEvent(event);
             }
             ChatMessageResponse messageResponse = new ChatMessageResponse(
