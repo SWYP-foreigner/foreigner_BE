@@ -4,9 +4,9 @@ import core.domain.user.entity.User;
 import core.global.enums.NotificationType;
 
 public record NotificationEvent(
-        Long recipientUserId,
-        NotificationType type,
-        String message,
+        User recipient,
+        User actor,
+        NotificationType notificationType,
         Long referenceId,
-        User sender
+        String contentSnippet
 ) {}
