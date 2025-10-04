@@ -74,7 +74,8 @@ public enum ErrorCode {
     BOOKMARK_ALREADY_EXIST(HttpStatus.CONFLICT, "북마크가 이미 존재합니다."),
     BOOKMARK_NOT_FOUND(HttpStatus.NOT_FOUND, "북마크가 존재하지 않습니다."),
     CHAT_ROOM_JOIN_FAILED(HttpStatus.BAD_REQUEST, "채팅방에 들어가지 못했습니다."),
-
+    NOTIFICATION_SETTING_NOT_FOUND(HttpStatus.NOT_FOUND, "알림 설정을 찾을 수 없습니다."),
+    USER_NOTIFICATION_SETTING_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 알림 설정이 존재합니다."),
 
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
     MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "메시지가 존재하지 않습니다."),
