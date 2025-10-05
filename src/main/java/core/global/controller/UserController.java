@@ -11,10 +11,7 @@ import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.Ouathplatform;
-import core.global.service.AppleAuthService;
-import core.global.service.GoogleService;
-import core.global.service.PasswordService;
-import core.global.service.RedisService;
+import core.global.service.*;
 import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -43,12 +40,12 @@ import java.util.Optional;
 public class UserController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
-    private final GoogleService googleService;
     private final RedisService redisService;
     private final UserRepository userrepository;
     private final PasswordService passwordService;
     private final AppleAuthService appleAuthService;
     private final ApplicationEventPublisher publisher;
+    private final GoogleAuthService googleAuthService;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -60,50 +57,11 @@ public class UserController {
     }
     @Operation(summary = "구글 소셜 로그인", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/google/app-login")
-    public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(
-            @Parameter(description = "구글 로그인 요청 데이터", required = true)
-            @RequestBody GoogleLoginReq req) {
+    public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(@RequestBody GoogleLoginReq req) {
 
         log.info("--- [구글 앱 로그인] API 요청 수신 ---");
-
-        try {
-            log.info("1. 구글과 인증 코드를 교환하여 액세스 토큰을 받는 중...");
-            AccessTokenDto accessTokenDto = googleService.exchangeCode(req.getCode());
-
-            log.info("2. 받은 액세스 토큰으로 구글 사용자 프로필 정보를 조회하는 중...");
-            GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
-
-            log.info("3. 데이터베이스에 기존 사용자가 있는지 확인하는 중...");
-            User originalUser = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
-
-            if (originalUser == null) {
-                log.info("새로운 사용자입니다. 소셜 ID로 계정 생성");
-                originalUser = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
-                log.info("새로운 사용자 계정 생성 완료. 사용자 ID: {}", originalUser.getId());
-            } else {
-                log.info("기존 사용자 발견. 사용자 ID: {}", originalUser.getId());
-            }
-
-            log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
-            String accessToken = jwtTokenProvider.createAccessToken(originalUser.getId(), originalUser.getEmail());
-            String refreshToken = jwtTokenProvider.createRefreshToken(originalUser.getId());
-            Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
-            long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
-            redisService.saveRefreshToken(originalUser.getId(), refreshToken, expirationMillis);
-
-            boolean isNewUserResponse = originalUser.isNewUser();
-            log.info("이 사용자는 새로운 유저입니까? (isNewUser DB 값): {}", isNewUserResponse);
-
-            LoginResponseDto responseDto = new LoginResponseDto(originalUser.getId(), accessToken, refreshToken, isNewUserResponse);
-            publisher.publishEvent(new UserLoggedInEvent(originalUser.getId().toString(), "google"));
-
-            return ResponseEntity.ok(ApiResponse.success(responseDto));
-
-        } catch (Exception e) {
-            log.error("--- [구글 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
-            ApiResponse<LoginResponseDto> errorResponse = ApiResponse.fail("로그인 실패: " + e.getMessage());
-            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        LoginResponseDto responseDto = googleAuthService.processGoogleLogin(req.getCode());
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
     @PostMapping("/logout")
