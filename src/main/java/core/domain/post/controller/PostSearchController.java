@@ -2,7 +2,6 @@ package core.domain.post.controller;
 
 import core.domain.post.service.PostSearchService;
 import core.global.dto.ApiResponse;
-import core.global.metrics.annotation.TrackEvent;
 import core.global.pagination.CursorPageResponse;
 import core.domain.post.dto.SearchResultView;
 import core.domain.post.service.RecentSearchRedisService;
@@ -24,7 +23,6 @@ public class PostSearchController {
     private final RecentSearchRedisService recentService;
 
     @GetMapping("/{boardId}/posts")
-    @TrackEvent("post")
     public ResponseEntity<ApiResponse<CursorPageResponse<SearchResultView>>> getPostList(
             @RequestParam String q,
             @PathVariable Long boardId,
