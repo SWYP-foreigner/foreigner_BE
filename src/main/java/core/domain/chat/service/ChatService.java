@@ -508,24 +508,120 @@ public class ChatService {
         }
     }
 
-    /**
-     * @param roomId            메시지를 읽은 채팅방 ID
-     * @param readerId          메시지를 읽은 사용자 ID
-     * @param lastReadMessageId 마지막으로 읽은 메시지 ID
-     * @apiNote 메시지 읽음 상태를 업데이트합니다.
-     * 그룹 채팅에서 '누가 읽었는지'를 관리하는 로직입니다.
-     */
     @Transactional
-    public void markMessagesAsRead(Long roomId, Long readerId, Long lastReadMessageId) {
+    public void processMarkAsRead(MarkAsReadRequest req, Long readerId) {
+        Long roomId = req.roomId();
+        Long newLastReadId = req.lastReadMessageId();
+
         ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-        readerParticipant.setLastReadMessageId(lastReadMessageId);
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        Long previousLastReadId = readerParticipant.getLastReadMessageId() == null ? 0L : readerParticipant.getLastReadMessageId();
+
+        readerParticipant.setLastReadMessageId(newLastReadId);
+
+        List<ChatParticipant> allParticipants = chatParticipantRepository.findByChatRoomId(roomId);
+
+        List<ChatMessage> affectedMessages = chatMessageRepository
+                .findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, previousLastReadId, newLastReadId);
+
+        List<ReadCountInfo> updatedReadCounts = new ArrayList<>();
+        for (ChatMessage message : affectedMessages) {
+            if (!message.getSender().getId().equals(readerId)) {
+                int newUnreadCount = calculateUnreadCountForMessage(message, allParticipants);
+                updatedReadCounts.add(new ReadCountInfo(message.getId(), newUnreadCount));
+            }
+        }
+
+        if (!updatedReadCounts.isEmpty()) {
+            messagingTemplate.convertAndSend(
+                    "/topic/rooms/" + roomId + "/read-counts",
+                    new MessageReadCountUpdateResponse(updatedReadCounts)
+            );
+        }
+        ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(roomId, readerId);
+        messagingTemplate.convertAndSend(
+                "/topic/user/" + readerId + "/rooms",
+                summary
+        );
+
+    }
+    /**
+     * 특정 사용자를 위한 ChatRoomSummaryResponse DTO를 생성합니다.
+     * 채팅방 목록 UI에 사용될 데이터를 만듭니다.
+     *
+     * @param roomId    요약 정보를 생성할 채팅방의 ID
+     * @param forUserId 요약 정보의 기준이 되는 사용자('나')의 ID
+     * @return 생성된 ChatRoomSummaryResponse DTO
+     */
+    private ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
+         ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
+                .orElse(null);
+
+
+        String lastMessageContent = (lastMessage != null) ? lastMessage.getContent() : "대화를 시작해보세요.";
+        Instant lastMessageTime = (lastMessage != null) ? lastMessage.getSentAt() : room.getCreatedAt();
+        int unreadCount = countUnreadMessages(roomId, forUserId);
+
+        String roomName;
+        String roomImageUrl;
+
+        List<ChatParticipant> participants = room.getParticipants();
+        int participantCount = participants.size();
+
+        if (!room.getGroup()) {
+            User opponent = participants.stream()
+                    .map(ChatParticipant::getUser)
+                    .filter(user -> !user.getId().equals(forUserId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (opponent == null) {
+                roomName = "(알 수 없음)";
+                roomImageUrl = null;
+            } else {
+                roomName = opponent. getFirstName() + " " + opponent.getLastName();
+                roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
+                        .map(Image::getUrl)
+                        .orElse(null);
+            }
+        } else {
+            roomName = room.getRoomName();
+            roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
+                    .map(Image::getUrl)
+                    .orElse(null);
+        }
+
+        return new ChatRoomSummaryResponse(
+                room.getId(),
+                roomName,
+                lastMessageContent,
+                lastMessageTime,
+                roomImageUrl,
+                unreadCount,
+                participantCount
+        );
     }
 
-    public String getLastMessageContent(Long roomId) {
-        return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId) // Optional<ChatMessage> 반환
-                .map(ChatMessage::getContent)
-                .orElse(null);
+    /**
+     * 특정 메시지 하나를 몇 명의 참여자가 아직 읽지 않았는지 계산합니다.
+     *
+     * @param message         안 읽은 수를 계산할 대상 메시지
+     * @param allParticipants 해당 채팅방의 모든 참여자 목록 (성능 최적화를 위해 미리 조회해서 전달)
+     * @return 해당 메시지를 아직 읽지 않은 참여자의 수
+     */
+    private int calculateUnreadCountForMessage(ChatMessage message, List<ChatParticipant> allParticipants) {
+        int totalParticipantCount = allParticipants.size();
+        long readParticipantCount = allParticipants.stream()
+                .filter(participant ->
+                        participant.getLastReadMessageId() != null &&
+                                participant.getLastReadMessageId() >= message.getId()
+                )
+                .count();
+        return totalParticipantCount - (int) readParticipantCount;
     }
 
     public Instant getLastMessageTime(Long roomId) {
