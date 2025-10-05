@@ -63,16 +63,14 @@ import core.global.image.entity.Image;
 public class UserService {
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:"; // 인증 완료 플래그
-    private static final long CODE_TTL_MIN = 3L;      // 분
-    private static final long VERIFIED_TTL_MIN = 10L; // 분 (회원가입까지 유예 시간)
+    private static final long CODE_TTL_MIN = 3L;
+    private static final long VERIFIED_TTL_MIN = 10L;
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
     private static final Pattern PW_RULE = Pattern.compile(
             "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
     );
-
-    // 예: [코드] 형태 추출
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private final BlockPostRepository blockPostRepository;

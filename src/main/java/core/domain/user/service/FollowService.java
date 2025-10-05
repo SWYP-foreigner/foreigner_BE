@@ -1,5 +1,6 @@
 package core.domain.user.service;
 
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
@@ -8,11 +9,13 @@ import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
+import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -32,7 +35,7 @@ public class FollowService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     private final ImageRepository imageRepository;
-
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
@@ -161,6 +164,17 @@ public class FollowService {
 
         followRepository.save(follow);
         log.info("[FOLLOW] 팔로우 신청 성공: 신청자={}, 대상={}", follower.getId(), targetUser.getId());
+
+        // === 알림 이벤트 발행 ===
+        NotificationEvent event = new NotificationEvent(
+                targetUser.getId(),
+                follower.getId(),
+                NotificationType.receive,
+                follow.getId(),
+                null
+        );
+
+        eventPublisher.publishEvent(event);
     }
 
     /** 상대(fromUserId)가 보낸 팔로우 요청을 '현재 로그인 사용자'가 수락 */
@@ -190,6 +204,16 @@ public class FollowService {
 
         follow.accept();
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
+
+        // === 알림 이벤트 발행 ===
+        NotificationEvent event = new NotificationEvent(
+                fromUser.getId(),
+                toUser.getId(),
+                NotificationType.follow,
+                follow.getId(),
+                null
+        );
+        eventPublisher.publishEvent(event);
     }
 
 

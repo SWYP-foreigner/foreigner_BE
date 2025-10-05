@@ -1,0 +1,99 @@
+package core.domain.notification.service;
+
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.Message;
+import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.notification.dto.NotificationEvent;
+import core.domain.user.entity.User;
+import core.domain.userdevicetoken.entity.UserDeviceToken;
+import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
+import core.domain.usernotificationsetting.entity.UserNotificationSetting;
+import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
+import core.global.enums.NotificationType;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+
+@Slf4j
+@Service
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+public class PushNotificationService {
+
+    private final FirebaseMessaging firebaseMessaging;
+    private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
+
+    /**
+     * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
+     * 발송 전 3단계 동의 여부를 모두 확인합니다.
+     * @param event 알림 이벤트 데이터
+     * @param message 사용자에게 보여줄 최종 메시지
+     */
+    public void sendPushNotification(User recipient,NotificationEvent event, String message) {
+
+        if (!recipient.isAgreedToPushNotification()) {
+            log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
+            return;
+        }
+
+        boolean isCategoryEnabled;
+        Optional<UserNotificationSetting> categorySettingOpt = userNotificationSettingRepository.findByUserAndNotificationType(recipient, event.notificationType());
+
+        if (categorySettingOpt.isPresent()) {
+            isCategoryEnabled = categorySettingOpt.get().isEnabled();
+        } else {
+            isCategoryEnabled = true;
+        }
+
+        if (!isCategoryEnabled) {
+            log.info("사용자 ID {}: '{}' 카테고리 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.notificationType());
+            return;
+        }
+
+        if (event.notificationType() == NotificationType.chat) {
+            boolean isRoomNotificationsEnabled;
+            Optional<ChatParticipant> participantOpt = chatParticipantRepository.findByChatRoomIdAndUserId(event.referenceId(), recipient.getId());
+
+            if (participantOpt.isPresent()) {
+                isRoomNotificationsEnabled = participantOpt.get().isNotificationsEnabled();
+            } else {
+                isRoomNotificationsEnabled = false;
+            }
+
+            if (!isRoomNotificationsEnabled) {
+                log.info("사용자 ID {}: 채팅방 ID {} 음소거 상태. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.referenceId());
+                return;
+            }
+        }
+
+        List<UserDeviceToken> deviceTokens = userDeviceTokenRepository.findAllByUser(recipient);
+
+        for (UserDeviceToken userDeviceToken : deviceTokens) {
+            Message fcmMessage = Message.builder()
+                    .setToken(userDeviceToken.getDeviceToken())
+                    .setNotification(com.google.firebase.messaging.Notification.builder()
+                            .setTitle("Foreigner")
+                            .setBody(message)
+                            .build())
+                    .putData("notificationType", event.notificationType().name())
+                    .putData("referenceId", String.valueOf(event.referenceId()))
+                    .build();
+            try {
+                firebaseMessaging.send(fcmMessage);
+                log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
+            } catch (FirebaseMessagingException e) {
+                log.error("푸시 알림 발송 실패: 사용자 ID {}", recipient.getId(), e);
+                // TODO: 만료된 토큰 등 FCM 예외에 대한 후처리 로직 (예: DB에서 토큰 삭제)
+            }
+        }
+    }
+}

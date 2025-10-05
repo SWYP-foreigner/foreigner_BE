@@ -1,4 +1,7 @@
 spring:
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
   config:
     activate:
       on-profile: local
@@ -46,7 +49,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -141,3 +144,4 @@ cdn:
 firebase:
   credentials:
     json-string: ${FIREBASE_CREDENTIALS_JSON}
+

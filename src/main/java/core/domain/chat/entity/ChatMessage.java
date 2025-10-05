@@ -30,8 +30,6 @@ public class ChatMessage {
 
     @Column(name = "sent_at", updatable = false)
     private Instant sentAt;
-    @Column(name = "read_count", nullable = false)
-    private int readCount = 0;
     public ChatMessage(ChatRoom chatRoom, User sender, String content) {
         this.chatRoom = chatRoom;
         this.sender = sender;
