@@ -73,7 +73,7 @@ public class ChatService {
         this.blockRepository = blockRepository;
     }
 
-  //  @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
