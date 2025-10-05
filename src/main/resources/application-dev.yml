@@ -72,6 +72,7 @@ cloud:
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
 
+
 oauth:
   google:
     android:
@@ -157,6 +158,9 @@ app:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
     code-ttl-minutes: 3
+
+  search:
+    es-url: http://localhost:9200
 
 
   password:
