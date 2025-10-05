@@ -731,29 +731,14 @@ public class ChatService {
 
     public List<ChatRoomSummaryResponse> searchRoomsByRoomName(Long userId, String roomName) {
         List<ChatRoom> rooms = chatParticipantRepository.findChatRoomsByUserIdAndRoomName(userId, roomName);
-
-        return rooms.stream()
-                .map(room -> createChatRoomSummary(room, userId))
-                .collect(Collectors.toList());
+        List<ChatRoomSummaryResponse> summaries = new ArrayList<>();
+        for (ChatRoom room : rooms) {
+            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(room.getId(), userId);
+            summaries.add(summary);
+        }
+        return summaries;
     }
 
-    private ChatRoomSummaryResponse createChatRoomSummary(ChatRoom room, Long userId) {
-        Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(room.getId());
-
-        String lastMessageContent = lastMessageOpt.map(ChatMessage::getContent).orElse(null);
-        Instant lastMessageTime = lastMessageOpt.map(ChatMessage::getSentAt).orElse(null);
-
-        int unreadCount = countUnreadMessages(room.getId(), userId);
-
-        return ChatRoomSummaryResponse.from(
-                room,
-                userId,
-                lastMessageContent,
-                lastMessageTime,
-                unreadCount,
-                imageRepository
-        );
-    }
 
     public int countUnreadMessages(Long roomId, Long userId) {
         Long lastReadId = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
@@ -927,16 +912,7 @@ public class ChatService {
                     chatRoom.getId()
             );
             messagingTemplate.convertAndSend(destination, messageResponse);
-            int unreadCount = this.countUnreadMessages(req.roomId(), recipient.getId());
-            ChatRoomSummaryResponse summary = ChatRoomSummaryResponse.from(
-                    chatRoom,
-                    recipient.getId(),
-                    originalContent,
-                    savedMessage.getSentAt(),
-                    unreadCount,
-                    imageRepository
-            );
-
+            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), recipient.getId());
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
     }

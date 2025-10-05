@@ -315,7 +315,6 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        log.info("read-all 호출됨!!1");
         chatService.markAllMessagesAsReadInRoom(roomId, userId);
 
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -328,7 +327,6 @@ public class ChatController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-        log.info("userId"+ userId);
         chatService.createGroupChatRoom(userId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
