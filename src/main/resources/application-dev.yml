@@ -158,8 +158,6 @@ app:
     brand: ${APP_NAME}
     code-ttl-minutes: 3
 
-  search:
-    es-url: ${ELASTICSEARCH_HOST}
 
   password:
     reset:

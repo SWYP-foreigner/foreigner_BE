@@ -1,6 +1,6 @@
 package core.domain.post.repository;
 
-import core.global.search.dto.SearchResultView;
+import core.domain.post.dto.SearchResultView;
 
 import java.time.Instant;
 import java.util.List;

@@ -23,7 +23,6 @@ jobs:
           test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
-          test -n "${{ secrets.ES_URL }}"              || (echo "ES_URL is empty" && exit 1)
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
@@ -54,109 +53,12 @@ jobs:
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
 
-  upload-es:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Upload ES assets
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEV_HOST }}
-          username: ${{ secrets.DEV_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          source: "infra/elasticsearch/**,infra/elasticsearch-events/**"
-          target: "~/foreigner"
-
-  es-rollout:
-    needs: upload-es
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Elasticsearch rollout
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEV_HOST }}
-          username: ${{ secrets.DEV_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            command -v curl >/dev/null || (echo "curl not found" && exit 1)
-
-            export ES_URL="${{ secrets.ES_URL }}"
-            export ES_AUTH="${{ secrets.ES_AUTH }}"
-            : "${ES_URL:?ES_URL must be set}"
-
-            CURL_AUTH=()
-            if [ -n "${ES_AUTH:-}" ]; then CURL_AUTH=(-u "$ES_AUTH"); fi
-
-            echo "[ES] HEAD ${ES_URL}"
-            curl -sS -I "${CURL_AUTH[@]}" "${ES_URL}" >/dev/null
-
-            # (옵션) 호스트 도커 캐시 정리
-            if command -v docker >/dev/null 2>&1; then
-              docker system prune -af || true
-              docker builder prune -af || true
-            fi
-
-            cd ~/foreigner
-            chmod -R +x infra/elasticsearch/scripts || true
-
-            echo "[ES] Apply template"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/01-apply_template.sh
-
-            echo "[ES] Create new index"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" ES_API_KEY="${{ secrets.ES_API_KEY }}" \
-            HEALTH_TIMEOUT="180s" WAIT_FOR_STATUS="yellow" HEALTH_RETRIES=6 \
-            bash infra/elasticsearch/scripts/02-create_index.sh
-
-            NEW_IDX="$(cat infra/elasticsearch/.last_posts_index)"
-            echo "[ES] New index = ${NEW_IDX}"
-
-            SRC_ALIAS="posts_search"
-            if ! curl -s -o /dev/null -w "%{http_code}\n" "${CURL_AUTH[@]}" "${ES_URL}/_alias/${SRC_ALIAS}" | grep -q '^20'; then
-              SRC_ALIAS="posts_lab"
-            fi
-            echo "[ES] Reindex from ${SRC_ALIAS}"
-            curl -sS -X POST -H 'Content-Type: application/json' "${CURL_AUTH[@]}" \
-              "${ES_URL}/_reindex?wait_for_completion=true&refresh=true" \
-              -d "{\"source\":{\"index\":\"${SRC_ALIAS}\"},\"dest\":{\"index\":\"${NEW_IDX}\"}}"
-
-            echo "[ES] Switch aliases"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/03-switch_alias.sh
-
-            echo "[ES] Cleanup old indices"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            INDEX_PREFIX="posts-lab" KEEP_LAST=1 DRY_RUN=0 NEW_INDEX="$NEW_IDX" \
-            bash infra/elasticsearch/scripts/04-cleanup_keep_last.sh
-
-            echo "[ES] Verify"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch/scripts/99-verify.sh
-
-            echo "[events] Apply/rollout"
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            bash infra/elasticsearch-events/scripts/events-01-apply_template.sh
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            INDEX_PREFIX="events-lab" HEALTH_TIMEOUT="120s" WAIT_FOR_STATUS="yellow" \
-            bash infra/elasticsearch-events/scripts/events-02-create_index.sh
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
-            bash infra/elasticsearch-events/scripts/events-03-switch_alias.sh
-            ES_URL="$ES_URL" ES_AUTH="$ES_AUTH" \
-            ALIAS_SEARCH="events_read" ALIAS_WRITE="events_write" \
-            bash infra/elasticsearch-events/scripts/events-99-verify.sh
 
   deploy-app:
-    needs: [ build, es-rollout ]
+    needs: [ build ]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Note ES rollout result
-        run: echo "ES rollout result = ${{ needs.es-rollout.result }}"
-
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -219,7 +121,6 @@ jobs:
             FEIGN_READ_TIMEOUT=${{ secrets.FEIGN_READ_TIMEOUT }}
             FEIGN_LOGGER_LEVEL=${{ secrets.FEIGN_LOGGER_LEVEL }}
             
-            ELASTICSEARCH_HOST=${{ secrets.ELASTICSEARCH_HOST }}
             FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
             SERVER_URL=${{ secrets.SERVER_URL }}
             

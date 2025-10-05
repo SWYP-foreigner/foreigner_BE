@@ -4,14 +4,12 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
-import com.querydsl.core.types.dsl.DateTimeExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.post.entity.QPost;
-import core.global.search.dto.SearchResultView;
+import core.domain.post.dto.SearchResultView;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 
@@ -73,7 +71,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         var preview200 = Expressions.stringTemplate("function('left', {0}, 200)", p.content);
 
         return qf
-                .select(Projections.constructor(core.global.search.dto.SearchResultView.class,
+                .select(Projections.constructor(SearchResultView.class,
                         Projections.constructor(core.domain.board.dto.BoardItem.class,
                                 p.id,                         // postId
                                 preview200,                   // contentPreview

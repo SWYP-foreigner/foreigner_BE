@@ -11,7 +11,7 @@ import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorPageResponse;
-import core.global.search.dto.SearchResultView;
+import core.domain.post.dto.SearchResultView;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
