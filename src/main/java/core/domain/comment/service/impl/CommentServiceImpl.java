@@ -1,5 +1,6 @@
 package core.domain.comment.service.impl;
 
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.repository.BlockRepository;
 import core.global.service.ForbiddenWordService;
@@ -23,6 +24,7 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -46,6 +48,7 @@ public class CommentServiceImpl implements CommentService {
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
     private final BlockRepository blockRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -183,6 +186,33 @@ public class CommentServiceImpl implements CommentService {
                     : Comment.createReplyComment(post, user, request.comment(), request.anonymous(), parent);
 
             commentRepository.save(toSave);
+
+            // --- 알림 이벤트 구분 발행 ---
+            if (parent == null) {
+                // 게시글에 댓글 작성 시 → 게시글 작성자에게 알림
+                if (!post.getAuthor().getId().equals(user.getId())) {
+                    NotificationEvent event = new NotificationEvent(
+                            post.getAuthor(),
+                            user,
+                            NotificationType.post,
+                            post.getId(),
+                            request.comment()
+                    );
+                    eventPublisher.publishEvent(event);
+                }
+            } else {
+                // 대댓글 작성 시 → 부모 댓글 작성자에게 알림
+                if (!parent.getAuthor().getId().equals(user.getId())) {
+                    NotificationEvent event = new NotificationEvent(
+                            parent.getAuthor(),
+                            user,
+                            NotificationType.comment,
+                            post.getId(),
+                            request.comment()
+                    );
+                    eventPublisher.publishEvent(event);
+                }
+            }
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.INVALID_COMMENT_INPUT);
         }
