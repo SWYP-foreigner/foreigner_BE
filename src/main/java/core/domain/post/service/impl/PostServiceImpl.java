@@ -3,11 +3,10 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.post.entity.BlockPost;
-import core.domain.post.repository.BlockPostRepository;
-import core.global.service.ForbiddenWordService;
 import core.domain.post.dto.*;
+import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.BlockUser;
@@ -23,16 +22,11 @@ import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
-import core.global.search.dto.PostCreatedEvent;
-import core.global.search.dto.PostDeletedEvent;
-import core.global.search.dto.PostDocument;
-import core.global.search.dto.PostUpdatedEvent;
+import core.global.service.ForbiddenWordService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -59,7 +53,6 @@ public class PostServiceImpl implements PostService {
     private final ImageService imageService;
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
-    private final ApplicationEventPublisher publisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -259,10 +252,8 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
-        Post saved = postRepository.save(post);
 
-        publisher.publishEvent(new PostCreatedEvent(saved.getId(), new PostDocument(saved)));
-        return saved;
+        return postRepository.save(post);
     }
 
     private Post getPost(String email, PostWriteForChatRequest request, Board board) {
@@ -270,10 +261,8 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
-        Post saved = postRepository.save(post);
 
-        publisher.publishEvent(new PostCreatedEvent(saved.getId(), new PostDocument(saved)));
-        return saved;
+        return postRepository.save(post);
     }
 
     @Override
@@ -288,18 +277,11 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
         }
 
-        boolean changed = false;
-
         if (request.content() != null && !request.content().equals(post.getContent())) {
             post.changeContent(request.content());
-            changed = true;
         }
 
         imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
-
-        if (changed) {
-            publisher.publishEvent(new PostUpdatedEvent(post.getId(), new PostDocument(post)));
-        }
     }
 
     @Override
@@ -323,10 +305,7 @@ public class PostServiceImpl implements PostService {
 
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.POST, postId);
 
-        Long id = post.getId();
         postRepository.delete(post);
-        publisher.publishEvent(new PostDeletedEvent(id));
-
     }
 
     @Override

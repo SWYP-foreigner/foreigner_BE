@@ -1,4 +1,4 @@
-package core.global.search.service;
+package core.domain.post.service;
 
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;

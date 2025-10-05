@@ -1,4 +1,4 @@
-package core.global.search.dto;
+package core.domain.post.dto;
 
 import core.domain.board.dto.BoardItem;
 

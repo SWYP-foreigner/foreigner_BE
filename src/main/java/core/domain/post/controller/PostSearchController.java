@@ -1,12 +1,11 @@
 package core.domain.post.controller;
 
-import core.domain.board.dto.BoardItem;
 import core.domain.post.service.PostSearchService;
 import core.global.dto.ApiResponse;
 import core.global.metrics.annotation.TrackEvent;
 import core.global.pagination.CursorPageResponse;
-import core.global.search.dto.SearchResultView;
-import core.global.search.service.RecentSearchRedisService;
+import core.domain.post.dto.SearchResultView;
+import core.domain.post.service.RecentSearchRedisService;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
