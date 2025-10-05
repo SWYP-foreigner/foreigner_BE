@@ -1,4 +1,7 @@
 -- flyway:executeInTransaction=false
+SET lock_timeout = '5s';
+SET statement_timeout = '30min';
+
 /*
  V5__pgroonga_indexes_concurrent.sql
  - 모든 인덱스를 CREATE INDEX CONCURRENTLY 로 생성 (무중단)
