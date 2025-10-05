@@ -811,6 +811,7 @@ public class UserService {
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+        imageService.deleteUserProfileImage(userId);
         blockRepository.deleteAllByUserOrBlocked(user);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);

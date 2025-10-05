@@ -472,6 +472,7 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public void deleteUserProfileImage(Long userId) {
 
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
         String folder = "users/%d/".formatted(userId);
         try {
             // 같은 클래스 내에 deleteFolder가 있다면 그대로 호출
@@ -480,8 +481,6 @@ public class ImageServiceImpl implements ImageService {
             // 폴더 삭제 실패는 경고만 남기고, 아래 레거시 개별 삭제도 시도
             log.warn("profile folder delete failed (ignored): {}", e.getMessage());
         }
-
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
     }
 
     @Transactional
