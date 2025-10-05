@@ -1,6 +1,7 @@
 package core.domain.notification.service;
 
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.user.entity.User;
 import core.global.enums.NotificationType; // NotificationType enum 임포트
 import org.springframework.stereotype.Component;
 
@@ -12,8 +13,8 @@ public class NotificationMessageGenerator {
      * @param event 알림 이벤트 데이터
      * @return 생성된 메시지 문자열
      */
-    public String generateMessage(NotificationEvent event) {
-        String actorName = event.actor().getFirstName();
+    public String generateMessage(User actor , NotificationEvent event) {
+        String actorName = actor.getFirstName();
         if (actorName == null || actorName.isBlank()) {
             actorName = "누군가";
         }

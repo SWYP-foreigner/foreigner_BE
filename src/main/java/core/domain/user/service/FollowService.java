@@ -167,8 +167,8 @@ public class FollowService {
 
         // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
-                targetUser,
-                follower,
+                targetUser.getId(),
+                follower.getId(),
                 NotificationType.receive,
                 follow.getId(),
                 null
@@ -207,8 +207,8 @@ public class FollowService {
 
         // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
-                fromUser,
-                toUser,
+                fromUser.getId(),
+                toUser.getId(),
                 NotificationType.follow,
                 follow.getId(),
                 null

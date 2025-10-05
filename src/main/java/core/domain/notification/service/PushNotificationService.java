@@ -38,8 +38,7 @@ public class PushNotificationService {
      * @param event 알림 이벤트 데이터
      * @param message 사용자에게 보여줄 최종 메시지
      */
-    public void sendPushNotification(NotificationEvent event, String message) {
-        User recipient = event.recipient();
+    public void sendPushNotification(User recipient,NotificationEvent event, String message) {
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());

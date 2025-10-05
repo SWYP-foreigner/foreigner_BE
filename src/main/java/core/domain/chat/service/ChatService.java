@@ -807,8 +807,8 @@ public class ChatService {
             }
             if (!recipient.getId().equals(req.senderId())) {
                 NotificationEvent event = new NotificationEvent(
-                        recipient,
-                        senderUser,
+                        recipient.getId(),
+                        senderUser.getId(),
                         NotificationType.chat,
                         chatRoom.getId(),
                         originalContent

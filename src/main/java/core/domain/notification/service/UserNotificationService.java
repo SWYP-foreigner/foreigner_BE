@@ -131,16 +131,19 @@ public class UserNotificationService {
 
     /**
      * 수신된 이벤트와 생성된 메시지를 바탕으로 Notification 엔티티를 생성하고 DB에 저장합니다.
-     * @param event 알림 이벤트 데이터
-     * @param message 최종적으로 생성된 메시지 문자열
+     * @param recipient 알림을 받을 사용자 엔티티
+     * @param event     알림 이벤트 데이터 (ID 값들을 담고 있음)
+     * @param message   최종적으로 생성된 메시지 문자열
      */
-    public void createAndSaveNotification(NotificationEvent event, String message) {
+    // ✅ User 객체를 직접 파라미터로 받도록 변경
+    public void createAndSaveNotification(User recipient, NotificationEvent event, String message) {
         Notification notification = Notification.builder()
-                .user(event.recipient())
+                .user(recipient) // 전달받은 User 엔티티를 그대로 사용
                 .message(message)
                 .referenceId(event.referenceId())
                 .notificationType(event.notificationType())
                 .build();
+
         notificationRepository.save(notification);
     }
 }
