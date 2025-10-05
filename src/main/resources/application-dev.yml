@@ -1,4 +1,8 @@
 spring:
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
@@ -42,7 +46,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -168,3 +172,4 @@ cdn:
 firebase:
   credentials:
     json-string: ${FIREBASE_CREDENTIALS_JSON}
+
