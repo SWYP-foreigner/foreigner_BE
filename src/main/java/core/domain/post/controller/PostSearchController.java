@@ -1,11 +1,14 @@
 package core.domain.post.controller;
 
-import core.global.search.dto.SearchResultView;
-import core.global.search.service.PostSearchService;
-import core.global.search.service.PostSearchSuggestService;
-import core.global.search.service.RecentSearchRedisService;
+import core.domain.post.service.PostSearchService;
+import core.global.dto.ApiResponse;
+import core.global.pagination.CursorPageResponse;
+import core.domain.post.dto.SearchResultView;
+import core.domain.post.service.RecentSearchRedisService;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,21 +20,26 @@ import java.util.List;
 public class PostSearchController {
 
     private final PostSearchService searchService;
-    private final PostSearchSuggestService suggestService;
     private final RecentSearchRedisService recentService;
 
     @GetMapping("/{boardId}/posts")
-    public List<SearchResultView> searchPosts(
+    public ResponseEntity<ApiResponse<CursorPageResponse<SearchResultView>>> getPostList(
             @RequestParam String q,
-            @PathVariable(required = false) Long boardId
+            @PathVariable Long boardId,
+            @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
+            @RequestParam(required = false) String cursor,
+            @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
-        return searchService.search(q, boardId);
+        return ResponseEntity.ok(
+                core.global.dto.ApiResponse.success(
+                        searchService.search(q, boardId, cursor, size)
+                ));
     }
 
     @GetMapping("/{boardId}/suggest")
     public List<String> suggestByBoard(@PathVariable Long boardId,
                                        @RequestParam("q") String q) {
-        return suggestService.suggest(q, boardId);
+        return searchService.suggest(q, boardId);
     }
 
     @GetMapping("/recent")

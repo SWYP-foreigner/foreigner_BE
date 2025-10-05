@@ -121,10 +121,6 @@ google:
     translate:
       api-key: ${GCP_TRANSLATE_API_KEY}
 
-app:
-  search:
-    es-url: http://localhost:9200
-
   mail:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
