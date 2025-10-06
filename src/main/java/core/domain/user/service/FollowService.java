@@ -56,6 +56,7 @@ public class FollowService {
     /**
      * 친구 리스트 api
      */
+    @Transactional(readOnly = true)
     public List<FollowDTO> getMyAcceptedFollows(Authentication authentication) {
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
