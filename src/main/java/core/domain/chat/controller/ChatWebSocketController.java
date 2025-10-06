@@ -23,14 +23,8 @@ import org.springframework.stereotype.Controller;
 public class ChatWebSocketController {
 
     private final ChatService chatService;
-    private final SimpMessagingTemplate messagingTemplate;
     private final SimpMessageSendingOperations template;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
-    private final ImageRepository imageRepository;
-
-    private final UserRepository userRepository;
-    private final TranslationService translationService;
-
 
     /**
      * @apiNote 새로운 메시지를 전송하고, 해당 채팅방의 구독자들에게 브로드캐스트합니다.

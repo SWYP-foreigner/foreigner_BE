@@ -844,6 +844,7 @@ public class ChatService {
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
+        Long startTime = System.currentTimeMillis();
         ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
 
@@ -911,6 +912,8 @@ public class ChatService {
             messagingTemplate.convertAndSend(destination, messageResponse);
             ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), recipient.getId());
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+            long endTime = System.currentTimeMillis();
+            log.info("Processed MEDIA message for roomId={} in {}ms", req.roomId(), (endTime - startTime));
         }
     }
 
