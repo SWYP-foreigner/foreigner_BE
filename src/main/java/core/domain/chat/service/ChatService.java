@@ -259,10 +259,7 @@ public class ChatService {
         }
     }
 
-    public List<ChatParticipant> getParticipants(Long roomId) {
-        return participantRepo.findByChatRoomId(roomId);
-    }
-
+    @Transactional(readOnly = true)
     public List<ChatRoomParticipantsResponse> getRoomParticipants(Long roomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));

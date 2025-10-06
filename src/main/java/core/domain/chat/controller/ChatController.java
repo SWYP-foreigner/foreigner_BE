@@ -302,8 +302,12 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    @Operation(summary = "채팅방의 모든 메시지를 읽음 처리", description = "해당 채팅방(roomId)의 모든 메시지를 현재 사용자 기준으로 읽음 처리합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
+    })
     @PostMapping("/rooms/{roomId}/read-all")
-    
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
@@ -311,9 +315,13 @@ public class ChatController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
+    @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "채팅방 생성 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않은 요청 데이터"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음")
+    })
     @PostMapping("/rooms/group")
-    
     public ResponseEntity<ApiResponse<Void>> createGroupChat(
                                                               @Valid @RequestBody CreateGroupChatRequest request
     ) {
@@ -323,23 +331,33 @@ public class ChatController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
-
+    @Operation(summary = "신고 더미 API", description = "신고 요청 수락용 더미 엔드포인트입니다. 실제 동작은 하지 않습니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK 응답 반환")
+    })
     @PostMapping("/declaration")
-    
     public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
+    @Operation(summary = "채팅방이 그룹인지 여부 확인", description = "roomId에 해당하는 채팅방이 그룹 채팅방인지(1:1 채팅인지) 확인합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", content = @Content(schema = @Schema(implementation = ChatRoomGroupResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
+    })
     @GetMapping("/isGroup")
-    
     public ResponseEntity<ApiResponse<ChatRoomGroupResponse>> isChatRoomGroup(
             @RequestParam Long roomId) {
         boolean isGroup = chatService.isChatRoomGroup(roomId);
         ChatRoomGroupResponse response = new ChatRoomGroupResponse(isGroup);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    @Operation(summary = "특정 사용자 차단", description = "대화 상대를 차단합니다. 이미 차단되어 있거나 자기 자신은 차단할 수 없습니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "차단 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 또는 이미 차단됨"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 사용자를 찾을 수 없음")
+    })
     @PostMapping("/block/{targetUserId}")
-    
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
             @PathVariable @Positive Long targetUserId
     ) {
