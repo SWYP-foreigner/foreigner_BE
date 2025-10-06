@@ -86,5 +86,8 @@ public class ChatWebSocketController {
             log.error("메시지 삭제 처리 중 에러 발생", e);
         }
     }
-
+    @MessageMapping("/chat.sendMedia")
+    public void sendMediaMessage(SendMediaMessageRequest req) {
+        chatService.processAndSendMediaMessage(req);
+    }
 }

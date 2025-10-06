@@ -1,5 +1,7 @@
 package core.domain.chat.dto;
 
+import core.global.enums.MessageType;
+
 import java.time.Instant;
 
 public record ChatMessageResponse(
@@ -11,7 +13,7 @@ public record ChatMessageResponse(
         Instant sentAt,
         String senderFirstName,
         String senderLastName,
-        String senderImageUrl
-) {
+        String senderImageUrl,
+        MessageType messageType) {
 
 }

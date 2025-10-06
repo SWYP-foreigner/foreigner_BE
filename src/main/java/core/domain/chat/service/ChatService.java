@@ -13,16 +13,14 @@ import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ChatParticipantStatus;
-import core.global.enums.ErrorCode;
-import core.global.enums.ImageType;
-import core.global.enums.NotificationType;
+import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.service.TranslationService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -53,6 +51,9 @@ public class ChatService {
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
+
+    @Value("${cdn.base-url}")
+    private String cdnBaseUrl;
 
     public ChatService(ChatRoomRepository chatRoomRepo,
                        ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
@@ -383,7 +384,8 @@ public class ChatService {
                                 message.getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                senderImageUrl
+                                senderImageUrl,
+                                message.getMessageType()
                         );
                     }).collect(Collectors.toList());
         } else {
@@ -403,7 +405,8 @@ public class ChatService {
                                 message.getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                senderImageUrl
+                                senderImageUrl,
+                                message.getMessageType()
                         );
                     }).collect(Collectors.toList());
         }
@@ -463,7 +466,8 @@ public class ChatService {
                                 message.getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                userImageUrl
+                                userImageUrl,
+                                message.getMessageType()
                         );
                     })
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
@@ -498,7 +502,8 @@ public class ChatService {
                                 pair.originalMessage().getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                userImageUrl
+                                userImageUrl,
+                                pair.originalMessage().getMessageType()
                         );
                     })
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
@@ -903,7 +908,8 @@ public class ChatService {
                     savedMessage.getSentAt(),
                     senderUser.getFirstName(),
                     senderUser.getLastName(),
-                    userImageUrl
+                    userImageUrl,
+                    MessageType.TEXT
             );
             String destination = String.format("/topic/user/%s/%s/messages",
                     recipient.getId(),
@@ -1025,7 +1031,8 @@ public class ChatService {
                                 message.getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                senderImageUrl
+                                senderImageUrl,
+                                message.getMessageType()
                         );
                     }).collect(Collectors.toList());
         } else {
@@ -1045,7 +1052,8 @@ public class ChatService {
                                 message.getSentAt(),
                                 sender.getFirstName(),
                                 sender.getLastName(),
-                                senderImageUrl
+                                senderImageUrl,
+                                message.getMessageType()
                         );
                     }).collect(Collectors.toList());
         }
@@ -1122,5 +1130,66 @@ public class ChatService {
     }
 
     private record MessagePair(ChatMessage originalMessage, String translatedContent) {
+    }
+
+    @Transactional
+    public void processAndSendMediaMessage(SendMediaMessageRequest req) {
+        ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
+        chatMessageRepository.save(savedMessage);
+
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+                .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
+
+        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                .map(Image::getUrl)
+                .orElse(null);
+
+        for (ChatParticipant participant : chatRoom.getParticipants()) {
+            User recipient = participant.getUser();
+
+            boolean isBlocked = blockRepository.findBlockRelationship(recipient, sender).isPresent() ||
+                    blockRepository.findBlockRelationship(sender, recipient).isPresent();
+            if (isBlocked) {
+                continue;
+            }
+            if (!recipient.getId().equals(sender.getId())) {
+                String contentSnippet = req.messageType() == MessageType.IMAGE ? "사진을 보냈습니다." : "동영상을 보냈습니다.";
+                NotificationEvent event = new NotificationEvent(
+                        recipient.getId(),
+                        sender.getId(),
+                        NotificationType.chat,
+                        chatRoom.getId(),
+                        contentSnippet
+                );
+                eventPublisher.publishEvent(event);
+            }
+            String fullMediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
+
+            ChatMessageResponse messageResponse = new ChatMessageResponse(
+                    savedMessage.getId(),
+                    chatRoom.getId(),
+                    sender.getId(),
+                    fullMediaUrl,
+                    null,
+                    savedMessage.getSentAt(),
+                    sender.getFirstName(),
+                    sender.getLastName(),
+                    senderImageUrl,
+                    savedMessage.getMessageType()
+            );
+
+            String destination = String.format("/topic/user/%s/%s/messages",
+                    recipient.getId(),
+                    chatRoom.getId()
+            );
+            messagingTemplate.convertAndSend(destination, messageResponse);
+            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), recipient.getId());
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+        }
     }
 }
