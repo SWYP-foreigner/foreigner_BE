@@ -366,5 +366,24 @@ public class ChatController {
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));
     }
+    @Operation(summary = "채팅 미디어 Presigned URL 발급", // ✅ API 제목
+            description = """
+               지정된 채팅방(chatroomId)에 사진이나 동영상을 업로드할 수 있는, 15분간 유효한 일회성 URL을 발급합니다.
+               
+               클라이언트는 이 응답으로 받은 `presignedUrl`에 `PUT` 메서드를 사용하여 바이너리 파일 데이터를 직접 업로드해야 합니다.
+               
+               업로드 성공 후에는 응답으로 받은 `fileKey` 값을 사용하여 WebSocket으로 최종 메시지를 전송해야 합니다.
+               """)
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Presigned URL 발급 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 ID일 경우")
+    })
+    @PostMapping("/presigned-url/chat/{chatroomId}")
+    public ResponseEntity<ApiResponse<PresignedUrlResponse>> getChatPresignedUrl(
+            @PathVariable Long chatroomId,
+            @RequestBody PresignedUrlRequest request) {
 
+        PresignedUrlResponse response = chatService.generateChatPresignedUrl(chatroomId, request.fileName());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

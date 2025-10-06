@@ -19,6 +19,7 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.service.TranslationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,7 +29,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,6 +42,7 @@ import java.util.stream.IntStream;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ChatService {
 
     private static final int MESSAGE_PAGE_SIZE = 20;
@@ -51,28 +58,13 @@ public class ChatService {
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
+    private final S3Presigner s3Presigner;
 
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
-    public ChatService(ChatRoomRepository chatRoomRepo,
-                       ChatParticipantRepository participantRepo, ChatMessageRepository chatMessageRepository,
-                       UserRepository userRepository, ChatParticipantRepository chatParticipantRepository,
-                       TranslationService translationService, ImageRepository imageRepository, ChatRoomRepository chatRoomRepository, SimpMessagingTemplate messagingTemplate, ImageService imageService, ApplicationEventPublisher eventPublisher, BlockRepository blockRepository) {
-        this.chatRoomRepo = chatRoomRepo;
-        this.participantRepo = participantRepo;
-
-        this.chatMessageRepository = chatMessageRepository;
-        this.userRepository = userRepository;
-        this.chatParticipantRepository = chatParticipantRepository;
-        this.translationService = translationService;
-        this.imageRepository = imageRepository;
-        this.chatRoomRepository = chatRoomRepository;
-        this.messagingTemplate = messagingTemplate;
-        this.imageService = imageService;
-        this.eventPublisher = eventPublisher;
-        this.blockRepository = blockRepository;
-    }
+    @Value("${ncp.s3.bucket}")
+    private String bucketName;
 
     @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
@@ -257,6 +249,7 @@ public class ChatService {
         if (remainingActiveParticipants == 0) {
             chatMessageRepository.deleteByChatRoomId(roomId);
             chatRoomRepo.delete(room);
+            // todo : 채팅방 내 동영상 사진 삭제 필요
         }
     }
 
@@ -1191,5 +1184,33 @@ public class ChatService {
             ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), recipient.getId());
             messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
         }
+    }
+
+
+
+
+
+    /**
+     * 채팅 미디어 전용 Presigned URL을 생성합니다. (AWS SDK v2 방식)
+     * @param chatroomId 파일이 속할 채팅방 ID
+     * @param fileName 클라이언트가 전송한 원본 파일 이름
+     * @return PresignedUrl과 S3에 저장될 최종 파일 키(Key)
+     */
+    public PresignedUrlResponse generateChatPresignedUrl(Long chatroomId, String fileName) {
+        String fileKey = "chats/" + chatroomId + "/" + UUID.randomUUID() + "-" + fileName;
+
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(fileKey)
+                .build();
+
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(15))
+                .putObjectRequest(putObjectRequest)
+                .build();
+        PresignedPutObjectRequest presignedPutObjectRequest = s3Presigner.presignPutObject(presignRequest);
+        String presignedUrl = presignedPutObjectRequest.url().toString();
+
+        return new PresignedUrlResponse(presignedUrl, fileKey);
     }
 }
