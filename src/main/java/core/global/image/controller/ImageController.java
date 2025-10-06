@@ -73,4 +73,5 @@ public class ImageController {
         imageService.upsertChatRoomProfileImage(request.chatRoomId(), request.imageUrl());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
 }
