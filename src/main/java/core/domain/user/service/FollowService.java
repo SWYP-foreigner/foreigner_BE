@@ -12,6 +12,7 @@ import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
+import core.global.metrics.SocialChatMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,11 @@ public class FollowService {
     private final FollowRepository followRepository;
     private final ImageRepository imageRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final SocialChatMetrics socialChatMetrics;
+
+    private String countryOf(User u) {
+        return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 SocialChatMetrics에서 UNK 처리
+    }
 
     @Transactional(readOnly = true)
     public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
@@ -166,6 +172,8 @@ public class FollowService {
         followRepository.save(follow);
         log.info("[FOLLOW] 팔로우 신청 성공: 신청자={}, 대상={}", follower.getId(), targetUser.getId());
 
+        socialChatMetrics.recordFollowCreated(follower.getId().toString(), targetUser.getId().toString());
+
         // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
                 targetUser.getId(),
@@ -205,6 +213,8 @@ public class FollowService {
 
         follow.accept();
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
+
+        socialChatMetrics.recordFriendCreated(countryOf(toUser), countryOf(fromUser));
 
         // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
