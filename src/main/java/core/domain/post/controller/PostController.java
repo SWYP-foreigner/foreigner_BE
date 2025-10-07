@@ -3,6 +3,7 @@ package core.domain.post.controller;
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
 import core.domain.post.dto.PostWriteForChatRequest;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,9 +27,12 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
 
     private final PostService postService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    PostController(PostService postService) {
+
+    PostController(PostService postService, FeatureUsageMetrics featureUsageMetrics) {
         this.postService = postService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(summary = "게시글 상세 조회", description = "특정 보드의 게시글 상세를 반환합니다.")
@@ -47,6 +51,7 @@ public class PostController {
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable @Positive Long postId) {
 
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(
                 postService.getPostDetail(postId)
         ));
@@ -66,6 +71,7 @@ public class PostController {
             @Valid @RequestBody PostWriteRequest writeRequest) {
 
         postService.writePost( boardId, writeRequest);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
@@ -85,6 +91,7 @@ public class PostController {
             @Valid @RequestBody PostWriteForChatRequest writeRequest) {
 
         postService.writePostForChat(roomId, writeRequest);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
@@ -105,6 +112,7 @@ public class PostController {
             @Valid @RequestBody PostUpdateRequest updateRequest) {
 
         postService.updatePost( postId, updateRequest);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("게시글 수정 완료"));
@@ -123,7 +131,7 @@ public class PostController {
     ) {
 
         postService.deletePost(postId);
-
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("게시글 삭제 완료"));
@@ -181,6 +189,8 @@ public class PostController {
                     example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
             @RequestParam(required = false) String cursor
     ) {
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         postService.getMyPostList( cursor, size)
@@ -203,6 +213,8 @@ public class PostController {
     ) {
 
         postService.addLike(postId);
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("좋아요 설정"));
@@ -241,6 +253,8 @@ public class PostController {
             @PathVariable @Positive Long postId
     ) {
         postService.removeLike(postId);
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("좋아요 해제"));
@@ -259,6 +273,8 @@ public class PostController {
             @PathVariable @Positive Long postId
     ) {
         postService.blockPost(postId);
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));
@@ -278,6 +294,8 @@ public class PostController {
             @PathVariable @Positive Long postId
     ) {
         postService.blockUser(postId);
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));
