@@ -3,6 +3,7 @@ package core.domain.user.controller;
 
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.service.RecommenderService;
+import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +23,9 @@ import java.util.List;
 @RequestMapping("/api/v1/commend")
 @RequiredArgsConstructor
 @Slf4j
-public class FriednCommendController {
+public class FriendCommendController {
     private final RecommenderService recommenderService;
-
+    private final FeatureUsageMetrics featureUsageMetrics;
 
     @GetMapping("/content-based")
     @Operation(summary = "친구 추천 기능", description = "콘텐츠 기반 필터링으로 친구를 추천합니다.")
@@ -35,6 +36,8 @@ public class FriednCommendController {
 
         List<UserUpdateDTO> list = recommenderService.recommendForUser(auth, limit);
         log.info(">>>> 최종 반환 유저: {}", list);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok(list);
     }
 

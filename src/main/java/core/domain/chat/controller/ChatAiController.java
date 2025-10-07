@@ -3,6 +3,7 @@ import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatAiService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
+import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,6 +22,8 @@ import java.util.List;
 public class ChatAiController {
 
     private final ChatAiService chatAiService;
+    private final FeatureUsageMetrics featureUsageMetrics;
+
 
     @Operation(summary = "AI와 새로운 채팅방 생성", description = "AI와 1:1 채팅방을 생성합니다. 기존 방이 있으면 isNew: false, 새로 생성되면 isNew: true를 반환합니다.")
     @ApiResponses(value = {
@@ -33,6 +36,8 @@ public class ChatAiController {
     public ResponseEntity<ApiResponse<ChatAiRoomResponse>> createAiRoom() {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         ChatAiRoomResponse response = chatAiService.createAiChatRoom(principal.getUserId());
+        featureUsageMetrics.recordChatUsage();
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -53,6 +58,8 @@ public class ChatAiController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         AiMessageResponse response = chatAiService.sendMessageToAi(principal.getUserId(), roomId, request);
+        featureUsageMetrics.recordChatUsage();
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -70,6 +77,8 @@ public class ChatAiController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         chatAiService.deleteAiChatRoom(principal.getUserId(), roomId);
+        featureUsageMetrics.recordChatUsage();
+
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -89,6 +98,8 @@ public class ChatAiController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         MessageSliceResponse messages = chatAiService.getChatMessages(principal.getUserId(), roomId, lastMessageId);
+        featureUsageMetrics.recordChatUsage();
+
         return ResponseEntity.ok(ApiResponse.success(messages));
     }
 
@@ -106,6 +117,8 @@ public class ChatAiController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         chatAiService.deleteReportedMessage(principal.getUserId(), messageId);
+        featureUsageMetrics.recordChatUsage();
+
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

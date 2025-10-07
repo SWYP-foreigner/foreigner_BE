@@ -6,6 +6,7 @@ import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
+import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,6 +30,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatController {
     private final ChatService chatService;
+    private final FeatureUsageMetrics featureUsageMetrics;
+
     private final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     @Operation(summary = "1:1 새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
@@ -48,6 +51,7 @@ public class ChatController {
         Long userId = principal.getUserId();
         ChatRoom room = chatService.createRoom(userId, request.otherUserId());
         ChatRoomResponse response = ChatRoomResponse.from(room);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -81,6 +85,7 @@ public class ChatController {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         chatService.leaveRoom(roomId, userId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -104,6 +109,7 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
     @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
@@ -122,6 +128,7 @@ public class ChatController {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         List<ChatMessageFirstResponse> responses = chatService.getFirstMessages(roomId, userId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
@@ -137,6 +144,7 @@ public class ChatController {
     @GetMapping("/rooms/{roomId}/participants")
     public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId) {
         List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
@@ -154,6 +162,7 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         chatService.joinGroupChat(roomId, userId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -179,6 +188,7 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
     @Operation(summary = "특정 메시지 주변의 채팅 내용 조회", description = "검색 등에서 특정 메시지로 바로 이동할 때 사용합니다. 해당 메시지 기준 이전 20개, 이후 20개의 메시지를 반환합니다.")
@@ -213,6 +223,7 @@ public class ChatController {
     public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(
             @PathVariable Long roomId) {
         GroupChatDetailResponse response = chatService.getGroupChatDetails(roomId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
     @Operation(summary = "그룹 채팅방 검색", description = "채팅방 이름 키워드를 통해 그룹 채팅방을 검색합니다.")
@@ -220,6 +231,7 @@ public class ChatController {
     
     public ResponseEntity<ApiResponse<List<GroupChatSearchResponse>>> searchGroupChats(@RequestParam String keyword) {
         List<GroupChatSearchResponse> response = chatService.searchGroupChatRooms(keyword);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -236,6 +248,7 @@ public class ChatController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         List<ChatRoomSummaryResponse> responses = chatService.searchRoomsByRoomName(principal.getUserId(), roomName);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
@@ -250,6 +263,7 @@ public class ChatController {
     public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getLatestGroupChats(
             @RequestParam(required = false) Long lastChatRoomId) {
         List<GroupChatMainResponse> response = chatService.getLatestGroupChats(lastChatRoomId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -264,6 +278,7 @@ public class ChatController {
     
     public ResponseEntity<ApiResponse<List<GroupChatMainResponse>>> getPopularGroupChats() {
         List<GroupChatMainResponse> response = chatService.getPopularGroupChats(10);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
     @Operation(summary = "유저 프로필 조회", description = "userId를 통해 유저의 상세 프로필 정보와 이미지 URL을 조회합니다.")
@@ -277,9 +292,9 @@ public class ChatController {
     })
 
     @GetMapping("/users/{userId}/profile")
-    
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -298,7 +313,6 @@ public class ChatController {
         Long userId = principal.getUserId();
 
         chatService.toggleTranslation(roomId, userId, request.translateEnabled());
-
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -312,7 +326,6 @@ public class ChatController {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         chatService.markAllMessagesAsReadInRoom(roomId, userId);
-
         return ResponseEntity.ok(ApiResponse.success(null));
     }
     @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성합니다.")
@@ -328,7 +341,7 @@ public class ChatController {
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         chatService.createGroupChatRoom(userId, request);
-
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
     @Operation(summary = "신고 더미 API", description = "신고 요청 수락용 더미 엔드포인트입니다. 실제 동작은 하지 않습니다.")
@@ -337,6 +350,7 @@ public class ChatController {
     })
     @PostMapping("/declaration")
     public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
     @Operation(summary = "채팅방이 그룹인지 여부 확인", description = "roomId에 해당하는 채팅방이 그룹 채팅방인지(1:1 채팅인지) 확인합니다.")
@@ -362,6 +376,7 @@ public class ChatController {
             @PathVariable @Positive Long targetUserId
     ) {
         chatService.blockChatUser(targetUserId);
+        featureUsageMetrics.recordChatUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));

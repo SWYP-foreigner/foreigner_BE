@@ -11,6 +11,7 @@ import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.Ouathplatform;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.service.*;
 import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,6 +47,7 @@ public class UserController {
     private final AppleAuthService appleAuthService;
     private final ApplicationEventPublisher publisher;
     private final GoogleAuthService googleAuthService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -229,6 +231,7 @@ public class UserController {
     @Operation(summary = "프로필 조회", description = "현재 사용자의 프로필 정보를 조회합니다.")
     public ResponseEntity<UserUpdateDTO> getProfile() {
         UserUpdateDTO response = userService.getUserProfile();
+        featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(response);
     }
 
@@ -254,6 +257,7 @@ public class UserController {
     @GetMapping("/{userId}/info")
     public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
         UserResponseDto userProfile = userService.findUserProfile(userId);
+        featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userProfile);
     }
 
@@ -265,6 +269,7 @@ public class UserController {
     @GetMapping("/infos")
     public ResponseEntity<List<UserResponseDto>> getUsersInfo(@RequestParam("userIds") List<Long> userIds) {
         List<UserResponseDto> userProfiles = userService.findUsersProfiles(userIds);
+        featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userProfiles);
     }
 
@@ -272,8 +277,10 @@ public class UserController {
     @GetMapping("/{userId}/chat_profile")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserChatProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = userService.getUserChatProfile(userId);
+        featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
     @Operation(summary = "애플 유저인지 판별", description = "사용자가 애플 유저인지, 그리고 이름 정보가 없는 재가입 유저인지 판별합니다.")
     @GetMapping("/{userId}/is-apple")
     public ResponseEntity<ApiResponse<UserAppleStatusResponse>> getUserInfoIsApple(@PathVariable Long userId) {

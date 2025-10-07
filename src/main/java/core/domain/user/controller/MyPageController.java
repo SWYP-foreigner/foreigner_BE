@@ -1,5 +1,6 @@
 package core.domain.user.controller;
 
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.UserUpdateDTO;
@@ -29,6 +30,7 @@ public class MyPageController {
     private final UserService userService;
     private final FollowService followService;
     private final TranslationService translationService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
     /**
      * 각 FollowStatus 별 팔로우 목록 조회
@@ -42,6 +44,7 @@ public class MyPageController {
             @Parameter(description = "true인 경우 팔로워, false인 경우 팔로잉 목록을 조회") @RequestParam(defaultValue = "false") boolean isFollowers) {
 
         List<FollowDTO> list = followService.getMyFollowsByStatus(authentication, status, isFollowers);
+        featureUsageMetrics.recordFollowUsage();
 
         return ResponseEntity.ok().body(list);
     }
@@ -66,6 +69,7 @@ public class MyPageController {
             Authentication authentication
     ) {
         List<FollowDTO> list = followService.getMyAcceptedFollows(authentication);
+        featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(list);
     }
 
@@ -77,6 +81,8 @@ public class MyPageController {
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID") @PathVariable Long fromUserId) {
 
         followService.acceptFollow(authentication, fromUserId);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok().build();
     }
 
@@ -88,6 +94,8 @@ public class MyPageController {
             @PathVariable Long fromUserId) {
 
         followService.declineFollow(authentication, fromUserId);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok().build();
     }
 
@@ -99,6 +107,8 @@ public class MyPageController {
             @PathVariable("friendId") Long friendId) {
 
         followService.unfollow(authentication, friendId);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok().build();
     }
 
@@ -110,6 +120,8 @@ public class MyPageController {
             @PathVariable("friendId") Long friendId) {
 
         followService.unfollowAccepted(authentication, friendId);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok().build();
     }
 
@@ -122,6 +134,8 @@ public class MyPageController {
             @RequestBody UserUpdateDTO dto
     ) {
         UserUpdateDTO response = userService.updateUserProfile(dto);
+        featureUsageMetrics.recordFollowUsage();
+
         return ResponseEntity.ok(response);
     }
 
@@ -146,6 +160,7 @@ public class MyPageController {
             @RequestBody UserLanguageDTO dto) {
 
         translationService.saveUserLanguage(auth, dto.getLanguage());
+        featureUsageMetrics.recordFollowUsage();
 
         return ResponseEntity.ok().build();
     }
