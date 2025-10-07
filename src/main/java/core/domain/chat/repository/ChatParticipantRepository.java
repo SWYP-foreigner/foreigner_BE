@@ -21,6 +21,9 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     Optional<ChatParticipant> findByChatRoomIdAndUserId(Long chatRoomId, Long userId);
 
+
+
+
     long countByChatRoomIdAndStatus(Long roomId, ChatParticipantStatus status);
 
     @Query(
@@ -46,4 +49,5 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
 
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
+
 }

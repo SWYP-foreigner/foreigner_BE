@@ -330,7 +330,7 @@ public class ChatService {
      * 이 메서드가 컨트롤러에서 호출되는 주된 엔드포인트가 됩니다.
      */
 
-
+    @Transactional
     public List<ChatMessageResponse> getMessages(
             Long roomId,
             Long userId,
