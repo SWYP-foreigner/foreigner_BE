@@ -18,6 +18,7 @@ import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
+import core.global.metrics.SocialChatMetrics;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,11 @@ public class ChatService {
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
     private final S3Presigner s3Presigner;
+    private final SocialChatMetrics socialChatMetrics;
+
+    private String countryOf(User u) {
+        return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 metrics에서 UNK 처리
+    }
 
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
@@ -196,6 +202,8 @@ public class ChatService {
         if (currentParticipant.isPresent() && currentParticipant.get().getStatus() == ChatParticipantStatus.LEFT) {
             currentParticipant.get().reJoin();
         }
+
+        socialChatMetrics.recordChatRoomCreated(room.getId().toString());
         return room;
     }
 
@@ -212,6 +220,13 @@ public class ChatService {
 
         newRoom.addParticipant(participant1);
         newRoom.addParticipant(participant2);
+
+        socialChatMetrics.recordInterest(
+                countryOf(currentUser),
+                countryOf(otherUser),
+                "chat_room"
+        );
+
 
         return chatRoomRepo.save(newRoom);
     }

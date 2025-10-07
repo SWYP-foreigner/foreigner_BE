@@ -2,6 +2,7 @@ package core.domain.post.controller;
 
 import core.domain.post.service.PostSearchService;
 import core.global.dto.ApiResponse;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import core.domain.post.dto.SearchResultView;
 import core.domain.post.service.RecentSearchRedisService;
@@ -21,6 +22,7 @@ public class PostSearchController {
 
     private final PostSearchService searchService;
     private final RecentSearchRedisService recentService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
     @GetMapping("/{boardId}/posts")
     public ResponseEntity<ApiResponse<CursorPageResponse<SearchResultView>>> getPostList(
@@ -30,6 +32,7 @@ public class PostSearchController {
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         searchService.search(q, boardId, cursor, size)
@@ -39,21 +42,25 @@ public class PostSearchController {
     @GetMapping("/{boardId}/suggest")
     public List<String> suggestByBoard(@PathVariable Long boardId,
                                        @RequestParam("q") String q) {
+        featureUsageMetrics.recordCommunityUsage();
         return searchService.suggest(q, boardId);
     }
 
     @GetMapping("/recent")
     public List<String> recent() {
+        featureUsageMetrics.recordCommunityUsage();
         return recentService.list();
     }
 
     @DeleteMapping("/recent")
     public void deleteRecent(@RequestParam String q) {
+        featureUsageMetrics.recordCommunityUsage();
         recentService.remove(q);
     }
 
     @DeleteMapping("/recent/all")
     public void clearRecent() {
+        featureUsageMetrics.recordCommunityUsage();
         recentService.clear();
     }
 }

@@ -182,7 +182,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: prometheus, health, metrics
+        include: prometheus, health, metrics, info
   endpoint:
     prometheus:
       enabled: true
@@ -191,6 +191,7 @@ management:
   metrics:
     tags:
       application: my-service
+      app: social-chat
     distribution:
       percentiles-histogram:
         http:
@@ -200,6 +201,3 @@ management:
     metrics:
       export:
         enabled: true
-
-  # (보안 필터가 막으면) 필요 시
-  management.server.port: 8080
