@@ -172,7 +172,7 @@ public class FollowService {
         followRepository.save(follow);
         log.info("[FOLLOW] 팔로우 신청 성공: 신청자={}, 대상={}", follower.getId(), targetUser.getId());
 
-        socialChatMetrics.recordFollowCreated(follower.getId().toString(), targetUser.getId().toString());
+        socialChatMetrics.recordFollowCreated(follower.getCountry(), targetUser.getCountry());
 
         // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(

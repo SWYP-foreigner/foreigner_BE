@@ -203,7 +203,6 @@ public class ChatService {
             currentParticipant.get().reJoin();
         }
 
-        socialChatMetrics.recordChatRoomCreated(room.getId().toString());
         return room;
     }
 
