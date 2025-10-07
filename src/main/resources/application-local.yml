@@ -49,7 +49,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -152,3 +152,9 @@ management:
   metrics:
     tags:
       application: my-service
+
+app:
+  mail:
+    from: ${NAVER_HOST}
+    brand: ${APP_NAME}
+    code-ttl-minutes: 3
