@@ -27,4 +27,6 @@ public class PresenceMetrics {
         do { v = currentConnected.get();
         } while (v > 0 && !currentConnected.compareAndSet(v, v - 1));
     }
+
+    public void setCurrentConnected(int v) { currentConnected.set(v); }
 }

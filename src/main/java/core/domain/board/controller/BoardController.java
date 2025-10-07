@@ -6,6 +6,7 @@ import core.domain.board.service.BoardService;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.enums.SortOption;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,10 +29,12 @@ public class BoardController {
 
     private final PostService postService;
     private final BoardService boardService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    public BoardController(PostService postService, BoardService boardService) {
+    public BoardController(PostService postService, BoardService boardService, FeatureUsageMetrics featureUsageMetrics) {
         this.postService = postService;
         this.boardService = boardService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(
@@ -143,6 +146,7 @@ public class BoardController {
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         postService.getPostList(boardId, sort, cursor, size)

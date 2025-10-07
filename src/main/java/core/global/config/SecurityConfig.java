@@ -1,5 +1,7 @@
 package core.global.config;
 
+import core.global.metrics.ActiveUserRecordFilter;
+import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +28,8 @@ public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final ActiveUserRecordFilter activeUserRecordFilter;
+    private final PresenceActivityFilter presenceActivityFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -73,9 +77,9 @@ public class SecurityConfig {
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
-//                .addFilterAfter(heartbeatFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);;
-
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

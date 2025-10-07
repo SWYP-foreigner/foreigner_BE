@@ -20,7 +20,8 @@ public class NotificationEventListener {
     private final PushNotificationService pushNotificationService;
     private final NotificationMessageGenerator notificationMessageGenerator;
 
-    @Async
+
+    @Async("dispatchExecutor")
     @EventListener
     @Transactional
     public void handleNotificationEvent(NotificationEvent event) {

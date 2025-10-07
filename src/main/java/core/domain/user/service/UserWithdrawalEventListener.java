@@ -4,6 +4,7 @@ import core.domain.user.dto.UserWithdrawalEvent;
 import core.global.config.JwtTokenProvider;
 import core.global.service.RedisService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -21,6 +22,7 @@ public class UserWithdrawalEventListener {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    @Async("dispatchExecutor")
     @TransactionalEventListener
     public void handleUserWithdrawal(UserWithdrawalEvent event) {
         try {

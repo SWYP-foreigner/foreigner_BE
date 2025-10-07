@@ -6,6 +6,7 @@ import core.domain.comment.dto.CommentWriteRequest;
 import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.service.CommentService;
 import core.global.enums.SortOption;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,9 +27,12 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Comments", description = "댓글 조회/작성/수정/삭제 API")
 public class CommentController {
     private final CommentService commentService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    public CommentController(CommentService commentService) {
+
+    public CommentController(CommentService commentService, FeatureUsageMetrics featureUsageMetrics) {
         this.commentService = commentService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(
@@ -96,6 +100,7 @@ public class CommentController {
             @Valid @RequestBody CommentWriteRequest request
     ) {
         commentService.writeComment(postId, request);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("댓글 작성 완료"));
@@ -115,6 +120,7 @@ public class CommentController {
             @Valid @RequestBody CommentUpdateRequest request
     ) {
         commentService.updateComment(commentId, request);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 수정 완료"));
@@ -133,6 +139,7 @@ public class CommentController {
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
         commentService.deleteComment( commentId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 삭제 완료"));
@@ -150,6 +157,7 @@ public class CommentController {
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
         commentService.addLike( commentId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 좋아요 완료"));
@@ -167,6 +175,7 @@ public class CommentController {
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
         commentService.deleteLike( commentId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
                 .body(core.global.dto.ApiResponse.success("댓글 좋아요 삭제 완료"));
@@ -213,6 +222,7 @@ public class CommentController {
                     example = "eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9")
             @RequestParam(required = false) String cursor
     ) {
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         commentService.getMyCommentList(size, cursor)
@@ -234,6 +244,7 @@ public class CommentController {
             @PathVariable @Positive Long commentId
     ) {
         commentService.blockUser(commentId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));
