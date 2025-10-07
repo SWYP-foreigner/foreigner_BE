@@ -191,6 +191,15 @@ management:
   metrics:
     tags:
       application: my-service
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
   # (보안 필터가 막으면) 필요 시
   management.server.port: 8080

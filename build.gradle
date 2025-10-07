@@ -94,7 +94,6 @@ dependencies {
 
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
-
 //    implementation "org.flywaydb:flyway-core"
 //    implementation "org.postgresql:postgresql:42.7.7"
 	implementation("org.flywaydb:flyway-core")
