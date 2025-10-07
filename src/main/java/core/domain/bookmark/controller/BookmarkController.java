@@ -2,6 +2,7 @@ package core.domain.bookmark.controller;
 
 import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.service.BookmarkService;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,9 +20,11 @@ import org.springframework.web.bind.annotation.*;
 public class BookmarkController {
 
     private final BookmarkService bookmarkService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    public BookmarkController(BookmarkService bookmarkService) {
+    public BookmarkController(BookmarkService bookmarkService, FeatureUsageMetrics featureUsageMetrics) {
         this.bookmarkService = bookmarkService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(
@@ -34,6 +37,7 @@ public class BookmarkController {
             @Parameter(description = "게시글 ID", required = true) @PathVariable Long postId
     ) {
         bookmarkService.addBookmark(postId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.noContent().build();
     }
 
@@ -47,6 +51,7 @@ public class BookmarkController {
             @Parameter(description = "게시글 ID", required = true) @PathVariable Long postId
     ) {
         bookmarkService.removeBookmark(postId);
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.noContent().build();
     }
 
@@ -100,6 +105,7 @@ public class BookmarkController {
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJpZCI6NTQ5fQ")
             @RequestParam(required = false) String cursor
     ) {
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(
                 bookmarkService.getMyBookmarks(size, cursor)
         ));
