@@ -77,9 +77,9 @@ public class SecurityConfig {
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
-        http.addFilterAfter(activeUserRecordFilter, JwtTokenFilter.class);
-        http.addFilterAfter(presenceActivityFilter, JwtTokenFilter.class);
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
