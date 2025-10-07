@@ -178,3 +178,19 @@ firebase:
   credentials:
     json-string: ${FIREBASE_CREDENTIALS_JSON}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, metrics
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: my-service
+
+  # (보안 필터가 막으면) 필요 시
+  management.server.port: 8080

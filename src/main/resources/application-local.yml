@@ -1,6 +1,6 @@
 spring:
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
   config:
     activate:
@@ -141,3 +141,14 @@ firebase:
   credentials:
     json-string: ${FIREBASE_CREDENTIALS_JSON}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: my-service
