@@ -1,10 +1,12 @@
 package core.domain.user.service;
 
+import core.domain.user.repository.FollowRepository;
 import core.domain.user.dto.UserUpdateDTO;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
+import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
@@ -12,15 +14,14 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,21 +32,17 @@ public class ContentBasedRecommender {
 
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
-    private static final double W_PURPOSE = 0.4;
-    private static final double W_COUNTRY = 0.2;
-    private static final double W_AGE = 0.3;   // 너가 바꾼 가중치 유지
-    private static final double W_LANG = 0.1;  // 너가 바꾼 가중치 유지
     private final BlockRepository blockRepository;
-    /**
-     랜덤 랭킹용 파라미터 (원하면 @Value 로 빼서 설정 가능)
-     * POOL_MULTIPLIER = 5;
-     * (limit * 5) 풀에서 추출
-     * MIN_POOL:최소 풀 사이즈
-     * TEMPERATURE: 클수록 랜덤성 증가
-     */
-    private static final int   POOL_MULTIPLIER = 2;
-    private static final int   MIN_POOL       = 2;
-    private static final double TEMPERATURE   = 0.1;
+    private final FollowRepository followRepository;
+
+    private static final double W_PURPOSE   = 0.35;
+    private static final double W_COUNTRY   = 0.15;
+    private static final double W_AGE       = 0.25;
+    private static final double W_LANG      = 0.10;
+    private static final double W_ACTIVITY  = 0.15;
+
+    private static final double TEMPERATURE = 0.7;
+    private static final double ACTIVITY_SCORE_HALF_LIFE_DAYS = 7.0;
 
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
 
@@ -54,51 +51,36 @@ public class ContentBasedRecommender {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
+        Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);
+        Set<Long> blockedIds = blockRepository.findAllBlockedUserIds(meId);
+
+        Set<Long> excludeIds = new HashSet<>(followingIds);
+        excludeIds.addAll(blockedIds);
+        excludeIds.add(meId);
+        if (excludeIds.isEmpty()) {
+            excludeIds.add(0L);
+        }
+
+        log.info(">>>> [디버깅 0] 팔로우 {}명, 차단 {}명 등 총 {}명 추천에서 제외",
+                followingIds.size(), blockedIds.size(), excludeIds.size());
+
+        List<User> allCandidates = userRepository.findFullProfiledRecommendationCandidates(excludeIds);
+        log.info(">>>> [디버깅 1] 최종 필터링 후 조회된 후보 수: {}", allCandidates.size());
+
+        if (allCandidates.isEmpty()) {
+            return List.of();
+        }
+
         int meAge = safeAge(me.getBirthdate());
         Set<String> meLangs = csvToSet(me.getLanguage());
 
-        Page<User> page = userRepository.findPageNullMemberAndMember(
-                meId, PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "updatedAt"))
-        );
+        List<Scored<User>> scored = allCandidates.stream()
+                .map(candidate -> new Scored<>(candidate, score(me, candidate, meAge, meLangs)))
+                .collect(Collectors.toList());
 
-        log.info(">>>> [디버깅 1] DB에서 조회된 초기 후보 수: {}", page.getContent().size());
-
-        if (!page.hasContent()) {
-            return List.of();
-        }
-        List<User> filteredUsers = page.getContent().stream()
-                .filter(candidate -> !isBlocked(me, candidate))
-                .toList();
-
-        log.info(">>>> [디버깅 1.5] 차단 필터링 후 남은 후보 수: {}", filteredUsers.size());
-        log.info(">>>> 리미트 수 : {}",limit);
-
-        if (filteredUsers.isEmpty()) {
-            log.info(">>>> [디버깅 1.6] 차단 필터링 후 남은 후보가 없습니다.");
-            return List.of();
-        }
-
-        List<Scored<User>> scored = new ArrayList<>();
-        for (User cand : filteredUsers) {
-            double s = score(me, cand, meAge, meLangs);
-            scored.add(new Scored<>(cand, s));
-        }
-
-        log.info(">>>> [디버깅 2] 점수 계산 후 후보 수: {}", scored.size());
-
-        scored.sort((a, b) -> Double.compare(b.score, a.score));
-
-        if (scored.size() <= limit) {
-            log.info(">>>> [디버깅 3] 후보 수가 limit({}) 이하이므로 모두 반환합니다.", limit);
-            return scored.stream()
-                    .map(s -> toDto(s.getItem()))
-                    .toList();
-        }
-
-        log.info(">>>> [디버깅 4] 후보 수가 충분하여 확률적 재랭킹을 시작합니다.");
-        int poolK = Math.min(Math.max(limit * POOL_MULTIPLIER, MIN_POOL), scored.size());
-        int finalLimit = Math.min(limit, poolK);
-        List<User> chosen = pickGumbelTopK(scored.subList(0, poolK), finalLimit, TEMPERATURE);
+        log.info(">>>> [디버깅 2] 전체 {}명 후보 대상 확률적 랭킹 시작", scored.size());
+        List<User> chosen = pickGumbelTopK(scored, limit, TEMPERATURE);
 
         return chosen.stream().map(this::toDto).toList();
     }
@@ -119,18 +101,33 @@ public class ContentBasedRecommender {
         return draws.stream().limit(Math.max(1, limit)).map(d -> d.u).toList();
     }
 
+    /** [수정] 활동 점수를 포함하고, 'me'의 불완전 프로필을 처리하는 최종 점수 계산 메서드 */
     private double score(User me, User other, int meAge, Set<String> meLangs) {
-        double purposeScore = eq(me.getPurpose(), other.getPurpose()) ? 1.0 : 0.0;
-        double countryScore = eq(me.getCountry(), other.getCountry()) ? 1.0 : 0.0;
+        double purposeScore = (me.getPurpose() == null || me.getPurpose().isBlank())
+                ? 0.5 : (eq(me.getPurpose(), other.getPurpose()) ? 1.0 : 0.0);
+        double countryScore = (me.getCountry() == null || me.getCountry().isBlank())
+                ? 0.5 : (eq(me.getCountry(), other.getCountry()) ? 1.0 : 0.0);
+
         double ageScore = ageSim(meAge, safeAge(other.getBirthdate()), 9.0);
         double langScore = jaccard(meLangs, csvToSet(other.getLanguage()));
-
+        double activityScore = calculateActivityScore(other, ACTIVITY_SCORE_HALF_LIFE_DAYS);
         return W_PURPOSE * purposeScore
                 + W_COUNTRY * countryScore
                 + W_AGE * ageScore
-                + W_LANG * langScore;
+                + W_LANG * langScore
+                + W_ACTIVITY * activityScore;
     }
 
+    /** [추가] 사용자의 마지막 활동 시간(lastSeenAt)을 바탕으로 0.0 ~ 1.0 사이의 활동 점수를 계산 */
+    private double calculateActivityScore(User user, double halfLifeDays) {
+        if (user.getLastSeenAt() == null) {
+            return 0.0;
+        }
+        long hoursSinceUpdate = ChronoUnit.HOURS.between(user.getLastSeenAt(), Instant.now());
+        double daysSinceUpdate = hoursSinceUpdate / 24.0;
+        double decayRate = Math.log(2) / halfLifeDays;
+        return Math.exp(-decayRate * daysSinceUpdate);
+    }
     private double ageSim(int a, int b, double sigma) {
         if (a <= 0 || b <= 0) return 0.5;
         return Math.exp(-Math.abs(a - b) / sigma);
@@ -149,12 +146,14 @@ public class ContentBasedRecommender {
     }
 
     private double jaccard(Set<String> A, Set<String> B) {
-        if (A.isEmpty() && B.isEmpty()) return 0.0;
-        Set<String> inter = new HashSet<>(A);
-        inter.retainAll(B);
-        Set<String> uni = new HashSet<>(A);
-        uni.addAll(B);
-        return uni.isEmpty() ? 0.0 : (double) inter.size() / (double) uni.size();
+        if (!A.isEmpty() || !B.isEmpty()) {
+            Set<String> inter = new HashSet<>(A);
+            inter.retainAll(B);
+            Set<String> uni = new HashSet<>(A);
+            uni.addAll(B);
+            return uni.isEmpty() ? 0.0 : (double) inter.size() / (double) uni.size();
+        }
+        return 0.5;
     }
 
     private int safeAge(String birth) {
@@ -179,7 +178,6 @@ public class ContentBasedRecommender {
         String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
                 .map(image -> image.getUrl())
                 .orElse(null);
-        log.info("imageKey :{}",imageKey);
 
         return UserUpdateDTO.builder()
                 .userId(u.getId())
@@ -194,9 +192,5 @@ public class ContentBasedRecommender {
                 .hobby(csvToSet(u.getHobby()).stream().toList())
                 .imageKey(imageKey)
                 .build();
-    }
-    private boolean isBlocked(User me, User candidate) {
-        return blockRepository.existsBlock(me.getId(), candidate.getId()) ||
-                blockRepository.existsBlock(candidate.getId(), me.getId());
     }
 }

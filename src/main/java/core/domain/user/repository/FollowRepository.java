@@ -12,26 +12,17 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 
 @Repository
 public interface FollowRepository extends JpaRepository<Follow,Long> {
-    // 특정 사용자가 다른 사용자에게 보낸 팔로우 요청(PENDING 상태)이 있는지 확인
-    Optional<Follow> findByUserAndFollowingAndStatus(User user, User following, FollowStatus status);
-
-    // 팔로우 관계를 follower ID와 following ID로 찾습니다.
-    Optional<Follow> findByUserIdAndFollowingId(Long userId, Long followingId);
-
-    // 팔로우 관계를 follower ID와 following ID, 그리고 특정 상태(status)로 찾습니다.
-    Optional<Follow> findByUserIdAndFollowingIdAndStatus(Long userId, Long followingId, FollowStatus status);
     /**
      기존 메서드: 내가 팔로우하는 사람들을 조회 (보낸사람 조회)
      */
     @Query("SELECT f FROM Follow f JOIN FETCH f.following WHERE f.user = :user AND f.status = :status")
     List<Follow> findByUserAndStatus(@Param("user") User user, @Param("status") FollowStatus status);
 
-
-    // 2. 내가 보낸 팔로우 요청 중 PENDING, ACCEPTED 상태
     @Query("SELECT f FROM Follow f " +
             "WHERE f.user.id = :userId  " +
             "AND f.status IN (:statuses)")
@@ -51,7 +42,6 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
      **/
     Optional<Follow> findByUserAndFollowing(User user, User following);
 
-    // Correctly finds a Follow entity by the IDs of the 'user' and 'following' objects
     Optional<Follow> findByUser_IdAndFollowing_IdAndStatus(Long userId, Long followingId, FollowStatus status);
     /**
      * 특정 사용자와 관련된 모든 팔로우 관계를 삭제합니다.
@@ -68,9 +58,17 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
     List<Follow> findAllAcceptedFollowsByUserId(@Param("userId") Long userId,
                                                 @Param("status") FollowStatus status);
 
-    // 내가 보낸 PENDING 요청 수
     long countByUserIdAndStatus(Long userId, FollowStatus status);
 
-    // 내가 받은 PENDING 요청 수
     long countByFollowingIdAndStatus(Long followingId, FollowStatus status);
+    /**
+     * 특정 사용자가 팔로우 요청을 보냈거나(PENDING) 이미 친구 관계(ACCEPTED)인
+     * 모든 다른 사용자의 ID를 조회합니다.
+     * @param userId 팔로워의 ID (meId)
+     * @param statuses 추천에서 제외할 팔로우 상태 목록
+     * @return 추천에서 제외해야 할 사용자 ID Set
+     */
+    @Query("SELECT f.following.id FROM Follow f " +
+            "WHERE f.user.id = :userId AND f.status IN :statuses") // [수정] 문자열 대신 파라미터 사용
+    Set<Long> findFollowingIdsByUserId(@Param("userId") Long userId, @Param("statuses") List<FollowStatus> statuses);
 }

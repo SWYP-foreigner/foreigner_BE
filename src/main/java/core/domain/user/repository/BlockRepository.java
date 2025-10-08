@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface BlockRepository extends JpaRepository<BlockUser, Long> {
 
@@ -32,4 +33,16 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
     @Modifying
     @Query("delete from BlockUser b where b.user = :user or b.blocked = :user")
     void deleteAllByUserOrBlocked(@Param("user") User user);
+
+    /**
+     * 특정 사용자와 관련된 모든 차단 관계의 상대방 ID를 조회합니다.
+     * 1. 내가 다른 사람을 차단한 경우 (나는 'user', 상대방은 'blocked')
+     * 2. 다른 사람이 나를 차단한 경우 (나는 'blocked', 상대방은 'user')
+     * @param userId 기준 사용자의 ID (meId)
+     * @return 차단 관계에 있는 모든 상대방 사용자 ID Set
+     */
+    @Query("SELECT b.blocked.id FROM BlockUser b WHERE b.user.id = :userId " +
+            "UNION " +
+            "SELECT b.user.id FROM BlockUser b WHERE b.blocked.id = :userId")
+    Set<Long> findAllBlockedUserIds(@Param("userId") Long userId);
 }
