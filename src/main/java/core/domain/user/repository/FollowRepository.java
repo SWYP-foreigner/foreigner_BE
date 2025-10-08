@@ -62,6 +62,18 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
 
     long countByFollowingIdAndStatus(Long followingId, FollowStatus status);
     /**
+     * [기존 메서드 - 팔로우 수락/거절 등에 사용]
+     * 특정 두 사용자 사이의 특정 상태를 가진 Follow 엔티티를 조회합니다.
+     * @param user 팔로우를 신청한 사용자 (follower)
+     * @param following 팔로우 신청을 받은 사용자 (followee)
+     * @param status 조회할 팔로우 상태 (예: PENDING)
+     * @return Optional<Follow>
+     */
+    Optional<Follow> findByUserAndFollowingAndStatus(User user, User following, FollowStatus status);
+
+
+    /**
+     * [새로운 메서드 - 친구 추천 필터링에 사용]
      * 특정 사용자가 팔로우 요청을 보냈거나(PENDING) 이미 친구 관계(ACCEPTED)인
      * 모든 다른 사용자의 ID를 조회합니다.
      * @param userId 팔로워의 ID (meId)
@@ -69,6 +81,6 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
      * @return 추천에서 제외해야 할 사용자 ID Set
      */
     @Query("SELECT f.following.id FROM Follow f " +
-            "WHERE f.user.id = :userId AND f.status IN :statuses") // [수정] 문자열 대신 파라미터 사용
+            "WHERE f.user.id = :userId AND f.status IN :statuses")
     Set<Long> findFollowingIdsByUserId(@Param("userId") Long userId, @Param("statuses") List<FollowStatus> statuses);
 }
