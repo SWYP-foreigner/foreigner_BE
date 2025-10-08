@@ -19,7 +19,7 @@ public class ExecutorConfig {
         exec.initialize();
 
         // Micrometer 바인딩 (executor_* 표준 메트릭 세트)
-        ExecutorServiceMetrics.monitor(registry, exec.getThreadPoolExecutor(), "dispatch");
+//        ExecutorServiceMetrics.monitor(registry, exec.getThreadPoolExecutor(), "dispatch");
         return exec;
     }
 }
