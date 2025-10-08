@@ -91,6 +91,9 @@ public class User {
     @Column(name = "apple_refresh_token")
     private String appleRefreshToken;
 
+    @Column(name = "last_seen_at")
+    private Instant lastSeenAt;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
@@ -208,7 +211,9 @@ public class User {
         if (notBlank(socialId)) this.socialId = socialId;
         touchUpdatedAt();
     }
-
+    public void updateLastSeenAt() {
+        this.lastSeenAt = Instant.now();
+    }
     public void updateCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }

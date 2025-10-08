@@ -1,5 +1,6 @@
 package core.global.config;
 
+import core.domain.user.service.UserActivityService;
 import core.global.enums.ErrorCode;
 import core.global.service.RedisService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService;
-
+    private final UserActivityService userActivityService;
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
@@ -63,6 +64,8 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
                 if (sessionAttributes != null) {
                     sessionAttributes.put("userAuth", auth);
+                    String userEmail = auth.getName();
+                    userActivityService.updateLastSeenAt(userEmail);
                 }
 
                 // accessor.setUser(auth); // 기존 방식도 함께 사용 가능 (다른 곳에서 필요할 수 있음)
