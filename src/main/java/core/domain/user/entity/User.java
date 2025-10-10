@@ -94,6 +94,9 @@ public class User {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
+    @Column(name = "is_in_korea")
+    private boolean isInKorea;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
