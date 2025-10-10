@@ -1,19 +1,18 @@
 package core.global.controller;
 
 import core.domain.chat.dto.ChatUserProfileResponse;
-import core.domain.user.dto.UserAppleStatusResponse;
-import core.domain.user.dto.UserResponseDto;
-import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.dto.*;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.Ouathplatform;
 import core.global.metrics.FeatureUsageMetrics;
-import core.global.service.*;
-import io.jsonwebtoken.Claims;
+import core.global.service.AppleAuthService;
+import core.global.service.GoogleAuthService;
+import core.global.service.PasswordService;
+import core.global.service.RedisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -212,9 +211,9 @@ public class UserController {
 
     @PatchMapping("/profile/setup")
     @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성 ", description = "현재 사용자의 프로필 정보를 세팅합니다.")
-    public ResponseEntity<UserUpdateDTO> updateProfile(@RequestBody UserUpdateDTO dto) {
-        UserUpdateDTO response = userService.setupUserProfile(dto);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> updateProfile(@RequestBody UserSetupRequest dto) {
+        userService.setupUserProfile(dto);
+        return ResponseEntity.ok(null);
     }
 
     @DeleteMapping("/image")
@@ -229,8 +228,8 @@ public class UserController {
      */
     @GetMapping("/profile/setting")
     @Operation(summary = "프로필 조회", description = "현재 사용자의 프로필 정보를 조회합니다.")
-    public ResponseEntity<UserUpdateDTO> getProfile() {
-        UserUpdateDTO response = userService.getUserProfile();
+    public ResponseEntity<UserProfileResponse> getProfile() {
+        UserProfileResponse response = userService.getUserProfile();
         featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(response);
     }

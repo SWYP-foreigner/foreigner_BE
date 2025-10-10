@@ -13,7 +13,6 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
-import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
@@ -27,11 +26,9 @@ import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
-import core.global.service.AppleAuthService;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -187,97 +184,75 @@ public class UserService {
     }
 
     @Transactional
-    public UserUpdateDTO setupUserProfile(UserUpdateDTO dto) {
+    public void setupUserProfile(UserSetupRequest dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             log.warn("인증 정보 없음 - 이메일 프로필 업데이트 불가");
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
 
-
-        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("templates/email")
-                : auth.getName();
-        if (email == null || email.isBlank()) {
-            log.warn("인증에서 이메일 추출 실패");
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-        log.info("프로필 업데이트 요청: email={}", email);
+        String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.error("존재하지 않는 사용자: {}", email);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
-                });
-        log.info("{},{}", user.getProvider(),Ouathplatform.APPLE.toString());
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        log.info("{},{}", user.getProvider(), Ouathplatform.APPLE);
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
-            if (notBlank(dto.getFirstname())) {
-                log.info("FirstName 변경: {} → {}", user.getFirstName(), dto.getFirstname().trim());
-                user.updateFirstName(dto.getFirstname().trim());
+            if (notBlank(dto.firstname())) {
+                user.updateFirstName(dto.firstname().trim());
             }
-            if (notBlank(dto.getLastname())) {
-                log.info("LastName 변경: {} → {}", user.getLastName(), dto.getLastname().trim());
-                user.updateLastName(dto.getLastname().trim());
+            if (notBlank(dto.lastname())) {
+                user.updateLastName(dto.lastname().trim());
             }
         }
-        if (dto.getGender() != null) {
-            log.debug("성별 변경: {} → {}", user.getSex(), dto.getGender());
-            user.updateSex(dto.getGender());
+        if (dto.gender() != null) {
+            user.updateSex(dto.gender());
         }
-        if (dto.getBirthday() != null) {
-            log.debug("생일 변경: {} → {}", user.getBirthdate(), dto.getBirthday());
-            user.updateBirthdate(dto.getBirthday());
+        if (dto.birthday() != null) {
+            user.updateBirthdate(dto.birthday());
         }
 
-        if (notBlank(dto.getCountry())) {
-            log.debug("국가 변경: {} → {}", user.getCountry(), dto.getCountry().trim());
-            user.updateCountry(dto.getCountry().trim());
+        if (notBlank(dto.country())) {
+            user.updateCountry(dto.country().trim());
         }
 
-        if (notBlank(dto.getIntroduction())) {
-            String intro = dto.getIntroduction().trim();
-            log.debug("소개 변경: {} → {}", user.getIntroduction(), intro);
-            user.updateIntroduction(intro.length() > 40 ? intro.substring(0, 40) : intro);
+        if (notBlank(dto.introduction())) {
+            String v = dto.introduction().trim();
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
         }
-        if (notBlank(dto.getPurpose())) {
-            String purpose = dto.getPurpose().trim();
-            log.debug("목적 변경: {} → {}", user.getPurpose(), purpose);
-            user.updatePurpose(purpose.length() > 40 ? purpose.substring(0, 40) : purpose);
+        if (notBlank(dto.purpose())) {
+            user.updatePurpose(dto.purpose());
         }
 
-        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
-            // 전체 언어 CSV
-            String userLanguagesCsv = dto.getLanguage().stream()
+
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> normalizedLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
                     .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
-                    .collect(Collectors.joining(","));
+                    .toList();
+
+            // 전체 CSV
+            String userLanguagesCsv = String.join(",", normalizedLanguages);
 
             log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
             if (!userLanguagesCsv.isEmpty()) {
                 user.updateLanguage(userLanguagesCsv);
             }
 
-            /**
-             첫 번째 요소만 translatedLanguage로 사용
-              */
-            String firstTranslatedLanguage = dto.getLanguage().stream()
-                    .filter(Objects::nonNull)
-                    .findFirst() // 첫 번째 요소 가져오기
+            // 첫 번째 요소에서 괄호 안 코드 추출
+            String firstTranslatedLanguage = normalizedLanguages.stream()
+                    .findFirst()
                     .map(s -> {
                         Matcher matcher = pattern.matcher(s);
                         if (matcher.find()) {
-                            return matcher.group(1).trim(); // 괄호 안 내용 추출
+                            return matcher.group(1).trim();
                         }
                         return "";
                     })
                     .orElse("");
-            /**
-             첫 요소 없으면 빈 문자열
-              */
 
             log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
             if (!firstTranslatedLanguage.isEmpty()) {
@@ -285,9 +260,8 @@ public class UserService {
             }
         }
 
-
-        if (dto.getHobby() != null) {
-            String csv = dto.getHobby().stream()
+        if (dto.hobby() != null) {
+            String csv = dto.hobby().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
@@ -297,40 +271,16 @@ public class UserService {
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
-        log.info("UpdatedAt 설정 완료: {}", user.getUpdatedAt());
-
-        String finalImageKey = null;
-        if (notBlank(dto.getImageKey())) {
-            log.info("프로필 이미지 업데이트 요청: {}", dto.getImageKey().trim());
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
+        String finalImageKey = imageService.getUserProfileKey(user.getId());;
+        if (notBlank(dto.imageKey())) {
+            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         user.updateIsNewUser(false);
 
-        userRepository.save(user);
-        log.info("사용자 정보 저장 완료: id={}, email={}", user.getId(), user.getEmail());
-
-        if (finalImageKey == null) {
-            finalImageKey = imageService.getUserProfileKey(user.getId());
-            log.debug("기존 프로필 이미지 가져옴: {}", finalImageKey);
-        }
-
-        UserUpdateDTO result = UserUpdateDTO.builder()
-                .firstname(user.getFirstName())
-                .lastname(user.getLastName())
-                .gender(user.getSex())
-                .birthday(user.getBirthdate())
-                .country(user.getCountry())
-                .introduction(user.getIntroduction())
-                .purpose(user.getPurpose())
-                .language(stringToList(user.getLanguage()))
-                .hobby(stringToList(user.getHobby()))
-                .imageKey(finalImageKey)
-                .email(user.getEmail())
-                .build();
+        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()),stringToList(user.getHobby()), finalImageKey);
 
         log.info("프로필 업데이트 성공 반환: {}", result);
-        return result;
     }
 
     private boolean notBlank(String s) {
@@ -338,7 +288,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserUpdateDTO getUserProfile() {
+    public UserProfileResponse getUserProfile() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -355,19 +305,7 @@ public class UserService {
 
         String profileKey = imageService.getUserProfileKey(user.getId());
 
-        return UserUpdateDTO.builder()
-                .firstname(user.getFirstName())
-                .lastname(user.getLastName())
-                .gender(user.getSex())
-                .birthday(user.getBirthdate())
-                .country(user.getCountry())
-                .introduction(user.getIntroduction())
-                .purpose(user.getPurpose())
-                .language(stringToList(user.getTranslateLanguage()))
-                .hobby(stringToList(user.getHobby()))
-                .imageKey(profileKey)
-                .email(user.getEmail())
-                .build();
+        return new UserProfileResponse(user,stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     @Transactional
@@ -575,76 +513,64 @@ public class UserService {
     }
 
     @Transactional
-    public UserUpdateDTO updateUserProfile(UserUpdateDTO dto) {
+    public UserProfileEditDto updateUserProfile(UserProfileEditDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
-        String email = (auth instanceof JwtAuthenticationToken jwtAuth)
-                ? jwtAuth.getToken().getClaim("templates/email")
-                : auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
+
+        String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (notBlank(dto.getFirstname())) user.updateFirstName(dto.getFirstname().trim());
-        if (notBlank(dto.getLastname())) user.updateLastName(dto.getLastname().trim());
-        if (dto.getGender() != null) user.updateSex(dto.getGender());
-        if (dto.getBirthday() != null) user.updateBirthdate(dto.getBirthday());
-        if (notBlank(dto.getCountry())) user.updateCountry(dto.getCountry().trim());
+        if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
+        if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
+        if (dto.birthday() != null) user.updateBirthdate(dto.birthday());
+        if (notBlank(dto.country())) user.updateCountry(dto.country().trim());
 
-        if (notBlank(dto.getIntroduction())) {
-            String v = dto.getIntroduction().trim();
-            user.updateIntroduction(v.length() > 40 ? v.substring(0, 40) : v); // 컬럼 길이 보호
+        if (notBlank(dto.introduction())) {
+            String v = dto.introduction().trim();
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
         }
-        if (notBlank(dto.getPurpose())) {
-            String v = dto.getPurpose().trim();
-            user.updatePurpose(v.length() > 40 ? v.substring(0, 40) : v);
+        if (notBlank(dto.purpose())) {
+            user.updatePurpose(dto.purpose());
         }
 
-        if (dto.getLanguage() != null && !dto.getLanguage().isEmpty()) {
-            // 전체 언어 CSV
-            String userLanguagesCsv = dto.getLanguage().stream()
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> languages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
                     .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
-                    .collect(Collectors.joining(","));
+                    .toList();
 
-            log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
-            if (!userLanguagesCsv.isEmpty()) {
+            if (!languages.isEmpty()) {
+                // CSV 형태로 저장
+                String userLanguagesCsv = String.join(",", languages);
+                log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
                 user.updateLanguage(userLanguagesCsv);
-            }
 
-            /**
-             첫 번째 요소만 translatedLanguage로 사용
-             */
-            String firstTranslatedLanguage = dto.getLanguage().stream()
-                    .filter(Objects::nonNull)
-                    .findFirst() // 첫 번째 요소 가져오기
-                    .map(s -> {
-                        Matcher matcher = pattern.matcher(s);
-                        if (matcher.find()) {
-                            return matcher.group(1).trim(); // 괄호 안 내용 추출
-                        }
-                        return "";
-                    })
-                    .orElse("");
-            /**
-             첫 요소 없으면 빈 문자열
-             */
+                // 첫 번째 요소에서 번역 코드 추출
+                String firstTranslatedLanguage = languages.stream()
+                        .map(s -> {
+                            Matcher matcher = pattern.matcher(s);
+                            return matcher.find() ? matcher.group(1).trim() : "";
+                        })
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse("");
 
-            log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
-            if (!firstTranslatedLanguage.isEmpty()) {
-                user.updateTranslateLanguage(firstTranslatedLanguage);
+                log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
             }
         }
-        if (dto.getHobby() != null) {
-            String csv = dto.getHobby().stream()
+
+        if (dto.hobby() != null) {
+            String csv = dto.hobby().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
@@ -652,37 +578,86 @@ public class UserService {
                     .collect(Collectors.joining(","));
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
-        if (dto.getEmail() != null) {
-            String v = dto.getEmail().trim();
-            user.updateEmail(v);
-        }
-        user.updateUpdatedAt(Instant.now());
 
-        String finalImageKey = null;
-        if (notBlank(dto.getImageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.getImageKey().trim());
+        String finalImageKey = imageService.getUserProfileKey(user.getId());
+        if (notBlank(dto.imageKey())) {
+            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        userRepository.save(user);
-
-        if (finalImageKey == null) {
-            finalImageKey = imageService.getUserProfileKey(user.getId());
-        }
-
-        return UserUpdateDTO.builder()
-                .firstname(user.getFirstName())
-                .lastname(user.getLastName())
-                .gender(user.getSex())
-                .birthday(user.getBirthdate())
-                .country(user.getCountry())
-                .introduction(user.getIntroduction())
-                .purpose(user.getPurpose())
-                .language(stringToList(user.getLanguage()))
-                .hobby(stringToList(user.getHobby()))
-                .imageKey(finalImageKey)
-                .email(email)
-                .build();
+        return new UserProfileEditDto(user,stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
     }
+
+
+    @Transactional
+    public void updateUserSetup(UserUpdateDto dto) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        String email = auth.getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (dto.birthday() != null) user.updateBirthdate(dto.birthday());
+        if (notBlank(dto.country())) user.updateCountry(dto.country().trim());
+
+        if (notBlank(dto.introduction())) {
+            String v = dto.introduction().trim();
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+        }
+        if (notBlank(dto.purpose())) {
+            user.updatePurpose(dto.purpose());
+        }
+
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> languages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .map(String::toLowerCase)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+
+            if (!languages.isEmpty()) {
+                // CSV 형태로 저장
+                String userLanguagesCsv = String.join(",", languages);
+                log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
+                user.updateLanguage(userLanguagesCsv);
+
+                // 첫 번째 요소에서 번역 코드 추출
+                String firstTranslatedLanguage = languages.stream()
+                        .map(s -> {
+                            Matcher matcher = pattern.matcher(s);
+                            return matcher.find() ? matcher.group(1).trim() : "";
+                        })
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse("");
+
+                log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+            }
+        }
+
+        if (dto.hobby() != null) {
+            String csv = dto.hobby().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!csv.isEmpty()) user.updateHobby(csv);
+        }
+
+        if (notBlank(dto.imageKey())) {
+            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+        }
+    }
+
 
 
     /**
