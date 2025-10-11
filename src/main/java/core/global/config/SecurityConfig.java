@@ -1,5 +1,9 @@
 package core.global.config;
 
+import core.global.constants.AdminOnlyPaths;
+import core.global.constants.UserOnlyPaths;
+import core.global.constants.VisitorOnlyPaths;
+import core.global.handler.VisitorUserGuardAccessDeniedHandler;
 import core.global.metrics.ActiveUserRecordFilter;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
@@ -42,40 +46,31 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // (1) 관리자
+                        .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
+
+                        // (2) 유저 전용
+                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER", "ADMIN")
+
+                        // (3) 비지터 전용
+                        .requestMatchers(VisitorOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("VISITOR")
+
                         .requestMatchers(
-                                "/api/v1/member/refresh",
+                                "/api/v1/member/**",
                                 "/api/v1/images/presign",
-                                "/api/v1/member/google/app-login",
-                                "/api/v1/member/apple/app-login",
-                                "/api/v1/member/apple/**",
-                                "/api/v1/member/profile/**",
-                                "/api/v1/mypage/profile/**",
-                                "/api/v1/board/*",
-                                "/api/v1/users/**",
-                                "/error",
-                                "/api/v1/mypage/profile/find",
-                                "/api/v1/mypage/**",
-                                "/error/**",
-                                "/api/v1/member/doLogin",
-                                "/api/v1/member/verify-code",
-                                "/api/v1/member/signup",
-                                "/api/v1/member/send-verification-email",
-                                "/api/v1/member/password/**",
-                                "/api/v1/member/email/check",
+
                                 "/actuator/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-resources/**",
-                                "/swagger-ui.html",
+                                "/error",
+                                "/error/**",
                                 "/ws/**",
                                 "/ws"
-
-                        ).permitAll()
+                        )
+                        .permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(new VisitorUserGuardAccessDeniedHandler(UserOnlyPaths.PATTERNS))
                 );
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);

@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -132,12 +134,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
+            String role = jwtTokenProvider.getRoleFromToken(token);      // "USER" / "VISITOR" / "ADMIN"
 
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // ROLE_USER 등
 
-            CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
-
+            CustomUserDetails principal = new CustomUserDetails(userId, email, authorities);
             Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(auth);
+
             log.debug("SecurityContext에 인증 정보 저장 완료. userId={}, email={}", userId, email);
 
             chain.doFilter(request, response);

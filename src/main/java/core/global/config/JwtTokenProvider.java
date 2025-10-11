@@ -13,10 +13,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.PublicKey;
-import java.util.Base64;
-import java.util.Date;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Component
 public class JwtTokenProvider {
@@ -59,9 +56,10 @@ public class JwtTokenProvider {
      * 액세스 토큰을 생성합니다.
      * userId와 email을 Claims에 포함시킵니다.
      */
-    public String createAccessToken(Long userId, String email) {
+    public String createAccessToken(Long userId, String role, String email) {
         Claims claims = Jwts.claims().setSubject(email);
         claims.put("id", userId);
+        claims.put("role", role);
         claims.setId(UUID.randomUUID().toString());
         Date now = new Date();
         Date expiration = new Date(now.getTime() + accessTokenExpiration);
@@ -100,6 +98,19 @@ public class JwtTokenProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    private Claims getAllClaimsFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public String getRoleFromToken(String token) {
+        Object v = getAllClaimsFromToken(token).get("role");
+        return v != null ? String.valueOf(v) : "VISITOR"; // 기본값 안전장치
     }
 
     public Map<String, String> parseHeaders(String token) throws JsonProcessingException {
