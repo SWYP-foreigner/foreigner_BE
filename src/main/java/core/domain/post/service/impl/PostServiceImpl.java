@@ -170,6 +170,13 @@ public class PostServiceImpl implements PostService {
     public PostDetailResponse getPostDetail(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
@@ -250,6 +257,9 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
         final Post post = new Post(request, user, board);
 
         return postRepository.save(post);
@@ -259,6 +269,9 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
         final Post post = new Post(request, user, board);
 
         return postRepository.save(post);
@@ -268,6 +281,13 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void updatePost(Long postId, @Valid PostUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -287,6 +307,13 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void deletePost(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -312,13 +339,17 @@ public class PostServiceImpl implements PostService {
     public void addLike(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
             throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
         }
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         likeRepository.save(Like.builder()
                 .user(user)
@@ -332,6 +363,13 @@ public class PostServiceImpl implements PostService {
     public void removeLike(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+
         likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
 
@@ -339,6 +377,13 @@ public class PostServiceImpl implements PostService {
     @Transactional(readOnly = true)
     public CursorPageResponse<UserPostItem> getMyPostList(String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
@@ -386,6 +431,13 @@ public class PostServiceImpl implements PostService {
     public void blockUser(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+
         User blockedUser = postRepository.findUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -412,6 +464,13 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void blockPost(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));

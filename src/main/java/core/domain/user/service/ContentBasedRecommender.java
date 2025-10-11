@@ -1,9 +1,9 @@
 package core.domain.user.service;
 
-import core.domain.user.repository.FollowRepository;
-import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
+import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
@@ -47,9 +47,13 @@ public class ContentBasedRecommender {
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
 
     @Transactional(readOnly = true)
-    public List<UserUpdateDTO> recommendForUser(Long meId, int limit) {
+    public List<UserProfileResponse> recommendForUser(Long meId, int limit) {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(me.getBirthdate()==null||me.getPurpose()==null||me.getIntroduction()==null||me.getLanguage()==null||me.getHobby()==null||me.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
         Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);
@@ -174,23 +178,11 @@ public class ContentBasedRecommender {
     private static class Scored<T> { private T item; private double score; }
 
 
-    private UserUpdateDTO toDto(User u) {
+    private UserProfileResponse toDto(User u) {
         String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
                 .map(image -> image.getUrl())
                 .orElse(null);
 
-        return UserUpdateDTO.builder()
-                .userId(u.getId())
-                .firstname(u.getFirstName())
-                .lastname(u.getLastName())
-                .gender(u.getSex())
-                .birthday(u.getBirthdate())
-                .country(u.getCountry())
-                .introduction(u.getIntroduction())
-                .purpose(u.getPurpose())
-                .language(csvToSet(u.getLanguage()).stream().toList())
-                .hobby(csvToSet(u.getHobby()).stream().toList())
-                .imageKey(imageKey)
-                .build();
+        return new UserProfileResponse(u,  csvToSet(u.getLanguage()).stream().toList(), csvToSet(u.getHobby()).stream().toList(),imageKey);
     }
 }

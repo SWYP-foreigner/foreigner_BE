@@ -112,14 +112,14 @@ public class FollowService {
     /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
     @Transactional
     public void follow(Authentication auth, Long targetUserId) {
-        log.info("[FOLLOW] 요청 시작: 사용자={}, 대상={}", auth.getName(), targetUserId);
-
         String email = auth.getName();
+
         User follower = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("[FOLLOW] 팔로워 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
-                });
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if(follower.getBirthdate()==null||follower.getPurpose()==null||follower.getIntroduction()==null||follower.getLanguage()==null||follower.getHobby()==null||follower.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
 
         User targetUser = userRepository.findById(targetUserId)

@@ -77,7 +77,6 @@ public class RecentSearchRedisService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        Long userId = user.getId();
-        return userId;
+        return user.getId();
     }
 }
