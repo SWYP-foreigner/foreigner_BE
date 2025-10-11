@@ -1,5 +1,1 @@
-ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS is_in_korea boolean NOT NULL DEFAULT false;
-
-ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN last_seen_at TIMESTAMP;
