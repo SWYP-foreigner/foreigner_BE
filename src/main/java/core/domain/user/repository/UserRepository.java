@@ -28,4 +28,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "AND u.birthdate IS NOT NULL AND u.birthdate <> '' " +
             "AND u.language IS NOT NULL AND u.language <> ''")
     List<User> findFullProfiledRecommendationCandidates(@Param("excludeIds") Collection<Long> excludeIds);
+
+    @Query(value = """
+      SELECT
+        SUM(CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= NOW() - INTERVAL '24 hour' THEN 1 ELSE 0 END) AS h_0_24,
+        SUM(CASE WHEN last_seen_at <  NOW() - INTERVAL '24 hour'
+                  AND last_seen_at >= NOW() - INTERVAL '72 hour' THEN 1 ELSE 0 END) AS h_24_72,
+        SUM(CASE WHEN last_seen_at <  NOW() - INTERVAL '72 hour'
+                  AND last_seen_at >= NOW() - INTERVAL '168 hour' THEN 1 ELSE 0 END) AS h_72_168,
+        SUM(CASE WHEN last_seen_at <  NOW() - INTERVAL '168 hour'
+                  AND last_seen_at >= NOW() - INTERVAL '336 hour' THEN 1 ELSE 0 END) AS h_168_336,
+        SUM(CASE WHEN last_seen_at <  NOW() - INTERVAL '336 hour'
+                  AND last_seen_at >= NOW() - INTERVAL '720 hour' THEN 1 ELSE 0 END) AS h_336_720,
+        SUM(CASE WHEN last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '720 hour' THEN 1 ELSE 0 END) AS h_720_inf
+      FROM users
+      """, nativeQuery = true)
+    Object[] countInactiveBuckets();
 }
