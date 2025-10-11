@@ -153,7 +153,7 @@ public class AppleAuthService {
         boolean isNewUserResponse = user.isNewUser();
         log.info("{},{}",user.isNewUser(),user.getProvider());
         log.info("3. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(),user.getUserRole().toString(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         log.debug("Access Token generated for user ID {}: {}", user.getId(), accessToken);

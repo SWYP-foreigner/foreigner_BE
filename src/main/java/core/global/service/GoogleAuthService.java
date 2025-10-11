@@ -41,7 +41,7 @@ public class GoogleAuthService {
         User user = findOrCreateUser(profile);
 
         log.info("4. 인증된 사용자를 위한 새로운 JWT 토큰을 생성하는 중...");
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(),user.getUserRole().toString(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);

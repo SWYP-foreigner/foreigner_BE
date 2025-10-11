@@ -22,7 +22,9 @@ import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
@@ -40,7 +42,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.regex.Pattern;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -48,9 +50,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.regex.Matcher;
-import core.global.image.entity.Image;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -68,8 +70,6 @@ public class UserService {
     private static final Pattern PW_RULE = Pattern.compile(
             "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
     );
-    Pattern pattern = Pattern.compile("\\[(.*?)\\]");
-
     private final BlockPostRepository blockPostRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
@@ -91,7 +91,7 @@ public class UserService {
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher publisher;
-
+    Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
@@ -123,11 +123,12 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
+
     @Transactional
     public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken
-    , AppleLoginByCodeRequest.FullNameDto name) {
+            , AppleLoginByCodeRequest.FullNameDto name) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-        log.info("firstname={}, lastname={}",name.familyName(),name.givenName());
+        log.info("firstname={}, lastname={}", name.familyName(), name.givenName());
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
@@ -142,9 +143,11 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
+
     /**
      * 사용자 정보(이름)를 업데이트합니다.
-     * @param user 업데이트할 User 엔티티
+     *
+     * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
     @Transactional
@@ -271,14 +274,15 @@ public class UserService {
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
-        String finalImageKey = imageService.getUserProfileKey(user.getId());;
+        String finalImageKey = imageService.getUserProfileKey(user.getId());
+        ;
         if (notBlank(dto.imageKey())) {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         user.updateIsNewUser(false);
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()),stringToList(user.getHobby()), finalImageKey);
+        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
 
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
@@ -305,7 +309,7 @@ public class UserService {
 
         String profileKey = imageService.getUserProfileKey(user.getId());
 
-        return new UserProfileResponse(user,stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
+        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     @Transactional
@@ -359,6 +363,7 @@ public class UserService {
         Instant now = Instant.now();
         u.updateCreatedAt(now);
         u.updateUpdatedAt(now);
+        u.changeUserRole(Role.VISITOR);
 
         userRepository.save(u);
 
@@ -419,7 +424,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
-        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
         Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
@@ -584,12 +589,56 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        return new UserProfileEditDto(user,stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        return new UserProfileEditDto(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
     }
 
+    @Transactional
+    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
+        // 1) 기존 로직 수행 (필드 업데이트)
+        updateSkipUserSetup(dto);
+
+        // 2) 현재 사용자 로드
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
+        // 3) VISITOR -> USER 승급
+        if (user.getUserRole() == Role.VISITOR) {
+            user.changeUserRole(Role.USER);
+        }
+        // (필요 시: userRepository.save(user); // JPA 영속 상태면 생략 가능)
+
+        // 4) 새 accessToken 발급 (role=USER)
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getId(),
+                user.getUserRole().name(),
+                user.getEmail()
+        );
+
+        // 5) 리프레시 토큰
+        String refreshToken = redisService.getRefreshToken(user.getId());
+        if (refreshToken == null) {
+            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+        }
+
+        return new LoginResponseDto(
+                user.getId(),
+                accessToken,
+                refreshToken,
+                user.isNewUser()
+        );
+    }
 
     @Transactional
-    public void updateUserSetup(UserUpdateDto dto) {
+    public void updateSkipUserSetup(UserUpdateDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -656,8 +705,9 @@ public class UserService {
         if (notBlank(dto.imageKey())) {
             imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
-    }
 
+
+    }
 
 
     /**
@@ -794,6 +844,7 @@ public class UserService {
         userRepository.delete(user);
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
+
     /**
      * 단일 사용자 정보 조회 로직
      */
@@ -828,6 +879,7 @@ public class UserService {
                 })
                 .collect(Collectors.toList());
     }
+
     @Transactional(readOnly = true)
     public ChatUserProfileResponse getUserChatProfile(Long userId) {
         User user = userRepository.findById(userId)

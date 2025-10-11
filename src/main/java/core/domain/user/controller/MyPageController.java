@@ -5,6 +5,8 @@ import core.domain.user.dto.UserProfileEditDto;
 import core.domain.user.dto.UserUpdateDto;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.dto.ApiResponse;
+import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
 import core.global.metrics.FeatureUsageMetrics;
@@ -131,11 +133,10 @@ public class MyPageController {
             summary = "프로필 셋업 마무리",
             description = "Skip된 정보를 수정 완료합니다."
     )
-    public ResponseEntity<Void> editProfile(
+    public ResponseEntity<ApiResponse<LoginResponseDto>> skipSetUpProfile(
             @RequestBody UserUpdateDto dto
     ) {
-        userService.updateUserSetup(dto);
-        return ResponseEntity.ok(null);
+        return ResponseEntity.ok(ApiResponse.success(userService.finalizeSkipSetupAndReissueToken(dto)));
     }
 
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
