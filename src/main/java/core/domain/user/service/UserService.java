@@ -274,17 +274,15 @@ public class UserService {
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
-        String finalImageKey = imageService.getUserProfileKey(user.getId());
-        ;
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         user.updateIsNewUser(false);
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
-
-        log.info("프로필 업데이트 성공 반환: {}", result);
+        if (user.getUserRole() == Role.VISITOR) {
+            user.changeUserRole(Role.USER);
+        }
     }
 
     private boolean notBlank(String s) {
