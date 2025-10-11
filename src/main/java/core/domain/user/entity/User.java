@@ -2,6 +2,7 @@ package core.domain.user.entity;
 
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.notification.entity.Notification;
+import core.global.enums.Role;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -96,6 +97,10 @@ public class User {
 
     @Column(name = "is_in_korea")
     private boolean isInKorea;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_role", nullable = false, length = 20)
+    private Role userRole = Role.VISITOR;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
@@ -234,5 +239,9 @@ public class User {
         this.updatedAt = Instant.now();
     }
 
+
+    public void changeUserRole(Role role) {
+        this.userRole = role;
+    }
 
 }
