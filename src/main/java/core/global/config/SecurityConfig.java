@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -49,14 +50,17 @@ public class SecurityConfig {
                         // (1) 관리자
                         .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
 
-                        // (2) 유저 전용
-                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER", "ADMIN")
-
-                        // (3) 비지터 전용
-                        .requestMatchers(VisitorOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("VISITOR")
-
+                        // 로그인 안해도 허용
                         .requestMatchers(
-                                "/api/v1/member/**",
+                                "/api/v1/member/google/app-login",
+                                "/api/v1/member/apple/app-login",
+                                "/api/v1/member/doLogin",
+                                "/api/v1/member/signup",
+                                "/api/v1/member/verify-code",
+                                "/api/v1/member/send-verification-email",
+                                "/api/v1/member/password/**",
+                                "/api/v1/member/email/check",
+                                "/api/v1/member/refresh",
                                 "/api/v1/images/presign",
 
                                 "/actuator/**",
@@ -66,6 +70,24 @@ public class SecurityConfig {
                                 "/ws"
                         )
                         .permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/boards/*/posts")
+                        .hasAnyRole("VISITOR","USER","ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/boards/*/posts")
+                        .hasAnyRole("USER","ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/boards/*/posts/**")
+                        .hasAnyRole("USER","ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/boards/*/posts/**")
+                        .hasAnyRole("USER","ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/boards/*/posts/**")
+                        .hasAnyRole("USER","ADMIN")
+
+                        // (2) 비지터 전용
+                        .requestMatchers(VisitorOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("VISITOR")
+
+                        // (3) 유저 전용
+                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER", "ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling

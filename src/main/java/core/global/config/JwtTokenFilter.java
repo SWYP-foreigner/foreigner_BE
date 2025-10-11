@@ -42,24 +42,18 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     private static final List<String> EXCLUDE_URLS = List.of(
             "/api/v1/member/google/app-login",
-            "/api/v1/member/google/**",
             "/api/v1/member/apple/app-login",
-            "/auth/**",
-            "/api/v1/member/signup",
             "/api/v1/member/doLogin",
-            "/api/v1/member/verify-code",
             "/api/v1/member/signup",
+            "/api/v1/member/verify-code",
             "/api/v1/member/send-verification-email",
-            "/api/v1/member/refresh",
             "/api/v1/member/password/**",
             "/api/v1/member/email/check",
+            "/api/v1/member/refresh",
+            "/api/v1/images/presign",
             "/actuator/**",
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/swagger-resources/**",
-            "/swagger-ui.html",
-            "/ws/**"
+            "/error", "/error/**",
+            "/ws/**", "/ws"
     );
 
     @Override

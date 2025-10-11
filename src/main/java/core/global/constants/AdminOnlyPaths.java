@@ -10,6 +10,8 @@ public final class AdminOnlyPaths {
             "/swagger-resources/**",
             "/swagger-ui.html",
             "/swagger-ui/**",
-            "/v3/api-docs/**"
+            "/v3/api-docs/**",
+            "/api/v1/images/object",
+            "/api/v1/images/delete-folder"
     );
 }

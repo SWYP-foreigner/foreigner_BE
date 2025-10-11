@@ -9,7 +9,6 @@ public final class VisitorOnlyPaths {
             "/api/v1/mypage/profile/skip-setup",
 
             "/api/v1/commend/content-based",
-            "/api/v1/boards/*/posts",
             "/api/v1/search/**",
 
             "/api/v1/chat/group/**",
