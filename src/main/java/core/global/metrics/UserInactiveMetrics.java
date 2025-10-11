@@ -96,15 +96,16 @@ public class UserInactiveMetrics {
             // 3) MultiGauge 등록/치환
             inactiveGauge.register(
                     java.util.List.of(
-                            MultiGauge.Row.of(Tags.of("le", "24"),   nums[0]),
-                            MultiGauge.Row.of(Tags.of("le", "72"),   nums[1]),
-                            MultiGauge.Row.of(Tags.of("le", "168"),  nums[2]),
-                            MultiGauge.Row.of(Tags.of("le", "336"),  nums[3]),
-                            MultiGauge.Row.of(Tags.of("le", "720"),  nums[4]),
-                            MultiGauge.Row.of(Tags.of("le", "+Inf"), nums[5])
+                            MultiGauge.Row.of(Tags.of("le", "24",   "order", "024"), nums[0]),
+                            MultiGauge.Row.of(Tags.of("le", "72",   "order", "072"), nums[1]),
+                            MultiGauge.Row.of(Tags.of("le", "168",  "order", "168"), nums[2]),
+                            MultiGauge.Row.of(Tags.of("le", "336",  "order", "336"), nums[3]),
+                            MultiGauge.Row.of(Tags.of("le", "720",  "order", "720"), nums[4]),
+                            MultiGauge.Row.of(Tags.of("le", "+Inf", "order", "999"), nums[5])
                     ),
                     true
             );
+
 
             log.debug("user_inactivity_hours updated: {}", java.util.Arrays.toString(nums));
         } catch (Exception e) {
