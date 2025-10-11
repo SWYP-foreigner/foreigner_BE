@@ -4,6 +4,7 @@ import core.domain.user.repository.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
 import io.micrometer.core.instrument.Tags;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,11 @@ public class UserInactiveMetrics {
         this.inactiveGauge = MultiGauge.builder("user_inactivity_hours")
                 .description("Number of users by inactivity buckets (hours since lastSeenAt)")
                 .register(registry);
+    }
+
+    @PostConstruct
+    public void init() {
+        collect();                 // ← 시작 시 1회 등록
     }
 
     @Scheduled(fixedDelayString = "PT2M") // 2분마다
