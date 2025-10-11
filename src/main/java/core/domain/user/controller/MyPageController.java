@@ -1,13 +1,14 @@
 package core.domain.user.controller;
 
-import core.global.metrics.FeatureUsageMetrics;
-import core.global.service.TranslationService;
 import core.domain.user.dto.FollowDTO;
-import core.domain.user.dto.UserUpdateDTO;
+import core.domain.user.dto.UserProfileEditDto;
+import core.domain.user.dto.UserUpdateDto;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
+import core.global.metrics.FeatureUsageMetrics;
+import core.global.service.TranslationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -125,33 +126,29 @@ public class MyPageController {
         return ResponseEntity.ok().build();
     }
 
+    @PatchMapping(value = "/profile/skip-setup", consumes = "application/json", produces = "application/json")
+    @Operation(
+            summary = "프로필 셋업 마무리",
+            description = "Skip된 정보를 수정 완료합니다."
+    )
+    public ResponseEntity<Void> editProfile(
+            @RequestBody UserUpdateDto dto
+    ) {
+        userService.updateUserSetup(dto);
+        return ResponseEntity.ok(null);
+    }
+
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(
             summary = "마이 프로필 수정(인증된 사용자)",
             description = "SecurityContext 의 인증 객체에서 사용자 정보를 가져와 프로필을 부분 수정합니다."
     )
-    public ResponseEntity<UserUpdateDTO> editProfile(
-            @RequestBody UserUpdateDTO dto
+    public ResponseEntity<UserProfileEditDto> editProfile(
+            @RequestBody UserProfileEditDto dto
     ) {
-        UserUpdateDTO response = userService.updateUserProfile(dto);
         featureUsageMetrics.recordFollowUsage();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.updateUserProfile(dto));
     }
-
-//    @GetMapping("/profile/find")
-//    @Operation(
-//            summary = "친구리스트에서 이름(FirstName과 LastName)을 통한 검색",
-//            description = "단순 이름을 통해 사용자를 검색하여 리스트를 나열. (현재 로그인 사용자 제외)"
-//    )
-//    public ResponseEntity<List<UserSearchDTO>> findProfile(
-//            @RequestParam(required = false) String firstName,
-//            @RequestParam(required = false) String lastName
-//    ) {
-//        // 서비스 메서드에 currentUserDetails 객체를 전달
-//        List<UserSearchDTO> response = userService.findUserByNameExcludingSelf(firstName, lastName);
-//        return ResponseEntity.ok(response);
-//    }
 
     @PutMapping("/user/language")
     @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
