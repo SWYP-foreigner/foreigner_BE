@@ -44,20 +44,12 @@ public class ChatAiService {
 
     @Transactional
     public ChatAiRoomResponse createAiChatRoom(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         Optional<ChatRoom> existingRoomOptional = chatRoomRepository.findOneToOneChatRoomByParticipants(userId, AI_USER_ID);
         if (existingRoomOptional.isPresent()) {
             ChatRoom existingRoom = existingRoomOptional.get();
             return ChatAiRoomResponse.of(existingRoom, false);
         } else {
-//            User user = findUserById(userId);
+            User user = findUserById(userId);
             User aiUser = findUserById(AI_USER_ID);
 
             ChatRoom newRoom = new ChatRoom(false, Instant.now(), "AI Chat");
@@ -82,11 +74,6 @@ public class ChatAiService {
     @Transactional
     public AiMessageResponse sendMessageToAi(Long userId, Long roomId, AiMessageRequest request) {
         User sender = findUserById(userId);
-
-        if(sender.getBirthdate()==null||sender.getPurpose()==null||sender.getIntroduction()==null||sender.getLanguage()==null||sender.getHobby()==null||sender.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
 
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
@@ -137,13 +124,6 @@ public class ChatAiService {
      */
     @Transactional
     public void deleteAiChatRoom(Long userId, Long roomId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
         chatMessageRepository.deleteByChatRoomId(roomId);
@@ -176,13 +156,6 @@ public class ChatAiService {
      */
     @Transactional(readOnly = true)
     public MessageSliceResponse getChatMessages(Long userId, Long roomId, Long lastMessageId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
         Pageable pageable = PageRequest.of(0, PAGE_SIZE, Sort.by("id").descending());
@@ -207,14 +180,6 @@ public class ChatAiService {
      */
     @Transactional
     public void deleteReportedMessage(Long userId, Long messageId) {
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
         validateParticipant(userId, message.getChatRoom());

@@ -117,11 +117,6 @@ public class FollowService {
         User follower = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(follower.getBirthdate()==null||follower.getPurpose()==null||follower.getIntroduction()==null||follower.getLanguage()==null||follower.getHobby()==null||follower.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> {
                     log.warn("[FOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);

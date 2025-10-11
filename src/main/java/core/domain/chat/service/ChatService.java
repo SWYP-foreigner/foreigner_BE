@@ -180,13 +180,6 @@ public class ChatService {
 
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
-        User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
         List<ChatRoom> existingRooms = chatRoomRepo.findOneToOneRoomByParticipantIds(userIds);
 
@@ -247,13 +240,6 @@ public class ChatService {
      */
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         participant.leave();
@@ -283,15 +269,6 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatRoomParticipantsResponse> getRoomParticipants(Long roomId) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
@@ -472,15 +449,6 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
@@ -721,15 +689,8 @@ public class ChatService {
      */
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
 
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -853,15 +814,6 @@ public class ChatService {
 
     @Transactional
     public List<ChatMessageFirstResponse> getFirstMessages(Long roomId, Long userId) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
 
@@ -893,10 +845,6 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
 
@@ -905,15 +853,6 @@ public class ChatService {
 
     @Transactional
     public void toggleTranslation(Long roomId, Long userId, boolean enable) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
         participant.toggleTranslation(enable);
@@ -1029,10 +968,6 @@ public class ChatService {
     public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(owner.getBirthdate()==null||owner.getPurpose()==null||owner.getIntroduction()==null||owner.getLanguage()==null||owner.getHobby()==null||owner.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
 
         if (request.roomName() == null || request.roomName().isBlank()) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
@@ -1183,13 +1118,6 @@ public class ChatService {
 
         User blockedUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
 
         log.info(blockedUser.getEmail());
         log.info("user" + email);

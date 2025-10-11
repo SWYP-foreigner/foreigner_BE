@@ -48,14 +48,6 @@ public class BookmarkServiceImpl implements BookmarkService {
     public CursorPageResponse<BookmarkItem> getMyBookmarks( int size, String  cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         Pageable pageable = PageRequest.of(0, size + 1);
 
         Long cursorId = null;
@@ -179,11 +171,6 @@ public class BookmarkServiceImpl implements BookmarkService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         Optional<Bookmark> bookmark = bookmarkRepository.findByUserEmailAndPostId(email, postId);
         if (bookmark.isPresent()) {
             throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
@@ -199,14 +186,6 @@ public class BookmarkServiceImpl implements BookmarkService {
     @Transactional
     public void removeBookmark( Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
 
         bookmarkRepository.deleteByUserEmailAndPostId(email, postId);
     }
