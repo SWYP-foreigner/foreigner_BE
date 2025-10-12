@@ -2,9 +2,10 @@ package core.domain.notification.controller;
 
 import core.domain.notification.dto.*;
 import core.domain.notification.service.UserNotificationService;
+import core.domain.usernotificationsetting.dto.NotificationSettingBulkUpdateRequestDto;
 import core.domain.usernotificationsetting.dto.NotificationSettingInitRequestDto;
 import core.domain.usernotificationsetting.dto.NotificationSettingResponseDto;
-import core.domain.usernotificationsetting.dto.NotificationSettingUpdateRequestDto;
+import core.domain.usernotificationsetting.dto.NotificationSettingBulkUpdateRequestDto;
 import core.domain.usernotificationsetting.service.UserNotificationSettingService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
@@ -160,13 +161,18 @@ public class UserNotificationController {
                     description = "변경할 알림 설정 데이터",
                     required = true,
                     content = @Content(
-                            schema = @Schema(implementation = NotificationSettingUpdateRequestDto.class),
+                            schema = @Schema(implementation = NotificationSettingBulkUpdateRequestDto.class),
                             examples = @ExampleObject(
-                                    name = "NotificationSettingUpdateExample",
+                                    name = "NotificationSettingBulkUpdateRequestDtoExample",
                                     value = """
                                             {
-                                              "notificationType": "chat",
-                                              "enabled": true
+                                              "settings": [
+                                                { "notificationType": "post", "enabled": true },
+                                                { "notificationType": "comment", "enabled": false },
+                                                { "notificationType": "chat", "enabled": true },
+                                                { "notificationType": "follow", "enabled": true },
+                                                { "notificationType": "receive", "enabled": false }
+                                              ]
                                             }
                                             """
                             )
@@ -182,11 +188,16 @@ public class UserNotificationController {
                                             name = "NotificationSettingUpdateResponseExample",
                                             value = """
                                                     {
-                                                      "message": "success",
+                                                      "success": true,
                                                       "data": {
-                                                        "notificationType": "chat",
-                                                        "enabled": true
-                                                      },
+                                                        "settings": [
+                                                          { "type": "post", "enabled": true },
+                                                          { "type": "comment", "enabled": false },
+                                                          { "type": "chat", "enabled": true },
+                                                          { "type": "follow", "enabled": true },
+                                                          { "type": "receive", "enabled": false }
+                                                        ]
+                                                      }
                                                       "timestamp": "2025-10-03T12:00:00"
                                                     }
                                                     """
@@ -230,10 +241,10 @@ public class UserNotificationController {
             }
     )
     @PutMapping
-    public ResponseEntity<ApiResponse<NotificationSettingResponseDto>> updateNotificationSetting(
-            @RequestBody NotificationSettingUpdateRequestDto request,    @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<ApiResponse<NotificationSettingListResponse>> updateNotificationSetting(
+            @RequestBody NotificationSettingBulkUpdateRequestDto request, @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
-        return ResponseEntity.ok(ApiResponse.success(notificationSettingService.updateUserNotificationSetting(userId, request)));
+        return ResponseEntity.ok(ApiResponse.success(notificationSettingService.updateUserNotificationSettings(userId, request)));
     }
 
     @Operation(
