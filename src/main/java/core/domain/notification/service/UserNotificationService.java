@@ -104,7 +104,6 @@ public class UserNotificationService {
         User user = findUserById(userId);
         List<UserNotificationSetting> settings = userNotificationSettingRepository.findAllByUser(user);
 
-        // for-each 루프를 사용하여 DTO 리스트로 변환
         List<NotificationSettingResponse> settingResponses = new ArrayList<>();
         for (UserNotificationSetting setting : settings) {
             NotificationSettingResponse response = new NotificationSettingResponse(
