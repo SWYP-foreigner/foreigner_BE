@@ -235,4 +235,7 @@ public class User {
     }
 
 
+    public void updateGender(String s) {
+        this.sex = s;
+    }
 }

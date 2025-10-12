@@ -17,6 +17,9 @@ public record UserProfileEditDto(
         @Schema(description = "성 (last name)", example = "Doe")
         String lastname,
 
+        @Schema(description = "성별", example = "Male")
+        String gender,
+
         @Schema(description = "생년월일 (yyyy-MM-dd 형식)", example = "1990-05-12")
         String birthday,
 
@@ -42,6 +45,7 @@ public record UserProfileEditDto(
         this(
                 user.getFirstName(),
                 user.getLastName(),
+                user.getSex(),
                 user.getBirthdate(),
                 user.getCountry(),
                 user.getIntroduction(),

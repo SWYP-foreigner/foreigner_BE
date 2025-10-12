@@ -23,6 +23,7 @@ import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
+import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
@@ -40,7 +41,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.regex.Pattern;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -48,9 +49,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.regex.Matcher;
-import core.global.image.entity.Image;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -68,8 +69,6 @@ public class UserService {
     private static final Pattern PW_RULE = Pattern.compile(
             "^(?=.*[@/!/~])[A-Za-z0-9@/!/~]{8,12}$"
     );
-    Pattern pattern = Pattern.compile("\\[(.*?)\\]");
-
     private final BlockPostRepository blockPostRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
@@ -91,7 +90,7 @@ public class UserService {
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher publisher;
-
+    Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
@@ -123,11 +122,12 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
+
     @Transactional
     public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken
-    , AppleLoginByCodeRequest.FullNameDto name) {
+            , AppleLoginByCodeRequest.FullNameDto name) {
         log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-        log.info("firstname={}, lastname={}",name.familyName(),name.givenName());
+        log.info("firstname={}, lastname={}", name.familyName(), name.givenName());
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
@@ -142,9 +142,11 @@ public class UserService {
         log.info("createOauth saved: id={}", saved.getId());
         return saved;
     }
+
     /**
      * 사용자 정보(이름)를 업데이트합니다.
-     * @param user 업데이트할 User 엔티티
+     *
+     * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
     @Transactional
@@ -271,14 +273,15 @@ public class UserService {
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
-        String finalImageKey = imageService.getUserProfileKey(user.getId());;
+        String finalImageKey = imageService.getUserProfileKey(user.getId());
+        ;
         if (notBlank(dto.imageKey())) {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         user.updateIsNewUser(false);
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()),stringToList(user.getHobby()), finalImageKey);
+        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
 
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
@@ -305,7 +308,7 @@ public class UserService {
 
         String profileKey = imageService.getUserProfileKey(user.getId());
 
-        return new UserProfileResponse(user,stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
+        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     @Transactional
@@ -526,6 +529,7 @@ public class UserService {
 
         if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
         if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
+        if (dto.gender() != null) user.updateGender(dto.gender());
         if (dto.birthday() != null) user.updateBirthdate(dto.birthday());
         if (notBlank(dto.country())) user.updateCountry(dto.country().trim());
 
@@ -584,7 +588,7 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        return new UserProfileEditDto(user,stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        return new UserProfileEditDto(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
     }
 
 
@@ -657,7 +661,6 @@ public class UserService {
             imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
     }
-
 
 
     /**
@@ -794,6 +797,7 @@ public class UserService {
         userRepository.delete(user);
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
+
     /**
      * 단일 사용자 정보 조회 로직
      */
@@ -828,6 +832,7 @@ public class UserService {
                 })
                 .collect(Collectors.toList());
     }
+
     @Transactional(readOnly = true)
     public ChatUserProfileResponse getUserChatProfile(Long userId) {
         User user = userRepository.findById(userId)
