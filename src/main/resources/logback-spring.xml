@@ -1,0 +1,50 @@
+<configuration scan="true">
+
+    <!-- 콘솔 JSON -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp/><logLevel/><threadName/><loggerName/><mdc/><message/><stackTrace/>
+            </providers>
+
+            <!-- ✅ 새 데코레이터 -->
+            <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <defaultMask>****</defaultMask>
+
+                <!-- Bearer 토큰: 토큰 본문만 마스크 -->
+                <valueMask>
+                    <valueRegex>(?i)(Bearer\s+)[A-Za-z0-9._-]+</valueRegex>
+                    <replacement>$1****</replacement>
+                </valueMask>
+
+                <!-- 이메일: 도메인만 마스크 -->
+                <valueMask>
+                    <valueRegex>([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})</valueRegex>
+                    <replacement>$1@****</replacement>
+                </valueMask>
+            </jsonGeneratorDecorator>
+        </encoder>
+    </appender>
+
+    <!-- 비동기 -->
+    <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>8192</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
+        <appender-ref ref="CONSOLE_JSON"/>
+    </appender>
+
+    <!-- ACCESS / AUDIT 파일도 동일하게 데코레이터 교체 -->
+    <!-- ... 동일 패턴으로 수정 ... -->
+
+    <!-- 소음 줄이기 -->
+    <logger name="org.hibernate.SQL" level="OFF"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="OFF"/>
+    <logger name="org.springframework.web.socket" level="WARN"/>
+    <logger name="org.springframework.messaging" level="WARN"/>
+    <logger name="org.apache.tomcat.websocket" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="ASYNC_CONSOLE"/>
+    </root>
+</configuration>

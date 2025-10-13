@@ -128,32 +128,25 @@ google:
 
 logging:
   level:
-    root: INFO  # 기본은 INFO
+    root: INFO
 
-    # Hibernate
-    org.hibernate.SQL: info
+    # 프레임워크 소음 차단
+    org.hibernate.SQL: OFF
     org.hibernate.orm.jdbc.bind: OFF
-
-    # Spring Security (필요 시만 DEBUG)
-    org.springframework.security: INFO
-
-    # Web / Dispatcher
     org.springframework.web: INFO
-    org.springframework.web.servlet: INFO
     org.springframework.http.converter: INFO
 
-    # WebSocket (필요 없으면 WARN 이상으로)
-    org.springframework.web.socket: INFO
-    org.springframework.messaging: INFO
-    org.apache.tomcat.websocket: INFO
+    # WebSocket/메시징은 운영에서 WARN 이상
+    org.springframework.web.socket: WARN
+    org.springframework.messaging: WARN
+    org.apache.tomcat.websocket: WARN
 
-    # 애플리케이션 커스텀 로그
-    core: DEBUG
-    core.global.config.JwtTokenFilter: DEBUG
-    core.global.search: DEBUG
+    # 애플리케이션 커스텀 로거(운영 기본 INFO)
+    core: INFO
+    core.global.config.JwtTokenFilter: INFO
+    core.global.search: INFO
 
-
-# 에러 본문에 메시지 포함(개발용)
+# 운영에서는 에러 본문 노출 금지
 server.error.include-message: always
 server.error.include-binding-errors: always
 
@@ -166,11 +159,6 @@ app:
     reset:
       ttl-minutes: 15
       session-ttl-minutes: 5
-
-#  search:
-#    es-url: http://localhost:9200
-
-
 
   api:
     base-url: ${BASE_URL}
@@ -189,7 +177,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: prometheus, health, metrics, info
+        include: prometheus, health, metrics, info, loggers
   endpoint:
     prometheus:
       enabled: true

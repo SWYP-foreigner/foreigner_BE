@@ -96,9 +96,6 @@ public class ChatService {
 
                         boolean isBlockedByMe = blockRepository.existsBlock(userId, opponentId);
 
-                        log.info(">>> [차단 검사] RoomID: {}, OpponentID: {}, isBlockedByMe: {}",
-                                room.getId(), opponentId, isBlockedByMe);
-
                         return !isBlockedByMe; // '내가 차단한 경우만 숨김'이 일반적
                     }
 
@@ -1003,6 +1000,7 @@ public class ChatService {
             Long lastMessageId = lastMessage.getId();
             AllmarkMessagesAsRead(roomId, readerId, lastMessageId);
 
+            // 문제의 그 로그 남겨둠
             log.info(">>>> All messages marked as read for userId: {} in roomId: {}", readerId, roomId);
         } else {
             log.info(">>>> No messages to mark as read in roomId: {}", roomId);
@@ -1191,9 +1189,6 @@ public class ChatService {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
-        log.info(blockedUser.getEmail());
-        log.info("user" + email);
-
         if (blockedUser.getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
@@ -1201,8 +1196,6 @@ public class ChatService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        log.info("" + blockedUser.getId());
-        log.info("user" + me.getId());
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
