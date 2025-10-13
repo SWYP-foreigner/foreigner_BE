@@ -1,5 +1,6 @@
 package core.global.service;
 
+import core.global.config.AsyncMailDispatcher;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.thymeleaf.context.Context;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
@@ -27,12 +29,15 @@ public class SmtpMailService {
     private final MessageSource messageSource;
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine; // ✅ 타임리프 템플릿 엔진 주입
+    private final AsyncMailDispatcher asyncMailDispatcher;
 
     @Value("${app.mail.from}")
     private String from; // 발신 주소
 
     @Value("${app.mail.brand}")
     private String defaultBrand; // 번들에 brand.name 없을 때 기본값
+
+    private final Semaphore smtpGate = new Semaphore(1);
 
 
     public String sendVerificationEmail(String toEmail, Duration ttl, Locale locale) {
@@ -55,7 +60,7 @@ public class SmtpMailService {
         String html = templateEngine.process("email/verification", ctx);
 
         // 4) 메일 발송
-        sendHtml(toEmail, subject, html);
+        asyncMailDispatcher.sendHtmlAsync(from, toEmail, subject, html);
 
         log.info("인증 메일 발송 완료: {} (코드: {})", toEmail, code);
         return code;
@@ -83,7 +88,7 @@ public class SmtpMailService {
         String html = templateEngine.process("email/reset-password", ctx);
 
         // 메일 전송
-        sendHtml(toEmail, subject, html);
+        asyncMailDispatcher.sendHtmlAsync(from, toEmail, subject, html);
     }
 
     /** 메시지 필수: 키 없으면 예외 */
@@ -95,6 +100,7 @@ public class SmtpMailService {
 
     private void sendHtml(String to, String subject, String html) {
         try {
+            smtpGate.acquire();                 // ★ 동시 접속 억제
             MimeMessage mm = mailSender.createMimeMessage();
 
             // Helper가 멀티파트/인코딩을 모두 세팅합니다.
@@ -111,9 +117,14 @@ public class SmtpMailService {
 
 
             mailSender.send(mm);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("MAIL_SEND_INTERRUPTED", e);
         } catch (MailException | MessagingException e) {
             log.error("Failed to send mail to {}: {}", to, e.getMessage(), e);
             throw new RuntimeException("MAIL_SEND_FAILED", e);
+        } finally {
+            smtpGate.release();                 // ★ 해제
         }
     }
 
@@ -130,7 +141,7 @@ public class SmtpMailService {
         ctx.setVariable("resetLink", resetLink);
 
         String html = templateEngine.process("email/reset-password", ctx);
-        sendHtml(toEmail, subject, html);
+        asyncMailDispatcher.sendHtmlAsync(from, toEmail, subject, html);
     }
 
     private String generateCode() {

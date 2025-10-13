@@ -34,6 +34,10 @@ spring:
       mail.smtp.ssl.trust: smtp.naver.com
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: false
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+      mail.smtp.quitwait: false
 
   data:
     redis:
@@ -158,15 +162,15 @@ app:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
     code-ttl-minutes: 3
-
-  search:
-    es-url: http://localhost:9200
-
-
   password:
     reset:
       ttl-minutes: 15
       session-ttl-minutes: 5
+
+#  search:
+#    es-url: http://localhost:9200
+
+
 
   api:
     base-url: ${BASE_URL}
@@ -179,6 +183,9 @@ firebase:
     json-string: ${FIREBASE_CREDENTIALS_JSON}
 
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -187,7 +194,10 @@ management:
     prometheus:
       enabled: true
     health:
+      cache:
+        time-to-live: 10s
       show-details: always
+
   metrics:
     tags:
       application: my-service
@@ -197,7 +207,17 @@ management:
         http:
           server:
             requests: true
+
   prometheus:
     metrics:
       export:
         enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      mailSend:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - jakarta.mail.MessagingException
