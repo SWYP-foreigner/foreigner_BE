@@ -5,11 +5,21 @@ import jakarta.servlet.http.*;
 import org.slf4j.*;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class AccessLogFilter extends OncePerRequestFilter {
     private static final Logger ACCESS = LoggerFactory.getLogger("ACCESS");
+
+    private static final AntPathMatcher matcher = new AntPathMatcher();
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return matcher.match("/actuator/health/**", path)
+               || matcher.match("/actuator/prometheus/**", path);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
