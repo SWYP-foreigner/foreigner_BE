@@ -333,7 +333,4 @@ public class UserNotificationController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
-
-
 }

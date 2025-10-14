@@ -35,39 +35,33 @@ public class PushNotificationService {
     /**
      * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
      * 발송 전 3단계 동의 여부를 모두 확인합니다.
+     * 클라이언트 이동을 위한 data 페이로드를 포함합니다.
      * @param event 알림 이벤트 데이터
      * @param message 사용자에게 보여줄 최종 메시지
      */
-    public void sendPushNotification(User recipient,NotificationEvent event, String message) {
+    public void sendPushNotification(User recipient, NotificationEvent event, String message) {
 
+        // 1단계: 마스터 푸시 알림 동의 여부 확인
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
             return;
         }
 
+        // 2단계: 카테고리별 알림 설정 확인
         boolean isCategoryEnabled;
         Optional<UserNotificationSetting> categorySettingOpt = userNotificationSettingRepository.findByUserAndNotificationType(recipient, event.notificationType());
-
-        if (categorySettingOpt.isPresent()) {
-            isCategoryEnabled = categorySettingOpt.get().isEnabled();
-        } else {
-            isCategoryEnabled = true;
-        }
+        isCategoryEnabled = categorySettingOpt.map(UserNotificationSetting::isEnabled).orElse(true);
 
         if (!isCategoryEnabled) {
             log.info("사용자 ID {}: '{}' 카테고리 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.notificationType());
             return;
         }
 
+        // 3단계: 채팅방별 알림 설정 확인 (채팅 알림인 경우)
         if (event.notificationType() == NotificationType.chat) {
             boolean isRoomNotificationsEnabled;
             Optional<ChatParticipant> participantOpt = chatParticipantRepository.findByChatRoomIdAndUserId(event.referenceId(), recipient.getId());
-
-            if (participantOpt.isPresent()) {
-                isRoomNotificationsEnabled = participantOpt.get().isNotificationsEnabled();
-            } else {
-                isRoomNotificationsEnabled = false;
-            }
+            isRoomNotificationsEnabled = participantOpt.map(ChatParticipant::isNotificationsEnabled).orElse(false);
 
             if (!isRoomNotificationsEnabled) {
                 log.info("사용자 ID {}: 채팅방 ID {} 음소거 상태. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.referenceId());
@@ -76,17 +70,51 @@ public class PushNotificationService {
         }
 
         List<UserDeviceToken> deviceTokens = userDeviceTokenRepository.findAllByUser(recipient);
-
         for (UserDeviceToken userDeviceToken : deviceTokens) {
-            Message fcmMessage = Message.builder()
+            Message.Builder messageBuilder = Message.builder()
                     .setToken(userDeviceToken.getDeviceToken())
                     .setNotification(com.google.firebase.messaging.Notification.builder()
                             .setTitle("Foreigner")
                             .setBody(message)
                             .build())
-                    .putData("notificationType", event.notificationType().name())
-                    .putData("referenceId", String.valueOf(event.referenceId()))
-                    .build();
+                    .putData("notificationType", event.notificationType().name());
+
+            switch (event.notificationType()) {
+                case post, comment:
+                    messageBuilder
+                            .putData("url", "/community")
+                            .putData("postId", String.valueOf(event.referenceId()));
+                    if (event.commentId() != null) {
+                        messageBuilder.putData("commentId", String.valueOf(event.commentId()));
+                    }
+                    break;
+                case follow:
+                    messageBuilder
+                            .putData("url", "/mypage/friends")
+                            .putData("friendId", String.valueOf(event.actorId()));
+                    break;
+                case receive:
+                    messageBuilder
+                            .putData("url", "/mypage/follows")
+                            .putData("followerId", String.valueOf(event.actorId()));
+                    break;
+                case chat:
+                    messageBuilder
+                            .putData("url", "/chatscreen/ChattingRoomScreen")
+                            .putData("roomId", String.valueOf(event.referenceId()))
+                            .putData("myId", String.valueOf(recipient.getId()));
+                    break;
+                case newuser:
+                    messageBuilder
+                            .putData("url", "/newuser")
+                            .putData("userId", String.valueOf(event.referenceId()));
+                    //TODO 유저 상세 보기 페이지로 넘겨야함, 아직 클라이언트에서 구현안됨  수정 예정
+                default:
+                    break;
+            }
+
+            Message fcmMessage = messageBuilder.build();
+
             try {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
