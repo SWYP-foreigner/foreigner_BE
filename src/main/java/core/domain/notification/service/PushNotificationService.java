@@ -108,7 +108,7 @@ public class PushNotificationService {
                     messageBuilder
                             .putData("url", "/newuser")
                             .putData("userId", String.valueOf(event.referenceId()));
-                    //TODO 유저 상세 보기 페이지로 넘겨야함, 아직 클라이언트에서 구현안됨  수정 예정
+                    break;
                 default:
                     break;
             }
