@@ -33,7 +33,7 @@ public class UserInactive30dMetrics {
                 .description("Users inactive for 30d+")
                 .register(registry);
 
-        Gauge.builder("app_users_total", totalUsers, AtomicInteger::get)
+        Gauge.builder("app_users_count", totalUsers, AtomicInteger::get)
                 .description("Total users")
                 .register(registry);
     }
