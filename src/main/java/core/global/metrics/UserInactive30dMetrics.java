@@ -50,30 +50,17 @@ public class UserInactive30dMetrics {
     }
 
     @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT10S") // 일단 1분/10초로 빨리 확인
-// @Transactional(readOnly = true)  // 우선 제거해서 프록시/자기호출 이슈 배제
+    @Transactional(readOnly = true)
     public void collect() {
         try {
-            Object res = userRepository.countInactive30dAndTotal();
-            log.info("[U30d] raw type={}", (res==null ? "null" : res.getClass().getName()));
-
-            Object[] row;
-            if (res instanceof Object[] arr) {
-                row = arr;
-            } else if (res instanceof java.util.Collection<?> col) {
-                if (col.isEmpty()) { log.warn("[U30d] empty collection"); return; }
-                Object first = col.iterator().next();
-                row = (first instanceof Object[] inner) ? inner : new Object[]{};
-            } else { log.warn("[U30d] unexpected result"); return; }
-
-            if (row.length < 2) { log.warn("[U30d] cols<2 len={}", row.length); return; }
-
+            var rows = userRepository.countInactive30dAndTotal();
+            if (rows == null || rows.isEmpty()) { log.warn("no rows"); return; }
+            Object[] row = rows.get(0);
             int ina = toInt(row[0]);
             int tot = toInt(row[1]);
-            log.info("[U30d] parsed inactive30d={}, total={}", ina, tot);
-
             inactive30d.set(ina);
             totalUsers.set(tot);
-            log.info("[U30d] set OK");
+
         } catch (Exception e) {
             log.error("[U30d] collect failed", e);
         }

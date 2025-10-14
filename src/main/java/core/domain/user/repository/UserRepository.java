@@ -78,12 +78,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * 비활성(최근 30일 미접속) / 전체 사용자 수
      */
     @Query(value = """
-            SELECT
-              SUM(CASE WHEN last_seen_at IS NULL
-                        OR last_seen_at < NOW() - INTERVAL '30 day' THEN 1 ELSE 0 END) AS inactive_30d,
-              COUNT(*) AS total_users
-            FROM users
-            """, nativeQuery = true)
-    Object[] countInactive30dAndTotal();
+  SELECT
+    SUM(CASE WHEN last_seen_at IS NULL
+              OR last_seen_at < NOW() - INTERVAL '30 day' THEN 1 ELSE 0 END) AS inactive_30d,
+    COUNT(*) AS total_users
+  FROM users
+  """, nativeQuery = true)
+    List<Object[]> countInactive30dAndTotal();
 
 }
