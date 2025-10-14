@@ -24,14 +24,18 @@ public class UserInactive30dMetrics {
 
     public UserInactive30dMetrics(MeterRegistry registry, UserRepository userRepository) {
         this.userRepository = userRepository;
-        Gauge.builder("user_inactive_30d", inactive30d, AtomicInteger::get)
-                .description("Users inactive for 30d+").register(registry);
-        Gauge.builder("user_total", totalUsers, AtomicInteger::get)
-                .description("Total users").register(registry);
+        Gauge.builder("app_user_inactive_30d", inactive30d, AtomicInteger::get)
+                .description("Users inactive for 30d+")
+                .register(registry);
+
+        Gauge.builder("app_user_total", totalUsers, AtomicInteger::get)
+                .description("Total users")
+                .register(registry);
     }
 
     @EventListener(ApplicationReadyEvent.class) // 기동 직후 1회 실행 → Explore에서 즉시 보이게
     public void warmup() {
+        log.info("[UserInactive30dMetrics] warmup start");
         try { collect(); }
         catch (Exception e) { log.warn("warmup collect failed", e); }
     }
