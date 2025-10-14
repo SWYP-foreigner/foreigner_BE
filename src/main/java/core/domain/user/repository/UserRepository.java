@@ -44,4 +44,37 @@ public interface UserRepository extends JpaRepository<User, Long> {
       FROM users
       """, nativeQuery = true)
     Object[] countInactiveBuckets();
+
+    /** 주차별 코호트: 해당 주에 가입한 유저의 최근 30일 활동 여부 */
+    @Query(value = """
+      SELECT
+        date_trunc('week', created_at)::date AS cohort_week,
+        COUNT(*) AS cohort_total,
+        SUM(CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) AS active_recent_30d
+      FROM users
+      GROUP BY cohort_week
+      ORDER BY cohort_week DESC
+      LIMIT 26
+      """, nativeQuery = true)
+    List<Object[]> cohortRetention30d();
+
+    /** 최근 7일 last_seen_at 시간대(HOUR) 분포 */
+    @Query(value = """
+      SELECT EXTRACT(HOUR FROM last_seen_at) AS hour_of_day, COUNT(*) AS cnt
+      FROM users
+      WHERE last_seen_at IS NOT NULL
+        AND last_seen_at >= NOW() - INTERVAL '7 days'
+      GROUP BY hour_of_day
+      ORDER BY hour_of_day
+      """, nativeQuery = true)
+    List<Object[]> lastSeenHourDist7d();
+
+    /** 비활성(최근 30일 미접속) / 전체 사용자 수 */
+    @Query(value = """
+      SELECT
+        SUM(CASE WHEN last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) AS inactive_30d,
+        COUNT(*) AS total_users
+      FROM users
+      """, nativeQuery = true)
+    Object[] countInactive30dAndTotal();
 }

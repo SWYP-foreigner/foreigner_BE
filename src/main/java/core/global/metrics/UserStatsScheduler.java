@@ -2,35 +2,55 @@ package core.global.metrics;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.YearMonth;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Optional;
+import java.util.stream.IntStream;
+
 
 @Component
 @RequiredArgsConstructor
 public class UserStatsScheduler {
 
+    // true로 바꾸면 hour 키 24개 합집합(정확 24h), false면 임시로 오늘 day키 1개
+    private static final boolean USE_HOURLY_FOR_DAU = false;
+    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter HOUR_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd:HH");
     private final StringRedisTemplate redis;
     private final UserMetrics userMetrics;
 
-    @Scheduled(cron = "0 */5 * * * *") // 5분마다 업데이트(대시보드 신선도)
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 */5 * * * *")
     public void refreshUserMetrics() {
-        String dayKey = "hll:active:day:" + LocalDate.now();
-        String monthKey = "hll:active:month:" + YearMonth.now();
+        // DAU
+        long dau;
+        if (USE_HOURLY_FOR_DAU) {
+            String[] last24HourKeys = IntStream.rangeClosed(0, 23)
+                    .mapToObj(i -> "hll:active:hour:" + HOUR_FMT.format(LocalDateTime.now().minusHours(i)))
+                    .toArray(String[]::new);
+            Long v = redis.opsForHyperLogLog().size(last24HourKeys);
+            dau = v != null ? v : 0L;
+        } else {
+            String dayKey = "hll:active:day:" + DAY_FMT.format(LocalDate.now());
+            Long v = redis.opsForHyperLogLog().size(dayKey);
+            dau = v != null ? v : 0L;
+        }
 
-        Long dau = redis.opsForHyperLogLog().size(dayKey);
-        Long mau = redis.opsForHyperLogLog().size(monthKey);
+        // WAU (rolling 7d)
+        String[] last7Day = IntStream.rangeClosed(0, 6)
+                .mapToObj(i -> "hll:active:day:" + DAY_FMT.format(LocalDate.now().minusDays(i)))
+                .toArray(String[]::new);
+        int wau = Optional.of(redis.opsForHyperLogLog().size(last7Day)).orElse(0L).intValue();
 
-        // 3-2 전략: ACU/MCU는 PromQL로 계산 권장 → 앱에서는 0 또는 직전값 유지
-        int acu = 0; // computeACU(); // Prometheus에서 avg_over_time 사용 권장
-        int mcu = 0; // computeMCU(); // Prometheus에서 max_over_time 사용 권장
+        // MAU (rolling 30d)
+        String[] last30Day = IntStream.rangeClosed(0, 29)
+                .mapToObj(i -> "hll:active:day:" + DAY_FMT.format(LocalDate.now().minusDays(i)))
+                .toArray(String[]::new);
+        int mau = Optional.of(redis.opsForHyperLogLog().size(last30Day)).orElse(0L).intValue();
 
-        userMetrics.update(
-                dau != null ? dau.intValue() : 0,
-                mau != null ? mau.intValue() : 0,
-                acu, mcu
-        );
+        // ✅ 오버로드 버전으로 한 번에 반영
+        userMetrics.update((int) dau, wau, mau, 0, 0);
     }
 }
