@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class UserMetrics {
 
     private final AtomicInteger dau = new AtomicInteger(0);
+    private final AtomicInteger wau = new AtomicInteger(0);
     private final AtomicInteger mau = new AtomicInteger(0);
     private final AtomicInteger acu = new AtomicInteger(0);
     private final AtomicInteger mcu = new AtomicInteger(0);
@@ -17,6 +18,8 @@ public class UserMetrics {
     public UserMetrics(MeterRegistry registry) {
         Gauge.builder("app_users_dau", dau, AtomicInteger::get)
                 .description("Daily Active Users").register(registry);
+        Gauge.builder("app_users_wau", wau, AtomicInteger::get)
+                .description("Weekly Active Users").register(registry);
         Gauge.builder("app_users_mau", mau, AtomicInteger::get)
                 .description("Monthly Active Users").register(registry);
         Gauge.builder("app_users_acu", acu, AtomicInteger::get)
@@ -25,8 +28,9 @@ public class UserMetrics {
                 .description("Max Concurrent Users").register(registry);
     }
 
-    public void update(int daily, int monthly, int avgConcurrent, int maxConcurrent) {
+    public void update(int daily, int weekly, int monthly, int avgConcurrent, int maxConcurrent) {
         dau.set(daily);
+        wau.set(weekly);
         mau.set(monthly);
         acu.set(avgConcurrent);
         mcu.set(maxConcurrent);
