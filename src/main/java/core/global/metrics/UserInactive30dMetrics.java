@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -19,17 +20,23 @@ public class UserInactive30dMetrics {
 
     private final UserRepository userRepository;
 
+    // ★ 강참조 대상(필드 유지)
     private final AtomicInteger inactive30d = new AtomicInteger(0);
     private final AtomicInteger totalUsers  = new AtomicInteger(0);
 
     public UserInactive30dMetrics(MeterRegistry registry, UserRepository userRepository) {
         this.userRepository = userRepository;
+
+        log.info("[U30d] MeterRegistry = {}", registry.getClass().getName());
+
         Gauge.builder("app_user_inactive_30d", inactive30d, AtomicInteger::get)
                 .description("Users inactive for 30d+")
+                .strongReference(true)                  // ★ GC 방지
                 .register(registry);
 
         Gauge.builder("app_user_total", totalUsers, AtomicInteger::get)
                 .description("Total users")
+                .strongReference(true)                  // ★ GC 방지
                 .register(registry);
     }
 
@@ -37,33 +44,47 @@ public class UserInactive30dMetrics {
     public void warmup() {
         log.info("[U30d] warmup start");
         try {
-            Object res = userRepository.countInactive30dAndTotal();
-            log.info("[U30d] warmup DB result = {}", java.util.Arrays.deepToString(
-                    res instanceof Object[] a ? new Object[]{a} :
-                            res instanceof java.util.Collection<?> c ? c.toArray() :
-                                    new Object[]{res}
-            ));
             collect();
         } catch (Exception e) {
             log.warn("[U30d] warmup failed", e);
         }
+        // ★ 스크레이프 전에 한 번 읽어서 노출 보장
+        inactive30d.get();
+        totalUsers.get();
     }
 
-    @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT10S") // 일단 1분/10초로 빨리 확인
+    @Scheduled(fixedDelayString = "PT5M", initialDelayString = "PT30S")
     @Transactional(readOnly = true)
     public void collect() {
         try {
-            var rows = userRepository.countInactive30dAndTotal();
-            if (rows == null || rows.isEmpty()) { log.warn("no rows"); return; }
-            Object[] row = rows.get(0);
+            Object res = userRepository.countInactive30dAndTotal();
+            Object[] row = toRow(res);
+            if (row.length < 2) {
+                log.warn("[U30d] unexpected row size: {}", row.length);
+                return;
+            }
             int ina = toInt(row[0]);
             int tot = toInt(row[1]);
+
             inactive30d.set(ina);
             totalUsers.set(tot);
 
+            log.info("[U30d] set inactive30d={}, totalUsers={}", ina, tot);
         } catch (Exception e) {
             log.error("[U30d] collect failed", e);
         }
+    }
+
+    // ───────────────────────── helpers ─────────────────────────
+    private Object[] toRow(Object res) {
+        if (res == null) return new Object[0];
+        if (res instanceof Object[] a) return a;
+        if (res instanceof Collection<?> c) {
+            if (c.isEmpty()) return new Object[0];
+            Object first = c.iterator().next();
+            return first instanceof Object[] arr ? arr : new Object[]{ first };
+        }
+        return new Object[]{ res };
     }
 
     private int toInt(Object v) {
