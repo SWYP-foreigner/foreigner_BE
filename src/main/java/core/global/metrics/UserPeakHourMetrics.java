@@ -34,10 +34,11 @@ public class UserPeakHourMetrics {
         for (int h = 0; h < 24; h++) {
             AtomicInteger ref = buckets.computeIfAbsent(h, k -> new AtomicInteger(0));
             rows.add(MultiGauge.Row.of(
-                    Tags.of("hour", String.valueOf(h)),
+                    Tags.of("hour", String.format("%02d", h)), // "00".."23"
                     ref,
                     ai -> (double) ai.get()
             ));
+
         }
         peakGauge.register(rows, true);
     }
