@@ -77,5 +77,13 @@ public class ChatParticipant {
     public void setLastReadMessageId(Long messageId) {
         this.lastReadMessageId = messageId;
     }
+
+    /**
+     * 이 참여자의 채팅방 알림 설정을 변경합니다.
+     * @param enabled 알림을 활성화할지 여부 (true: 켬, false: 끔)
+     */
+    public void setNotificationsEnabled(boolean enabled) {
+        this.notificationsEnabled = enabled;
+    }
 }
 
