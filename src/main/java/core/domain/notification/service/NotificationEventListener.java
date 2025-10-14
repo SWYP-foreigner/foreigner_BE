@@ -76,7 +76,6 @@ public class NotificationEventListener {
 
         List<User> allUsers = userRepository.findAll();
         log.warn("[성능 경고] {}명의 모든 사용자를 메모리에 로드했습니다. 사용자 수가 많을 경우 OutOfMemoryError가 발생할 수 있습니다.", allUsers.size());
-        // =======================================
 
         for (User recipient : allUsers) {
             if (recipient.getId().equals(newUserActor.getId())) {

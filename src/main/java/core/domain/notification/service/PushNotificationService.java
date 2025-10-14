@@ -109,6 +109,11 @@ public class PushNotificationService {
                             .putData("url", "/newuser")
                             .putData("userId", String.valueOf(event.referenceId()));
                     break;
+                case followuserpost:
+                    messageBuilder
+                            .putData("url", "/community")
+                            .putData("postId", String.valueOf(event.referenceId()));
+                    break;
                 default:
                     break;
             }
