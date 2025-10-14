@@ -2,6 +2,7 @@ package core.global.metrics;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -22,7 +23,7 @@ public class UserStatsScheduler {
     private final StringRedisTemplate redis;
     private final UserMetrics userMetrics;
 
-    @org.springframework.scheduling.annotation.Scheduled(cron = "0 */5 * * * *")
+    @Scheduled(cron = "0 */5 * * * *")
     public void refreshUserMetrics() {
         // DAU
         long dau;

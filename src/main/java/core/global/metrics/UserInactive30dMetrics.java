@@ -4,6 +4,7 @@ import core.domain.user.repository.UserRepository;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Slf4j
 @Component
 public class UserInactive30dMetrics {
 
@@ -28,17 +30,59 @@ public class UserInactive30dMetrics {
                 .description("Total users").register(registry);
     }
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void warmup() { collect(); }
+    @EventListener(ApplicationReadyEvent.class) // 기동 직후 1회 실행 → Explore에서 즉시 보이게
+    public void warmup() {
+        try { collect(); }
+        catch (Exception e) { log.warn("warmup collect failed", e); }
+    }
 
-    @Scheduled(fixedDelayString = "PT10M", initialDelayString = "PT1M")
+    @Scheduled(fixedDelayString = "PT5M", initialDelayString = "PT30S")
     @Transactional(readOnly = true)
     public void collect() {
-        Object[] row = userRepository.countInactive30dAndTotal();
-        if (row == null || row.length < 2) return;
-        Number ina = (Number) row[0];
-        Number tot = (Number) row[1];
-        inactive30d.set(ina != null ? ina.intValue() : 0);
-        totalUsers.set(tot != null ? tot.intValue() : 0);
+        try {
+            Object result = userRepository.countInactive30dAndTotal();
+
+            // result를 안전하게 1행 2컬럼으로 풀기
+            Object[] row;
+            if (result instanceof Object[] arr) {
+                row = arr;
+            } else if (result instanceof java.util.Collection<?> col) {
+                if (col.isEmpty()) {
+                    log.warn("countInactive30dAndTotal() returned empty collection");
+                    return;
+                }
+                Object first = col.iterator().next();
+                if (!(first instanceof Object[] inner)) {
+                    log.warn("Unexpected element type: {}", first == null ? "null" : first.getClass());
+                    return;
+                }
+                row = inner;
+            } else {
+                log.warn("Unexpected result type: {}", result == null ? "null" : result.getClass());
+                return;
+            }
+
+            if (row.length < 2) {
+                log.warn("Result columns < 2 : len={}", row.length);
+                return;
+            }
+
+            int ina = toInt(row[0]);
+            int tot = toInt(row[1]);
+
+            inactive30d.set(ina);
+            totalUsers.set(tot);
+
+            log.debug("user_inactive_30d={}, user_total={}", ina, tot);
+        } catch (Exception e) {
+            log.error("Failed to update user_inactive_30d/user_total", e);
+        }
+    }
+
+    private int toInt(Object v) {
+        if (v == null) return 0;
+        if (v instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(String.valueOf(v)); }
+        catch (Exception ignore) { return 0; }
     }
 }
