@@ -54,4 +54,20 @@ public class UserStatsScheduler {
         // ✅ 오버로드 버전으로 한 번에 반영
         userMetrics.update((int) dau, wau, mau, 0, 0);
     }
+
+
+    @Scheduled(cron = "0 */1 * * * *") // 1분마다 동접 근사 업데이트
+    public void refreshConcurrentUsers() {
+        // 최근 5분의 HLL을 합쳐서 "동접 근사"로 사용 (원하는 창으로 조절 가능)
+        String[] last5MinHLL = IntStream.rangeClosed(0, 4)
+                .mapToObj(i -> "hll:active:min:" +
+                               LocalDateTime.now().minusMinutes(i)
+                                       .format(DateTimeFormatter.ofPattern("yyyy-MM-dd:HH:mm")))
+                .toArray(String[]::new);
+
+        Long approx = redis.opsForHyperLogLog().size(last5MinHLL);
+        int concurrent = approx == null ? 0 : approx.intValue();
+
+        userMetrics.setConcurrent(concurrent);
+    }
 }
