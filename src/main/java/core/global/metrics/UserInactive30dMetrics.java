@@ -31,12 +31,10 @@ public class UserInactive30dMetrics {
 
         Gauge.builder("app_user_inactive_30d", inactive30d, AtomicInteger::get)
                 .description("Users inactive for 30d+")
-                .strongReference(true)                  // ★ GC 방지
                 .register(registry);
 
-        Gauge.builder("app_user_total", totalUsers, AtomicInteger::get)
+        Gauge.builder("app_users_total", totalUsers, AtomicInteger::get)
                 .description("Total users")
-                .strongReference(true)                  // ★ GC 방지
                 .register(registry);
     }
 
