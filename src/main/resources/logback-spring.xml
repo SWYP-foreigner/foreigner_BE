@@ -1,23 +1,42 @@
 <configuration scan="true">
-
     <!-- 콘솔 JSON -->
     <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
-                <timestamp/><logLevel/><threadName/><loggerName/><mdc/><message/><stackTrace/>
+                <!-- 고정 필드 -->
+                <timestamp/>
+                <logLevel/>
+                <loggerName/>
+                <message/>
+                <stackTrace/>
+
+                <!-- 운영에서 항상 보고 싶은 고정 값 -->
+                <globalCustomFields>{"app":"my-service","env":"prod","version":"1.2.3"}</globalCustomFields>
+
+                <!-- 필요한 MDC 키만 선택 포함 -->
+                <mdc>
+                    <includeMdcKeyName>requestId</includeMdcKeyName>
+                    <includeMdcKeyName>userId</includeMdcKeyName>
+                    <includeMdcKeyName>uri</includeMdcKeyName>
+                    <includeMdcKeyName>method</includeMdcKeyName>
+                    <includeMdcKeyName>status</includeMdcKeyName>
+                    <includeMdcKeyName>remoteIp</includeMdcKeyName>
+                    <includeMdcKeyName>latencyMs</includeMdcKeyName>
+                    <includeMdcKeyName>bytesIn</includeMdcKeyName>
+                    <includeMdcKeyName>bytesOut</includeMdcKeyName>
+                </mdc>
+
+                <!-- 마커(필요 시) -->
+                <!-- <logstashMarkers/> -->
             </providers>
 
-            <!-- ✅ 새 데코레이터 -->
+            <!-- 마스킹은 유지 -->
             <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
                 <defaultMask>****</defaultMask>
-
-                <!-- Bearer 토큰: 토큰 본문만 마스크 -->
                 <valueMask>
                     <valueRegex>(?i)(Bearer\s+)[A-Za-z0-9._-]+</valueRegex>
                     <replacement>$1****</replacement>
                 </valueMask>
-
-                <!-- 이메일: 도메인만 마스크 -->
                 <valueMask>
                     <valueRegex>([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})</valueRegex>
                     <replacement>$1@****</replacement>
