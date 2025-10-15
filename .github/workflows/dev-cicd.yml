@@ -116,7 +116,7 @@ jobs:
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
             
-            GOOGLE_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
+            GOOGLE_MAIL_HOST=${{ secrets.GOOGLE_MAIL_HOST }}
             GOOGLE_EMAIL=${{ secrets.GOOGLE_EMAIL }}
             GOOGLE_EMAIL_PASSWORD=${{ secrets.GOOGLE_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
