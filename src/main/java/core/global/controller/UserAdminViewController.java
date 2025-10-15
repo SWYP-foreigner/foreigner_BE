@@ -72,4 +72,10 @@ public class UserAdminViewController {
 
         return "admin/user-detail";
     }
+
+    @PostMapping("/{userId}/delete")
+    public String deleteUser(@PathVariable Long userId) {
+        userAdminService.hardDeleteUser(userId);
+        return "redirect:/admin/users";
+    }
 }

@@ -12,6 +12,24 @@
 <div class="container">
     <div class="main-info">
         <h1>사용자 상세 정보</h1>
+
+        <div th:object="${user}">
+            <p><strong>ID:</strong> <span th:text="*{userId}"></span></p>
+            <p><strong>이름:</strong> <span th:text="*{name}"></span></p>
+            <p><strong>이메일:</strong> <span th:text="*{email}"></span></p>
+            <p><strong>국가:</strong> <span th:text="*{country}"></span></p>
+            <p><strong>가입일:</strong> <span th:text="*{#temporals.format(createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
+            <p><strong>마지막 접속일:</strong> <span th:text="*{lastSeenAt != null ? #temporals.format(lastSeenAt, 'yyyy-MM-dd HH:mm') : '기록 없음'}"></span></p>
+        </div>
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            <form th:action="@{/admin/users/{id}/delete(id=${user.userId})}"
+                  method="post"
+                  onsubmit="return confirm('경고: 이 사용자를 DB에서 영구적으로 삭제합니다. 모든 관련 데이터(게시글, 댓글 등)가 삭제되며, 이 작업은 되돌릴 수 없습니다. 정말 진행하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                    사용자 영구 삭제
+                </button>
+            </form>
+        </div>
         <a th:href="@{/admin/users}" style="margin-top: 20px; display: block;">← 목록으로 돌아가기</a>
     </div>
 
