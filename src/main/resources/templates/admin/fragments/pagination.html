@@ -3,28 +3,33 @@
 <body>
 
 <div class="pagination"
-     th:fragment="pagination(pageParamName, page, otherPage1, otherPage2)"
-     th:with="userId=${user.userId},
-              followPageNum=${pageParamName == 'followPage' ? page.number : otherPage1},
-              blockPageNum=${pageParamName == 'blockPage' ? page.number : (pageParamName == 'followPage' ? otherPage1 : otherPage2)},
-              chatPageNum=${pageParamName == 'chatPage' ? page.number : otherPage2}"
+     th:fragment="pagination(page, paramName)"
      th:if="${page.totalPages > 1}">
 
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${page.number - 1}, blockPage=${blockPageNum}, chatPage=${chatPageNum})}"
-       th:if="${pageParamName == 'followPage' and page.hasPrevious()}">이전</a>
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${followPageNum}, blockPage=${page.number - 1}, chatPage=${chatPageNum})}"
-       th:if="${pageParamName == 'blockPage' and page.hasPrevious()}">이전</a>
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${followPageNum}, blockPage=${blockPageNum}, chatPage=${page.number - 1})}"
-       th:if="${pageParamName == 'chatPage' and page.hasPrevious()}">이전</a>
+    <a th:if="${page.hasPrevious()}"
+       th:href="@{/admin/users/{id}(
+         id=${user.userId},
+         followPage=${paramName == 'followPage' ? page.number - 1 : followings.number},
+         blockPage=${paramName == 'blockPage' ? page.number - 1 : blockedUsers.number},
+         chatPage=${paramName == 'chatPage' ? page.number - 1 : chatRooms.number},
+         postPage=${paramName == 'postPage' ? page.number - 1 : posts.number},
+         commentPage=${paramName == 'commentPage' ? page.number - 1 : comments.number},
+         messagePage=${paramName == 'messagePage' ? page.number - 1 : messages.number}
+       )}">이전</a>
 
-    <span th:text="${page.number + 1} + ' / ' + ${page.totalPages}"></span>
+    <span class="active" th:text="|${page.number + 1} / ${page.totalPages}|"></span>
 
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${page.number + 1}, blockPage=${blockPageNum}, chatPage=${chatPageNum})}"
-       th:if="${pageParamName == 'followPage' and page.hasNext()}">다음</a>
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${followPageNum}, blockPage=${page.number + 1}, chatPage=${chatPageNum})}"
-       th:if="${pageParamName == 'blockPage' and page.hasNext()}">다음</a>
-    <a th:href="@{/admin/users/{id}(id=${userId}, followPage=${followPageNum}, blockPage=${blockPageNum}, chatPage=${page.number + 1})}"
-       th:if="${pageParamName == 'chatPage' and page.hasNext()}">다음</a>
+    <a th:if="${page.hasNext()}"
+       th:href="@{/admin/users/{id}(
+         id=${user.userId},
+         followPage=${paramName == 'followPage' ? page.number + 1 : followings.number},
+         blockPage=${paramName == 'blockPage' ? page.number + 1 : blockedUsers.number},
+         chatPage=${paramName == 'chatPage' ? page.number + 1 : chatRooms.number},
+         postPage=${paramName == 'postPage' ? page.number + 1 : posts.number},
+         commentPage=${paramName == 'commentPage' ? page.number + 1 : comments.number},
+         messagePage=${paramName == 'messagePage' ? page.number + 1 : messages.number}
+       )}">다음</a>
+
 </div>
 
 </body>

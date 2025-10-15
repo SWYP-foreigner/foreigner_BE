@@ -1,12 +1,15 @@
 package core.domain.user.service;
 
 import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.comment.dto.RecentCommentDto;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.post.dto.RecentPostDto;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
@@ -102,20 +105,16 @@ public class UserAdminService {
      */
     @Transactional
     public void hardDeleteUser(Long userId) {
-        // 1. 사용자 엔티티를 조회합니다.
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 소셜 연동 해제 (Apple 사용자의 경우)
-        // Admin이 탈퇴시킬 땐 accessToken이 없으므로, refreshToken 기반 로직만 수행
         if ("APPLE".equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
         }
 
-        // 3. 사용자와 관련된 모든 DB 데이터를 삭제합니다. (cleanupUserData 로직 재사용)
         log.info(">>>> Starting data cleanup for user ID: {}", userId);
 
-        // 채팅방 소유권 이전 또는 삭제
         List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
         for (ChatRoom chatRoom : ownedChatRooms) {
             List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
@@ -127,7 +126,6 @@ public class UserAdminService {
             }
         }
 
-        // 게시글 관련 데이터 삭제
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
@@ -135,7 +133,6 @@ public class UserAdminService {
             postRepository.deleteAll(userPosts);
         }
 
-        // 사용자가 직접 작성한 콘텐츠 및 관계 데이터 삭제
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
@@ -146,8 +143,25 @@ public class UserAdminService {
         chatMessageRepository.deleteAllBySenderId(userId);
         blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
 
-        // 4. 마지막으로 사용자 자체를 삭제합니다.
         userRepository.delete(user);
         log.info(">>>> Deleted user entity for userId: {}", userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecentPostDto> getRecentPostsForUser(Long userId, Pageable pageable) {
+        return postRepository.findByAuthorId(userId, pageable)
+                .map(RecentPostDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecentCommentDto> getRecentCommentsForUser(Long userId, Pageable pageable) {
+        return commentRepository.findByAuthorId(userId, pageable)
+                .map(RecentCommentDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RecentMessageDto> getRecentMessagesForUser(Long userId, Pageable pageable) {
+        return chatMessageRepository.findBySenderId(userId, pageable)
+                .map(RecentMessageDto::from);
     }
 }

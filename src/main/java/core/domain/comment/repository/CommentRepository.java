@@ -4,6 +4,7 @@ import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.entity.Comment;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -48,4 +49,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
 
     @Query("SELECT c.author FROM Comment c WHERE c.id = :commentId")
     Optional<User> findUserByCommentId(Long commentId);
+
+    Page<Comment> findByAuthorId(Long authorId, Pageable pageable);
 }

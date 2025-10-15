@@ -1,5 +1,8 @@
 package core.global.controller;
 
+import core.domain.chat.dto.RecentMessageDto;
+import core.domain.comment.dto.RecentCommentDto;
+import core.domain.post.dto.RecentPostDto;
 import core.domain.user.dto.*;
 import core.domain.user.service.UserAdminService;
 import lombok.RequiredArgsConstructor;
@@ -47,21 +50,38 @@ public class UserAdminViewController {
     public String userDetailPage(@PathVariable Long userId, Model model,
                                  @RequestParam(defaultValue = "0") int followPage,
                                  @RequestParam(defaultValue = "0") int blockPage,
-                                 @RequestParam(defaultValue = "0") int chatPage) {
+                                 @RequestParam(defaultValue = "0") int chatPage,
+                                 @RequestParam(defaultValue = "0") int postPage,
+                                 @RequestParam(defaultValue = "0") int commentPage,
+                                 @RequestParam(defaultValue = "0") int messagePage
+                                 ) {
 
         Pageable followPageable = PageRequest.of(followPage, DEFAULT_PAGE_SIZE, Sort.by("id").ascending());
         Pageable blockPageable = PageRequest.of(blockPage, DEFAULT_PAGE_SIZE, Sort.by("id").ascending());
         Pageable chatPageable = PageRequest.of(chatPage, DEFAULT_PAGE_SIZE, Sort.by("id").ascending());
+
+        Pageable postPageable = PageRequest.of(postPage, 5, Sort.by("id").descending());
+        Pageable commentPageable = PageRequest.of(commentPage, 5, Sort.by("id").descending());
+        Pageable messagePageable = PageRequest.of(messagePage, 5, Sort.by("sentAt").descending());
 
         UserBasicInfoDto userInfo = userAdminService.getUserBasicInfo(userId);
         Page<FollowingInfoDto> followings = userAdminService.getFollowingsForUser(userId, followPageable);
         Page<BlockedUserInfoDto> blockedUsers = userAdminService.getBlockedUsersForUser(userId, blockPageable);
         Page<ChatRoomInfoDto> chatRooms = userAdminService.getChatRoomsForUser(userId, chatPageable);
 
+        Page<RecentPostDto> posts = userAdminService.getRecentPostsForUser(userId, postPageable);
+        Page<RecentCommentDto> comments = userAdminService.getRecentCommentsForUser(userId, commentPageable);
+        Page<RecentMessageDto> messages = userAdminService.getRecentMessagesForUser(userId, messagePageable);
+
+
         model.addAttribute("user", userInfo);
         model.addAttribute("followings", followings);
         model.addAttribute("blockedUsers", blockedUsers);
         model.addAttribute("chatRooms", chatRooms);
+
+        model.addAttribute("posts", posts);
+        model.addAttribute("comments", comments);
+        model.addAttribute("messages", messages);
 
         return "admin/user-detail";
     }
