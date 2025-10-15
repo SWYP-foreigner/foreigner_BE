@@ -13,6 +13,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Component
 @RequiredArgsConstructor
@@ -35,6 +37,12 @@ public class ActiveUserRecordFilter extends OncePerRequestFilter {
             if (Boolean.TRUE.equals(firstSeen)) {
                 userActivityRecorder.recordActiveUser(uid); // ✅ HLL 적재
             }
+
+            LocalDateTime now = LocalDateTime.now();
+            String hourKey = "hll:active:hour:" + now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd:HH"));
+            String minKey  = "hll:active:min:"  + now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd:HH:mm"));
+            redis.opsForHyperLogLog().add(hourKey, uid);
+            redis.opsForHyperLogLog().add(minKey, uid);
         }
         chain.doFilter(req, res);
     }
