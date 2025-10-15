@@ -34,7 +34,7 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
-                .orderBy(user.createdAt.desc()) // 최신 가입 순으로 정렬
+                .orderBy(user.createdAt.desc(), user.id.desc())
                 .fetch();
 
         long total = queryFactory
@@ -49,7 +49,6 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
         return new PageImpl<>(content, pageable, total);
     }
 
-    // 동적 쿼리를 위한 BooleanExpression
     private BooleanExpression emailContains(String email) {
         return StringUtils.hasText(email) ? user.email.containsIgnoreCase(email) : null;
     }
