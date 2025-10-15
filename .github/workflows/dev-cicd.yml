@@ -237,7 +237,36 @@ jobs:
             docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
             
-            # (선택) 이미지 캐시 정리
+            # --- 6) 레포별 이미지 정리 (실행/중지 컨테이너 + 최신 N개 보존) -------------------------
+            REPO="${{ secrets.DOCKERHUB_USERNAME }}/foreigner"
+            KEEP=4   # 기본 4개 보존 (원하면 레포 환경변수로 조절)
+            
+            # 6-1) 현재 컨테이너(실행+중지)가 참조 중인 태그 보존(안전)
+            ALL_IN_USE="$(docker ps -a --format '{{.Image}}' | grep "^${REPO}:" | sort -u || true)"
+            
+            # 6-2) 레포 내 최신 N개 태그 계산(롤백 대비)
+            KEEP_TAGS="$(
+            docker image ls "$REPO" --format '{{.Tag}} {{.CreatedAt}}' \
+            | sort -rk2 | awk '{print $1}' | head -n "$KEEP"
+            )"
+            
+            # 6-3) 삭제 대상 산출 → 삭제
+            docker image ls "$REPO" --format '{{.Repository}}:{{.Tag}}' \
+            | while read -r IMG; do
+            TAG="${IMG#*:}"
+            # 실행/중지 컨테이너가 쓰는 이미지는 무조건 보존
+            if printf '%s\n' "$ALL_IN_USE" | grep -qx "$IMG"; then
+            echo "keep (in-use)   $IMG"; continue
+            fi
+            # 최신 N개 태그 보존
+            if printf '%s\n' "$KEEP_TAGS" | grep -qx "$TAG"; then
+            echo "keep (recent)   $IMG"; continue
+            fi
+            # 그 외는 삭제 (참조 중이면 자동으로 실패하고 건너뜀)
+            docker rmi "$IMG" || true
+            done
+            
+            # 6-4) dangling 이미지/레이어 추가 정리
             docker image prune -f || true
             
             # 최종 상태 출력
