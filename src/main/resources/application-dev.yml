@@ -21,17 +21,17 @@ spring:
     suffix: .html
     check-template-location: true
   mail:
-    host: ${NCP_MAIL_HOST}        # 네이버 SMTP 서버 주소
-    port: 587                    # 네이버 SMTP 포트 번호
-    username: ${NCP_EMAIL}    # 네이버 이메일
-    password: ${NCP_EMAIL_PASSWORD}
+    host: ${GOOGLE_MAIL_HOST}
+    port: 587
+    username: ${GOOGLE_EMAIL}
+    password: ${GOOGLE_EMAIL_PASSWORD}
     default-encoding: UTF-8
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true     # ★ 587 필수
       mail.smtp.starttls.required: true
       mail.smtp.ssl.enable: false
-      mail.smtp.ssl.trust: smtp.naver.com
+      mail.smtp.ssl.trust: smtp.gmail.com
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: false
       mail.smtp.connectiontimeout: 5000
