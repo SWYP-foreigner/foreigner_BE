@@ -2,6 +2,8 @@ package core.domain.user.repository;
 
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -25,6 +27,9 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
     Optional<BlockUser> findBlockRelationship(@Param("user") User user, @Param("blockedUser") User blockedUser);
 
     List<BlockUser> findByUser(User user);
+
+    Page<BlockUser> findByUserId(Long userId, Pageable pageable);
+
     @Query("select count(b) > 0 from BlockUser b " +
             "where b.user.email = :email and b.blocked.email = :email")
     boolean existsBlockedByEmail(@Param("email") String  email, @Param("email") String authorEmail);
