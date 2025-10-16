@@ -44,7 +44,7 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
               SUM(CASE WHEN last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '720 hour' THEN 1 ELSE 0 END) AS h_720_inf
             FROM users
             """, nativeQuery = true)
-    Object[] countInactiveBuckets();
+    List<Object[]> countInactiveBuckets();
 
     /**
      * 주차별 코호트: 해당 주에 가입한 유저의 최근 30일 활동 여부
