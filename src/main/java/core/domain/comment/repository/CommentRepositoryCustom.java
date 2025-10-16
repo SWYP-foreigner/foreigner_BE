@@ -1,7 +1,10 @@
 package core.domain.comment.repository;
 
+import core.domain.comment.dto.CommentListResponse;
+import core.domain.comment.dto.CommentSearchRequest;
 import core.domain.comment.entity.Comment;
 import core.global.enums.LikeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
@@ -34,4 +37,6 @@ public interface CommentRepositoryCustom {
             Long cursorId,
             Pageable pageable
     );
+
+    Page<CommentListResponse> searchComments(CommentSearchRequest condition, Pageable pageable);
 }
