@@ -94,7 +94,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     SELECT
       date_trunc('week', (u.created_at AT TIME ZONE 'Asia/Seoul'))::date AS week_kst,
       COUNT(*) AS total_users,
-      SUM(CASE WHEN u.user_role = 'VISITOR' THEN 1 ELSE 0 END) AS visitors
+      SUM(CASE WHEN user_role = 'USER' THEN 1 ELSE 0 END) AS users
     FROM users u
     WHERE u.created_at >= :from AND u.created_at < :to
     GROUP BY week_kst
@@ -117,7 +117,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     )
     SELECT
       COUNT(*) AS total_users,
-      SUM(CASE WHEN u.user_role = 'VISITOR' THEN 1 ELSE 0 END) AS visitors
+      SUM(CASE WHEN user_role = 'USER' THEN 1 ELSE 0 END) AS users
     FROM users u, bounds b
     WHERE u.created_at >= (b.w_start_kst AT TIME ZONE 'UTC')
       AND u.created_at <  (b.w_end_kst   AT TIME ZONE 'UTC')
