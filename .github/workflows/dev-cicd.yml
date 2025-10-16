@@ -115,6 +115,10 @@ jobs:
             NCP_MAIL_HOST=${{ secrets.NCP_MAIL_HOST }}
             NCP_EMAIL=${{ secrets.NCP_EMAIL }}
             NCP_EMAIL_PASSWORD=${{ secrets.NCP_EMAIL_PASSWORD }}
+            
+            GOOGLE_MAIL_HOST=${{ secrets.GOOGLE_MAIL_HOST }}
+            GOOGLE_EMAIL=${{ secrets.GOOGLE_EMAIL }}
+            GOOGLE_EMAIL_PASSWORD=${{ secrets.GOOGLE_EMAIL_PASSWORD }}
             CLOVA_STUDIO_API_KEY=${{ secrets.CLOVA_STUDIO_API_KEY }}
             
             FEIGN_CONNECT_TIMEOUT=${{ secrets.FEIGN_CONNECT_TIMEOUT }}
@@ -237,9 +241,46 @@ jobs:
             docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
             
-            # (선택) 이미지 캐시 정리
+  cleanup-images:
+    needs: [ deploy-app ]      # 배포 성공/실패와 무관하게
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Prune old images (keep 4 latest + any in-use)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            REPO="${{ secrets.DOCKERHUB_USERNAME }}/foreigner"
+            KEEP=4
+
+            # 실행/중지 컨테이너가 쓰는 이미지 목록 (보존)
+            ALL_IN_USE="$(docker ps -a --format '{{.Image}}' | grep "^${REPO}:" | sort -u || true)"
+
+            # 최신 4개 태그 (롤백 대비 보존)
+            KEEP_TAGS="$(
+              docker image ls "$REPO" --format '{{.Tag}} {{.CreatedAt}}' \
+              | sort -rk2 | awk '{print $1}' | head -n "$KEEP"
+            )"
+
+            # 레포의 모든 태그 중, in-use/최신4개 제외하고 삭제
+            docker image ls "$REPO" --format '{{.Repository}}:{{.Tag}}' \
+            | while read -r IMG; do
+              TAG="${IMG#*:}"
+              if printf '%s\n' "$ALL_IN_USE" | grep -qx "$IMG"; then
+                echo "keep (in-use)   $IMG"; continue
+              fi
+              if printf '%s\n' "$KEEP_TAGS" | grep -qx "$TAG"; then
+                echo "keep (recent)   $IMG"; continue
+              fi
+              docker rmi "$IMG" || true
+            done
+
+            # dangling 레이어 추가 정리
             docker image prune -f || true
-            
-            # 최종 상태 출력
-            docker compose -p foreigner -f "$COMPOSE_APP" ps
-            echo "✅ switched to ${NEXT_SLOT} (single-active)"
+
+            echo "Remaining images:"
+            docker image ls "$REPO" --format '{{.Repository}}:{{.Tag}}\t{{.CreatedSince}}' | sort -k2

@@ -45,10 +45,10 @@ public class User {
     @Column(name = "nationality", nullable = true)
     private String country;
 
-    @Column(name = "introduction", length = 40, nullable = true)
+    @Column(name = "introduction", length = 70)
     private String introduction;
 
-    @Column(name = "visit_purpose", length = 40, nullable = true)
+    @Column(name = "visit_purpose", length = 40)
     private String purpose;
 
     @Column(name = "languages", nullable = true)

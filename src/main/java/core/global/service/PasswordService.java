@@ -71,8 +71,6 @@ public class PasswordService {
         user.updatePassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("[비밀번호 재설정] 비밀번호 변경 완료 - email: {}", email);
-
-        log.info("[비밀번호 재설정] Redis 키 삭제 완료 - email: {}", email);
     }
 
     private String normalizeEmail(String email) {

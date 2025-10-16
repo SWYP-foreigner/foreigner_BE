@@ -237,7 +237,6 @@ public class FollowService {
                     log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
-        log.info("현재 로그인 사용자: {} ({})", me.getEmail(), me.getId());
 
         if (me.getId().equals(friendId)) {
             log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
@@ -316,10 +315,8 @@ public class FollowService {
 
         if (isFollowers) {
             followStream = followRepository.findByFollowingAndStatus(me, status).stream();
-            log.info("[GET FOLLOWS] 팔로워 목록 조회: 사용자={}", me.getId());
         } else { // false이면 내가 팔로우하는 사람들을 조회
             followStream = followRepository.findByUserAndStatus(me, status).stream();
-            log.info("[GET FOLLOWS] 팔로잉 목록 조회: 사용자={}", me.getId());
         }
 
         List<FollowDTO> result = followStream
@@ -370,8 +367,6 @@ public class FollowService {
     /** 상대(fromUserId)가 나에게 보낸 요청 거절 */
     @Transactional
     public void declineFollow(Authentication auth, Long fromUserId) {
-        log.info("[DECLINE FOLLOW] 요청 시작: 거절자={}, 신청자={}", auth.getName(), fromUserId);
-
         String toEmail = auth.getName();
         User toUser = userRepository.findByEmail(toEmail)
                 .orElseThrow(() -> {

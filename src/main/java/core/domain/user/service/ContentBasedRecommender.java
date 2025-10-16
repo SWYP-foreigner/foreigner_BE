@@ -66,11 +66,7 @@ public class ContentBasedRecommender {
             excludeIds.add(0L);
         }
 
-        log.info(">>>> [디버깅 0] 팔로우 {}명, 차단 {}명 등 총 {}명 추천에서 제외",
-                followingIds.size(), blockedIds.size(), excludeIds.size());
-
         List<User> allCandidates = userRepository.findFullProfiledRecommendationCandidates(excludeIds);
-        log.info(">>>> [디버깅 1] 최종 필터링 후 조회된 후보 수: {}", allCandidates.size());
 
         if (allCandidates.isEmpty()) {
             return List.of();
@@ -83,7 +79,6 @@ public class ContentBasedRecommender {
                 .map(candidate -> new Scored<>(candidate, score(me, candidate, meAge, meLangs)))
                 .collect(Collectors.toList());
 
-        log.info(">>>> [디버깅 2] 전체 {}명 후보 대상 확률적 랭킹 시작", scored.size());
         List<User> chosen = pickGumbelTopK(scored, limit, TEMPERATURE);
 
         return chosen.stream().map(this::toDto).toList();

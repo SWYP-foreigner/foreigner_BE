@@ -110,24 +110,18 @@ public class UserService {
 
     @Transactional
     public User createOauth(String socialId, String email, String provider) {
-        log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
                 .provider(provider)
                 .build();
 
-        User saved = userRepository.save(u);
-
-        log.info("createOauth saved: id={}", saved.getId());
-        return saved;
+        return userRepository.save(u);
     }
 
     @Transactional
     public User createAppleOauth(String socialId, String email, String provider, String appleRefreshToken
             , AppleLoginByCodeRequest.FullNameDto name) {
-        log.info("createOauth start: socialId={}, email={}, provider={}", socialId, email, provider);
-        log.info("firstname={}, lastname={}", name.familyName(), name.givenName());
         User u = User.builder()
                 .socialId(socialId)
                 .email(email)
@@ -137,10 +131,7 @@ public class UserService {
                 .lastName(name.givenName())
                 .build();
 
-        User saved = userRepository.save(u);
-
-        log.info("createOauth saved: id={}", saved.getId());
-        return saved;
+        return userRepository.save(u);
     }
 
     /**
@@ -155,33 +146,22 @@ public class UserService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         if (fullName != null) {
-            log.info("Updating user info for userId: {}", user.getId());
             boolean isUpdated = false;
             if (fullName.givenName() != null && !fullName.givenName().isBlank()) {
                 user.updateFirstName(fullName.givenName());
-                log.info("Updated firstName to: {}", fullName.givenName());
                 isUpdated = true;
             }
             if (fullName.familyName() != null && !fullName.familyName().isBlank()) {
                 user.updateLastName(fullName.familyName());
-                log.info("Updated lastName to: {}", fullName.familyName());
                 isUpdated = true;
             }
             if (isUpdated) {
                 userRepository.save(user);
-                log.info("Successfully saved user info update for userId: {}", user.getId());
-            } else {
-                log.info("No new name information provided for userId: {}. Skipping update.", user.getId());
             }
         }
     }
 
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
-        log.info("getUserBySocialIdAndProvider: socialId={}, provider={}", socialId, provider);
-        String trimmedSocialId = socialId.trim();
-        String trimmedProvider = provider.trim();
-        log.info("Trimmed Social ID: '{}', length: {}", trimmedSocialId, trimmedSocialId.length());
-        log.info("Trimmed Provider: '{}', length: {}", trimmedProvider, trimmedProvider.length());
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
 
@@ -197,7 +177,6 @@ public class UserService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        log.info("{},{}", user.getProvider(), Ouathplatform.APPLE);
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
@@ -239,7 +218,6 @@ public class UserService {
             // 전체 CSV
             String userLanguagesCsv = String.join(",", normalizedLanguages);
 
-            log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
             if (!userLanguagesCsv.isEmpty()) {
                 user.updateLanguage(userLanguagesCsv);
             }
@@ -256,7 +234,6 @@ public class UserService {
                     })
                     .orElse("");
 
-            log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
             if (!firstTranslatedLanguage.isEmpty()) {
                 user.updateTranslateLanguage(firstTranslatedLanguage);
             }
@@ -399,10 +376,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public AuthResponse login(EmailLoginDto req) {
-        log.info("[LOGIN] 요청: email={}", req.getEmail());
-
         String email = normalizeEmail(req.getEmail());
-        log.debug("[LOGIN] 정규화된 이메일: {}", email);
 
         User u = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
@@ -447,7 +421,6 @@ public class UserService {
 
         Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
 
-        log.info("이메일 보내주는 로직" + String.valueOf(locale));
         String verificationCode = smtpService.sendVerificationEmail(
                 email,
                 ttl,
@@ -469,9 +442,6 @@ public class UserService {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
 
-        log.info("Verifying email code for email: {}", email);
-        log.debug("Received verification code: {}", verificationCode);
-
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
 
         if (storedCode == null) {
@@ -484,11 +454,8 @@ public class UserService {
             return false;
         }
 
-        log.info("Email code verification successful for: {}", email);
-
         // 사용한 코드는 즉시 폐기
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
-        log.debug("Deleted verification code from Redis for email: {}", email);
 
         // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
@@ -497,7 +464,6 @@ public class UserService {
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
-        log.info("Set verified flag in Redis for email: {} with TTL of {} minutes", email, VERIFIED_TTL_MIN);
 
         return true;
     }
@@ -553,7 +519,6 @@ public class UserService {
             if (!languages.isEmpty()) {
                 // CSV 형태로 저장
                 String userLanguagesCsv = String.join(",", languages);
-                log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
                 user.updateLanguage(userLanguagesCsv);
 
                 // 첫 번째 요소에서 번역 코드 추출
@@ -566,7 +531,6 @@ public class UserService {
                         .findFirst()
                         .orElse("");
 
-                log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
                 }
@@ -627,7 +591,6 @@ public class UserService {
             if (!languages.isEmpty()) {
                 // CSV 형태로 저장
                 String userLanguagesCsv = String.join(",", languages);
-                log.debug("언어 변경: {} -> {}", user.getLanguage(), userLanguagesCsv);
                 user.updateLanguage(userLanguagesCsv);
 
                 // 첫 번째 요소에서 번역 코드 추출
@@ -640,7 +603,6 @@ public class UserService {
                         .findFirst()
                         .orElse("");
 
-                log.debug("번역 언어 코드 변경: {} -> {}", user.getTranslateLanguage(), firstTranslatedLanguage);
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
                 }
@@ -760,7 +722,6 @@ public class UserService {
      */
     private void cleanupUserData(User user) {
         Long userId = user.getId();
-        log.info(">>>> Starting data cleanup for user ID: {}", userId);
         List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
 
         for (ChatRoom chatRoom : ownedChatRooms) {
@@ -770,10 +731,8 @@ public class UserService {
                 User newOwner = participants.get(0).getUser();
                 chatRoom.changeOwner(newOwner);
                 chatRoomRepository.save(chatRoom);
-                log.info(">>>> Chat room {} owner changed to user {}", chatRoom.getId(), newOwner.getId());
             } else {
                 chatRoomRepository.delete(chatRoom);
-                log.info(">>>> Chat room {} deleted as it had no other participants.", chatRoom.getId());
             }
         }
         blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
@@ -795,7 +754,6 @@ public class UserService {
         chatMessageRepository.deleteAllBySenderId(userId);
 
         userRepository.delete(user);
-        log.info(">>>> Deleted user entity for userId: {}", userId);
     }
 
     /**

@@ -186,9 +186,7 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
-        log.info(postDetail.authorName());
-        return postDetail;
+        return postRepository.findPostDetail(email, postId);
     }
 
     @Override
@@ -441,9 +439,6 @@ public class PostServiceImpl implements PostService {
         User blockedUser = postRepository.findUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        log.info(blockedUser.getEmail());
-        log.info("user" + email);
-
         if (blockedUser.getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }
@@ -451,8 +446,6 @@ public class PostServiceImpl implements PostService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        log.info(""+blockedUser.getId());
-        log.info("user" + me.getId());
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
         }

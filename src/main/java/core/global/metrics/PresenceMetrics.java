@@ -17,16 +17,5 @@ public class PresenceMetrics {
                 .register(registry);
     }
 
-    public void onConnect() {
-        currentConnected.incrementAndGet();
-    }
-
-    public void onDisconnect() {
-        // 과도한 디크리먼트 방지 (옵션)
-        int v;
-        do { v = currentConnected.get();
-        } while (v > 0 && !currentConnected.compareAndSet(v, v - 1));
-    }
-
     public void setCurrentConnected(int v) { currentConnected.set(v); }
 }

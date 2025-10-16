@@ -62,8 +62,6 @@ public class TranslationService {
 
     @Transactional
     public void saveUserLanguage(Authentication auth, String language) {
-        log.info("인증된 사용자 이메일: {} ,타겟렝기쥐: {}", auth.getName(),language);
-
         User user = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         if (language != null && !language.isEmpty()) {
