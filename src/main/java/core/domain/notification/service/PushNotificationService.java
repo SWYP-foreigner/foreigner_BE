@@ -41,23 +41,21 @@ public class PushNotificationService {
      */
     public void sendPushNotification(User recipient, NotificationEvent event, String message) {
 
-        // 1단계: 마스터 푸시 알림 동의 여부 확인
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
             return;
         }
 
-        // 2단계: 카테고리별 알림 설정 확인
-        boolean isCategoryEnabled;
-        Optional<UserNotificationSetting> categorySettingOpt = userNotificationSettingRepository.findByUserAndNotificationType(recipient, event.notificationType());
-        isCategoryEnabled = categorySettingOpt.map(UserNotificationSetting::isEnabled).orElse(true);
+        if (event.notificationType().isConfigurable()) {
+            Optional<UserNotificationSetting> categorySettingOpt = userNotificationSettingRepository.findByUserAndNotificationType(recipient, event.notificationType());
+            boolean isCategoryEnabled = categorySettingOpt.map(UserNotificationSetting::isEnabled).orElse(true);
 
-        if (!isCategoryEnabled) {
-            log.info("사용자 ID {}: '{}' 카테고리 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.notificationType());
-            return;
+            if (!isCategoryEnabled) {
+                log.info("사용자 ID {}: '{}' 카테고리 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId(), event.notificationType());
+                return;
+            }
         }
 
-        // 3단계: 채팅방별 알림 설정 확인 (채팅 알림인 경우)
         if (event.notificationType() == NotificationType.chat) {
             boolean isRoomNotificationsEnabled;
             Optional<ChatParticipant> participantOpt = chatParticipantRepository.findByChatRoomIdAndUserId(event.referenceId(), recipient.getId());

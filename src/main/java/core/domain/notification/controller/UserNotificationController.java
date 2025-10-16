@@ -101,10 +101,11 @@ public class UserNotificationController {
                                                       "message": "success",
                                                       "data": [
                                                     { "notificationType": "post", "enabled": true },
-                                                { "notificationType": "comment", "enabled": true },
-                                                { "notificationType": "chat", "enabled": false },
-                                                { "notificationType": "follow", "enabled": true },
-                                                { "notificationType": "receive", "enabled": false }
+                                                    { "notificationType": "comment", "enabled": true },
+                                                    { "notificationType": "chat", "enabled": false },
+                                                    { "notificationType": "follow", "enabled": true },
+                                                    { "notificationType": "receive", "enabled": false }
+                                                    { "notificationType": "followuserpost", "enabled": true }
                                                       ],
                                                       "timestamp": "2025-10-03T12:00:00"
                                                     }
@@ -172,6 +173,7 @@ public class UserNotificationController {
                                                 { "notificationType": "chat", "enabled": true },
                                                 { "notificationType": "follow", "enabled": true },
                                                 { "notificationType": "receive", "enabled": false }
+                                                { "notificationType": "followuserpost", "enabled": true }
                                               ]
                                             }
                                             """
@@ -196,6 +198,7 @@ public class UserNotificationController {
                                                           { "type": "chat", "enabled": true },
                                                           { "type": "follow", "enabled": true },
                                                           { "type": "receive", "enabled": false }
+                                                          { "notificationType": "followuserpost", "enabled": true }
                                                         ]
                                                       }
                                                       "timestamp": "2025-10-03T12:00:00"
@@ -265,6 +268,7 @@ public class UserNotificationController {
                                                 { "notificationType": "chat", "enabled": true },
                                                 { "notificationType": "follow", "enabled": true },
                                                 { "notificationType": "receive", "enabled": true }
+                                                { "notificationType": "followuserpost", "enabled": true }
                                               ]
                                             }
                                             """
