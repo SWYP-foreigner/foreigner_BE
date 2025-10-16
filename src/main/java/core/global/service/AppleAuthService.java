@@ -126,7 +126,7 @@ public class AppleAuthService {
         }
 
         boolean isNewUserResponse = user.isNewUser();
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserRole().toString(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
