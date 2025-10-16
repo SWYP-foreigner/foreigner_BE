@@ -2,6 +2,7 @@ package core.global.config;
 
 import core.domain.user.service.UserActivityService;
 import core.global.enums.ErrorCode;
+import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.metrics.SocketDwellListener;
 import core.global.service.RedisService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final RedisService redisService;
     private final UserActivityService userActivityService;
     private final SocketDwellListener dwell;
+    private final ChatRoomDwellRecorder chatRoomDwellRecorder;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -89,6 +91,13 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 auth = (Authentication) sessionAttributes.get("userAuth");
             }
 
+            if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                String sessionId = accessor.getSessionId();
+                String dest      = accessor.getDestination(); // 예: /topic/chatrooms/{roomId}
+                String roomId    = parseRoomId(dest);
+                chatRoomDwellRecorder.onEnter(sessionId, roomId);
+            }
+
             if (auth != null) {
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 log.debug("STOMP AUTHORIZED: SecurityContextHolder에 인증 정보 설정 완료, command={}", accessor.getCommand());
@@ -98,6 +107,9 @@ public class StompChannelInterceptor implements ChannelInterceptor {
             }
 
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
+            String sessionId = accessor.getSessionId();
+            chatRoomDwellRecorder.onLeave(sessionId);
+
             // 채팅 체류 종료
             Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
             if (sessionAttributes != null) {
@@ -112,5 +124,13 @@ public class StompChannelInterceptor implements ChannelInterceptor {
         }
 
         return message;
+    }
+
+    // 유틸: roomId만 뽑기 (컨트롤러가 사용 중인 topic 경로에 맞춤)
+    private String parseRoomId(String dest) {
+        if (dest == null) return "unknown";
+        // 예) /topic/chatrooms/{roomId}
+        String[] parts = dest.split("/");
+        return parts.length > 0 ? parts[parts.length - 1] : "unknown";
     }
 }
