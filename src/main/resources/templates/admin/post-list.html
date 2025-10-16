@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>게시글 관리</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        th a { text-decoration: none; color: black; display: block; width: 100%; }
+        th a.sorted { font-weight: bold; color: #007bff; }
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .search-form input { padding: 5px; margin-right: 10px; }
+        .search-form button { padding: 5px 10px; }
+        td small { color: #777; }
+    </style>
+</head>
+<body>
+<h1>게시글 목록</h1>
+
+<div class="search-form">
+    <form th:action="@{/admin/posts}" method="get" th:object="${searchRequest}">
+        <input type="text" name="authorEmail" th:value="*{authorEmail}" placeholder="작성자 이메일">
+        <input type="text" name="authorName" th:value="*{authorName}" placeholder="작성자 이름">
+        <input type="text" name="content" th:value="*{content}" placeholder="내용 검색">
+        <input type="date" name="startDate" th:value="*{startDate}"> ~
+        <input type="date" name="endDate" th:value="*{endDate}">
+        <button type="submit">검색</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+    <tr>
+        <th>
+            <a th:href="@{/admin/posts(
+                    sort=${postPage.sort.getOrderFor('id') != null && postPage.sort.getOrderFor('id').isDescending()} ? 'id,asc' : 'id,desc',
+                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
+                   )}"
+               th:classappend="${postPage.sort.getOrderFor('id') != null} ? 'sorted'">
+                ID <span th:if="${postPage.sort.getOrderFor('id') != null}" th:text="${postPage.sort.getOrderFor('id').isAscending()} ? '▲' : '▼'"></span>
+            </a>
+        </th>
+        <th>
+            <a th:href="@{/admin/posts(
+                    sort=${postPage.sort.getOrderFor('authorName') != null && postPage.sort.getOrderFor('authorName').isDescending()} ? 'authorName,asc' : 'authorName,desc',
+                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
+                   )}"
+               th:classappend="${postPage.sort.getOrderFor('authorName') != null} ? 'sorted'">
+                작성자 <span th:if="${postPage.sort.getOrderFor('authorName') != null}" th:text="${postPage.sort.getOrderFor('authorName').isAscending()} ? '▲' : '▼'"></span>
+            </a>
+        </th>
+        <th>내용</th>
+        <th>
+            <a th:href="@{/admin/posts(
+                    sort=${postPage.sort.getOrderFor('createdAt') != null && postPage.sort.getOrderFor('createdAt').isDescending()} ? 'createdAt,asc' : 'createdAt,desc',
+                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
+                   )}"
+               th:classappend="${postPage.sort.getOrderFor('createdAt') != null} ? 'sorted'">
+                작성일 <span th:if="${postPage.sort.getOrderFor('createdAt') != null}" th:text="${postPage.sort.getOrderFor('createdAt').isAscending()} ? '▲' : '▼'"></span>
+            </a>
+        </th>
+        <th>
+            <a th:href="@{/admin/posts(
+                    sort=${postPage.sort.getOrderFor('reportCount') != null && postPage.sort.getOrderFor('reportCount').isDescending()} ? 'reportCount,asc' : 'reportCount,desc',
+                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
+                   )}"
+               th:classappend="${postPage.sort.getOrderFor('reportCount') != null} ? 'sorted'">
+                신고 수 <span th:if="${postPage.sort.getOrderFor('reportCount') != null}" th:text="${postPage.sort.getOrderFor('reportCount').isAscending()} ? '▲' : '▼'"></span>
+            </a>
+        </th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="post : ${postPage.content}">
+        <td th:text="${post.postId}"></td>
+        <td>
+            <strong th:text="${post.authorName}"></strong><br>
+            <small th:text="${post.authorEmail}"></small>
+        </td>
+        <td th:text="${post.content}"></td>
+        <td th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td th:text="${post.reportCount}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pagination" th:if="${postPage.totalPages > 1}">
+    <a th:if="${postPage.hasPrevious()}"
+       th:href="@{/admin/posts(
+         page=${postPage.number - 1},
+         sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+         authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
+         startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+       )}">이전</a>
+
+    <span th:each="pageNumber : ${#numbers.sequence(0, postPage.totalPages - 1)}">
+        <a th:href="@{/admin/posts(
+             page=${pageNumber},
+             sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+             authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
+             startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+           )}"
+           th:text="${pageNumber + 1}"
+           th:classappend="${pageNumber == postPage.number} ? 'active'"></a>
+    </span>
+
+    <a th:if="${postPage.hasNext()}"
+       th:href="@{/admin/posts(
+         page=${postPage.number + 1},
+         sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+         authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
+         startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+       )}">다음</a>
+</div>
+</body>
+</html>
