@@ -3,7 +3,6 @@ package core.global.config;
 import core.domain.user.service.UserActivityService;
 import core.global.enums.ErrorCode;
 import core.global.metrics.ChatRoomDwellRecorder;
-import core.global.metrics.SocketDwellListener;
 import core.global.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +28,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService;
     private final UserActivityService userActivityService;
-    private final SocketDwellListener dwell;
-    private final ChatRoomDwellRecorder chatRoomDwellRecorder;
+    private final ChatRoomDwellRecorder dwell;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -75,9 +73,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 // 필요 시 accessor.setUser(auth) 유지
                 log.info("STOMP JWT 인증 완료: WebSocket 세션에 사용자 정보 등록 (userId: {})", userId);
 
-                // 채팅 체류 시작
-                dwell.onOpen(userId, "chat", "/chat/stomp");
-
             } catch (Exception e) {
                 log.error("STOMP JWT 처리 중 예외 발생: {}", e.getMessage(), e);
                 throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
@@ -93,9 +88,9 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
                 String sessionId = accessor.getSessionId();
-                String dest      = accessor.getDestination(); // 예: /topic/chatrooms/{roomId}
-                String roomId    = parseRoomId(dest);
-                chatRoomDwellRecorder.onEnter(sessionId, roomId);
+                String dest = accessor.getDestination(); // 예: /topic/chatrooms/{roomId}
+                String roomId = parseRoomId(dest);
+                dwell.onEnter(sessionId, roomId);
             }
 
             if (auth != null) {
@@ -107,8 +102,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
             }
 
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
-            String sessionId = accessor.getSessionId();
-            chatRoomDwellRecorder.onLeave(sessionId);
 
             // 채팅 체류 종료
             Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
@@ -118,9 +111,11 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 long start = (startedObj instanceof Number n) ? n.longValue() : 0L;
                 long now = System.currentTimeMillis();
                 if (start > 0 && now >= start) {
-                    dwell.onClose(userId, "chat", "/chat/stomp", now - start);
+                    dwell.onLeave(accessor.getSessionId());
                 }
             }
+        } else if (StompCommand.UNSUBSCRIBE.equals(accessor.getCommand())) {
+            dwell.onLeave(accessor.getSessionId());
         }
 
         return message;
