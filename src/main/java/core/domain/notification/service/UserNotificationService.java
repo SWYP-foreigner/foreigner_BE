@@ -145,4 +145,20 @@ public class UserNotificationService {
 
         notificationRepository.save(notification);
     }
+    /**
+     * 특정 알림을 읽음 상태로 변경합니다.
+     * @param userId         현재 로그인한 사용자의 ID
+     * @param notificationId 읽음 처리할 알림의 ID
+     */
+    public void markNotificationAsRead(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NOTIFICATION_FORBIDDEN);
+        }
+
+        notification.markAsRead();
+
+    }
 }

@@ -342,4 +342,17 @@ public class UserNotificationController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+    @Operation(summary = "알림 읽음 처리", description = "특정 알림을 '읽음' 상태로 변경합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "알림을 찾을 수 없거나, 본인의 알림이 아닐 경우")
+    })
+    @PostMapping("/{notificationId}/read")
+    public ResponseEntity<ApiResponse<Void>> markNotificationAsRead(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long notificationId
+    ) {
+        userNotificationService.markNotificationAsRead(userDetails.getUserId(), notificationId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
