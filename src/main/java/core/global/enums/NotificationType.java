@@ -9,7 +9,7 @@ public enum NotificationType {
     chat(true),
     follow(true),
     receive(true),
-    newuser(false), // 👈 사용자가 설정할 수 없으므로 false
+    newuser(true),
     followuserpost(true);
 
     private final boolean configurable;
