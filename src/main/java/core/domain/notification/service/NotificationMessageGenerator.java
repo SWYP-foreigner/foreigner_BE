@@ -34,6 +34,8 @@ public class NotificationMessageGenerator {
 
             case follow -> actorName + "님이 회원님의 팔로우 요청을 수락했습니다.";
             case receive -> actorName + "님이 회원님을 팔로우하기 시작했습니다.";
+            case newuser -> actorName + "님이 새로 가입했습니다! 환영해주세요.";
+            case followuserpost -> actorName + "님이 새로운 게시글을 작성했습니다.";
             default -> "새로운 알림이 도착했습니다.";
         };
     }

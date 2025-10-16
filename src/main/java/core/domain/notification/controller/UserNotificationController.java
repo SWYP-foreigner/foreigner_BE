@@ -101,10 +101,12 @@ public class UserNotificationController {
                                                       "message": "success",
                                                       "data": [
                                                     { "notificationType": "post", "enabled": true },
-                                                { "notificationType": "comment", "enabled": true },
-                                                { "notificationType": "chat", "enabled": false },
-                                                { "notificationType": "follow", "enabled": true },
-                                                { "notificationType": "receive", "enabled": false }
+                                                    { "notificationType": "comment", "enabled": true },
+                                                    { "notificationType": "chat", "enabled": false },
+                                                    { "notificationType": "follow", "enabled": true },
+                                                    { "notificationType": "receive", "enabled": false },
+                                                    { "notificationType": "followuserpost", "enabled": true },
+                                                    { "notificationType": "newuser", "enabled": true },
                                                       ],
                                                       "timestamp": "2025-10-03T12:00:00"
                                                     }
@@ -171,7 +173,9 @@ public class UserNotificationController {
                                                 { "notificationType": "comment", "enabled": false },
                                                 { "notificationType": "chat", "enabled": true },
                                                 { "notificationType": "follow", "enabled": true },
-                                                { "notificationType": "receive", "enabled": false }
+                                                { "notificationType": "receive", "enabled": false },
+                                                { "notificationType": "followuserpost", "enabled": true },
+                                                { "notificationType": "newuser", "enabled": true }
                                               ]
                                             }
                                             """
@@ -196,6 +200,9 @@ public class UserNotificationController {
                                                           { "type": "chat", "enabled": true },
                                                           { "type": "follow", "enabled": true },
                                                           { "type": "receive", "enabled": false }
+                                                          { "notificationType": "followuserpost", "enabled": true },
+                                                          { "notificationType": "newuser", "enabled": true }
+                                                 
                                                         ]
                                                       }
                                                       "timestamp": "2025-10-03T12:00:00"
@@ -264,7 +271,9 @@ public class UserNotificationController {
                                                 { "notificationType": "comment", "enabled": true },
                                                 { "notificationType": "chat", "enabled": true },
                                                 { "notificationType": "follow", "enabled": true },
-                                                { "notificationType": "receive", "enabled": true }
+                                                { "notificationType": "receive", "enabled": true },
+                                                { "notificationType": "followuserpost", "enabled": true },
+                                                { "notificationType": "newuser", "enabled": true }
                                               ]
                                             }
                                             """
@@ -333,7 +342,17 @@ public class UserNotificationController {
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
-
-
+    @Operation(summary = "알림 읽음 처리", description = "특정 알림을 '읽음' 상태로 변경합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "알림을 찾을 수 없거나, 본인의 알림이 아닐 경우")
+    })
+    @PostMapping("/{notificationId}/read")
+    public ResponseEntity<ApiResponse<Void>> markNotificationAsRead(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long notificationId
+    ) {
+        userNotificationService.markNotificationAsRead(userDetails.getUserId(), notificationId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }
