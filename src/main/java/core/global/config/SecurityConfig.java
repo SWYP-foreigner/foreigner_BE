@@ -1,16 +1,11 @@
 package core.global.config;
 
-import core.global.constants.AdminOnlyPaths;
-import core.global.constants.UserOnlyPaths;
-import core.global.constants.VisitorOnlyPaths;
-import core.global.handler.VisitorUserGuardAccessDeniedHandler;
 import core.global.metrics.ActiveUserRecordFilter;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -38,8 +33,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        log.info("jwtTokenFilter = {}", jwtTokenFilter);
-
         http
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -47,52 +40,41 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // (1) 관리자
-                        .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
-
-                        // 로그인 안해도 허용
+                        .requestMatchers("/admin/**").authenticated()
                         .requestMatchers(
+                                "/api/v1/member/refresh",
+                                "/api/v1/images/presign",
                                 "/api/v1/member/google/app-login",
                                 "/api/v1/member/apple/app-login",
+                                "/api/v1/member/apple/**",
+                                "/api/v1/member/profile/**",
+                                "/api/v1/mypage/profile/**",
+                                "/api/v1/board/*",
+                                "/api/v1/users/**",
+                                "/error",
+                                "/api/v1/mypage/profile/find",
+                                "/api/v1/mypage/**",
+                                "/error/**",
                                 "/api/v1/member/doLogin",
-                                "/api/v1/member/signup",
                                 "/api/v1/member/verify-code",
+                                "/api/v1/member/signup",
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
-                                "/api/v1/member/refresh",
-                                "/api/v1/images/presign",
-
                                 "/actuator/**",
-                                "/error",
-                                "/error/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/swagger-ui.html",
                                 "/ws/**",
                                 "/ws"
-                        )
-                        .permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/api/v1/boards/*/posts")
-                        .hasAnyRole("VISITOR","USER","ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/boards/*/posts")
-                        .hasAnyRole("USER","ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/boards/*/posts/**")
-                        .hasAnyRole("USER","ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/boards/*/posts/**")
-                        .hasAnyRole("USER","ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/boards/*/posts/**")
-                        .hasAnyRole("USER","ADMIN")
-
-                        // (2) 비지터 전용
-                        .requestMatchers(VisitorOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("VISITOR")
-
-                        // (3) 유저 전용
-                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER", "ADMIN")
-
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                        .accessDeniedHandler(new VisitorUserGuardAccessDeniedHandler(UserOnlyPaths.PATTERNS))
                 );
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);

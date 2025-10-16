@@ -64,18 +64,14 @@ public class AppleClientSecretGenerator {
                 .compact();
     }
     private PrivateKey createPrivateKey() {
-        log.info("--- Private Key Processing Start ---");
         try {
             String privateKeyPem = appleProps.privateKeyPem();
-            // Log 1: Raw string from properties
-            log.info("1. Raw privateKeyPem string: {}", privateKeyPem);
 
+            // Log 1: Raw string from properties
             byte[] decodedKey = Base64.getDecoder().decode(privateKeyPem);
             String keyString = new String(decodedKey);
 
             // Log 2: The decoded key string (should be in PEM format)
-            log.info("2. Decoded keyString (PEM format):\n{}", keyString);
-
             try (StringReader keyReader = new StringReader(keyString);
                  PEMParser pemParser = new PEMParser(keyReader)) {
 
@@ -85,7 +81,6 @@ public class AppleClientSecretGenerator {
                     log.error("Failed to parse PEM object. pemParser returned null.");
                     throw new IOException("Failed to parse PEM object.");
                 }
-                log.info("3. PEMParser parsed object type: {}", parsedObject.getClass().getName());
 
                 PrivateKeyInfo privateKeyInfo = (PrivateKeyInfo) parsedObject;
                 return converter.getPrivateKey(privateKeyInfo);
@@ -94,8 +89,6 @@ public class AppleClientSecretGenerator {
         } catch (IOException e) {
             log.error("Failed to parse Apple private key. Check key format and properties.", e);
             throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
-        } finally {
-            log.info("--- Private Key Processing End ---");
         }
     }
 }

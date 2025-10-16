@@ -1,11 +1,13 @@
 package core.domain.usernotificationsetting.service;
 
+import core.domain.notification.dto.NotificationSettingListResponse;
+import core.domain.notification.dto.NotificationSettingResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.domain.usernotificationsetting.dto.NotificationSettingBulkUpdateRequestDto;
 import core.domain.usernotificationsetting.dto.NotificationSettingInitItem;
 import core.domain.usernotificationsetting.dto.NotificationSettingInitRequestDto;
 import core.domain.usernotificationsetting.dto.NotificationSettingResponseDto;
-import core.domain.usernotificationsetting.dto.NotificationSettingUpdateRequestDto;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.enums.ErrorCode;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -39,16 +42,30 @@ public class UserNotificationSettingService {
     }
 
     @Transactional
-    public NotificationSettingResponseDto updateUserNotificationSetting(Long userId, NotificationSettingUpdateRequestDto request) {
+    public NotificationSettingListResponse updateUserNotificationSettings(
+            Long userId, NotificationSettingBulkUpdateRequestDto request) {
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_UNAUTHORIZED));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        UserNotificationSetting setting = repository.findByUserIdAndNotificationType(user.getId(), request.getNotificationType())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
+        List<NotificationSettingResponse> responses = new ArrayList<>();
 
-        setting.updateEnabled(request.isEnabled());
+        for (NotificationSettingBulkUpdateRequestDto.SettingItem item : request.settings()) {
+            UserNotificationSetting setting = repository
+                    .findByUserIdAndNotificationType(user.getId(), item.notificationType())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
 
-        return new NotificationSettingResponseDto(setting.getNotificationType(), setting.isEnabled());
+            setting.updateEnabled(item.enabled());
+
+            NotificationSettingResponse response = new NotificationSettingResponse(
+                    setting.getNotificationType(),
+                    setting.isEnabled()
+            );
+
+            responses.add(response);
+        }
+
+        return new NotificationSettingListResponse(responses);
     }
 
     @Transactional

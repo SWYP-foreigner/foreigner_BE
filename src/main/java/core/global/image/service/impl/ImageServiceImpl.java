@@ -305,7 +305,6 @@ public class ImageServiceImpl implements ImageService {
             return;
         }
         boolean exists = existsOnS3(key);
-        log.info("[DEL][ONE] key={}, existsBefore={}", key, exists);
         if (!exists) {
             throw new BusinessException(ErrorCode.IMAGE_FILE_DELETE_FAILED);
         }
@@ -493,14 +492,10 @@ public class ImageServiceImpl implements ImageService {
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
 
-        log.info("isDefaultIncoming " + isDefaultIncoming);
-
         // 존재/타입/용량 검증 (10MB 예시)
         if (!isDefaultIncoming) {
             validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
         }
-
-        log.info("requestedKeyOrUrl " + requestedKeyOrUrl);
 
         Optional<Image> existingOpt =
                 imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId);
@@ -512,7 +507,6 @@ public class ImageServiceImpl implements ImageService {
         String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
 
         if (existingOpt.isPresent() && Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)) {
-            log.info("[CHAT_ROOM {}] same URL as existing - no-op", chatRoomId);
             return candidateFinalUrl;
         }
 
@@ -545,8 +539,6 @@ public class ImageServiceImpl implements ImageService {
                 throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
             finalKey = dstKey;
-        } else {
-            log.info("[CHAT_ROOM {}] use key as-is (default or non-staging): {}", chatRoomId, reqKey);
         }
 
         String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);

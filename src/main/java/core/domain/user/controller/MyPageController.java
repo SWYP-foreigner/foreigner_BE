@@ -144,7 +144,7 @@ public class MyPageController {
             summary = "마이 프로필 수정(인증된 사용자)",
             description = "SecurityContext 의 인증 객체에서 사용자 정보를 가져와 프로필을 부분 수정합니다."
     )
-    public ResponseEntity<UserProfileEditDto> editProfile(
+    public ResponseEntity<UserProfileEditDto>  editProfile(
             @RequestBody UserProfileEditDto dto
     ) {
         featureUsageMetrics.recordFollowUsage();

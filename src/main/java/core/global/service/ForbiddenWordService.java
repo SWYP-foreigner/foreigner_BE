@@ -48,10 +48,10 @@ public class ForbiddenWordService {
             }
             this.forbiddenSet = lowered;
 
-            System.out.println("금칙어 " + this.forbiddenWords.size() + "개를 로드했습니다.");
+            log.info("금칙어 " + this.forbiddenWords.size() + "개를 로드했습니다.");
 
         } catch (IOException e) {
-            System.err.println("금칙어 파일을 로드하는 데 실패했습니다: " + e.getMessage());
+            log.warn("금칙어 파일을 로드하는 데 실패했습니다: " + e.getMessage());
             this.forbiddenWords = Collections.emptyList();
         }
     }
@@ -73,7 +73,6 @@ public class ForbiddenWordService {
 
             String normalized = token.toLowerCase(Locale.ROOT);
             if (forbiddenSet.contains(normalized)) {
-                log.info("forbidden[{}]: '{}' (pos: {}-{})", idx, token, start, end);
                 found = true;
             } else {
                 log.trace("ok[{}]: '{}' (pos: {}-{})", idx, token, start, end);

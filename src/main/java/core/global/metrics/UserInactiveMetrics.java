@@ -4,17 +4,11 @@ import core.domain.user.repository.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
 import io.micrometer.core.instrument.Tags;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -23,7 +17,6 @@ public class UserInactiveMetrics {
     private final UserRepository userRepository;
     private final MultiGauge inactiveGauge;
 
-    // MultiGauge 빈 등록
     public UserInactiveMetrics(MeterRegistry registry, UserRepository userRepository) {
         this.userRepository = userRepository;
         this.inactiveGauge = MultiGauge.builder("user_inactivity_hours")
@@ -36,7 +29,9 @@ public class UserInactiveMetrics {
         safeCollect();
     }
 
-    /** 2분마다 갱신 */
+    /**
+     * 2분마다 갱신
+     */
     @Scheduled(fixedDelayString = "PT2M")
     public void scheduled() {
         safeCollect();
@@ -96,11 +91,11 @@ public class UserInactiveMetrics {
             // 3) MultiGauge 등록/치환
             inactiveGauge.register(
                     java.util.List.of(
-                            MultiGauge.Row.of(Tags.of("le", "24",   "order", "024"), nums[0]),
-                            MultiGauge.Row.of(Tags.of("le", "72",   "order", "072"), nums[1]),
-                            MultiGauge.Row.of(Tags.of("le", "168",  "order", "168"), nums[2]),
-                            MultiGauge.Row.of(Tags.of("le", "336",  "order", "336"), nums[3]),
-                            MultiGauge.Row.of(Tags.of("le", "720",  "order", "720"), nums[4]),
+                            MultiGauge.Row.of(Tags.of("le", "24", "order", "024"), nums[0]),
+                            MultiGauge.Row.of(Tags.of("le", "72", "order", "072"), nums[1]),
+                            MultiGauge.Row.of(Tags.of("le", "168", "order", "168"), nums[2]),
+                            MultiGauge.Row.of(Tags.of("le", "336", "order", "336"), nums[3]),
+                            MultiGauge.Row.of(Tags.of("le", "720", "order", "720"), nums[4]),
                             MultiGauge.Row.of(Tags.of("le", "+Inf", "order", "999"), nums[5])
                     ),
                     true

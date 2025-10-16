@@ -26,12 +26,10 @@ public class UserWithdrawalEventListener {
     @TransactionalEventListener
     public void handleUserWithdrawal(UserWithdrawalEvent event) {
         try {
-            log.info(">>>> DB-Transaction committed. Starting Redis cleanup for user ID: {}", event.getUserId());
             redisService.deleteRefreshToken(event.getUserId());
 
             long expiration = jwtTokenProvider.getExpiration(event.getAccessToken()).getTime() - System.currentTimeMillis();
             redisService.blacklistAccessToken(event.getAccessToken(), expiration);
-            log.info(">>>> Redis cleanup finished for user ID: {}", event.getUserId());
         } catch (Exception e) {
             log.error("회원 탈퇴 후 Redis 정리 작업 실패. 수동 확인 필요. User ID: {}", event.getUserId(), e);
         }

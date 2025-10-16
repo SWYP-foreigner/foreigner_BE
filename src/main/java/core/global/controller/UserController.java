@@ -51,16 +51,11 @@ public class UserController {
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
                                     @RequestParam(required = false) String state) {
-        System.out.println("Google Login Response received!");
-        System.out.println("Authorization Code: " + code);
-        System.out.println("State: " + state);
         return "Received code: " + code + ", state: " + state;
     }
     @Operation(summary = "구글 소셜 로그인", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/google/app-login")
     public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(@RequestBody GoogleLoginReq req) {
-
-        log.info("--- [구글 앱 로그인] API 요청 수신 ---");
         LoginResponseDto responseDto = googleAuthService.processGoogleLogin(req.getCode());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
@@ -128,10 +123,8 @@ public class UserController {
             @Parameter(description = "Apple 로그인 요청 데이터", required = true)
             @RequestBody @Valid AppleLoginByCodeRequest req) {
 
-        log.info("--- [Apple 앱 로그인] API 요청 수신 ---");
         try {
             LoginResponseDto responseDto = appleAuthService.login(req);
-            log.info("--- [Apple 앱 로그인] 처리 완료. 사용자 ID: {}", responseDto.userId());
             publisher.publishEvent(new UserLoggedInEvent(responseDto.userId().toString(), "apple"));
             return ResponseEntity.ok(ApiResponse.success(responseDto));
 

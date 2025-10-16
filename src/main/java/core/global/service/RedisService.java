@@ -28,10 +28,8 @@ public class RedisService {
      */
     public void saveRefreshToken(Long userId, String refreshToken, long expirationMillis) {
         String key = getRefreshTokenKey(userId);
-        log.info("[Redis] RefreshToken 저장 시도 - key: {}, refreshToken: {}, TTL(ms): {}", key, refreshToken, expirationMillis);
         redisTemplate.opsForValue().set(key, refreshToken, expirationMillis, TimeUnit.MILLISECONDS);
         String storedToken = redisTemplate.opsForValue().get(key);
-        log.info("[Redis] RefreshToken 저장 완료 - key: {}, 실제 저장된 값: {}", key, storedToken);
     }
 
 
