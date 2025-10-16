@@ -1,19 +1,16 @@
 <configuration scan="true">
-    <!-- 콘솔 JSON -->
     <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
-                <!-- 고정 필드 -->
                 <timestamp/>
                 <logLevel/>
                 <loggerName/>
                 <message/>
                 <stackTrace/>
 
-                <!-- 운영에서 항상 보고 싶은 고정 값 -->
+                <!-- 이건 정상: String JSON을 쓰는 방식이라 충돌 없음 -->
                 <globalCustomFields>{"app":"my-service","env":"prod","version":"1.2.3"}</globalCustomFields>
 
-                <!-- 필요한 MDC 키만 선택 포함 -->
                 <mdc>
                     <includeMdcKeyName>requestId</includeMdcKeyName>
                     <includeMdcKeyName>userId</includeMdcKeyName>
@@ -25,27 +22,26 @@
                     <includeMdcKeyName>bytesIn</includeMdcKeyName>
                     <includeMdcKeyName>bytesOut</includeMdcKeyName>
                 </mdc>
-
-                <!-- 마커(필요 시) -->
-                <!-- <logstashMarkers/> -->
             </providers>
 
-            <!-- 마스킹은 유지 -->
             <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
                 <defaultMask>****</defaultMask>
+
+                <!-- Bearer 토큰 -->
                 <valueMask>
-                    <valueRegex>(?i)(Bearer\s+)[A-Za-z0-9._-]+</valueRegex>
-                    <replacement>$1****</replacement>
+                    <value>(?i)(Bearer\s+)[A-Za-z0-9._-]+</value>
+                    <mask>$1****</mask>
                 </valueMask>
+
+                <!-- 이메일: 아이디만 남기고 도메인 마스킹 -->
                 <valueMask>
-                    <valueRegex>([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})</valueRegex>
-                    <replacement>$1@****</replacement>
+                    <value>([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})</value>
+                    <mask>$1@****</mask>
                 </valueMask>
             </jsonGeneratorDecorator>
         </encoder>
     </appender>
 
-    <!-- 비동기 -->
     <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
         <queueSize>8192</queueSize>
         <discardingThreshold>0</discardingThreshold>
@@ -53,10 +49,6 @@
         <appender-ref ref="CONSOLE_JSON"/>
     </appender>
 
-    <!-- ACCESS / AUDIT 파일도 동일하게 데코레이터 교체 -->
-    <!-- ... 동일 패턴으로 수정 ... -->
-
-    <!-- 소음 줄이기 -->
     <logger name="org.hibernate.SQL" level="OFF"/>
     <logger name="org.hibernate.orm.jdbc.bind" level="OFF"/>
     <logger name="org.springframework.web.socket" level="WARN"/>
