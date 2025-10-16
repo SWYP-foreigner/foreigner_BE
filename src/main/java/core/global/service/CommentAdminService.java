@@ -4,7 +4,9 @@ import core.domain.comment.dto.CommentListResponse;
 import core.domain.comment.dto.CommentSearchRequest;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
-import jakarta.persistence.EntityNotFoundException;
+import core.domain.user.service.UserAdminService;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CommentAdminService {
 
     private final CommentRepository commentRepository;
+    private final UserAdminService userAdminService;
 
     @Transactional(readOnly = true)
     public Page<CommentListResponse> searchComments(CommentSearchRequest request, Pageable pageable) {
@@ -25,8 +28,19 @@ public class CommentAdminService {
     @Transactional
     public void deleteComment(Long commentId) {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new EntityNotFoundException("Comment not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
         commentRepository.delete(comment);
+    }
+
+    @Transactional
+    public void deleteCommentAndBanUser(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+
+        Long authorId = comment.getAuthor().getId();
+
+        commentRepository.delete(comment);
+        userAdminService.hardDeleteUser(authorId);
     }
 }

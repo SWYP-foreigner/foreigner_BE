@@ -76,9 +76,12 @@
         <td th:text="${comment.content}"></td>
         <td th:text="${#temporals.format(comment.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
         <td th:text="${comment.reportCount}"></td>
-        <td>
-            <form th:action="@{/admin/comments/{id}/delete(id=${comment.commentId})}" method="post" onsubmit="return confirm('경고: 이 댓글을 영구적으로 삭제합니다. 되돌릴 수 없습니다. 정말 삭제하시겠습니까?');">
+        <td style="display: flex; gap: 5px;">
+            <form th:action="@{/admin/comments/{id}/delete(id=${comment.commentId})}" method="post" onsubmit="return confirm('이 댓글을 영구적으로 삭제합니다. 되돌릴 수 없습니다. 정말 삭제하시겠습니까?');">
                 <button type="submit">삭제</button>
+            </form>
+            <form th:action="@{/admin/comments/{id}/delete-and-ban(id=${comment.commentId})}" method="post" onsubmit="return confirm('경고: 댓글을 삭제하고 작성자를 영구 추방합니다. 이 작업은 되돌릴 수 없습니다. 정말 진행하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white;">삭제 및 추방</button>
             </form>
         </td>
     </tr>
@@ -87,16 +90,16 @@
 
 <div class="pagination" th:if="${commentPage.totalPages > 1}">
     <a th:if="${commentPage.hasPrevious()}"
-       th:href="@{/admin/comments(page=${commentPage.number - 1}, sort=${#strings.arrayJoin(commentPage.sort.toString().split(': '), ',')}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}">이전</a>
+       th:href="@{/admin/comments(page=${commentPage.number - 1}, sort=${param.sort}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}">이전</a>
 
     <span th:each="pageNumber : ${#numbers.sequence(0, commentPage.totalPages - 1)}">
-        <a th:href="@{/admin/comments(page=${pageNumber}, sort=${#strings.arrayJoin(commentPage.sort.toString().split(': '), ',')}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+        <a th:href="@{/admin/comments(page=${pageNumber}, sort=${param.sort}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
            th:text="${pageNumber + 1}"
            th:classappend="${pageNumber == commentPage.number} ? 'active'"></a>
     </span>
 
     <a th:if="${commentPage.hasNext()}"
-       th:href="@{/admin/comments(page=${commentPage.number + 1}, sort=${#strings.arrayJoin(commentPage.sort.toString().split(': '), ',')}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}">다음</a>
+       th:href="@{/admin/comments(page=${commentPage.number + 1}, sort=${param.sort}, authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}, onlyReported=${searchRequest.onlyReported}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}">다음</a>
 </div>
 
 </body>

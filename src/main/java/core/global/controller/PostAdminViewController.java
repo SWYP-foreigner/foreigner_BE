@@ -4,15 +4,14 @@ import core.domain.post.dto.PostListResponse;
 import core.domain.post.dto.PostSearchRequest;
 import core.global.service.PostAdminService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping("/admin/posts")
@@ -31,5 +30,17 @@ public class PostAdminViewController {
         model.addAttribute("postPage", postPage);
         model.addAttribute("searchRequest", request);
         return "admin/post-list";
+    }
+
+    @PostMapping("/{postId}/delete")
+    public String deletePost(@PathVariable Long postId) {
+        postAdminService.deletePost(postId);
+        return "redirect:/admin/posts";
+    }
+
+    @PostMapping("/{postId}/delete-and-ban")
+    public String deletePostAndBanUser(@PathVariable Long postId) {
+        postAdminService.deletePostAndBanUser(postId);
+        return "redirect:/admin/posts";
     }
 }

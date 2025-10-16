@@ -37,42 +37,27 @@
     <thead>
     <tr>
         <th>
-            <a th:href="@{/admin/posts(
-                    sort=${postPage.sort.getOrderFor('id') != null && postPage.sort.getOrderFor('id').isDescending()} ? 'id,asc' : 'id,desc',
-                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
-                   )}"
-               th:classappend="${postPage.sort.getOrderFor('id') != null} ? 'sorted'">
+            <a th:href="@{/admin/posts(sort=${postPage.sort.getOrderFor('id') != null && postPage.sort.getOrderFor('id').isDescending()} ? 'id,asc' : 'id,desc', authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content})}">
                 ID <span th:if="${postPage.sort.getOrderFor('id') != null}" th:text="${postPage.sort.getOrderFor('id').isAscending()} ? '▲' : '▼'"></span>
             </a>
         </th>
         <th>
-            <a th:href="@{/admin/posts(
-                    sort=${postPage.sort.getOrderFor('authorName') != null && postPage.sort.getOrderFor('authorName').isDescending()} ? 'authorName,asc' : 'authorName,desc',
-                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
-                   )}"
-               th:classappend="${postPage.sort.getOrderFor('authorName') != null} ? 'sorted'">
+            <a th:href="@{/admin/posts(sort=${postPage.sort.getOrderFor('authorName') != null && postPage.sort.getOrderFor('authorName').isDescending()} ? 'authorName,asc' : 'authorName,desc', authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content})}">
                 작성자 <span th:if="${postPage.sort.getOrderFor('authorName') != null}" th:text="${postPage.sort.getOrderFor('authorName').isAscending()} ? '▲' : '▼'"></span>
             </a>
         </th>
         <th>내용</th>
         <th>
-            <a th:href="@{/admin/posts(
-                    sort=${postPage.sort.getOrderFor('createdAt') != null && postPage.sort.getOrderFor('createdAt').isDescending()} ? 'createdAt,asc' : 'createdAt,desc',
-                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
-                   )}"
-               th:classappend="${postPage.sort.getOrderFor('createdAt') != null} ? 'sorted'">
+            <a th:href="@{/admin/posts(sort=${postPage.sort.getOrderFor('createdAt') != null && postPage.sort.getOrderFor('createdAt').isDescending()} ? 'createdAt,asc' : 'createdAt,desc', authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content})}">
                 작성일 <span th:if="${postPage.sort.getOrderFor('createdAt') != null}" th:text="${postPage.sort.getOrderFor('createdAt').isAscending()} ? '▲' : '▼'"></span>
             </a>
         </th>
         <th>
-            <a th:href="@{/admin/posts(
-                    sort=${postPage.sort.getOrderFor('reportCount') != null && postPage.sort.getOrderFor('reportCount').isDescending()} ? 'reportCount,asc' : 'reportCount,desc',
-                    authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content}
-                   )}"
-               th:classappend="${postPage.sort.getOrderFor('reportCount') != null} ? 'sorted'">
+            <a th:href="@{/admin/posts(sort=${postPage.sort.getOrderFor('reportCount') != null && postPage.sort.getOrderFor('reportCount').isDescending()} ? 'reportCount,asc' : 'reportCount,desc', authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content})}">
                 신고 수 <span th:if="${postPage.sort.getOrderFor('reportCount') != null}" th:text="${postPage.sort.getOrderFor('reportCount').isAscending()} ? '▲' : '▼'"></span>
             </a>
         </th>
+        <th>관리</th>
     </tr>
     </thead>
     <tbody>
@@ -85,6 +70,14 @@
         <td th:text="${post.content}"></td>
         <td th:text="${#temporals.format(post.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
         <td th:text="${post.reportCount}"></td>
+        <td style="display: flex; gap: 5px;">
+            <form th:action="@{/admin/posts/{id}/delete(id=${post.postId})}" method="post" onsubmit="return confirm('이 게시글을 영구적으로 삭제합니다. 되돌릴 수 없습니다. 정말 삭제하시겠습니까?');">
+                <button type="submit">삭제</button>
+            </form>
+            <form th:action="@{/admin/posts/{id}/delete-and-ban(id=${post.postId})}" method="post" onsubmit="return confirm('경고: 게시글을 삭제하고 작성자를 영구 추방합니다. 이 작업은 되돌릴 수 없습니다. 정말 진행하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white;">삭제 및 추방</button>
+            </form>
+        </td>
     </tr>
     </tbody>
 </table>
@@ -93,7 +86,7 @@
     <a th:if="${postPage.hasPrevious()}"
        th:href="@{/admin/posts(
          page=${postPage.number - 1},
-         sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+         sort=${param.sort},
          authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
          startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
        )}">이전</a>
@@ -101,7 +94,7 @@
     <span th:each="pageNumber : ${#numbers.sequence(0, postPage.totalPages - 1)}">
         <a th:href="@{/admin/posts(
              page=${pageNumber},
-             sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+             sort=${param.sort},
              authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
              startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
            )}"
@@ -112,7 +105,7 @@
     <a th:if="${postPage.hasNext()}"
        th:href="@{/admin/posts(
          page=${postPage.number + 1},
-         sort=${#strings.arrayJoin(postPage.sort.toString().split(': '), ',')},
+         sort=${param.sort},
          authorEmail=${searchRequest.authorEmail}, authorName=${searchRequest.authorName}, content=${searchRequest.content},
          startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
        )}">다음</a>

@@ -36,4 +36,10 @@ public class CommentAdminViewController {
         commentAdminService.deleteComment(commentId);
         return "redirect:/admin/comments";
     }
+
+    @PostMapping("/{commentId}/delete-and-ban")
+    public String deleteCommentAndBanUser(@PathVariable Long commentId) {
+        commentAdminService.deleteCommentAndBanUser(commentId);
+        return "redirect:/admin/comments";
+    }
 }
