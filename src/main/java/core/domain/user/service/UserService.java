@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.notification.dto.NewUserJoinedEvent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
@@ -622,6 +623,8 @@ public class UserService {
         if (notBlank(dto.imageKey())) {
             imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
+        NewUserJoinedEvent event = new NewUserJoinedEvent(user.getId());
+        eventPublisher.publishEvent(event);
     }
 
 
