@@ -93,4 +93,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
      * 채팅방의 기존 이미지를 모두 삭제하기 위해 사용됩니다.
      */
     List<Image> findByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
+
+    void deleteAllByImageTypeAndRelatedIdIn(ImageType type, List<Long> postIds);
 }

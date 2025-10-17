@@ -9,19 +9,17 @@
         h1 { color: #333; margin-bottom: 40px; }
         .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
 
-        /* --- 🔽 Dropdown 관련 CSS 추가 🔽 --- */
         .menu-item {
             background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             padding: 40px 20px; text-decoration: none; color: #333; transition: transform 0.2s, box-shadow 0.2s;
-            position: relative; /* 드롭다운 기준점 */
+            position: relative;
         }
         .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
         .menu-item .icon { font-size: 48px; margin-bottom: 15px; }
         .menu-item .title { font-size: 20px; font-weight: bold; }
 
-        /* 드롭다운 메뉴 스타일 */
         .dropdown-content {
-            display: none; /* 평소에는 숨김 */
+            display: none;
             position: absolute;
             background-color: #f9f9f9;
             min-width: 160px;
@@ -41,9 +39,8 @@
         }
         .dropdown-content a:hover { background-color: #f1f1f1; }
         .menu-item:hover .dropdown-content {
-            display: block; /* 마우스를 올리면 보이게 함 */
+            display: block;
         }
-        /* --- 🔼 CSS 변경 끝 🔼 --- */
     </style>
 </head>
 <body>
@@ -61,6 +58,7 @@
             <div class="dropdown-content">
                 <a th:href="@{/admin/posts}">게시글 관리</a>
                 <a th:href="@{/admin/comments}">댓글 관리</a>
+                <a th:href="@{/admin/boards}">카테고리 관리</a>
             </div>
         </div>
         <a th:href="@{/admin/metrics}" class="menu-item">

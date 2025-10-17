@@ -1,5 +1,6 @@
 package core.domain.post.repository;
 
+import core.domain.board.entity.Board;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import org.springframework.data.domain.Page;
@@ -23,4 +24,7 @@ public interface PostRepository extends JpaRepository<Post, Long> , PostReposito
     int incrementViewCount(@Param("postId") Long postId);
 
     Page<Post> findByAuthorId(Long authorId, Pageable pageable);
+
+    boolean existsByBoard(Board board);
+    List<Post> findByBoard(Board board);
 }
