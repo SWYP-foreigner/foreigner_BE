@@ -18,6 +18,7 @@ import java.util.Optional;
 public interface ChatParticipantRepository extends JpaRepository<ChatParticipant, Long> {
 
     List<ChatParticipant> findByChatRoomId(Long chatRoomId);
+    Page<ChatParticipant> findByChatRoomId(Long chatRoomId, Pageable pageable);
 
     Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 

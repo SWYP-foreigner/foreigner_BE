@@ -7,7 +7,8 @@
         body { font-family: sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; }
         .menu-container { text-align: center; }
         h1 { color: #333; margin-bottom: 40px; }
-        .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+        /* --- 🔽 grid-template-columns를 4칸으로 변경 🔽 --- */
+        .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
 
         .menu-item {
             background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -53,7 +54,8 @@
             <div class="title">사용자 관리</div>
         </a>
 
-        <div class="menu-item"> <div class="icon">📝</div>
+        <div class="menu-item">
+            <div class="icon">📝</div>
             <div class="title">커뮤니티 관리</div>
             <div class="dropdown-content">
                 <a th:href="@{/admin/posts}">게시글 관리</a>
@@ -61,6 +63,17 @@
                 <a th:href="@{/admin/boards}">카테고리 관리</a>
             </div>
         </div>
+
+        <div class="menu-item">
+            <div class="icon">💬</div>
+            <div class="title">채팅 관리</div>
+            <div class="dropdown-content">
+                <a th:href="@{/admin/chats}">채팅방 목록</a>
+                <a href="#">신고 내역 관리 (예정)</a>
+                <a href="#">필터 관리 (예정)</a>
+            </div>
+        </div>
+
         <a th:href="@{/admin/metrics}" class="menu-item">
             <div class="icon">📊</div>
             <div class="title">통계 대시보드</div>
