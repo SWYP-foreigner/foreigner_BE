@@ -1,6 +1,7 @@
 package core.domain.user.entity;
 
 
+import core.global.enums.FollowActionType;
 import core.global.enums.FollowStatus;
 import jakarta.persistence.*;
 import lombok.Builder;
@@ -32,7 +33,7 @@ public class FollowActivityLog {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "action_type", nullable = false)
-    private FollowStatus actionType;
+    private FollowActionType actionType;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -52,9 +53,9 @@ public class FollowActivityLog {
     private String followerSex;
 
     @Column(name = "follower_birth_date")
-    private String followerBirthdate; // 나이 계산을 위해
+    private String followerBirthdate;
 
-    @Column(name = "follower_language", length = 500) // 여러 언어를 저장할 수 있도록 길이 조절
+    @Column(name = "follower_language", length = 500)
     private String followerLanguage;
 
     // --- 팔로잉(Following)의 스냅샷 정보 ---
@@ -75,23 +76,20 @@ public class FollowActivityLog {
 
 
     @Builder
-    public FollowActivityLog(Long followerId, Long followingId, FollowStatus actionType, String source,
+    public FollowActivityLog(Long followerId, Long followingId, FollowActionType actionType, String source,
                              boolean followerIsInKorea, String followerCountry, String followerSex, String followerBirthdate, String followerLanguage,
                              boolean followingIsInKorea, String followingCountry, String followingSex, String followingBirthdate, String followingLanguage) {
-        // 기본 정보
         this.followerId = followerId;
         this.followingId = followingId;
         this.actionType = actionType;
         this.source = source;
 
-        // 팔로워 스냅샷
         this.followerIsInKorea = followerIsInKorea;
         this.followerCountry = followerCountry;
         this.followerSex = followerSex;
         this.followerBirthdate = followerBirthdate;
         this.followerLanguage = followerLanguage;
 
-        // 팔로잉 스냅샷
         this.followingIsInKorea = followingIsInKorea;
         this.followingCountry = followingCountry;
         this.followingSex = followingSex;
