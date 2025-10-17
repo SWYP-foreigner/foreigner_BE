@@ -1,8 +1,6 @@
 package core.global.service;
 
-import core.domain.chat.dto.ChatParticipantInfoDto;
-import core.domain.chat.dto.ChatRoomListResponse;
-import core.domain.chat.dto.ChatRoomSearchRequest;
+import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
@@ -41,5 +39,10 @@ public class ChatAdminService {
 
         chatMessageRepository.deleteAllByChatRoomId(roomId);
         chatRoomRepository.delete(chatRoom);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
+        return chatMessageRepository.searchMessages(request, pageable);
     }
 }

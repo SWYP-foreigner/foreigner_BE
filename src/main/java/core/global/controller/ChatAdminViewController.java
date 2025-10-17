@@ -1,8 +1,6 @@
 package core.global.controller;
 
-import core.domain.chat.dto.ChatParticipantInfoDto;
-import core.domain.chat.dto.ChatRoomListResponse;
-import core.domain.chat.dto.ChatRoomSearchRequest;
+import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.global.enums.ErrorCode;
@@ -15,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -64,5 +63,22 @@ public class ChatAdminViewController {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/admin/chats";
+    }
+
+    @GetMapping("/search")
+    public String chatMessageSearchPage(
+            @ModelAttribute ChatMessageSearchRequest request,
+            @PageableDefault(size = 10, sort = "sentAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Model model
+    ) {
+        if (StringUtils.hasText(request.keyword()) || StringUtils.hasText(request.senderEmail()) || StringUtils.hasText(request.senderName())) {
+            Page<ChatMessageSearchResultDto> messagePage = chatAdminService.searchMessages(request, pageable);
+            model.addAttribute("messagePage", messagePage);
+        } else {
+            model.addAttribute("messagePage", Page.empty(pageable));
+        }
+
+        model.addAttribute("searchRequest", request);
+        return "admin/chat-search";
     }
 }

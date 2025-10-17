@@ -15,7 +15,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
+public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>, ChatMessageRepositoryCustom {
 
     void deleteByChatRoomId(Long chatRoomId);
     /**
