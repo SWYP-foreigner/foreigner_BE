@@ -101,4 +101,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             Long roomId, Long startId, Long endId);
 
     Page<ChatMessage> findBySenderId(Long senderId, Pageable pageable);
+
+    void deleteAllByChatRoomId(Long chatRoomId);
 }

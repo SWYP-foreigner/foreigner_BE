@@ -15,10 +15,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequestMapping("/admin/chats")
@@ -55,5 +53,16 @@ public class ChatAdminViewController {
         model.addAttribute("participantPage", participantPage);
 
         return "admin/chat-detail";
+    }
+
+    @PostMapping("/{roomId}/delete")
+    public String deleteChatRoom(@PathVariable Long roomId, RedirectAttributes redirectAttributes) {
+        try {
+            chatAdminService.deleteChatRoom(roomId);
+            redirectAttributes.addFlashAttribute("successMessage", "채팅방이 성공적으로 삭제되었습니다.");
+        } catch (BusinessException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/chats";
     }
 }
