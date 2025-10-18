@@ -3,6 +3,10 @@ package core.domain.user.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import core.domain.user.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -20,18 +24,21 @@ public record UserSetupRequest(
         String gender,
 
         @Schema(description = "생년월일 (yyyy-MM-dd 형식)", example = "1990-05-12")
+        @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "birthday는 yyyy-MM-dd 형식이어야 합니다.")
         String birthday,
 
         @Schema(description = "국가 코드 (ISO 3166-1 alpha-2 형식)", example = "KR")
         String country,
 
-        @Schema(description = "자기소개 (최대 40자)", example = "열정적인 개발자입니다.")
+        @Schema(description = "자기소개 (최대 70자)", example = "열정적인 개발자입니다.")
+        @Size(max = 70)
         String introduction,
 
-        @Schema(description = "사용 목적 (최대 40자)", example = "언어 학습")
+        @Schema(description = "사용 목적", example = "언어 학습")
         String purpose,
 
         @Schema(description = "사용자 이메일", example = "john.doe@example.com")
+        @NotBlank @Email @Size(max = 255)
         String email,
 
         @Schema(description = "사용 가능한 언어 목록", example = "[\"english(en)\", \"korean(ko)\"]")
@@ -41,6 +48,7 @@ public record UserSetupRequest(
         List<String> hobby,
 
         @Schema(description = "프로필 이미지 키", example = "profile/john_doe_123.jpg")
+        @Size(max = 255)
         String imageKey
 ) {
     public UserSetupRequest(User user, List<String> languages, List<String> hobbies, String imageKey) {
