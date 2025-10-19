@@ -3,6 +3,7 @@ package core.domain.chat.repository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.global.enums.ChatParticipantStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,6 +42,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipantsAndUsers(@Param("roomId") Long roomId);
 
+    @EntityGraph(attributePaths = {"participants", "participants.user"})
     @Query("""
         select cr
         from ChatRoom cr
