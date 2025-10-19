@@ -143,7 +143,7 @@ jobs:
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
             
-            PEM_CONTENT=$(awk 'NF {printf "%s\\n", $0}' apple_key.pem)
+            PEM_CONTENT=$(awk 'NF {printf "%s", $0}' apple_key.pem)
             echo "APPLE_PRIVATE_KEY_PEM=\"$PEM_CONTENT\"" >> .env
             
             cat > firebase.json <<'JSON'
