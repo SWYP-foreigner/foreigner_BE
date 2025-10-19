@@ -15,10 +15,6 @@ configurations {
 	compileOnly { extendsFrom annotationProcessor }
 }
 
-configurations.configureEach {
-    exclude group: 'commons-logging', module: 'commons-logging'
-}
-
 repositories { mavenCentral() }
 
 ext {
@@ -106,12 +102,7 @@ dependencies {
     // --- Observability / Logging ---
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation "io.micrometer:micrometer-tracing-bridge-brave"
-    implementation "net.logstash.logback:logstash-logback-encoder:7.4"
     implementation "org.codehaus.janino:janino:3.1.12"
-
-    implementation("org.apache.httpcomponents:httpclient:4.5.14") {
-        exclude group: "commons-logging", module: "commons-logging"
-    }
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
