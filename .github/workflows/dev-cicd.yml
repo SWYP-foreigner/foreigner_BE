@@ -146,7 +146,7 @@ jobs:
             cat > firebase.json <<'JSON'
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
-            cat > apple_key.pem <<PEM${{ secrets.APPLE_PRIVATE_KEY_PEM }}PEM
+          
             if command -v jq >/dev/null 2>&1; then
               FIREBASE_JSON_COMPACT="$(jq -c . < firebase.json)"
             else
@@ -154,7 +154,7 @@ jobs:
             fi
             # 공백/특수문자 안전하게 기록
             printf 'FIREBASE_CREDENTIALS_JSON=%s\n' "$FIREBASE_JSON_COMPACT" >> .env
-            
+            printf 'APPLE_PRIVATE_KEY_PEM_PATH=%s\n' "./apple_key.pem" >> .env
             # 이미지 변수는 .env에 한 번만 기록
             {
               echo "IMAGE=${IMAGE}"
