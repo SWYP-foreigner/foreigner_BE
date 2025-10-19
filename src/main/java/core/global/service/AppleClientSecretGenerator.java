@@ -67,7 +67,14 @@ public class AppleClientSecretGenerator {
         try {
             String privateKeyPem = appleProps.privateKeyPem();
 
-            // Log 1: Raw string from properties
+            if (privateKeyPem != null) {
+                log.info("Apple private key length: {}", privateKeyPem.length());
+                log.info("First 30 chars: {}", privateKeyPem.substring(0, Math.min(30, privateKeyPem.length())));
+                log.info("Last 30 chars: {}", privateKeyPem.substring(Math.max(0, privateKeyPem.length() - 30)));
+                log.info("Contains newlines? {}", privateKeyPem.contains("\n") || privateKeyPem.contains("\r"));
+            } else {
+                log.warn("Apple private key is null");
+            }
             byte[] decodedKey = Base64.getDecoder().decode(privateKeyPem);
             String keyString = new String(decodedKey);
 
