@@ -10,6 +10,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.notification.dto.NewUserJoinedEvent;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
@@ -18,6 +19,8 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
+import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
@@ -91,6 +94,9 @@ public class UserService {
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher publisher;
+    private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationRepository notificationRepository;
+    private final UserNotificationSettingRepository userNotificationSettingRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -762,7 +768,9 @@ public class UserService {
         blockRepository.deleteAllByUserOrBlocked(user);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-
+        userNotificationSettingRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        userDeviceTokenRepository.deleteAllByUserId(userId);
         userRepository.delete(user);
     }
 
