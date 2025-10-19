@@ -140,7 +140,7 @@ jobs:
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
             
-            cat > apple_key.pem <<'PEM'
+            cat > apple_key.pem <<PEM
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
             cat > firebase.json <<'JSON'
