@@ -46,13 +46,8 @@ public record UserSetupRequest(
 
         @Schema(description = "프로필 이미지 키", example = "profile/john_doe_123.jpg")
         @Size(max = 255)
-        String imageKey,
+        String imageKey
 
-        @Schema(description = "사용자 현재 위도 (선택사항)", example = "37.5665")
-        Double latitude,
-
-        @Schema(description = "사용자 현재 경도 (선택사항)", example = "126.9780")
-        Double longitude
 ) {
     public UserSetupRequest(User user, List<String> languages, List<String> hobbies, String imageKey) {
         this(
@@ -66,9 +61,7 @@ public record UserSetupRequest(
                 user.getEmail(),
                 languages,
                 hobbies,
-                imageKey,
-                null,
-                null
+                imageKey
         );
     }
 }

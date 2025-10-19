@@ -78,7 +78,6 @@ public class AppleClientSecretGenerator {
             byte[] decodedKey = Base64.getDecoder().decode(privateKeyPem);
             String keyString = new String(decodedKey);
 
-            // Log 2: The decoded key string (should be in PEM format)
             try (StringReader keyReader = new StringReader(keyString);
                  PEMParser pemParser = new PEMParser(keyReader)) {
 

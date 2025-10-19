@@ -206,7 +206,7 @@ public class UserService {
 
         if (notBlank(dto.introduction())) {
             String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
         if (notBlank(dto.purpose())) {
             user.updatePurpose(dto.purpose());
@@ -221,15 +221,12 @@ public class UserService {
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
-
-            // 전체 CSV
             String userLanguagesCsv = String.join(",", normalizedLanguages);
 
             if (!userLanguagesCsv.isEmpty()) {
                 user.updateLanguage(userLanguagesCsv);
             }
 
-            // 첫 번째 요소에서 괄호 안 코드 추출
             String firstTranslatedLanguage = normalizedLanguages.stream()
                     .findFirst()
                     .map(s -> {
@@ -263,13 +260,6 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        if (dto.latitude() != null && dto.longitude() != null) {
-            boolean isInKorea = isWithinSouthKorea(dto.latitude(), dto.longitude());
-            user.updateIsInKorea(isInKorea);
-        } else {
-            user.updateIsInKorea(false);
-            log.info("위치 정보 미제공으로 한국 거주 여부 false로 설정: user={}", user.getId());
-        }
         user.updateIsNewUser(false);
 
         UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
@@ -839,20 +829,29 @@ public class UserService {
 
         return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
     }
-    /**
-     * 주어진 위도/경도가 대한민국 대략적인 경계 내에 있는지 확인합니다.
-     * (제주도, 울릉도 등을 포함하는 단순 사각형 경계)
-     * @param latitude 위도
-     * @param longitude 경도
-     * @return 대한민국 내에 있으면 true, 아니면 false
-     */
-    private boolean isWithinSouthKorea(double latitude, double longitude) {
-        final double MIN_LAT = 33.0;
-        final double MAX_LAT = 38.7;
-        final double MIN_LON = 124.5;
-        final double MAX_LON = 132.0;
+    @Transactional
+    public void updateUserLocation(LocationUpdateRequest dto, Long userId ) {
 
-        return (latitude >= MIN_LAT && latitude <= MAX_LAT) &&
-                (longitude >= MIN_LON && longitude <= MAX_LON);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
+        user.updateIsInKorea(isInKorea);
+    }
+
+    /**
+     * 주어진 위도, 경도가 대한민국 영토 내에 있는지 확인합니다.
+     * @return 대한민국 내에 있으면 true, 밖에 있으면 false, 값이 없으면 null
+     */
+    private Boolean isLocationInKorea(Double latitude, Double longitude) {
+        if (latitude == null || longitude == null) {
+            return null;
+        }
+        double minLat = 33.0;
+        double maxLat = 38.7;
+        double minLon = 124.5;
+        double maxLon = 132.0;
+
+        return latitude >= minLat && latitude <= maxLat &&
+                longitude >= minLon && longitude <= maxLon;
     }
 }

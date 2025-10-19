@@ -225,10 +225,9 @@ public class User {
     }
     public void updateIsInKorea(boolean isInKorea) {
         this.isInKorea = isInKorea;
-        touchUpdatedAt(); // 다른 필드와 일관성 유지를 위해 updatedAt 갱신
+        touchUpdatedAt();
     }
 
-    // --- Helper ---
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
     }
@@ -237,8 +236,8 @@ public class User {
         this.updatedAt = Instant.now();
     }
 
-
     public void updateGender(String s) {
         this.sex = s;
     }
+
 }
