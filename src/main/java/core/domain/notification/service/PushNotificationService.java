@@ -78,38 +78,45 @@ public class PushNotificationService {
                     .putData("notificationType", event.notificationType().name());
 
             switch (event.notificationType()) {
-                case post, comment:
+                case post:
                     messageBuilder
-                            .putData("url", "/community")
+                            .putData("type", "post")
                             .putData("postId", String.valueOf(event.referenceId()));
                     if (event.commentId() != null) {
                         messageBuilder.putData("commentId", String.valueOf(event.commentId()));
                     }
                     break;
+                case  comment:
+                    messageBuilder
+                            .putData("type", "comment")
+                            .putData("postId", String.valueOf(event.referenceId()));
+                    if (event.commentId() != null) {
+                        messageBuilder.putData("commentId", String.valueOf(event.commentId()));
+                    }
                 case follow:
                     messageBuilder
-                            .putData("url", "/mypage/friends")
+                            .putData("type", "follow")
                             .putData("friendId", String.valueOf(event.actorId()));
                     break;
                 case receive:
                     messageBuilder
-                            .putData("url", "/mypage/follows")
+                            .putData("type", "receive")
                             .putData("followerId", String.valueOf(event.actorId()));
                     break;
                 case chat:
                     messageBuilder
-                            .putData("url", "/chatscreen/ChattingRoomScreen")
+                            .putData("type", "chat")
                             .putData("roomId", String.valueOf(event.referenceId()))
                             .putData("myId", String.valueOf(recipient.getId()));
                     break;
                 case newuser:
                     messageBuilder
-                            .putData("url", "/newuser")
+                            .putData("type", "newuser")
                             .putData("userId", String.valueOf(event.referenceId()));
                     break;
                 case followuserpost:
                     messageBuilder
-                            .putData("url", "/community")
+                            .putData("type", "followuserpost")
                             .putData("postId", String.valueOf(event.referenceId()));
                     break;
                 default:

@@ -3,13 +3,12 @@ package core.domain.user.service;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.entity.Follow;
+import core.domain.user.entity.FollowActivityLog;
 import core.domain.user.entity.User;
+import core.domain.user.repository.FollowActivityLogRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
-import core.global.enums.FollowStatus;
-import core.global.enums.ImageType;
-import core.global.enums.NotificationType;
+import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.metrics.SocialChatMetrics;
@@ -38,14 +37,36 @@ public class FollowService {
     private final ImageRepository imageRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SocialChatMetrics socialChatMetrics;
+    private final FollowActivityLogRepository followActivityLogRepository;
 
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 SocialChatMetrics에서 UNK 처리
     }
 
+    private void logFollowActivity(User follower, User following, FollowActionType actionType, String source) {
+        FollowActivityLog log = FollowActivityLog.builder()
+                .followerId(follower.getId())
+                .followingId(following.getId())
+                .actionType(actionType)
+                .source(source)
+                .followerIsInKorea(follower.isInKorea())
+                .followerCountry(follower.getCountry())
+                .followerSex(follower.getSex())
+                .followerBirthdate(follower.getBirthdate())
+                .followerLanguage(follower.getLanguage())
+                // 팔로잉 정보 스냅샷
+                .followingIsInKorea(following.isInKorea())
+                .followingCountry(following.getCountry())
+                .followingSex(following.getSex())
+                .followingBirthdate(following.getBirthdate())
+                .followingLanguage(following.getLanguage())
+                .build();
+
+        followActivityLogRepository.save(log);
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
-        // 현재 로그인 사용자 조회
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -71,7 +92,6 @@ public class FollowService {
 
         return follows.stream()
                 .map(f -> {
-                    // 내가 아닌 상대방을 찾기
                     User target = f.getUser().getId().equals(me.getId()) ? f.getFollowing() : f.getUser();
 
                     String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, target.getId())
@@ -128,7 +148,6 @@ public class FollowService {
                     return new BusinessException(ErrorCode.USER_NOT_FOUND);
                 });
 
-        // 자기 자신을 팔로우하는 것을 방지하는 로직 추가
         if (follower.getId().equals(targetUser.getId())) {
             log.warn("[FOLLOW] 자기 자신 팔로우 시도 차단: 사용자={}", follower.getId());
             throw new BusinessException(ErrorCode.CANNOT_FOLLOW_YOURSELF);
@@ -162,7 +181,6 @@ public class FollowService {
             }
         }
 
-        // 5. 팔로우 신청 생성 및 저장
         Follow follow = Follow.builder()
                 .user(follower)
                 .following(targetUser)
@@ -171,10 +189,9 @@ public class FollowService {
 
         followRepository.save(follow);
         log.info("[FOLLOW] 팔로우 신청 성공: 신청자={}, 대상={}", follower.getId(), targetUser.getId());
-
+        logFollowActivity(follower, targetUser, FollowActionType.REQUEST, "PROFILE");
         socialChatMetrics.recordFollowCreated(follower.getCountry(), targetUser.getCountry());
 
-        // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
                 targetUser.getId(),
                 follower.getId(),
@@ -213,10 +230,9 @@ public class FollowService {
 
         follow.accept();
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
-
+        logFollowActivity(fromUser, toUser, FollowActionType.ACCEPT, "NOTIFICATION");
         socialChatMetrics.recordFriendCreated(countryOf(toUser), countryOf(fromUser));
 
-        // === 알림 이벤트 발행 ===
         NotificationEvent event = new NotificationEvent(
                 fromUser.getId(),
                 toUser.getId(),
@@ -242,13 +258,14 @@ public class FollowService {
             log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-
+        User friend = userRepository.findById(friendId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Optional<Follow> targetFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
                 me.getId(), friendId, FollowStatus.ACCEPTED);
 
         Optional<Follow> targetInverseFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
                 friendId, me.getId(), FollowStatus.ACCEPTED);
-
+        logFollowActivity(me, friend, FollowActionType.UNFOLLOW, "FRIEND_LIST");
         targetFollow.ifPresent(f -> {
             followRepository.delete(f);
             log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());

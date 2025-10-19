@@ -129,7 +129,6 @@ public class User {
         this.email = email;
         this.appleRefreshToken = appleRefreshToken;
     }
-    // --- 개별 필드 업데이트 메서드 ---
     public void updateFirstName(String firstName) {
         if (notBlank(firstName)) this.firstName = firstName.trim();
         touchUpdatedAt();
@@ -223,6 +222,10 @@ public class User {
 
     public void updateUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    public void updateIsInKorea(boolean isInKorea) {
+        this.isInKorea = isInKorea;
+        touchUpdatedAt(); // 다른 필드와 일관성 유지를 위해 updatedAt 갱신
     }
 
     // --- Helper ---
