@@ -143,11 +143,10 @@ jobs:
             cat > apple_key.pem <<'PEM'
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
-            
             cat > firebase.json <<'JSON'
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
             JSON
-            
+            cat > apple_key.pem <<PEM${{ secrets.APPLE_PRIVATE_KEY_PEM }}PEM
             if command -v jq >/dev/null 2>&1; then
               FIREBASE_JSON_COMPACT="$(jq -c . < firebase.json)"
             else
