@@ -777,15 +777,14 @@ public class UserService {
     /**
      * 단일 사용자 정보 조회 로직
      */
-    public UserResponseDto findUserProfile(Long userId) {
+    public UserProfileResponse findUserProfile(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String imageUrl = imageRepository
-                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .map(Image::getUrl)
-                .orElse(null);
-        return UserResponseDto.from(user, imageUrl);
+
+        String profileKey = imageService.getUserProfileKey(user.getId());
+
+        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     /**

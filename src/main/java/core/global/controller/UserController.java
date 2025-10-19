@@ -247,8 +247,8 @@ public class UserController {
      * @return UserResponseDto 형태의 사용자 정보
      */
     @GetMapping("/{userId}/info")
-    public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
-        UserResponseDto userProfile = userService.findUserProfile(userId);
+    public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("userId") Long userId) {
+        UserProfileResponse userProfile = userService.findUserProfile(userId);
         featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userProfile);
     }
