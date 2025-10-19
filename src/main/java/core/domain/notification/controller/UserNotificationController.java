@@ -152,7 +152,9 @@ public class UserNotificationController {
     )
     @GetMapping
     public ResponseEntity<ApiResponse<List<NotificationSettingResponseDto>>> getNotificationSettings( @AuthenticationPrincipal CustomUserDetails userDetails) {
+
         Long userId = userDetails.getUserId();
+        System.out.println("getNotificationSettings called! userId=" + userId);
         return ResponseEntity.ok(ApiResponse.success(notificationSettingService.getUserNotificationSettings(userId)));
     }
 
