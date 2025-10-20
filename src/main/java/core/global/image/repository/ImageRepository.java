@@ -64,7 +64,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     """)
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, Collection<String> urls);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Query("""
         delete from Image i
          where i.imageType = :imageType

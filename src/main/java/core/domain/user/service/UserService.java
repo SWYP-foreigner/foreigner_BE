@@ -34,6 +34,8 @@ import core.global.like.repository.LikeRepository;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -63,6 +65,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
+
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
     private static final long CODE_TTL_MIN = 3L;
@@ -184,6 +187,7 @@ public class UserService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
@@ -253,17 +257,17 @@ public class UserService {
             log.debug("취미 변경: {} → {}", user.getHobby(), csv);
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
+        user.updateIsNewUser(false);
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
-        ;
         if (notBlank(dto.imageKey())) {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        user.updateIsNewUser(false);
+        UserSetupRequest result = new UserSetupRequest(
+                user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
-
+        log.info("newUser {}", user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
 
