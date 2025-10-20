@@ -54,7 +54,6 @@ public class FollowService {
                 .followerSex(follower.getSex())
                 .followerBirthdate(follower.getBirthdate())
                 .followerLanguage(follower.getLanguage())
-                // 팔로잉 정보 스냅샷
                 .followingIsInKorea(following.isInKorea())
                 .followingCountry(following.getCountry())
                 .followingSex(following.getSex())
