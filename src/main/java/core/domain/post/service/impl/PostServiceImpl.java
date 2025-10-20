@@ -190,7 +190,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
         }
 
-        postRepository.incrementViewCount(postId);
+        postRepository.increaseViewCount(postId);
 
         return postRepository.findPostDetail(email, postId);
     }

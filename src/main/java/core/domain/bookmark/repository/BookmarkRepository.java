@@ -22,7 +22,7 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
 
     Optional<Bookmark> findByUserEmailAndPostId(String email, Long postId);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     void deleteByUserEmailAndPostId(String email, Long postId);
     @Modifying
     @Query("DELETE FROM Bookmark b WHERE b.user.id = :userId")
