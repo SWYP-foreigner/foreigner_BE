@@ -2,6 +2,8 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+    id 'org.sonarqube' version '5.1.0.4882'
 }
 
 group = 'com.foreigner'
@@ -123,4 +125,59 @@ tasks.named('test') {
 
 test {
 	jvmArgs += ["-XX:+EnableDynamicAgentLoading"]
+}
+
+jacoco {
+    toolVersion = "0.8.12" // 최신권장
+}
+tasks.jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required.set(true)   // SonarQube에서 필요
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value   = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+        }
+    }
+}
+tasks.check {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+sonarqube {
+    properties {
+        property "sonar.projectKey", "swyp-foreigner"
+        property "sonar.projectKey", "com.foreigner:my-app"
+        property "sonar.projectName", "my-app"
+        property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "http://localhost:9000"
+
+        if (System.getenv("SONAR_TOKEN") != null) {
+            property "sonar.token", System.getenv("SONAR_TOKEN")   // 권장
+            property "sonar.login", System.getenv("SONAR_TOKEN")   // 호환
+        }
+
+        property "sonar.java.binaries", file("${buildDir}/classes").absolutePath
+        property "sonar.coverage.jacoco.xmlReportPaths", "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+
+        // ✅ 로컬=false, GitHub Actions(CI)=true
+        property "sonar.qualitygate.wait", (System.getenv("CI") == "true").toString()
+    }
+}
+
+/** 서버 기동 전 프리플라이트(테스트→커버리지→체크→소나) */
+tasks.register('preflight') {
+    group = "verification"
+    description = "Run tests, coverage, verification and SonarQube scan before starting server."
+    dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check, tasks.sonarqube
 }
