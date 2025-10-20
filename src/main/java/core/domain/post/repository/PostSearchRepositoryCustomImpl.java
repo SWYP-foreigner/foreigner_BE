@@ -5,8 +5,10 @@ import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import core.domain.post.entity.QPost;
 import core.domain.post.dto.SearchResultView;
+import core.domain.post.entity.QPost;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -17,7 +19,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCustom {
 
-    private final JPAQueryFactory qf;
+    private final JPAQueryFactory jpaQueryFactory;
+
+    @PersistenceContext
+    private final EntityManager entityManager;
 
     /**
      * 정확도 정렬 1종 + 키셋 커서(score, created_at, post_id) 역순
@@ -70,12 +75,12 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         // 미리보기 텍스트 200자
         var preview200 = Expressions.stringTemplate("function('left', {0}, 200)", p.content);
 
-        return qf
+        return jpaQueryFactory
                 .select(Projections.constructor(SearchResultView.class,
                         Projections.constructor(core.domain.board.dto.BoardItem.class,
                                 p.id,                         // postId
                                 preview200,                   // contentPreview
-                                Expressions.nullExpression(String.class), // title 등 필요 없으면 null
+                                Expressions.nullExpression(String.class), // content 등 필요 없으면 null
                                 p.board.category,
                                 p.createdAt,
                                 Expressions.constant(false),  // isSomething(ex: bookmarked) 없으면 기본값
@@ -95,6 +100,50 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                 .limit(limit)
                 .fetch();
     }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<String> findHotKeywordsOrTitles(int topN) {
+        String sql = """
+                WITH docs AS (
+                  SELECT p.post_id AS doc_id, p.post_content
+                  FROM public.post p
+                  WHERE p.created_at >= now() - interval '90 days'
+                ),
+                tokens AS (
+                  SELECT d.doc_id, w.term
+                  FROM docs d
+                  CROSS JOIN LATERAL unnest(
+                    pgroonga_tokenize(
+                      d.post_content,
+                      'tokenizer','TokenDelimit'     -- ★ 단어 단위 토크나이저
+                    )
+                  ) AS t(token_json)
+                  /* term을 LATERAL 서브셀렉트에서 컬럼으로 만든다 */
+                  CROSS JOIN LATERAL (
+                    SELECT lower(btrim((t.token_json::jsonb ->> 'value'))) AS term
+                  ) AS w
+                  WHERE w.term <> ''
+                    AND w.term !~ '\\s'               -- 공백 포함 토큰 제거
+                    AND length(w.term) BETWEEN 2 AND 20
+                    AND w.term !~ '^[0-9]+$'
+                    AND w.term !~ '^(https?://|www\\\\.)'
+                    AND w.term !~ '^[[:punct:]]+$'
+                )
+                SELECT term
+                FROM tokens
+                GROUP BY term
+                HAVING COUNT(DISTINCT doc_id) >= 1   -- 문서 수 기준 빈도
+                ORDER BY COUNT(DISTINCT doc_id) DESC
+                LIMIT :topN
+                """;
+
+
+        return entityManager.createNativeQuery(sql)
+                .setParameter("topN", topN)
+                .getResultList();
+    }
+
 
     /**
      * 자동완성:
@@ -125,7 +174,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         );
         var maxCreatedAt = Expressions.dateTimeTemplate(Instant.class, "max({0})", p.createdAt);
 
-        return qf.select(snippet140)
+        return jpaQueryFactory.select(snippet140)
                 .from(p)
                 .where(where)
                 .groupBy(snippet140)
