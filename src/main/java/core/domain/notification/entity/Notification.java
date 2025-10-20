@@ -42,20 +42,27 @@ public class Notification {
     @Enumerated(EnumType.STRING)
     @Column(name = "notification_type", nullable = false)
     private NotificationType notificationType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actor_id")
     private User actor;
+
+    @Column(name = "sub_reference_id")
+    private Long subReferenceId;
+
     @Builder
     public Notification(User user,
                         String message,
                         Long referenceId,
                         NotificationType notificationType,
-                        User actor) {
+                        User actor,
+                        Long subReferenceId) {
         this.user = user;
         this.message = message;
         this.referenceId = referenceId;
         this.notificationType = notificationType;
         this.actor = actor;
+        this.subReferenceId = subReferenceId;
         this.createdAt = Instant.now();
         this.read = false;
     }

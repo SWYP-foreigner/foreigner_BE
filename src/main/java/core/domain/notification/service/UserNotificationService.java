@@ -146,6 +146,7 @@ public class UserNotificationService {
                 .notificationType(event.notificationType())
                 .referenceId(event.referenceId())
                 .actor(actor)
+                .subReferenceId(event.commentId())
                 .build();
 
         notificationRepository.save(notification);
