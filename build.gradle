@@ -157,7 +157,7 @@ tasks.check {
 
 sonarqube {
     properties {
-        property "sonar.projectKey", "swyp-foreigner"
+        property "sonar.organization", "swyp-foreigner"
         property "sonar.projectKey", "com.foreigner:my-app"
         property "sonar.projectName", "my-app"
         property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "https://sonarcloud.io"
