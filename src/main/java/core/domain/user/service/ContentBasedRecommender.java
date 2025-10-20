@@ -51,10 +51,6 @@ public class ContentBasedRecommender {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(me.getBirthdate()==null||me.getPurpose()==null||me.getIntroduction()==null||me.getLanguage()==null||me.getHobby()==null||me.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
         List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
         Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);
         Set<Long> blockedIds = blockRepository.findAllBlockedUserIds(meId);
