@@ -7,6 +7,8 @@ import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.event.PostCreatedEvent;
+import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -293,6 +295,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -305,6 +308,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -333,6 +337,8 @@ public class PostServiceImpl implements PostService {
         }
 
         imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
+
     }
 
     @Override
