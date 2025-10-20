@@ -34,6 +34,8 @@ import core.global.like.repository.LikeRepository;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -63,6 +65,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
+
+    @PersistenceContext
+    private EntityManager em;
+
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
     private static final long CODE_TTL_MIN = 3L;
@@ -181,9 +187,16 @@ public class UserService {
         }
 
         String email = auth.getName();
+        log.info("[SUP] auth email={}", email);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        log.info("[SUP] A: loaded user id={} isNewUser={} em.contains={}",
+                user.getId(), user.isNewUser(), em.contains(user));
+
+        log.info("[SUP] B: before basic updates contains={}", em.contains(user));
+
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
@@ -254,18 +267,41 @@ public class UserService {
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
 
+        log.info("[SUP] C: before imageService contains={}", em.contains(user));
         String finalImageKey = imageService.getUserProfileKey(user.getId());
-
+        log.info("[SUP] D: after getUserProfileKey contains={}", em.contains(user));
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            try {
+                finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+                log.info("[SUP] E: after upsertUserProfileImage contains={}", em.contains(user));
+            } catch (Exception e) {
+                log.warn("[SUP] upsertUserProfileImage threw: {} msg={}", e.getClass().getSimpleName(), e.getMessage());
+                throw e;
+            }
         }
 
         user.updateIsNewUser(false);
-        userRepository.save(user);
+        log.info("[SUP] F: after updateIsNewUser isNewUser={} contains={}",
+                user.isNewUser(), em.contains(user));
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        // merge 발생 시 반환값이 관리 상태임을 보장
+        user = userRepository.save(user);
+        log.info("[SUP] G: after save contains={} id={}", em.contains(user), user.getId());
 
-        log.info("newUser " + user.isNewUser());
+        // 즉시 flush로 DB 반영/에러 조기 감지
+        userRepository.flush();
+        log.info("[SUP] H: after flush");
+
+        // DB 재조회로 실제 반영 여부 검증
+        boolean dbIsNewUser = userRepository.findById(user.getId())
+                .map(User::isNewUser)
+                .orElse(Boolean.TRUE);
+        log.info("[SUP] I: reloaded DB isNewUser={}", dbIsNewUser);
+
+        UserSetupRequest result = new UserSetupRequest(
+                user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+
+        log.info("newUser {}", user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
 
