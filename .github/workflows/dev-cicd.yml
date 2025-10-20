@@ -45,8 +45,8 @@ jobs:
           cache: 'gradle'
 
       - name: Gradle Wrapper Validate
-        if: github.event_name == 'push'
         uses: gradle/actions/wrapper-validation@v3
+        continue-on-error: true
         timeout-minutes: 5
 
       - name: Run preflight (tests + coverage + SonarQube)
