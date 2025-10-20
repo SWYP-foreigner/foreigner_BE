@@ -255,15 +255,17 @@ public class UserService {
         }
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
-        ;
+
         if (notBlank(dto.imageKey())) {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         user.updateIsNewUser(false);
+        userRepository.save(user);
 
         UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
 
+        log.info("newUser " + user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
 
