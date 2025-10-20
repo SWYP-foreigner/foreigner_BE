@@ -51,9 +51,9 @@ jobs:
 
       - name: Run preflight (tests + coverage + SonarQube)
         env:
-          CI: "true"                                # build.gradle의 조건부 설정에 사용
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}# Settings→Actions→Variables
-          SONAR_TOKEN:    ${{ secrets.SONAR_TOKEN }} # Settings→Actions→Secrets
+          CI: "true"
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN:    ${{ secrets.SONAR_TOKEN }}
         run: |
           ./gradlew --no-daemon clean preflight \
             -Dorg.gradle.jvmargs="-Xmx2g" \
