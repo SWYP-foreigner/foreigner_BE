@@ -56,10 +56,10 @@ jobs:
           SONAR_TOKEN:    ${{ secrets.SONAR_TOKEN }}
         run: |
           ./gradlew --no-daemon clean preflight \
-            -Dorg.gradle.jvmargs="-Xmx2g" \
-            -Dsonar.host.url=${SONAR_HOST_URL} \
-            -Dsonar.login=${SONAR_TOKEN} \
-            -Dsonar.token=${SONAR_TOKEN}
+          "-Dorg.gradle.jvmargs=-Xmx2g" \
+          "-Dsonar.host.url=${SONAR_HOST_URL}" \
+          "-Dsonar.login=${SONAR_TOKEN}" \
+          "-Dsonar.token=${SONAR_TOKEN}"
 
 
   build:

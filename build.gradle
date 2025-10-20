@@ -160,7 +160,7 @@ sonarqube {
         property "sonar.projectKey", "swyp-foreigner"
         property "sonar.projectKey", "com.foreigner:my-app"
         property "sonar.projectName", "my-app"
-        property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "http://localhost:9000"
+        property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "https://sonarcloud.io"
 
         if (System.getenv("SONAR_TOKEN") != null) {
             property "sonar.token", System.getenv("SONAR_TOKEN")   // 권장
@@ -180,4 +180,10 @@ tasks.register('preflight') {
     group = "verification"
     description = "Run tests, coverage, verification and SonarQube scan before starting server."
     dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check, tasks.sonarqube
+
+    if (tasks.names.contains('sonar')) {
+        dependsOn tasks.named('sonar')          // ✅ 신규 태스크명
+    } else {
+        dependsOn tasks.named('sonarqube')      // 호환
+    }
 }
