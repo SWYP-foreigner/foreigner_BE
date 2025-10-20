@@ -58,7 +58,6 @@ public class SecurityConfig {
                                 "/api/v1/member/doLogin",
                                 "/api/v1/member/verify-code",
                                 "/api/v1/member/signup",
-                                "/api/v1/member/location",
                                 "/api/v1/member/send-verification-email",
                                 "/api/v1/member/password/**",
                                 "/api/v1/member/email/check",
