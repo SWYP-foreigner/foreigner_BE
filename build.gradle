@@ -175,15 +175,9 @@ sonarqube {
     }
 }
 
-/** 서버 기동 전 프리플라이트(테스트→커버리지→체크→소나) */
+/** 서버 기동 전 프리플라이트(테스트→커버리지→체크) */
 tasks.register('preflight') {
     group = "verification"
-    description = "Run tests, coverage, verification and SonarQube scan before starting server."
-    dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check, tasks.sonarqube
-
-    if (tasks.names.contains('sonar')) {
-        dependsOn tasks.named('sonar')          // ✅ 신규 태스크명
-    } else {
-        dependsOn tasks.named('sonarqube')      // 호환
-    }
+    description = "Run tests, coverage and verification before starting server."
+    dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check
 }
