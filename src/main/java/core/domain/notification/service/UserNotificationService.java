@@ -134,13 +134,18 @@ public class UserNotificationService {
      * @param event     알림 이벤트 데이터 (ID 값들을 담고 있음)
      * @param message   최종적으로 생성된 메시지 문자열
      */
-    // ✅ User 객체를 직접 파라미터로 받도록 변경
-    public void createAndSaveNotification(User recipient, NotificationEvent event, String message) {
+    @Transactional
+    public void createAndSaveNotification(User recipient,
+                                          User actor,
+                                          NotificationEvent event,
+                                          String message) {
+
         Notification notification = Notification.builder()
-                .user(recipient) // 전달받은 User 엔티티를 그대로 사용
+                .user(recipient)
                 .message(message)
-                .referenceId(event.referenceId())
                 .notificationType(event.notificationType())
+                .referenceId(event.referenceId())
+                .actor(actor)
                 .build();
 
         notificationRepository.save(notification);

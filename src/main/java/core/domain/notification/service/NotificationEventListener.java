@@ -43,7 +43,7 @@ public class NotificationEventListener {
             log.info("알림 이벤트 수신: recipientId={}, actorId={}", recipient.getId(), actor.getId());
 
             String message = notificationMessageGenerator.generateMessage(actor, event);
-            notificationService.createAndSaveNotification(recipient, event, message);
+            notificationService.createAndSaveNotification(recipient, actor, event, message);
             pushNotificationService.sendPushNotification(recipient, event, message);
 
         } catch (Exception e) {
@@ -83,7 +83,7 @@ public class NotificationEventListener {
             }
 
             try {
-                notificationService.createAndSaveNotification(recipient, tempEvent, message);
+                notificationService.createAndSaveNotification(recipient, newUserActor, tempEvent, message);
                 pushNotificationService.sendPushNotification(recipient, tempEvent, message);
             } catch (Exception e) {
                 log.error("사용자 ID {}에게 신규 유저 알림 발송 중 오류 발생", recipient.getId(), e);
