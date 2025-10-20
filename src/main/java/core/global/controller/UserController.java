@@ -140,12 +140,11 @@ public class UserController {
 
 
     @PostMapping("/signup")
-    @Operation(summary = "일반 회원가입")
-    public ResponseEntity<Void> signup(@Valid @RequestBody SignupRequest req) {
-        userService.signup(req);
-        return ResponseEntity.ok().build();
+    @Operation(summary = "일반 회원가입 및 JWT 발급")
+    public ResponseEntity<LoginResponseDto> signup(@Valid @RequestBody SignupRequest req) {
+        LoginResponseDto res = userService.signup(req);
+        return ResponseEntity.ok(res);
     }
-
 
     @PostMapping("/send-verification-email")
     @Operation(summary = "이메일 인증 코드 발송")

@@ -310,9 +310,8 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
-
     @Transactional
-    public void signup(SignupRequest req) {
+    public LoginResponseDto signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
             throw new BusinessException(ErrorCode.AGREEMENT_INPUT);
         }
@@ -322,7 +321,6 @@ public class UserService {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        // 이메일 인증 완료 여부 체크
         String verified = redisTemplate.opsForValue().get(EMAIL_VERIFIED_FLAG_KEY + email);
         if (!"1".equals(verified)) {
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
@@ -330,7 +328,6 @@ public class UserService {
 
         String rawPw = req.getPassword();
 
-        // User 객체 생성 후 updateXXX 메서드 사용
         User u = new User();
         u.updateProvider(Ouathplatform.local.toString());
         u.updateSocialId(buildLocalSocialId(email));
@@ -346,10 +343,18 @@ public class UserService {
 
         userRepository.save(u);
 
-        // 인증 완료 플래그는 일회성으로 소비
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        // ✅ 토큰 발급 및 반환 제거
+        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String refreshToken = jwtTokenProvider.createRefreshToken(u.getId());
+
+        Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
+
+        publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
+
+        return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 
 
