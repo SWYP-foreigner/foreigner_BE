@@ -185,8 +185,7 @@ public class CommentServiceImpl implements CommentService {
                     ? Comment.createRootComment(post, user, request.comment(), request.anonymous())
                     : Comment.createReplyComment(post, user, request.comment(), request.anonymous(), parent);
 
-            commentRepository.save(toSave);
-
+            Comment savedComment = commentRepository.save(toSave);
             // --- 알림 이벤트 구분 발행 ---
             if (parent == null) {
                 // 게시글에 댓글 작성 시 → 게시글 작성자에게 알림
@@ -196,6 +195,7 @@ public class CommentServiceImpl implements CommentService {
                             user.getId(),
                             NotificationType.post,
                             post.getId(),
+                            savedComment.getId(), // ✅ 2. 저장된 댓글의 ID를 이벤트에 추가
                             request.comment()
                     );
                     eventPublisher.publishEvent(event);
@@ -208,6 +208,7 @@ public class CommentServiceImpl implements CommentService {
                             user.getId(),
                             NotificationType.comment,
                             post.getId(),
+                            savedComment.getId(), // ✅ 2. 저장된 답글의 ID를 이벤트에 추가
                             request.comment()
                     );
                     eventPublisher.publishEvent(event);

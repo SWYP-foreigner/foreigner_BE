@@ -1,9 +1,7 @@
 package core.domain.notification.service;
 
-import core.domain.notification.dto.NotificationEvent;
-import core.domain.notification.dto.NotificationSettingListResponse;
-import core.domain.notification.dto.NotificationSettingResponse;
-import core.domain.notification.dto.NotificationSettingStatusResponse;
+import com.google.cloud.PageImpl;
+import core.domain.notification.dto.*;
 import core.domain.notification.entity.Notification;
 import core.domain.notification.repository.NotificationRepository;
 import core.domain.user.entity.User;
@@ -13,15 +11,25 @@ import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.enums.ErrorCode;
+import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
+import core.global.image.dto.NotificationSliceResponseDto;
+import core.global.image.entity.Image;
+import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList; // ArrayList import 추가
 import java.util.List;
+import java.util.Map;
 import java.util.Optional; // Optional import 추가
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -32,6 +40,7 @@ public class UserNotificationService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final NotificationRepository notificationRepository;
+    private final ImageRepository imageRepository;
     /**
      * FCM 기기 토큰을 등록하거나 갱신합니다. (람다 제거 버전)
      */
@@ -134,15 +143,101 @@ public class UserNotificationService {
      * @param event     알림 이벤트 데이터 (ID 값들을 담고 있음)
      * @param message   최종적으로 생성된 메시지 문자열
      */
-    // ✅ User 객체를 직접 파라미터로 받도록 변경
-    public void createAndSaveNotification(User recipient, NotificationEvent event, String message) {
+    @Transactional
+    public void createAndSaveNotification(User recipient,
+                                          User actor,
+                                          NotificationEvent event,
+                                          String message) {
+
         Notification notification = Notification.builder()
-                .user(recipient) // 전달받은 User 엔티티를 그대로 사용
+                .user(recipient)
                 .message(message)
-                .referenceId(event.referenceId())
                 .notificationType(event.notificationType())
+                .referenceId(event.referenceId())
+                .actor(actor)
+                .subReferenceId(event.commentId())
                 .build();
 
         notificationRepository.save(notification);
+    }
+    /**
+     * 특정 알림을 읽음 상태로 변경합니다.
+     * @param userId         현재 로그인한 사용자의 ID
+     * @param notificationId 읽음 처리할 알림의 ID
+     */
+    public void markNotificationAsRead(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NOTIFICATION_FORBIDDEN);
+        }
+
+        notification.markAsRead();
+
+    }
+
+    public NotificationSliceResponseDto getNotifications(Long userId, NotificationType type, Pageable pageable) {
+        Instant sevenDaysAgo = Instant.now().minus(7, ChronoUnit.DAYS);
+
+        Page<Notification> notificationPage = notificationRepository.findNotificationsByUserId(
+                userId, sevenDaysAgo, type, pageable
+        );
+
+        List<Notification> notifications = notificationPage.getContent();
+        if (notifications.isEmpty()) {
+            return NotificationSliceResponseDto.builder()
+                    .notifications(List.of())
+                    .hasNext(false)
+                    .build();
+        }
+
+        List<Long> actorIds = notifications.stream()
+                .map(n -> n.getActor().getId())
+                .distinct()
+                .toList();
+
+        Map<Long, Image> firstImageMap = imageRepository.findByImageTypeAndRelatedIdIn(ImageType.USER, actorIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Image::getRelatedId,
+                        image -> image,
+                        (img1, img2) -> img1.getOrderIndex() < img2.getOrderIndex() ? img1 : img2
+                ));
+
+        List<NotificationResponseDto> dtos = notifications.stream()
+                .map(notification -> {
+                    User actor = notification.getActor();
+                    Image profileImage = firstImageMap.get(actor.getId());
+                    String profileImageUrl = (profileImage != null) ? profileImage.getUrl() : null;
+
+                    ActorDto actorDto = ActorDto.builder()
+                            .id(actor.getId())
+                            .name(actor.getFirstName())
+                            .profileImageUrl(profileImageUrl)
+                            .build();
+
+                    return NotificationResponseDto.builder()
+                            .notificationId(notification.getId())
+                            .message(notification.getMessage())
+                            .isRead(notification.isRead())
+                            .createdAt(notification.getCreatedAt())
+                            .actor(actorDto)
+                            .referenceId(notification.getReferenceId())
+                            .subReferenceId(notification.getSubReferenceId())
+                            .build();
+                })
+                .toList();
+
+        String nextCursor = null;
+        if (notificationPage.hasNext()) {
+            nextCursor = notifications.get(notifications.size() - 1).getCreatedAt().toString();
+        }
+
+        return NotificationSliceResponseDto.builder()
+                .notifications(dtos)
+                .hasNext(notificationPage.hasNext())
+                .nextCursor(nextCursor)
+                .build();
     }
 }

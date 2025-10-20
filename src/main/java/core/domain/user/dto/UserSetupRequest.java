@@ -3,7 +3,11 @@ package core.domain.user.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import core.domain.user.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
-
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -41,7 +45,9 @@ public record UserSetupRequest(
         List<String> hobby,
 
         @Schema(description = "프로필 이미지 키", example = "profile/john_doe_123.jpg")
+        @Size(max = 255)
         String imageKey
+
 ) {
     public UserSetupRequest(User user, List<String> languages, List<String> hobbies, String imageKey) {
         this(

@@ -19,9 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +30,12 @@ public class PostSearchService {
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
 
-    private static final int LIMIT = 5;
+    private final SuggestMemoryIndex memoryIndex;
+
+    private static final int LIMIT = 7;
+
+    private static final int FAST_FIRST_MAX = 4;   // 메모리 최대
+    private static final int DB_FALLBACK_MAX = 3;  // DB 최대
 
     @Transactional(readOnly = true)
     public CursorPageResponse<SearchResultView> search(
@@ -88,8 +91,27 @@ public class PostSearchService {
         List<Long> blockedIds = blockRepository.getBlockUsersByUserEmail(email)
                 .stream().map(User::getId).toList();
 
-        // 리포지토리 위임
-        return searchRepository.suggest(pfx, resolvedBoardId, blockedIds, LIMIT);
+        // 1) 메모리 자동완성 우선 (최대 FAST_FIRST_MAX, 단 총 LIMIT 고려)
+        int fastQuota = Math.min(FAST_FIRST_MAX, LIMIT);
+        List<String> fast = memoryIndex.suggestPrefix(pfx, fastQuota);
+
+        // 2) 부족분만 PGroonga로 보충 (최대 DB_FALLBACK_MAX, 단 총 LIMIT 고려)
+        int remain = Math.max(0, LIMIT - fast.size());
+        int dbQuota = Math.min(DB_FALLBACK_MAX, remain);
+
+        List<String> db = List.of();
+        if (dbQuota > 0) {
+            db = searchRepository.suggest(pfx, resolvedBoardId, blockedIds, dbQuota);
+        }
+
+        // 3) 머지: 메모리 우선 순서 보존 + 중복 제거 + 총 LIMIT 절단
+        LinkedHashSet<String> merged = new LinkedHashSet<>(fast);
+        for (String s : db) {
+            if (merged.size() >= LIMIT) break;
+            merged.add(s);
+        }
+
+        return new ArrayList<>(merged);
     }
 
     @SuppressWarnings("unchecked")

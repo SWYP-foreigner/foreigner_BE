@@ -64,7 +64,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     """)
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, Collection<String> urls);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Query("""
         delete from Image i
          where i.imageType = :imageType
@@ -93,4 +93,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
      * 채팅방의 기존 이미지를 모두 삭제하기 위해 사용됩니다.
      */
     List<Image> findByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
+
+    List<Image> findByImageTypeAndRelatedIdIn(ImageType imageType, List<Long> relatedIds);
 }

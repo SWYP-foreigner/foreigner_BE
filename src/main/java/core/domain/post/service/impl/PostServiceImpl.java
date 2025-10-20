@@ -3,15 +3,20 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.event.PostCreatedEvent;
+import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.BlockUser;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
+import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
@@ -27,6 +32,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +59,8 @@ public class PostServiceImpl implements PostService {
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
 
+    private final FollowRepository followRepository;
+    private final ApplicationEventPublisher eventPublisher;
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
@@ -177,7 +185,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
         }
 
-        postRepository.incrementViewCount(postId);
+        postRepository.increaseViewCount(postId);
 
         return postRepository.findPostDetail(email, postId);
     }
@@ -200,8 +208,36 @@ public class PostServiceImpl implements PostService {
         final Post post = getPost(email, request, board);
 
         imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        publishFollowerNotification(post);
     }
 
+    /**
+     *  [새로 추가된 private 헬퍼 메소드]
+     * 게시글 작성자의 팔로워들에게 알림을 발행합니다.
+     * @param post 새로 작성되고 저장된 게시글 엔티티
+     */
+    private void publishFollowerNotification(Post post) {
+        User author = post.getAuthor();
+        List<Follow> follows = followRepository.findAllByFollowingAndStatus(author, FollowStatus.ACCEPTED);
+
+        for (Follow follow : follows) {
+            User recipient = follow.getUser();
+
+            if (recipient.getId().equals(author.getId())) {
+                continue;
+            }
+
+            NotificationEvent event = new NotificationEvent(
+                    recipient.getId(),
+                    author.getId(),
+                    NotificationType.followuserpost,
+                    post.getId(),
+                    null,
+                    null
+            );
+            eventPublisher.publishEvent(event);
+        }
+    }
     @Override
     @Transactional
     public void writePostForChat(Long roomId, PostWriteForChatRequest request) {
@@ -249,6 +285,7 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -258,6 +295,7 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -279,6 +317,8 @@ public class PostServiceImpl implements PostService {
         }
 
         imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
+
     }
 
     @Override
