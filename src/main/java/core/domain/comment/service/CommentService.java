@@ -8,7 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
 public interface CommentService {
-    CursorPageResponse<CommentItem> getCommentList(Long postId, Integer size, SortOption sort, String cursor);
+    CursorPageResponse<CommentItem> getCommentList(Long postId, Integer size, SortOption sort, String cursor, Boolean translate);
 
     void writeComment(Long postId, CommentWriteRequest request);
 

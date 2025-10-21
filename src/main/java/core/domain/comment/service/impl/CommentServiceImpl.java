@@ -1,9 +1,5 @@
 package core.domain.comment.service.impl;
 
-import core.domain.notification.dto.NotificationEvent;
-import core.domain.user.entity.BlockUser;
-import core.domain.user.repository.BlockRepository;
-import core.global.service.ForbiddenWordService;
 import core.domain.comment.dto.CommentItem;
 import core.domain.comment.dto.CommentUpdateRequest;
 import core.domain.comment.dto.CommentWriteRequest;
@@ -11,9 +7,12 @@ import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.comment.service.CommentService;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
@@ -22,6 +21,8 @@ import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
+import core.global.service.ForbiddenWordService;
+import core.global.service.TranslationService;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,18 +51,19 @@ public class CommentServiceImpl implements CommentService {
     private final ForbiddenWordService forbiddenWordService;
     private final BlockRepository blockRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final TranslationService translationService;
 
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
-            Long postId, Integer size, SortOption sort, @Nullable String cursor
-    ) {
+            Long postId, Integer size, SortOption sort, @Nullable String cursor,
+            Boolean translate) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -133,12 +136,50 @@ public class CommentServiceImpl implements CommentService {
                 : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
                 .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
 
+
+        // translate가 true일 때만 대상/번역 리스트 준비
+        List<Comment> targets = Boolean.TRUE.equals(translate)
+                ? rows.stream()
+                .filter(co -> !co.isDeleted())
+                .filter(co -> co.getContent() != null && !co.getContent().isBlank())
+                .toList()
+                : List.of();
+
+        List<String> translated = targets.isEmpty()
+                ? List.of()
+                : translationService.translateComments(
+                targets.stream().map(Comment::getContent).toList(),
+                user.getTranslateLanguage()
+        );
+
+        Set<Long> targetIds = targets.stream().map(Comment::getId).collect(Collectors.toSet());
+        AtomicInteger idx = new AtomicInteger(0);
+
         List<CommentItem> items = rows.stream()
                 .map(cmt -> {
                     long lc = likeCountMap.getOrDefault(cmt.getId(), 0L);
                     String userImage = (cmt.getAuthor() != null) ? userImageMap.get(cmt.getAuthor().getId()) : null;
                     boolean isLiked = myLikedIds.contains(cmt.getId());
-                    return CommentItem.from(cmt, isLiked, lc, userImage);
+                    CommentItem it = CommentItem.from(cmt, isLiked, lc, userImage);
+
+                    // 번역 off 이거나 대상 아님 → 그대로 반환
+                    if (!Boolean.TRUE.equals(translate) || it.deleted() || it.commentId() == null || !targetIds.contains(it.commentId()))
+                        return it;
+
+                    int i = idx.getAndIncrement();
+                    if (i >= translated.size()) return it; // 안전 가드
+
+                    // content만 번역으로 교체
+                    return new CommentItem(
+                            it.commentId(),
+                            it.authorName(),
+                            translated.get(i),
+                            it.isLiked(),
+                            it.likeCount(),
+                            it.createdAt(),
+                            it.userImage(),
+                            it.deleted()
+                    );
                 })
                 .toList();
 
@@ -160,6 +201,7 @@ public class CommentServiceImpl implements CommentService {
         }
 
         return new CursorPageResponse<>(items, slice.hasNext(), nextCursor);
+
     }
 
 
@@ -175,7 +217,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -249,7 +291,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -279,7 +321,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -309,7 +351,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -347,7 +389,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -373,7 +415,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -389,7 +431,7 @@ public class CommentServiceImpl implements CommentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
