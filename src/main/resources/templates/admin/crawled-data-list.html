@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>크롤링 데이터 관리</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        th a { text-decoration: none; color: black; display: block; width: 100%; }
+        th a.sorted { font-weight: bold; color: #007bff; }
+
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+
+        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .search-form input, .search-form label { padding: 5px; margin-right: 10px; }
+        .search-form button { padding: 5px 10px; }
+        td small { color: #777; }
+
+        .btn-home {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+<h1>크롤링 데이터 승인 대기 목록</h1>
+
+<div th:if="${successMessage}" class="message success" th:text="${successMessage}"></div>
+<div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>제목</th>
+        <th>출처</th>
+        <th>수집일</th>
+        <th>관리</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="data : ${crawledDataPage.content}">
+        <td th:text="${data.id}"></td>
+        <td>
+            <a th:href="${data.originalUrl}" target="_blank" th:text="${data.title}"></a>
+        </td>
+        <td th:text="${data.sourceSite}"></td>
+        <td th:text="${#temporals.format(data.crawledAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td style="display: flex; gap: 10px; align-items: center;">
+            <form th:action="@{/admin/crawled-data/{id}/approve(id=${data.id})}" method="post">
+                <select name="boardId" required>
+                    <option value="">게시판 선택</option>
+                    <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.name()}"></option>
+                </select>
+                <button type="submit">승인 및 게시</button>
+            </form>
+            <form th:action="@{/admin/crawled-data/{id}/reject(id=${data.id})}" method="post" onsubmit="return confirm('이 항목을 거절 처리하시겠습니까?');">
+                <button type="submit" style="background-color: #6c757d;">거절</button>
+            </form>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pagination" th:if="${crawledDataPage.totalPages > 1}">
+
+    <a th:if="${crawledDataPage.hasPrevious()}"
+       th:href="@{/admin/crawled-data(page=${crawledDataPage.number - 1})}">이전</a>
+
+    <span th:each="pageNumber : ${#numbers.sequence(0, crawledDataPage.totalPages - 1)}">
+        <a th:href="@{/admin/crawled-data(page=${pageNumber})}"
+           th:text="${pageNumber + 1}"
+           th:classappend="${pageNumber == crawledDataPage.number} ? 'active'"></a>
+    </span>
+
+    <a th:if="${crawledDataPage.hasNext()}"
+       th:href="@{/admin/crawled-data(page=${crawledDataPage.number + 1})}">다음</a>
+</div>
+</body>
+</html>

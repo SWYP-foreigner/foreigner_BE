@@ -24,6 +24,7 @@ public enum ErrorCode {
     CANNOT_FOLLOW_YOURSELF(HttpStatus.BAD_REQUEST, "자기자신은  팔로우가 불가능합니다."),
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
+    CRAWLED_DATA_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 크롤링 데이터입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
     POST_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 삭제할 권한이 없습니다."),
     NOT_AVAILABLE_ANONYMOUS(HttpStatus.CONFLICT, "익명이 허용되지 않는 카테고리입니다."),
