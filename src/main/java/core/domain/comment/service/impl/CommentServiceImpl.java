@@ -56,152 +56,36 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
-            Long postId, Integer size, SortOption sort, @Nullable String cursor,
-            Boolean translate) {
+            Long postId, Integer size, SortOption sort, @Nullable String cursor, Boolean translate) {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Long myId = user.getId();
+        int pageSize = clampPageSize(size);
 
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
-        Long myId = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
-                .getId();
-
-        final int pageSize = Math.min(Math.max(size == null ? 20 : size, 1), 100);
-
-
-        Instant cursorCreatedAt = null;
-        Long cursorId = null;
-        Long cursorLikeCount = null;
-
-        Map<String, Object> c = CursorCodec.decode(cursor);
-        if (c.get("t") instanceof String ts && !ts.isBlank()) {
-            cursorCreatedAt = Instant.parse(ts);
-        }
-        if (c.get("id") instanceof Number n1) {
-            cursorId = n1.longValue();
-        }
-        if (c.get("lc") instanceof Number n2) {
-            cursorLikeCount = n2.longValue();
-        }
-
-        Pageable pageableLatest = PageRequest.of(0, pageSize, Sort.by(
-                Sort.Order.desc("createdAt"),
-                Sort.Order.desc("id")
-        ));
+        Cur cur = decodeCursor(cursor);
+        Pageable pageableLatest = PageRequest.of(0, pageSize, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Pageable pageablePopular = PageRequest.of(0, pageSize);
 
-        Slice<Comment> slice;
-        if (sort == SortOption.POPULAR) {
-            slice = (cursorId == null || cursorLikeCount == null || cursorCreatedAt == null)
-                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
-                    : commentRepository.findPopularByCursor(
-                    myId, postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
-            );
-        } else {
-            slice = (cursorId == null || cursorCreatedAt == null)
-                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
-                    : commentRepository.findCommentByCursor(myId, postId, cursorCreatedAt, cursorId, pageableLatest);
-        }
-
+        Slice<Comment> slice = fetchSlice(sort, myId, postId, cur, pageableLatest, pageablePopular);
         List<Comment> rows = slice.getContent();
-        if (rows.isEmpty()) {
-            return new CursorPageResponse<>(List.of(), false, null);
-        }
+        if (rows.isEmpty()) return new CursorPageResponse<>(List.of(), false, null);
 
-        // 4) 보조 데이터(좋아요 수, 유저 이미지) 일괄 조회
-        List<Long> commentIds = rows.stream().map(Comment::getId).toList();
+        Aux aux = loadAuxData(rows, myId);
 
-        Set<Long> myLikedIds = commentIds.isEmpty()
-                ? Set.of()
-                : new HashSet<>(likeRepository.findMyLikedRelatedIds(myId, LikeType.COMMENT, commentIds));
+        // 번역 대상/결과 준비 (translate == true 일 때만)
+        List<Comment> targets = prepareTranslationTargets(rows, translate);
+        List<String> translated = translateContents(targets, translate, user.getTranslateLanguage());
 
-
-        Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
-
-        List<Long> authorIds = rows.stream()
-                .filter(cmt -> !Boolean.TRUE.equals(cmt.getAnonymous()))
-                .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-
-        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
-                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
-
-
-        // translate가 true일 때만 대상/번역 리스트 준비
-        List<Comment> targets = Boolean.TRUE.equals(translate)
-                ? rows.stream()
-                .filter(co -> !co.isDeleted())
-                .filter(co -> co.getContent() != null && !co.getContent().isBlank())
-                .toList()
-                : List.of();
-
-        List<String> translated = targets.isEmpty()
-                ? List.of()
-                : translationService.translateComments(
-                targets.stream().map(Comment::getContent).toList(),
-                user.getTranslateLanguage()
+        // items 매핑 + 번역 치환
+        List<CommentItem> items = mapItemsWithOptionalTranslation(
+                rows, aux, targets, translated, Boolean.TRUE.equals(translate)
         );
 
-        Set<Long> targetIds = targets.stream().map(Comment::getId).collect(Collectors.toSet());
-        AtomicInteger idx = new AtomicInteger(0);
-
-        List<CommentItem> items = rows.stream()
-                .map(cmt -> {
-                    long lc = likeCountMap.getOrDefault(cmt.getId(), 0L);
-                    String userImage = (cmt.getAuthor() != null) ? userImageMap.get(cmt.getAuthor().getId()) : null;
-                    boolean isLiked = myLikedIds.contains(cmt.getId());
-                    CommentItem it = CommentItem.from(cmt, isLiked, lc, userImage);
-
-                    // 번역 off 이거나 대상 아님 → 그대로 반환
-                    if (!Boolean.TRUE.equals(translate) || it.deleted() || it.commentId() == null || !targetIds.contains(it.commentId()))
-                        return it;
-
-                    int i = idx.getAndIncrement();
-                    if (i >= translated.size()) return it; // 안전 가드
-
-                    // content만 번역으로 교체
-                    return new CommentItem(
-                            it.commentId(),
-                            it.authorName(),
-                            translated.get(i),
-                            it.isLiked(),
-                            it.likeCount(),
-                            it.createdAt(),
-                            it.userImage(),
-                            it.deleted()
-                    );
-                })
-                .toList();
-
-        // 5) nextCursor 생성
-        Comment last = rows.get(rows.size() - 1);
-        String nextCursor;
-        if (sort == SortOption.POPULAR) {
-            long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
-            nextCursor = CursorCodec.encode(Map.of(
-                    "lc", lastLc,
-                    "t", last.getCreatedAt().toString(), // 동률 안정성
-                    "id", last.getId()
-            ));
-        } else {
-            nextCursor = CursorCodec.encode(Map.of(
-                    "t", last.getCreatedAt().toString(),
-                    "id", last.getId()
-            ));
-        }
-
+        String nextCursor = buildNextCursor(sort, rows.get(rows.size() - 1), aux.likeCountMap());
         return new CursorPageResponse<>(items, slice.hasNext(), nextCursor);
-
     }
 
 
@@ -214,13 +98,8 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -288,13 +167,8 @@ public class CommentServiceImpl implements CommentService {
     public void updateComment(Long commentId, CommentUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
@@ -318,13 +192,8 @@ public class CommentServiceImpl implements CommentService {
     public void deleteComment(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
@@ -348,13 +217,8 @@ public class CommentServiceImpl implements CommentService {
     public CursorPageResponse<UserCommentItem> getMyCommentList(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
@@ -386,13 +250,8 @@ public class CommentServiceImpl implements CommentService {
     public void addLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, commentId, LikeType.COMMENT);
         if (existedLike.isPresent()) {
@@ -412,13 +271,8 @@ public class CommentServiceImpl implements CommentService {
     public void deleteLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         likeRepository.deleteByUserEmailAndIdAndType(email, commentId, LikeType.COMMENT);
     }
@@ -428,13 +282,8 @@ public class CommentServiceImpl implements CommentService {
     public void blockUser(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
+        User user = getUserOrThrow(email);
+        ensureProfileComplete(user);
 
         User blockedUser = commentRepository.findUserByCommentId(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -463,5 +312,145 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    private User getUserOrThrow(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
 
+    private void ensureProfileComplete(User u) {
+        if (u.getBirthdate() == null || u.getPurpose() == null || u.getIntroduction() == null
+            || u.getLanguage() == null || u.getHobby() == null || u.getSex() == null) {
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+    }
+
+    private int clampPageSize(Integer size) {
+        int s = (size == null) ? 20 : size;
+        return Math.min(Math.max(s, 1), 100);
+    }
+
+    private Cur decodeCursor(@Nullable String cursor) {
+        if (cursor == null || cursor.isBlank()) return new Cur(null, null, null);
+        Map<String, Object> m = CursorCodec.decode(cursor);
+        Instant t = (m.get("t") instanceof String s && !s.isBlank()) ? Instant.parse(s) : null;
+        Long id = (m.get("id") instanceof Number n1) ? n1.longValue() : null;
+        Long lc = (m.get("lc") instanceof Number n2) ? n2.longValue() : null;
+        return new Cur(t, id, lc);
+    }
+
+    private Slice<Comment> fetchSlice(
+            SortOption sort, Long myId, Long postId, Cur cur,
+            Pageable pageableLatest, Pageable pageablePopular) {
+        if (sort == SortOption.POPULAR) {
+            return (cur.id == null || cur.lc == null || cur.t == null)
+                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
+                    : commentRepository.findPopularByCursor(myId, postId, LikeType.COMMENT, cur.lc, cur.t, cur.id, pageablePopular);
+        } else {
+            return (cur.id == null || cur.t == null)
+                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
+                    : commentRepository.findCommentByCursor(myId, postId, cur.t, cur.id, pageableLatest);
+        }
+    }
+
+    private Aux loadAuxData(List<Comment> rows, Long myId) {
+        List<Long> commentIds = rows.stream().map(Comment::getId).toList();
+
+        Set<Long> myLikedIds = commentIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(likeRepository.findMyLikedRelatedIds(myId, LikeType.COMMENT, commentIds));
+
+        Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
+                .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
+
+        List<Long> authorIds = rows.stream()
+                .filter(cmt -> !Boolean.TRUE.equals(cmt.getAnonymous()))
+                .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
+                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
+                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
+
+        return new Aux(likeCountMap, myLikedIds, userImageMap);
+    }
+
+    private List<Comment> prepareTranslationTargets(List<Comment> rows, Boolean translate) {
+        if (!Boolean.TRUE.equals(translate)) return List.of();
+        return rows.stream()
+                .filter(c -> !c.isDeleted())
+                .filter(c -> c.getContent() != null && !c.getContent().isBlank())
+                .toList();
+    }
+
+    private List<String> translateContents(List<Comment> targets, Boolean translate, String targetLang) {
+        if (!Boolean.TRUE.equals(translate) || targets.isEmpty()) return List.of();
+        List<String> src = targets.stream().map(Comment::getContent).toList();
+        return translationService.translateComments(src, targetLang);
+    }
+
+    private List<CommentItem> mapItemsWithOptionalTranslation(
+            List<Comment> rows,
+            Aux aux,
+            List<Comment> targets,
+            List<String> translated,
+            boolean doTranslate
+    ) {
+        // targets 순서를 rows와 동일하게 만들었으므로 인덱스 소비 방식 사용
+        Set<Long> targetIds = targets.stream().map(Comment::getId).collect(Collectors.toSet());
+        AtomicInteger idx = new AtomicInteger(0);
+
+        return rows.stream()
+                .map(cmt -> {
+                    long lc = aux.likeCountMap().getOrDefault(cmt.getId(), 0L);
+                    String userImage = (cmt.getAuthor() != null) ? aux.userImageMap().get(cmt.getAuthor().getId()) : null;
+                    boolean isLiked = aux.myLikedIds().contains(cmt.getId());
+
+                    CommentItem it = CommentItem.from(cmt, isLiked, lc, userImage);
+
+                    if (!doTranslate || it.deleted() || it.commentId() == null || !targetIds.contains(it.commentId())) {
+                        return it;
+                    }
+                    int i = idx.getAndIncrement();
+                    if (i >= translated.size()) return it; // 안전 가드
+
+                    return new CommentItem(
+                            it.commentId(),
+                            it.authorName(),
+                            translated.get(i),   // 번역된 content 주입
+                            it.isLiked(),
+                            it.likeCount(),
+                            it.createdAt(),
+                            it.userImage(),
+                            it.deleted()
+                    );
+                })
+                .toList();
+    }
+
+    private String buildNextCursor(SortOption sort, Comment last, Map<Long, Long> likeCountMap) {
+        if (sort == SortOption.POPULAR) {
+            long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
+            return CursorCodec.encode(Map.of(
+                    "lc", lastLc,
+                    "t", last.getCreatedAt().toString(),
+                    "id", last.getId()
+            ));
+        }
+        return CursorCodec.encode(Map.of(
+                "t", last.getCreatedAt().toString(),
+                "id", last.getId()
+        ));
+    }
+
+    private record Cur(Instant t, Long id, Long lc) {
+    }
+
+    private record Aux(
+            Map<Long, Long> likeCountMap,
+            Set<Long> myLikedIds,
+            Map<Long, String> userImageMap
+    ) {
+    }
 }
