@@ -115,6 +115,8 @@ dependencies {
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
+
+    implementation 'org.jsoup:jsoup:1.17.2'
 }
 
 
