@@ -54,15 +54,16 @@ public class PostSearchController {
                 ));
     }
 
-    @Operation(summary = "검색결과 클릭 텔레메트리",
-            description = "사용자가 검색결과를 클릭/열람했을 때 호출하여 인기(pop) 점수를 반영합니다.")
+    @Operation(summary = "검색결과 상세페이지",
+            description = "사용자가 검색결과를 클릭/열람했을 때 호출하여 인기(pop) 점수를 반영하고 상세페이지를 제공합니다.")
     @GetMapping("/{boardId}/posts/{postId}")
     public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> resultClicked(
             @Parameter(description = "보드 ID(1=전체)") @PathVariable Long boardId,
-            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
+            @RequestParam Boolean translate
     ) {
         featureUsageMetrics.recordCommunityUsage();
-        PostDetailResponse postDetail = postService.getPostDetail(postId);
+        PostDetailResponse postDetail = postService.getPostDetail(postId, translate);
 
         extractedKeyword(postDetail.content(),1);
 

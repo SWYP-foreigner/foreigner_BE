@@ -1,6 +1,7 @@
 package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
+import core.domain.chat.dto.ToggleTranslationRequest;
 import core.domain.post.dto.*;
 import core.domain.post.dto.PostWriteForChatRequest;
 import core.global.enums.SortOption;
@@ -12,7 +13,7 @@ public interface PostService {
 
     CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size);
 
-    PostDetailResponse getPostDetail(Long postId);
+    PostDetailResponse getPostDetail(Long postId, Boolean translate);
 
     void addLike(Long boardId);
 
