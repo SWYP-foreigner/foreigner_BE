@@ -48,4 +48,21 @@ public record PostDetailResponse(
         @Schema(description = "이미지 수", example = "3")
         Integer imageCount
 ) {
+    public PostDetailResponse(PostDetailResponse postDetail, String translatedContent) {
+        this(
+                postDetail.postId,
+                translatedContent,
+                postDetail.authorName(),
+                postDetail.boardCategory,
+                postDetail.createdTime,
+                postDetail.link,
+                postDetail.isLiked,
+                postDetail.likeCount,
+                postDetail.commentCount,
+                postDetail.viewCount,
+                postDetail.userImageUrl,
+                postDetail.contentImageUrls,
+                postDetail.imageCount
+        );
+    }
 }

@@ -3,8 +3,6 @@ name: Deploy Foreigner (Dev via Docker Compose)
 on:
   push:
     branches: [ dev ]
-  pull_request:
-    branches: [ dev ]
 
 concurrency:
   group: deploy-foreigner-dev
@@ -15,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate required secrets
-        if: github.event_name == 'push'
         run: |
           test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "DOCKERHUB_USERNAME is empty" && exit 1)
           test -n "${{ secrets.DOCKERHUB_TOKEN }}"     || (echo "DOCKERHUB_TOKEN is empty" && exit 1)
@@ -32,7 +29,6 @@ jobs:
   quality:
     needs: preflight
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -57,7 +53,6 @@ jobs:
 
 
   build:
-    if: github.event_name == 'push'
     needs: [ preflight, quality ]
     runs-on: ubuntu-latest
     steps:

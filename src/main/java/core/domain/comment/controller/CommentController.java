@@ -77,11 +77,12 @@ public class CommentController {
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
             @Parameter(description = "다음 페이지 호출 시 전달하는 불투명 커서(Base64). 첫 페이지는 생략")
-            @RequestParam(required = false) String cursor
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "false") Boolean translate
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        commentService.getCommentList(postId, size, sort, cursor)
+                        commentService.getCommentList(postId, size, sort, cursor, translate)
                 )
         );
     }
