@@ -1,4 +1,4 @@
-name: PR CI (tests + SonarCloud)
+name: PR CI (tests only)
 
 on:
   pull_request:
@@ -36,17 +36,3 @@ jobs:
         env:
           CI: "true"
         run: ./gradlew --no-daemon clean preflight "-Dorg.gradle.jvmargs=-Xmx2g"
-
-      # --- SonarCloud PR 스캔 (체크 이름: "SonarCloud") ---
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # GitHub App 바인딩이면 없어도 OK, 토큰 방식이면 필요
-        with:
-          args: >
-            -Dsonar.projectKey=SWYP-foreigner_Kori_Be
-            -Dsonar.organization=swyp-foreigner
-            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
-            -Dsonar.pullrequest.branch=${{ github.head_ref }}
-            -Dsonar.pullrequest.base=${{ github.base_ref }}
