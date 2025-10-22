@@ -1,0 +1,52 @@
+name: PR CI (tests + SonarCloud)
+
+on:
+  pull_request:
+    branches: [ dev ]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: pr-ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Gradle Wrapper Validate
+        uses: gradle/actions/wrapper-validation@v3
+        continue-on-error: true
+        timeout-minutes: 5
+
+      - name: Run preflight (tests + coverage)
+        env:
+          CI: "true"
+        run: ./gradlew --no-daemon clean preflight "-Dorg.gradle.jvmargs=-Xmx2g"
+
+      # --- SonarCloud PR 스캔 (체크 이름: "SonarCloud") ---
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # GitHub App 바인딩이면 없어도 OK, 토큰 방식이면 필요
+        with:
+          args: >
+            -Dsonar.projectKey=YOUR_PROJECT_KEY
+            -Dsonar.organization=YOUR_ORG_KEY
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
