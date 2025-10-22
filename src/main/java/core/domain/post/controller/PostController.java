@@ -53,7 +53,7 @@ public class PostController {
     public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> getPostDetail(
             @Parameter(description = "게시글 ID", example = "123")
             @PathVariable @Positive Long postId,
-            @RequestParam Boolean translate) {
+            @RequestParam(defaultValue = "false") Boolean translate) {
 
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(
