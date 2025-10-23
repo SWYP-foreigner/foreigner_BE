@@ -63,11 +63,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/foreigner:${{ github.sha }}
@@ -268,6 +269,7 @@ jobs:
             fi
             
   cleanup-images:
+    if: github.event_name == 'push'
     needs: [ deploy-app ]      # 배포 성공/실패와 무관하게
     runs-on: ubuntu-latest
     steps:
