@@ -235,37 +235,7 @@ jobs:
             } >> .env
             echo "FIREBASE_CREDENTIALS_JSON=${FIREBASE_JSON_COMPACT}" >> .env
             chmod 600 .env apple_key.pem firebase.json || true
-            
-#            # Pinpoint agent 설치/동기화
-#            mkdir -p pinpoint-agent
-#            PINPOINT_URL="${{ secrets.PINPOINT_AGENT_URL }}"   # .env가 아니라 여기서 직접 참조
-#
-#            if [ -n "${PINPOINT_URL:-}" ]; then
-#              echo "Downloading Pinpoint agent from ${PINPOINT_URL}"
-#              # 구조 안전: 최상위 디렉토리 한 겹 있으면 제거
-#              curl -fsSL "$PINPOINT_URL" | tar -xz -C pinpoint-agent --strip-components=1
-#            else
-#              echo "PINPOINT_AGENT_URL is empty -> use pre-placed files under ./pinpoint-agent"
-#            fi
-#
-#            # 구조 점검 & 심볼릭 링크 고정
-#            JAR_PATH="$( (ls -1 pinpoint-agent/pinpoint-bootstrap-*.jar 2>/dev/null || true) | head -n1 )"
-#            # NCP 콘솔 가이드대로 이름이 'pinpoint-bootstrap-version.jar'일 수도 있어 둘 다 탐색
-#            if [ -z "$JAR_PATH" ] && [ -f pinpoint-agent/pinpoint-bootstrap-version.jar ]; then
-#              JAR_PATH="pinpoint-agent/pinpoint-bootstrap-version.jar"
-#            fi
-#
-#            if [ -z "$JAR_PATH" ]; then
-#              echo "ERROR: pinpoint agent jar not found under ./pinpoint-agent"
-#              echo "ls -al pinpoint-agent:"; ls -al pinpoint-agent || true
-#              exit 1
-#            fi
-#
-#            printf '%s' "${{ secrets.PINPOINT_LICENSE_KEY }}" > pinpoint-agent/pinpoint.license
-#
-#            ln -sf "$(basename "$JAR_PATH")" pinpoint-agent/pinpoint-bootstrap.jar
-#            echo "Pinpoint agent ready: $(ls -al pinpoint-agent | sed -n '1,10p')"
-#
+
             # compose/네트워크 확인
             COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
