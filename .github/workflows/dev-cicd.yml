@@ -261,6 +261,8 @@ jobs:
               exit 1
             fi
             
+            printf '%s' "${{ secrets.PINPOINT_LICENSE_KEY }}" > pinpoint-agent/pinpoint.license
+            
             ln -sf "$(basename "$JAR_PATH")" pinpoint-agent/pinpoint-bootstrap.jar
             echo "Pinpoint agent ready: $(ls -al pinpoint-agent | sed -n '1,10p')"
             
