@@ -238,22 +238,31 @@ jobs:
             
             # Pinpoint agent 설치/동기화
             mkdir -p pinpoint-agent
+            PINPOINT_URL="${{ secrets.PINPOINT_AGENT_URL }}"   # .env가 아니라 여기서 직접 참조
             
-            # 2-1) (택1) 프라이빗 URL에서 다운로드
-            if [ -n "${PINPOINT_AGENT_URL:-}" ]; then
-            curl -fsSL "$PINPOINT_AGENT_URL" | tar -xz -C pinpoint-agent
+            if [ -n "${PINPOINT_URL:-}" ]; then
+              echo "Downloading Pinpoint agent from ${PINPOINT_URL}"
+              # 구조 안전: 최상위 디렉토리 한 겹 있으면 제거
+              curl -fsSL "$PINPOINT_URL" | tar -xz -C pinpoint-agent --strip-components=1
+            else
+              echo "PINPOINT_AGENT_URL is empty -> use pre-placed files under ./pinpoint-agent"
             fi
             
-            # 2-2) (또는) 서버에 기존 번들이 있으면 그대로 사용
-            test -f pinpoint-agent/pinpoint-bootstrap-*.jar || {
-              echo "ERROR: pinpoint agent jar not found under ./pinpoint-agent" >&2
-                exit 1
-              }
+            # 구조 점검 & 심볼릭 링크 고정
+            JAR_PATH="$( (ls -1 pinpoint-agent/pinpoint-bootstrap-*.jar 2>/dev/null || true) | head -n1 )"
+            # NCP 콘솔 가이드대로 이름이 'pinpoint-bootstrap-version.jar'일 수도 있어 둘 다 탐색
+            if [ -z "$JAR_PATH" ] && [ -f pinpoint-agent/pinpoint-bootstrap-version.jar ]; then
+              JAR_PATH="pinpoint-agent/pinpoint-bootstrap-version.jar"
+            fi
             
-            # 2-3) 버전 불문 공통 경로 심볼릭 링크 고정
-            cd pinpoint-agent
-            ln -sf "$(ls -1 pinpoint-bootstrap-*.jar | head -n1)" pinpoint-bootstrap.jar
-            cd ..
+            if [ -z "$JAR_PATH" ]; then
+              echo "ERROR: pinpoint agent jar not found under ./pinpoint-agent"
+              echo "ls -al pinpoint-agent:"; ls -al pinpoint-agent || true
+              exit 1
+            fi
+            
+            ln -sf "$(basename "$JAR_PATH")" pinpoint-agent/pinpoint-bootstrap.jar
+            echo "Pinpoint agent ready: $(ls -al pinpoint-agent | sed -n '1,10p')"
             
             # compose/네트워크 확인
             COMPOSE_APP="docker-compose.app.yml"
