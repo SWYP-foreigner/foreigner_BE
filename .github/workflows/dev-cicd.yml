@@ -202,6 +202,9 @@ jobs:
             GMAIL_APP_PASSWORD=${{secrets.GMAIL_APP_PASSWORD}}
             BASE_URL=${{ secrets.BASE_URL }}
             
+            PINPOINT_APP_NAME=${{ secrets.PINPOINT_APP_NAME }}
+            PINPOINT_AGENT_URL=${{ secrets.PINPOINT_AGENT_URL }}
+            
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
             EOF
@@ -232,6 +235,25 @@ jobs:
             } >> .env
             echo "FIREBASE_CREDENTIALS_JSON=${FIREBASE_JSON_COMPACT}" >> .env
             chmod 600 .env apple_key.pem firebase.json || true
+            
+            # Pinpoint agent 설치/동기화
+            mkdir -p pinpoint-agent
+            
+            # 2-1) (택1) 프라이빗 URL에서 다운로드
+            if [ -n "${PINPOINT_AGENT_URL:-}" ]; then
+            curl -fsSL "$PINPOINT_AGENT_URL" | tar -xz -C pinpoint-agent
+            fi
+            
+            # 2-2) (또는) 서버에 기존 번들이 있으면 그대로 사용
+            test -f pinpoint-agent/pinpoint-bootstrap-*.jar || {
+              echo "ERROR: pinpoint agent jar not found under ./pinpoint-agent" >&2
+                exit 1
+              }
+            
+            # 2-3) 버전 불문 공통 경로 심볼릭 링크 고정
+            cd pinpoint-agent
+            ln -sf "$(ls -1 pinpoint-bootstrap-*.jar | head -n1)" pinpoint-bootstrap.jar
+            cd ..
             
             # compose/네트워크 확인
             COMPOSE_APP="docker-compose.app.yml"
