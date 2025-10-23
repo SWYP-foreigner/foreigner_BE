@@ -33,13 +33,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: ${{ secrets.DB_NAME }}
-          POSTGRES_USER: ${{ secrets.DB_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U ${{ secrets.DB_USER }} -d ${{ secrets.DB_NAME }}"
+          --health-cmd="pg_isready -U testuser -d testdb"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=30
@@ -60,7 +60,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
 
-        # ✅ (A) 헬스 상태/컨테이너 확인
       - name: Show Postgres health & container info
         run: |
           sudo apt-get update -y && sudo apt-get install -y postgresql-client jq
@@ -69,25 +68,19 @@ jobs:
           docker inspect "$CID" | jq -r '.[0].State.Health.Status'
           docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
 
-      # ✅ (B) 실제 접속 쿼리로 확인 + 테스트 실행
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/${{ secrets.DB_NAME }}
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.DB_USER }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_USERNAME: testuser
+          SPRING_DATASOURCE_PASSWORD: testpass
         run: |
-          # DB Ready 대기(안전장치)
-          until pg_isready -h localhost -p 5432 -U "${{ secrets.DB_USER }}" -d "${{ secrets.DB_NAME }}"; do
+          until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
             echo "Waiting for Postgres..."; sleep 2;
           done
-          # 실제 접속 확인(간단 쿼리)
-          PGPASSWORD="${{ secrets.DB_PASSWORD }}" psql -h localhost -p 5432 -U "${{ secrets.DB_USER }}" -d "${{ secrets.DB_NAME }}" -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
-          
-          # 테스트 실행
+          PGPASSWORD=testpass psql -h localhost -p 5432 -U testuser -d testdb -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
           ./gradlew --no-daemon clean preflight "-Dspring.profiles.active=test" "-Dorg.gradle.jvmargs=-Xmx2g"
 
-      # ✅ (C) 테스트 후 컨테이너 로그 & 상태 남기기(잡 끝나면 Actions가 자동으로 stop/remove)
       - name: Dump Postgres logs & ps (before job teardown)
         if: always()
         run: |
@@ -96,9 +89,9 @@ jobs:
             echo "--- docker logs (tail) ---"
             docker logs --tail 200 "$CID" || true
           fi
-          echo "--- docker ps (should still be up until job ends) ---"
+          echo "--- docker ps ---"
           docker ps || true
-          echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시점에 GitHub Actions가 자동 정리합니다."
+          echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
 
   build:
     needs: [ preflight, quality ]
