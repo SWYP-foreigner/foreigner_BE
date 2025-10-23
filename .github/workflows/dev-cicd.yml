@@ -199,7 +199,7 @@ jobs:
             
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
-            GMAIL_APP_PASSWORD=${{secrets.GMAIL_APP_PASSWORD}}
+            GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
             BASE_URL=${{ secrets.BASE_URL }}
             
             PINPOINT_APP_NAME=${{ secrets.PINPOINT_APP_NAME }}
