@@ -25,7 +25,6 @@ public class ChatWebSocketController {
     private final ChatService chatService;
     private final SimpMessageSendingOperations template;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
-
     /**
      * @apiNote 새로운 메시지를 전송하고, 해당 채팅방의 구독자들에게 브로드캐스트합니다.
      *
