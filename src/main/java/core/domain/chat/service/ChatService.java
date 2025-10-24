@@ -953,7 +953,7 @@ public class ChatService {
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
                     List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
-                        targetContent = translatedList.getFirst();
+                        targetContent = translatedList.get(0);
                     }
                 }
             }
