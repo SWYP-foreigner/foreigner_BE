@@ -204,9 +204,11 @@ jobs:
             
             PINPOINT_APP_NAME=${{ secrets.PINPOINT_APP_NAME }}
             PINPOINT_AGENT_URL=${{ secrets.PINPOINT_AGENT_URL }}
+            PINPOINT_AGENT_ID=${{ secrets.PINPOINT_AGENT_ID }}
             
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
+            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${{ secrets.PINPOINT_APP_NAME }} -Dpinpoint.agentId=${{ secrets.PINPOINT_AGENT_ID }} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dprofiler.transport.grpc.collector.ip=${{ secrets.PINPOINT_AGENT_URL }}"
+
             EOF
             
             cat > apple_key.pem <<PEM
