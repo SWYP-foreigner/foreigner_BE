@@ -206,7 +206,7 @@ jobs:
             PINPOINT_AGENT_ID=${{ secrets.PINPOINT_AGENT_ID }}
             
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dprofiler.transport.grpc.agent.collector.port=9991 -Dprofiler.transport.grpc.metadata.collector.port=9991 -Dprofiler.transport.grpc.stat.collector.port=9992 -Dprofiler.transport.grpc.span.collector.port=9993 -Dpinpoint.logdir=/tmp/pinpoint-logs"
+            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dpinpoint.logdir=/tmp/pinpoint-logs"
             EOF
             
             cat > apple_key.pem <<PEM
@@ -236,10 +236,6 @@ jobs:
             echo "FIREBASE_CREDENTIALS_JSON=${FIREBASE_JSON_COMPACT}" >> .env
             chmod 600 .env apple_key.pem firebase.json || true
             
-            mkdir -p pinpoint-agent
-            printf '%s' "${{ secrets.PINPOINT_LICENSE_KEY }}" > pinpoint-agent/pinpoint.license
-            chmod 600 pinpoint-agent/pinpoint.license || true
-
             # compose/네트워크 확인
             COMPOSE_APP="docker-compose.app.yml"
             test -f "$COMPOSE_APP" || { echo "missing $COMPOSE_APP"; exit 1; }
