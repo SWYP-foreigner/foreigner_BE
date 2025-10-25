@@ -41,8 +41,7 @@ public class PostController {
     @Operation(summary = "게시글 상세 조회", description = "특정 보드의 게시글 상세를 반환합니다.")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
-            description = "성공",
-            content = @Content(schema = @Schema(implementation = PostDetailResponse.class))
+            description = "성공"
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),

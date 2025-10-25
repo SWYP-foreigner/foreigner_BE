@@ -43,31 +43,7 @@ public class CommentController {
             """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공", content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            name = "성공 예시",
-                            value = """
-                        {
-                          "success": true,
-                          "data": {
-                            "items": [
-                              {
-                                "commentId": 98765,
-                                "authorName": "Anonymity",
-                                "content": "댓글 내용...",
-                                "createdAt": "2025-08-01T12:34:56Z",
-                                "likeCount": 10,
-                                "userImage": "https://..."
-                              }
-                            ],
-                            "hasNext": true,
-                            "nextCursor": "eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjUsImxjIjoxMH0"
-                          }
-                        }
-                        """
-                    )
-            )),
+            @ApiResponse(responseCode = "200", description = "성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
             @ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
