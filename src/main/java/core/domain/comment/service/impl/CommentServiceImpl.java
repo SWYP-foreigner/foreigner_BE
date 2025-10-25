@@ -417,6 +417,7 @@ public class CommentServiceImpl implements CommentService {
 
                     return new CommentItem(
                             it.commentId(),
+                            it.authorId(),
                             it.authorName(),
                             translated.get(i),   // 번역된 content 주입
                             it.isLiked(),

@@ -13,6 +13,9 @@ public record BoardItem(
         @Schema(description = "내용 미리보기", example = "안녕하세요! 첫 글입니다.")
         String contentPreview,
 
+        @Schema(description = "작성자 ID", example = "123")
+        Long authorId,
+
         @Schema(description = "작성자 이름 (익명일 경우 null)", nullable = true, example = "alice")
         String authorName,
 
