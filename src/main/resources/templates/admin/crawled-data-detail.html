@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>크롤링 데이터 상세 및 승인</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .meta-info { background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; color: #555; }
+        .content-body { margin-top: 20px; line-height: 1.6; white-space: pre-wrap; /* 줄바꿈 유지 */ }
+        .image-gallery { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
+        .image-gallery img { max-width: 100%; height: auto; margin-bottom: 15px; border: 1px solid #ddd; display: block; }
+        .action-buttons { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f0f0; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .action-buttons form { margin: 0; }
+        .btn-list { display: inline-block; margin-top: 20px; color: #007bff; text-decoration: none; }
+         /* 메시지 스타일 */
+        .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+<div class="container" th:object="${crawledData}">
+    <h1 th:text="*{title}">크롤링 데이터 제목</h1>
+
+    <div th:if="${successMessage}" class="message success" th:text="${successMessage}"></div>
+    <div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
+
+    <div class="meta-info">
+        <p><strong>ID:</strong> <span th:text="*{id}"></span></p>
+        <p><strong>출처:</strong> <span th:text="*{sourceSite}"></span></p>
+        <p><strong>원본 URL:</strong> <a th:href="*{originalUrl}" target="_blank" th:text="*{originalUrl}"></a></p>
+        <p><strong>수집일:</strong> <span th:text="${#temporals.format(crawledData.crawledAt, 'yyyy-MM-dd HH:mm')}"></span></p>
+        <p><strong>현재 상태:</strong> <span th:text="*{status}"></span></p>
+    </div>
+
+    <h2>내용 미리보기</h2>
+    <div class="content-body" th:text="*{contentSnippet}">
+        크롤링된 본문 내용...
+    </div>
+
+    <div class="image-gallery" th:if="${!#lists.isEmpty(crawledData.imageUrls)}">
+        <h2>수집된 이미지 미리보기</h2>
+        <div th:each="imgUrl : *{imageUrls}">
+            <img th:src="${imgUrl}" alt="Crawled Image"><br/>
+        </div>
+    </div>
+
+    <div class="action-buttons" th:if="*{status == T(core.global.enums.CrawledDataStatus).PENDING}">
+        <form th:action="@{/admin/crawled-data/{id}/approve(id=*{id})}" method="post">
+            <label for="boardSelect">게시할 게시판:</label>
+            <select id="boardSelect" name="boardId" required>
+                <option value="">게시판 선택</option>
+                <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.name()}"></option>
+            </select>
+            <button type="submit">승인 및 게시</button>
+        </form>
+        <form th:action="@{/admin/crawled-data/{id}/reject(id=*{id})}" method="post" onsubmit="return confirm('이 항목을 거절 처리하시겠습니까?');">
+            <button type="submit" style="background-color: #6c757d;">거절</button>
+        </form>
+    </div>
+    <div class="action-buttons" th:unless="*{status == T(core.global.enums.CrawledDataStatus).PENDING}">
+        <p>이 항목은 이미 처리되었습니다. (상태: <span th:text="*{status}"></span>)</p>
+    </div>
+    <a th:href="@{/admin/crawled-data}" class="btn-list">← 목록으로 돌아가기</a>
+
+</div>
+</body>
+</html>

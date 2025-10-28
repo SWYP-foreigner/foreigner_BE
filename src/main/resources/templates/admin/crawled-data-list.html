@@ -45,31 +45,24 @@
     <thead>
     <tr>
         <th>ID</th>
-        <th>제목</th>
+        <th>제목 (원본 링크)</th>
         <th>출처</th>
         <th>수집일</th>
-        <th>관리</th>
-    </tr>
+        <th>관리</th> </tr>
     </thead>
     <tbody>
     <tr th:each="data : ${crawledDataPage.content}">
-        <td th:text="${data.id}"></td>
         <td>
-            <a th:href="${data.originalUrl}" target="_blank" th:text="${data.title}"></a>
+            <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}" th:text="${data.id}"></a>
+        </td>
+        <td>
+            <span th:text="${data.title}"></span>
+            <a th:href="${data.originalUrl}" target="_blank" style="font-size: 0.8em; margin-left: 5px;">[원본]</a>
         </td>
         <td th:text="${data.sourceSite}"></td>
         <td th:text="${#temporals.format(data.crawledAt, 'yyyy-MM-dd HH:mm')}"></td>
-        <td style="display: flex; gap: 10px; align-items: center;">
-            <form th:action="@{/admin/crawled-data/{id}/approve(id=${data.id})}" method="post">
-                <select name="boardId" required>
-                    <option value="">게시판 선택</option>
-                    <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.name()}"></option>
-                </select>
-                <button type="submit">승인 및 게시</button>
-            </form>
-            <form th:action="@{/admin/crawled-data/{id}/reject(id=${data.id})}" method="post" onsubmit="return confirm('이 항목을 거절 처리하시겠습니까?');">
-                <button type="submit" style="background-color: #6c757d;">거절</button>
-            </form>
+        <td>
+            <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}">상세보기 및 처리</a>
         </td>
     </tr>
     </tbody>

@@ -3,6 +3,7 @@ package core.global.controller;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.CrawledDataDto;
+import core.domain.post.entity.CrawledData;
 import core.global.exception.BusinessException;
 import core.global.service.CrawledDataAdminService;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,17 @@ public class CrawledDataAdminController {
         model.addAttribute("crawledDataPage", crawledDataPage);
         model.addAttribute("boards", boards);
         return "admin/crawled-data-list";
+    }
+
+    @GetMapping("/{id}")
+    public String crawledDataDetailPage(@PathVariable Long id, Model model) {
+        CrawledData crawledData = crawledDataAdminService.getCrawledDataById(id);
+        List<Board> boards = boardRepository.findAll();
+
+        model.addAttribute("crawledData", crawledData);
+        model.addAttribute("boards", boards);
+
+        return "admin/crawled-data-detail";
     }
 
     @PostMapping("/{id}/approve")

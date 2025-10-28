@@ -76,4 +76,10 @@ public class CrawledDataAdminService {
 
         crawledData.updateStatus(CrawledDataStatus.REJECTED, null);
     }
+
+    @Transactional(readOnly = true)
+    public CrawledData getCrawledDataById(Long id) {
+        return crawledDataRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CRAWLED_DATA_NOT_FOUND));
+    }
 }

@@ -28,6 +28,4 @@ public interface PostRepository extends JpaRepository<Post, Long> , PostReposito
 
     boolean existsByBoard(Board board);
     List<Post> findByBoard(Board board);
-
-    int increaseViewCount(@Param("postId") Long postId);
 }
