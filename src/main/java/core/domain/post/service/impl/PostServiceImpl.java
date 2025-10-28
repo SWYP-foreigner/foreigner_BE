@@ -3,15 +3,20 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.event.PostCreatedEvent;
+import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.BlockUser;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
+import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
@@ -23,10 +28,13 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
 import core.global.service.ForbiddenWordService;
+import core.global.service.GoogleService;
+import core.global.service.TranslationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +60,10 @@ public class PostServiceImpl implements PostService {
     private final ImageService imageService;
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
+    private final TranslationService translationService;
 
+    private final FollowRepository followRepository;
+    private final ApplicationEventPublisher eventPublisher;
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
@@ -77,8 +88,8 @@ public class PostServiceImpl implements PostService {
         };
     }
 
-    // ------- 정렬 핸들러 -------
 
+    // ------- 정렬 핸들러 -------
     private CursorPageResponse<BoardItem> handleLatest(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
         var k = parseLatest(c); // t,id
         List<BoardItem> rows = postRepository.findLatestPosts(
@@ -126,8 +137,8 @@ public class PostServiceImpl implements PostService {
         );
     }
 
-    // ------- 커서 파싱 -------
 
+    // ------- 커서 파싱 -------
     private LatestKey parseLatest(Map<String, Object> c) {
         Instant t = null;
         Long id = null;
@@ -155,19 +166,19 @@ public class PostServiceImpl implements PostService {
             return Map.of();
         }
     }
+
     private Instant popularSince() {
         return Instant.now().minus(Duration.ofDays(10));
     }
 
     // ------- 유틸 -------
-
     private Instant truncateToMillis(Instant i) {
         return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
     @Override
     @Transactional
-    public PostDetailResponse getPostDetail(Long postId) {
+    public PostDetailResponse getPostDetail(Long postId, Boolean translate) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
@@ -184,9 +195,16 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
         }
 
-        postRepository.incrementViewCount(postId);
+        postRepository.increaseViewCount(postId);
 
-        return postRepository.findPostDetail(email, postId);
+        if (translate) {
+            PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+
+            String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());
+            return new PostDetailResponse(postDetail, translatedContent);
+        } else {
+            return postRepository.findPostDetail(email, postId);
+        }
     }
 
     @Override
@@ -207,8 +225,36 @@ public class PostServiceImpl implements PostService {
         final Post post = getPost(email, request, board);
 
         imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        publishFollowerNotification(post);
     }
 
+    /**
+     *  [새로 추가된 private 헬퍼 메소드]
+     * 게시글 작성자의 팔로워들에게 알림을 발행합니다.
+     * @param post 새로 작성되고 저장된 게시글 엔티티
+     */
+    private void publishFollowerNotification(Post post) {
+        User author = post.getAuthor();
+        List<Follow> follows = followRepository.findAllByFollowingAndStatus(author, FollowStatus.ACCEPTED);
+
+        for (Follow follow : follows) {
+            User recipient = follow.getUser();
+
+            if (recipient.getId().equals(author.getId())) {
+                continue;
+            }
+
+            NotificationEvent event = new NotificationEvent(
+                    recipient.getId(),
+                    author.getId(),
+                    NotificationType.followuserpost,
+                    post.getId(),
+                    null,
+                    null
+            );
+            eventPublisher.publishEvent(event);
+        }
+    }
     @Override
     @Transactional
     public void writePostForChat(Long roomId, PostWriteForChatRequest request) {
@@ -259,6 +305,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -271,6 +318,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
         final Post post = new Post(request, user, board);
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -299,6 +347,8 @@ public class PostServiceImpl implements PostService {
         }
 
         imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
+
     }
 
     @Override

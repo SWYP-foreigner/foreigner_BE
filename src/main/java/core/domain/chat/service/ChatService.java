@@ -953,7 +953,7 @@ public class ChatService {
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
                     List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
-                        targetContent = translatedList.getFirst();
+                        targetContent = translatedList.get(0);
                     }
                 }
             }
@@ -1296,5 +1296,25 @@ public class ChatService {
         String presignedUrl = presignedPutObjectRequest.url().toString();
 
         return new PresignedUrlResponse(presignedUrl, fileKey);
+    }
+
+    /**
+     * 특정 채팅방에 대한 사용자의 알림 설정을 변경합니다.
+     *
+     * @param roomId  설정을 변경할 채팅방 ID
+     * @param userId  설정을 변경하는 사용자 ID
+     * @param enabled 알림을 활성화할지 여부
+     */
+    @Transactional
+    public void toggleChatRoomNotifications(Long roomId, Long userId, boolean enabled) {
+
+        Optional<ChatParticipant> participantOptional = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId);
+        if (participantOptional.isEmpty()) {
+            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND);
+        }
+
+        ChatParticipant participant = participantOptional.get();
+        participant.setNotificationsEnabled(enabled);
+
     }
 }

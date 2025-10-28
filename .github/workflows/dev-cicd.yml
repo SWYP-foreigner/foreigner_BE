@@ -26,8 +26,75 @@ jobs:
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
-  build:
+  quality:
     needs: preflight
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U testuser -d testdb"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle Wrapper Validate
+        uses: gradle/actions/wrapper-validation@v3
+        continue-on-error: true
+        timeout-minutes: 5
+
+      - name: Show Postgres health & container info
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y postgresql-client jq
+          CID="$(docker ps -q --filter 'ancestor=postgres:16' | head -n1)"
+          echo "Postgres Container ID: $CID"
+          docker inspect "$CID" | jq -r '.[0].State.Health.Status'
+          docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
+
+      - name: Run preflight (tests + coverage)
+        env:
+          CI: "true"
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_USERNAME: testuser
+          SPRING_DATASOURCE_PASSWORD: testpass
+        run: |
+          until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
+            echo "Waiting for Postgres..."; sleep 2;
+          done
+          PGPASSWORD=testpass psql -h localhost -p 5432 -U testuser -d testdb -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
+          ./gradlew --no-daemon clean preflight "-Dspring.profiles.active=test" "-Dorg.gradle.jvmargs=-Xmx2g"
+
+      - name: Dump Postgres logs & ps (before job teardown)
+        if: always()
+        run: |
+          CID="$(docker ps -q --filter 'ancestor=postgres:16' | head -n1 || true)"
+          if [ -n "$CID" ]; then
+            echo "--- docker logs (tail) ---"
+            docker logs --tail 200 "$CID" || true
+          fi
+          echo "--- docker ps ---"
+          docker ps || true
+          echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
+
+  build:
+    needs: [ preflight, quality ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,7 +171,6 @@ jobs:
             APPLE_KEY_ID=${{ secrets.APPLE_KEY_ID }}
             APPLE_CLIENT_ID=${{ secrets.APPLE_CLIENT_ID }}
             APPLE_REDIRECT_URI=${{ secrets.APPLE_REDIRECT_URI }}
-            APPLE_PRIVATE_KEY_PEM_PATH=./apple_key.pem
             APPLE_APP_BUNDLE_ID=${{ secrets.APPLE_APP_BUNDLE_ID }}
             
             NCP_ACCESS_KEY=${{ secrets.NCP_ACCESS_KEY }}
@@ -133,16 +199,22 @@ jobs:
             
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}
-            GMAIL_APP_PASSWORD=${{secrets.GMAIL_APP_PASSWORD}}
+            GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
             BASE_URL=${{ secrets.BASE_URL }}
             
+            PINPOINT_APP_NAME=${{ secrets.PINPOINT_APP_NAME }}
+            PINPOINT_AGENT_ID=${{ secrets.PINPOINT_AGENT_ID }}
+            
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
+            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dpinpoint.logdir=/tmp/pinpoint-logs"
             EOF
             
-            cat > apple_key.pem <<'PEM'
+            cat > apple_key.pem <<PEM
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
+            
+            PEM_CONTENT=$(awk 'NF {printf "%s", $0}' apple_key.pem)
+            echo "APPLE_PRIVATE_KEY_PEM=\"$PEM_CONTENT\"" >> .env
             
             cat > firebase.json <<'JSON'
             ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
@@ -154,15 +226,14 @@ jobs:
               FIREBASE_JSON_COMPACT="$(tr -d '\n' < firebase.json)"
             fi
             # 공백/특수문자 안전하게 기록
-            printf 'FIREBASE_CREDENTIALS_JSON=%s\n' "$FIREBASE_JSON_COMPACT" >> .env
-            
+
             # 이미지 변수는 .env에 한 번만 기록
             {
               echo "IMAGE=${IMAGE}"
               echo "IMAGE_BLUE=${IMAGE}"
               echo "IMAGE_GREEN=${IMAGE}"
             } >> .env
-            
+            echo "FIREBASE_CREDENTIALS_JSON=${FIREBASE_JSON_COMPACT}" >> .env
             chmod 600 .env apple_key.pem firebase.json || true
             
             # compose/네트워크 확인
@@ -240,11 +311,11 @@ jobs:
             docker compose -p foreigner -f "$COMPOSE_APP" stop "$INACTIVE" || true
             docker compose -p foreigner -f "$COMPOSE_APP" rm -f "$INACTIVE" || true
             fi
-            
+
   cleanup-images:
+    if: github.event_name == 'push'
     needs: [ deploy-app ]      # 배포 성공/실패와 무관하게
     runs-on: ubuntu-latest
-    if: always()
     steps:
       - name: Prune old images (keep 4 latest + any in-use)
         uses: appleboy/ssh-action@v1.0.3

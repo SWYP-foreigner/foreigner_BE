@@ -19,12 +19,15 @@ public interface PostRepository extends JpaRepository<Post, Long> , PostReposito
 
     List<Post> findAllByAuthorId(Long authorId);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying
     @Query("update Post p set p.checkCount = p.checkCount + 1 where p.id = :postId")
+
     int incrementViewCount(@Param("postId") Long postId);
 
     Page<Post> findByAuthorId(Long authorId, Pageable pageable);
 
     boolean existsByBoard(Board board);
     List<Post> findByBoard(Board board);
+
+    int increaseViewCount(@Param("postId") Long postId);
 }

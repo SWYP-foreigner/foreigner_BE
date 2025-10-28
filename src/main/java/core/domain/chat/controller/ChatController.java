@@ -399,4 +399,22 @@ public class ChatController {
         PresignedUrlResponse response = chatService.generateChatPresignedUrl(chatroomId, request.fileName());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    @Operation(summary = "채팅방 알림 설정 변경", description = "특정 채팅방의 알림을 켜거나 끕니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "알림 설정 변경 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 해당 채팅방의 참여자가 아닐 경우")
+    })
+    @PostMapping("/rooms/{roomId}/notifications")
+    public ResponseEntity<ApiResponse<Void>> toggleChatRoomNotifications(
+            @Parameter(description = "설정을 변경할 채팅방의 ID") @PathVariable Long roomId,
+            @Valid @RequestBody ToggleNotificationsRequest request
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = principal.getUserId();
+
+        chatService.toggleChatRoomNotifications(roomId, userId, request.enabled());
+
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
 }

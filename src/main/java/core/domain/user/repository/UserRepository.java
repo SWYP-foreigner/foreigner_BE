@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
@@ -86,4 +87,6 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
   """, nativeQuery = true)
     List<Object[]> countInactive30dAndTotal();
 
+    @Query("SELECT u FROM User u")
+    Stream<User> findAllAsStream();
 }

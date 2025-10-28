@@ -74,6 +74,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .and(cursorId != null ? post.id.lt(cursorId) : Expressions.TRUE.isFalse())
                 );
 
+        Expression<Long> authorIdExpr = authorIdExpr();
+
         Expression<String> authorNameExpr = getAuthorName();
 
         Expression<String> preview = preview200();
@@ -96,6 +98,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         BoardItem.class,
                         post.id,
                         preview,
+                        authorIdExpr,
                         authorNameExpr,
                         board.category,
                         post.createdAt,
@@ -121,7 +124,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression sinceFilter = (since == null) ? null : post.createdAt.goe(since);
         BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
 
         // ── 집계
@@ -185,6 +187,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Boolean> likedByMe = likedByViewerId(userId);
 
+        Expression<Long> authorIdExpr = authorIdExpr();
+
         Expression<String> authorNameExpr = getAuthorName();
 
         Expression<String> preview = preview200();
@@ -201,6 +205,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         BoardItem.class,
                         post.id,
                         preview,
+                        authorIdExpr,
                         authorNameExpr,
                         board.category,
                         post.createdAt,
@@ -216,7 +221,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, sinceFilter, search, ltCursor, visibleToMe, notBlocked))
+                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
                 .orderBy(
                         score.desc(),
                         post.id.desc()
@@ -232,6 +237,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Long> likeCountExpr = likeCountExpr();
         Expression<Long> commentCountExpr = commentCountExpr();
+        Expression<Long> authorIdExpr = authorIdExpr();
         StringExpression userNameExpr = getAuthorName();
 
         Expression<String> userImageUrlExpr = new CaseBuilder()
@@ -261,10 +267,12 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<Boolean> likedByMe = likedByViewerEmail(email);
         BooleanExpression notBlocked = notBlockedByViewerEmail(email);
 
+
         List<Tuple> rows = query
                 .select(
                         post.id,
                         post.content,
+                        authorIdExpr,
                         userNameExpr,
                         board.category,
                         post.createdAt,
@@ -297,6 +305,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Long id = t0.get(post.id);
         String content = t0.get(post.content);
+        Long authorId = t0.get(authorIdExpr);
         String userName = t0.get(userNameExpr);
         BoardCategory cat = t0.get(board.category);
         Instant createdAt = t0.get(post.createdAt);
@@ -316,6 +325,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return new PostDetailResponse(
                 id,
                 content,
+                authorId,
                 userName,
                 cat,
                 createdAt,
@@ -392,6 +402,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<Long> likeCountExpr = likeCountExpr();
         Expression<Long> commentCountExpr = commentCountExpr();
         Expression<Boolean> likedByMe = likedByViewerId(viewerId);
+        Expression<Long> authorIdExpr = authorIdExpr();
         BooleanExpression visibleToMe = visibleTo(viewerId);
 
         QImage uimg = new QImage("uimg");
@@ -408,7 +419,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         BoardItem.class,
                         post.id,
                         preview,
-                        makeGetName(),
+                        authorIdExpr,
+                        getAuthorName(),
                         board.category,
                         post.createdAt,
                         likedByMe,
@@ -590,6 +602,11 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 );
     }
 
+    private Expression<Long> authorIdExpr() {
+        return new CaseBuilder()
+                .when(post.anonymous.isTrue()).then(Expressions.nullExpression(Long.class))
+                .otherwise(user.id);
+    }
 
     private StringExpression getAuthorName() {
         return new CaseBuilder()

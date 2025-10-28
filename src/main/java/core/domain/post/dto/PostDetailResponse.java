@@ -14,6 +14,9 @@ public record PostDetailResponse(
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
 
+        @Schema(description = "작성자 ID", example = "1")
+        Long authorId,
+
         @Schema(description = "작성자 표시명(익명이면 'Anonymity')", example = "Anonymity")
         String authorName,
 
@@ -48,4 +51,22 @@ public record PostDetailResponse(
         @Schema(description = "이미지 수", example = "3")
         Integer imageCount
 ) {
+    public PostDetailResponse(PostDetailResponse postDetail, String translatedContent) {
+        this(
+                postDetail.postId,
+                translatedContent,
+                postDetail.authorId,
+                postDetail.authorName(),
+                postDetail.boardCategory,
+                postDetail.createdTime,
+                postDetail.link,
+                postDetail.isLiked,
+                postDetail.likeCount,
+                postDetail.commentCount,
+                postDetail.viewCount,
+                postDetail.userImageUrl,
+                postDetail.contentImageUrls,
+                postDetail.imageCount
+        );
+    }
 }

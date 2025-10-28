@@ -11,6 +11,9 @@ public record CommentItem(
         @Schema(description = "댓글 ID", example = "10", nullable = true)
         Long commentId,
 
+        @Schema(description = "작성자 ID", example = "10", nullable = true)
+        Long authorId,
+
         @Schema(description = "작성자 이름", example = "bob", nullable = true)
         String authorName,
 
@@ -40,6 +43,7 @@ public record CommentItem(
             return new CommentItem(
                     null,
                     null,
+                    null,
                     "삭제된 댓글입니다.",
                     false,
                     0L,
@@ -50,6 +54,7 @@ public record CommentItem(
         }
         return new CommentItem(
                 c.getId(),
+                c.getAuthor().getId(),
                 (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "Anonymity",
                 c.getContent(),
                 isLiked,

@@ -67,47 +67,7 @@ public class BoardController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "성공",
-                    content = @Content(
-                            mediaType = "application/json",
-                            // 제네릭 스키마 대신 예시 JSON 제공
-                            examples = @ExampleObject(
-                                    name = "성공 예시 (LATEST 정렬, 다음 페이지 있음)",
-                                    value = """
-                                        {
-                                          "success": true,
-                                          "data": {
-                                            "items": [
-                                              {
-                                                "postId": 123,
-                                                "title": "제목",
-                                                "contentPreview": "내용 프리뷰 ...",
-                                                "authorName": "Anonymity",
-                                                "createdAt": "2025-08-13T07:20:35Z",
-                                                "likeCount": 10,
-                                                "commentCount": 2,
-                                                "viewCount": 345,
-                                                "score": 123456
-                                              },
-                                              {
-                                                "postId": 122,
-                                                "title": "다음 글",
-                                                "contentPreview": "내용 프리뷰 ...",
-                                                "authorName": "홍길동",
-                                                "createdAt": "2025-08-13T07:19:10Z",
-                                                "likeCount": 0,
-                                                "commentCount": 0,
-                                                "viewCount": 12,
-                                                "score": 2345
-                                              }
-                                            ],
-                                            "hasNext": true,
-                                            "nextCursor": "eyJ0IjoiMjAyNS0wOC0xM1QwNzoxOToxMFoiLCJpZCI6MTIyfQ"
-                                          }
-                                        }
-                                        """
-                            )
-                    )
+                    description = "성공"
             ),
             @ApiResponse(
                     responseCode = "400",

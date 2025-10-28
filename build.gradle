@@ -2,22 +2,20 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+    id 'org.sonarqube' version '5.1.0.4882'
 }
 
 group = 'com.foreigner'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	toolchain { languageVersion = JavaLanguageVersion.of(21) }
+	toolchain { languageVersion = JavaLanguageVersion.of(17) }
 }
 
 configurations {
 	compileOnly { extendsFrom annotationProcessor }
 }
-
-//configurations.configureEach {
-//    exclude group: 'commons-logging', module: 'commons-logging'
-//}
 
 repositories { mavenCentral() }
 
@@ -106,12 +104,7 @@ dependencies {
     // --- Observability / Logging ---
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation "io.micrometer:micrometer-tracing-bridge-brave"
-    implementation "net.logstash.logback:logstash-logback-encoder:7.4"
     implementation "org.codehaus.janino:janino:3.1.12"
-
-    implementation("org.apache.httpcomponents:httpclient:4.5.14") {
-        exclude group: "commons-logging", module: "commons-logging"
-    }
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
@@ -134,4 +127,59 @@ tasks.named('test') {
 
 test {
 	jvmArgs += ["-XX:+EnableDynamicAgentLoading"]
+}
+
+jacoco {
+    toolVersion = "0.8.12" // 최신권장
+}
+tasks.jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required.set(true)   // SonarQube에서 필요
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value   = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+        }
+    }
+}
+tasks.check {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+sonarqube {
+    properties {
+        property "sonar.organization", "swyp-foreigner"
+        property "sonar.projectKey", "SWYP-foreigner_Kori_Be"
+        property "sonar.projectName", "Kori_Be"
+        property "sonar.host.url", System.getenv("SONAR_HOST_URL") ?: "https://sonarcloud.io"
+
+        if (System.getenv("SONAR_TOKEN") != null) {
+            property "sonar.token", System.getenv("SONAR_TOKEN")   // 권장
+            property "sonar.login", System.getenv("SONAR_TOKEN")   // 호환
+        }
+
+        property "sonar.java.binaries", file("${buildDir}/classes").absolutePath
+        property "sonar.coverage.jacoco.xmlReportPaths", "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+
+        // ✅ 로컬=false, GitHub Actions(CI)=true
+        property "sonar.qualitygate.wait", (System.getenv("CI") == "true").toString()
+    }
+}
+
+/** 서버 기동 전 프리플라이트(테스트→커버리지→체크) */
+tasks.register('preflight') {
+    group = "verification"
+    description = "Run tests, coverage and verification before starting server."
+    dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check
 }

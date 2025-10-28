@@ -3,6 +3,7 @@ package core.domain.chat.repository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.global.enums.ChatParticipantStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,12 +42,23 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
     Optional<ChatRoom> findByIdWithParticipantsAndUsers(@Param("roomId") Long roomId);
 
-    @Query("SELECT cr FROM ChatRoom cr " +
-            "JOIN FETCH cr.participants p " +
-            "JOIN FETCH p.user u "  +
-            "WHERE u.id IN :userIds AND cr.group = false " +
-            "GROUP BY cr.id, p.id, u.id "  +
-            "HAVING COUNT(DISTINCT u.id) = 2")
+    @EntityGraph(attributePaths = {"participants", "participants.user"})
+    @Query("""
+        select cr
+        from ChatRoom cr
+        where cr.group = false
+          and (
+            select count(distinct cpA.user.id)
+            from ChatParticipant cpA
+            where cpA.chatRoom = cr
+              and cpA.user.id in :userIds
+          ) = 2
+          and (
+            select count(distinct cpB.user.id)
+            from ChatParticipant cpB
+            where cpB.chatRoom = cr
+          ) = 2
+    """)
     List<ChatRoom> findOneToOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
     List<ChatRoom> findAllByOwnerId(Long ownerId);
 

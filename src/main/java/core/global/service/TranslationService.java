@@ -24,8 +24,6 @@ public class TranslationService {
     private String projectId;
     private final UserRepository userRepository;
 
-
-
     public List<String> translateMessages(List<String> messages, String targetLanguage) {
         if (messages == null || messages.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
             return messages;
@@ -59,7 +57,6 @@ public class TranslationService {
     }
 
 
-
     @Transactional
     public void saveUserLanguage(Authentication auth, String language) {
         User user = userRepository.findByEmail(auth.getName())
@@ -70,6 +67,69 @@ public class TranslationService {
         userRepository.save(user);
         log.info("사용자 언어 및 번역 언어 저장 완료: userId={}, language={}, translateLanguage={}",
                 user.getId(), user.getLanguage(), user.getTranslateLanguage());
+    }
+
+    public String translatePost(String post, String targetLanguage) {
+        if (post == null || post.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
+            return post;
+        }
+
+        try (TranslationServiceClient client = TranslationServiceClient.create()) {
+            LocationName parent = LocationName.of(projectId, "global");
+
+            TranslateTextRequest request = TranslateTextRequest.newBuilder()
+                    .setParent(parent.toString())
+                    .setMimeType("text/plain")
+                    .setTargetLanguageCode(targetLanguage)
+                    .addContents(post)
+                    .build();
+
+            TranslateTextResponse response = client.translateText(request);
+
+            return response.getTranslationsList().get(0).getTranslatedText();
+
+        } catch (Exception e) {
+            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
+            throw new BusinessException(
+                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL,
+                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    e
+            );
+        }
+    }
+
+
+    public List<String> translateComments(List<String> comments, String targetLanguage) {
+        if (comments == null || comments.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
+            return comments;
+        }
+
+        try (TranslationServiceClient client = TranslationServiceClient.create()) {
+            LocationName parent = LocationName.of(projectId, "global");
+
+            TranslateTextRequest request = TranslateTextRequest.newBuilder()
+                    .setParent(parent.toString())
+                    .setMimeType("text/plain")
+                    .setTargetLanguageCode(targetLanguage)
+                    .addAllContents(comments)
+                    .build();
+
+            TranslateTextResponse response = client.translateText(request);
+
+            return response.getTranslationsList().stream()
+                    .map(Translation::getTranslatedText)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
+            throw new BusinessException(
+                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL,
+                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    e
+            );
+        }
     }
 
 

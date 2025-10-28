@@ -29,11 +29,12 @@ public class NotificationMessageGenerator {
                 yield actorName + "님으로부터 새로운 메시지: " + snippet;
             }
 
-            case post -> actorName + "님이 회원님의 게시글에 댓글을 남겼습니다.";
-            case comment -> actorName + "님이 회원님의 댓글에 답글을 남겼습니다.";
-
-            case follow -> actorName + "님이 회원님의 팔로우 요청을 수락했습니다.";
-            case receive -> actorName + "님이 회원님을 팔로우하기 시작했습니다.";
+            case post -> actorName + " commented on your post.";
+            case comment -> actorName + " replied to your comment.";
+            case follow -> actorName + " accepted your follow request.";
+            case receive -> actorName + " started following you.";
+            case newuser -> actorName + " just joined! Say hello!";
+            case followuserpost -> actorName + " posted something new.";
             default -> "새로운 알림이 도착했습니다.";
         };
     }

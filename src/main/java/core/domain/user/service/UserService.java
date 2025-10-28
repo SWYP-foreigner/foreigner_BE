@@ -9,6 +9,8 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.notification.dto.NewUserJoinedEvent;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
@@ -17,6 +19,8 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
+import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
@@ -30,6 +34,8 @@ import core.global.like.repository.LikeRepository;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -59,8 +65,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class UserService {
-    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";     // code 보관
-    private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:"; // 인증 완료 플래그
+
+    private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
+    private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
     /**
@@ -90,6 +97,9 @@ public class UserService {
     private final AppleWithdrawalService appleWithdrawalService;
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher publisher;
+    private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationRepository notificationRepository;
+    private final UserNotificationSettingRepository userNotificationSettingRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -177,6 +187,7 @@ public class UserService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
@@ -199,7 +210,7 @@ public class UserService {
 
         if (notBlank(dto.introduction())) {
             String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
         if (notBlank(dto.purpose())) {
             user.updatePurpose(dto.purpose());
@@ -214,15 +225,12 @@ public class UserService {
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
-
-            // 전체 CSV
             String userLanguagesCsv = String.join(",", normalizedLanguages);
 
             if (!userLanguagesCsv.isEmpty()) {
                 user.updateLanguage(userLanguagesCsv);
             }
 
-            // 첫 번째 요소에서 괄호 안 코드 추출
             String firstTranslatedLanguage = normalizedLanguages.stream()
                     .findFirst()
                     .map(s -> {
@@ -249,17 +257,17 @@ public class UserService {
             log.debug("취미 변경: {} → {}", user.getHobby(), csv);
             if (!csv.isEmpty()) user.updateHobby(csv);
         }
+        user.updateIsNewUser(false);
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
-        ;
         if (notBlank(dto.imageKey())) {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        user.updateIsNewUser(false);
+        UserSetupRequest result = new UserSetupRequest(
+                user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
 
-        UserSetupRequest result = new UserSetupRequest(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
-
+        log.info("newUser {}", user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
     }
 
@@ -306,9 +314,8 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
-
     @Transactional
-    public void signup(SignupRequest req) {
+    public LoginResponseDto signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
             throw new BusinessException(ErrorCode.AGREEMENT_INPUT);
         }
@@ -318,7 +325,6 @@ public class UserService {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        // 이메일 인증 완료 여부 체크
         String verified = redisTemplate.opsForValue().get(EMAIL_VERIFIED_FLAG_KEY + email);
         if (!"1".equals(verified)) {
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
@@ -326,7 +332,6 @@ public class UserService {
 
         String rawPw = req.getPassword();
 
-        // User 객체 생성 후 updateXXX 메서드 사용
         User u = new User();
         u.updateProvider(Ouathplatform.local.toString());
         u.updateSocialId(buildLocalSocialId(email));
@@ -342,10 +347,18 @@ public class UserService {
 
         userRepository.save(u);
 
-        // 인증 완료 플래그는 일회성으로 소비
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        // ✅ 토큰 발급 및 반환 제거
+        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String refreshToken = jwtTokenProvider.createRefreshToken(u.getId());
+
+        Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
+
+        publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
+
+        return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 
 
@@ -622,6 +635,8 @@ public class UserService {
         if (notBlank(dto.imageKey())) {
             imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
+        NewUserJoinedEvent event = new NewUserJoinedEvent(user.getId());
+        eventPublisher.publishEvent(event);
     }
 
 
@@ -752,22 +767,23 @@ public class UserService {
         blockRepository.deleteAllByUserOrBlocked(user);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-
+        userNotificationSettingRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        userDeviceTokenRepository.deleteAllByUserId(userId);
         userRepository.delete(user);
     }
 
     /**
      * 단일 사용자 정보 조회 로직
      */
-    public UserResponseDto findUserProfile(Long userId) {
+    public UserProfileResponse findUserProfile(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String imageUrl = imageRepository
-                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .map(Image::getUrl)
-                .orElse(null);
-        return UserResponseDto.from(user, imageUrl);
+
+        String profileKey = imageService.getUserProfileKey(user.getId());
+
+        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     /**
@@ -821,5 +837,30 @@ public class UserService {
         }
 
         return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
+    }
+    @Transactional
+    public void updateUserLocation(LocationUpdateRequest dto, Long userId ) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
+        user.updateIsInKorea(isInKorea);
+    }
+
+    /**
+     * 주어진 위도, 경도가 대한민국 영토 내에 있는지 확인합니다.
+     * @return 대한민국 내에 있으면 true, 밖에 있으면 false, 값이 없으면 null
+     */
+    private Boolean isLocationInKorea(Double latitude, Double longitude) {
+        if (latitude == null || longitude == null) {
+            return null;
+        }
+        double minLat = 33.0;
+        double maxLat = 38.7;
+        double minLon = 124.5;
+        double maxLon = 132.0;
+
+        return latitude >= minLat && latitude <= maxLat &&
+                longitude >= minLon && longitude <= maxLon;
     }
 }

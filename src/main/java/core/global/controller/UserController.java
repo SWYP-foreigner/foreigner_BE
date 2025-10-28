@@ -24,6 +24,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -139,12 +140,11 @@ public class UserController {
 
 
     @PostMapping("/signup")
-    @Operation(summary = "일반 회원가입")
-    public ResponseEntity<Void> signup(@Valid @RequestBody SignupRequest req) {
-        userService.signup(req);
-        return ResponseEntity.ok().build();
+    @Operation(summary = "일반 회원가입 및 JWT 발급")
+    public ResponseEntity<LoginResponseDto> signup(@Valid @RequestBody SignupRequest req) {
+        LoginResponseDto res = userService.signup(req);
+        return ResponseEntity.ok(res);
     }
-
 
     @PostMapping("/send-verification-email")
     @Operation(summary = "이메일 인증 코드 발송")
@@ -247,8 +247,8 @@ public class UserController {
      * @return UserResponseDto 형태의 사용자 정보
      */
     @GetMapping("/{userId}/info")
-    public ResponseEntity<UserResponseDto> getUserProfile(@PathVariable("userId") Long userId) {
-        UserResponseDto userProfile = userService.findUserProfile(userId);
+    public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("userId") Long userId) {
+        UserProfileResponse userProfile = userService.findUserProfile(userId);
         featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userProfile);
     }
@@ -278,5 +278,13 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserAppleStatusResponse>> getUserInfoIsApple(@PathVariable Long userId) {
         UserAppleStatusResponse response = userService.checkUserAppleStatus(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/location")
+    @Operation(summary = "사용자 위치 정보 업데이트",
+            description = "사용자의 현재 위도, 경도를 받아 위치를 업데이트합니다. 위도/경도 중 하나라도 null이면 위치 미동의(isInKorea=null)로 처리됩니다.")
+    public ResponseEntity<Void> updateUserLocation(@RequestBody @Valid LocationUpdateRequest LocationDto,@AuthenticationPrincipal CustomUserDetails userDetails) {
+        userService.updateUserLocation(LocationDto,userDetails.getUserId());
+        return ResponseEntity.ok().build();
     }
 }
