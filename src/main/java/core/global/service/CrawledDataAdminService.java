@@ -41,7 +41,7 @@ public class CrawledDataAdminService {
     }
 
     @Transactional
-    public void approveAndPost(Long crawledDataId, Long boardId) {
+    public void approveAndPost(Long crawledDataId, Long boardId, String content) {
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CRAWLED_DATA_NOT_FOUND));
 
@@ -53,7 +53,7 @@ public class CrawledDataAdminService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post newPost = new Post(
-                crawledData.getTitle() + "\n\n" + crawledData.getContentSnippet(),
+                crawledData.getTitle() + "\n\n" + content,
                 adminUser,
                 targetBoard
         );

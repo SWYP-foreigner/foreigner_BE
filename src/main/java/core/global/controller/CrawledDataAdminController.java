@@ -54,10 +54,11 @@ public class CrawledDataAdminController {
     public String approveAndPost(
             @PathVariable Long id,
             @RequestParam Long boardId,
+            @RequestParam String content,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, boardId);
+            crawledDataAdminService.approveAndPost(id, boardId, content);
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 게시물로 성공적으로 발행되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
