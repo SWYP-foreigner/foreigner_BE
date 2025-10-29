@@ -31,7 +31,7 @@ public class KoreaNetCrawlerService {
     private static final String SOURCE_SITE = "korea.net";
     private static final Pattern ARTICLE_ID_PATTERN = Pattern.compile("contentView\\(\\s*'[^']+',\\s*'(\\d+)',");
 
-    @Scheduled(cron = "0 0 * * * *")
+    //@Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void crawlKoreaNetFestivals() {
         log.info("Starting Korea.net festival crawling from HTML list...");
