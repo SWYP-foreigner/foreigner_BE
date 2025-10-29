@@ -24,6 +24,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -135,7 +136,16 @@ public class UserController {
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
+    @GetMapping("/{userId}/info")
+    public ResponseEntity<UserProfileCardResponse> getUserProfile(
+            @PathVariable("userId") Long userId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long currentUserId = userDetails.getUserId();
+        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
+        featureUsageMetrics.recordFollowUsage();
+        return ResponseEntity.ok(userProfile);
+    }
 
 
 

@@ -15,6 +15,7 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
@@ -785,7 +786,31 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
+    public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        String profileKey = imageService.getUserProfileKey(user.getId());
+        String followStatus;
+        if (userId.equals(currentUserId)) {
+            followStatus = "SELF";
+        } else {
+            Optional<Follow> follow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
+            if (follow.isPresent()) {
+                followStatus = follow.get().getStatus().toString();
+            } else {
+                followStatus = "NOT_FOLLOWING";
+            }
+        }
+
+        return new UserProfileCardResponse(
+                user,
+                stringToList(user.getTranslateLanguage()),
+                stringToList(user.getHobby()),
+                profileKey,
+                followStatus
+        );
+    }
     /**
      * 여러 사용자 정보 일괄 조회 로직 (N+1 문제 해결)
      */
