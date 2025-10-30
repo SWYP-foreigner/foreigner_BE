@@ -35,8 +35,6 @@ import core.global.like.repository.LikeRepository;
 import core.global.service.AppleWithdrawalService;
 import core.global.service.RedisService;
 import core.global.service.SmtpMailService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -315,6 +313,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
+
     @Transactional
     public LoginResponseDto signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
@@ -787,6 +786,7 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
+
     public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -812,6 +812,7 @@ public class UserService {
                 followStatus
         );
     }
+
     /**
      * 여러 사용자 정보 일괄 조회 로직 (N+1 문제 해결)
      */
@@ -864,17 +865,19 @@ public class UserService {
 
         return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
     }
+
     @Transactional
-    public void updateUserLocation(LocationUpdateRequest dto, Long userId ) {
+    public void updateUserLocation(LocationUpdateRequest dto, Long userId) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
-        user.updateIsInKorea(isInKorea);
+        user.updateIsInKorea(Boolean.TRUE.equals(isInKorea));
     }
 
     /**
      * 주어진 위도, 경도가 대한민국 영토 내에 있는지 확인합니다.
+     *
      * @return 대한민국 내에 있으면 true, 밖에 있으면 false, 값이 없으면 null
      */
     private Boolean isLocationInKorea(Double latitude, Double longitude) {
@@ -887,6 +890,6 @@ public class UserService {
         double maxLon = 132.0;
 
         return latitude >= minLat && latitude <= maxLat &&
-                longitude >= minLon && longitude <= maxLon;
+               longitude >= minLon && longitude <= maxLon;
     }
 }
