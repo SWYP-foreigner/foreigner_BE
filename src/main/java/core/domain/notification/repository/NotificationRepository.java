@@ -39,4 +39,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("notificationType") NotificationType notificationType,
             Pageable pageable
     );
+
+    void deleteAllByActorId(Long actorId);
 }

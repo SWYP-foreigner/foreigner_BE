@@ -769,8 +769,9 @@ public class UserService {
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
         userNotificationSettingRepository.deleteAllByUserId(userId);
-        notificationRepository.deleteAllByUserId(userId);
         userDeviceTokenRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByActorId(userId);
         userRepository.delete(user);
     }
 
