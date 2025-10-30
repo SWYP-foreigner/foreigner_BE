@@ -251,17 +251,6 @@ public class UserController {
         return  ResponseEntity.ok(withdrawIsApple);
     }
 
-    /**
-     * 특정 사용자 한 명의 프로필 정보를 조회합니다.
-     * @param userId 조회할 사용자의 ID
-     * @return UserResponseDto 형태의 사용자 정보
-     */
-    @GetMapping("/{userId}/info")
-    public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("userId") Long userId) {
-        UserProfileResponse userProfile = userService.findUserProfile(userId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(userProfile);
-    }
 
     /**
      * 여러 사용자의 프로필 정보를 한 번에 조회합니다.
