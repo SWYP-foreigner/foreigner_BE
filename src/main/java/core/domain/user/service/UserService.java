@@ -892,4 +892,22 @@ public class UserService {
         return latitude >= minLat && latitude <= maxLat &&
                longitude >= minLon && longitude <= maxLon;
     }
+    /**
+     * 유저 프로필 완료 여부 확인
+     * @param userId 확인할 유저 ID
+     * @return 프로필이 완료되었으면 true, 아니면 false
+     */
+    public boolean isProfileCompleted(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        return user.getBirthdate() != null
+                && user.getPurpose() != null
+                && user.getIntroduction() != null
+                && user.getLanguage() != null
+                && user.getHobby() != null
+                && user.getSex() != null;
+    }
+
+
 }

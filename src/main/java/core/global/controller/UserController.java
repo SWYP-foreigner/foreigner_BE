@@ -8,6 +8,8 @@ import core.domain.user.service.UserService;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.service.AppleAuthService;
 import core.global.service.GoogleAuthService;
@@ -29,10 +31,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 @Tag(name = "User", description = "사용자 관련 API")
 @RestController
@@ -286,4 +285,16 @@ public class UserController {
         userService.updateUserLocation(LocationDto,userDetails.getUserId());
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/is-completed/{userId}")
+    public ResponseEntity<Map<String, Object>> isProfileCompleted(@PathVariable Long userId) {
+        boolean completed = userService.isProfileCompleted(userId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", userId);
+        response.put("profileCompleted", completed);
+
+        return ResponseEntity.ok(response);
+    }
+
 }

@@ -111,7 +111,7 @@ public enum ErrorCode {
     ELASTICSEARCH_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색에 실패했습니다."),
     ELASTICSEARCH_SEARCH_SUGGEST_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색 제안에 실패했습니다."),
     BLOCKED_USER_POST(HttpStatus.CONFLICT, "접근할 수 없는 글입니다."),
-    PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "프로필이 완성되지 않았습니다.");
+    PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "Your profile is incomplete. Please complete your profile setup");
     private final HttpStatus errorCode;
     private final String message;
 
