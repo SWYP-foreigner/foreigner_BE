@@ -104,6 +104,7 @@ public enum ErrorCode {
 
     DUPLICATE_REPORT(HttpStatus.CONFLICT, "이미 신고한 메시지입니다."),
     CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "본인의 메시지는 신고할 수 없습니다."),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고 내역입니다."),
 
     NOTIFICATION_FORBIDDEN(HttpStatus.UNAUTHORIZED, "알람을 받은 유저와 같은 유저가 아닙니다."),
     NOTIFICATION_NOT_FOUND(HttpStatus.UNAUTHORIZED, "해당 알람을 찾을 수 없습니다."),

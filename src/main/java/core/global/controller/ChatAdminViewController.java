@@ -81,4 +81,25 @@ public class ChatAdminViewController {
         model.addAttribute("searchRequest", request);
         return "admin/chat-search";
     }
+
+    @GetMapping("/reports")
+    public String chatReportListPage(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Model model
+    ) {
+        Page<ChatReportDto> reportPage = chatAdminService.getPendingChatReports(pageable);
+        model.addAttribute("reportPage", reportPage);
+        return "admin/chat-report-list";
+    }
+
+    @PostMapping("/reports/{reportId}/process")
+    public String processReport(@PathVariable Long reportId, RedirectAttributes redirectAttributes) {
+        try {
+            chatAdminService.processChatReport(reportId);
+            redirectAttributes.addFlashAttribute("successMessage", "신고가 처리되었습니다.");
+        } catch (BusinessException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/chats/reports";
+    }
 }
