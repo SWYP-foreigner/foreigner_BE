@@ -4,9 +4,11 @@ package core.domain.chat.service;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.entity.ChatReport;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.BlockUser;
@@ -61,6 +63,7 @@ public class ChatService {
     private final BlockRepository blockRepository;
     private final S3Presigner s3Presigner;
     private final SocialChatMetrics socialChatMetrics;
+    private final ChatReportRepository chatReportRepository;
 
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 metrics에서 UNK 처리
@@ -1316,5 +1319,37 @@ public class ChatService {
         ChatParticipant participant = participantOptional.get();
         participant.setNotificationsEnabled(enabled);
 
+    }
+
+    @Transactional
+    public void reportChat(Long reporterUserId, ChatReportRequest request) {
+
+        if (chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_REPORT);
+        }
+
+        User reporterUser = userRepository.findById(reporterUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        User reportedUser = reportedMessage.getSender();
+        ChatRoom chatRoom = reportedMessage.getChatRoom();
+
+        if (reportedUser.getId().equals(reporterUserId)) {
+            throw new BusinessException(ErrorCode.CANNOT_REPORT_SELF);
+        }
+
+        ChatReport chatReport = new ChatReport(
+                reporterUser,
+                reportedUser,
+                chatRoom,
+                request.messageId(),
+                reportedMessage.getContent(),
+                request.reasonCategory(),
+                request.reasonDetail()
+        );
+        chatReportRepository.save(chatReport);
     }
 }

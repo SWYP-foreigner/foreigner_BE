@@ -342,14 +342,24 @@ public class ChatController {
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
-    @Operation(summary = "신고 더미 API", description = "신고 요청 수락용 더미 엔드포인트입니다. 실제 동작은 하지 않습니다.")
+    @Operation(summary = "채팅 내용 신고", description = "채팅방, 사용자, 메시지 내용을 신고합니다.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK 응답 반환")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 접수 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "본인의 메시지는 신고할 수 없습니다."),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "신고 대상 메시지 또는 신고자를 찾을 수 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 신고한 메시지입니다 (중복 신고)")
     })
     @PostMapping("/declaration")
-    public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
+    public ResponseEntity<ApiResponse<Void>> declaration(
+            @Valid @RequestBody ChatReportRequest request
+    ) {
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long reporterUserId = principal.getUserId();
+
+        chatService.reportChat(reporterUserId, request);
         featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(null));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
     @Operation(summary = "채팅방이 그룹인지 여부 확인", description = "roomId에 해당하는 채팅방이 그룹 채팅방인지(1:1 채팅인지) 확인합니다.")
     @ApiResponses({
