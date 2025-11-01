@@ -70,34 +70,7 @@ public class BookmarkController {
                     """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공", content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            value = """
-                                    {
-                                      "success": true,
-                                      "data": {
-                                        "items": [
-                                          {
-                                            "bookmarkId": 555,
-                                            "postId": 1,
-                                            "authorName": "Anonymity",
-                                            "content": "내용 프리뷰...",
-                                            "likeCount": 10,
-                                            "commentCount": 2,
-                                            "checkCount": 3,
-                                            "isMarked": true,
-                                            "userImage": "https://...",
-                                            "postImages": ["https://.../1.png","https://.../2.png"]
-                                          }
-                                        ],
-                                        "hasNext": true,
-                                        "nextCursor": "eyJpZCI6NTQ5fQ"
-                                      }
-                                    }
-                                    """
-                    )
-            ))
+            @ApiResponse(responseCode = "200", description = "성공")
     })
     @GetMapping("/my/bookmarks")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BookmarkItem>>> getMyBookmarks(
