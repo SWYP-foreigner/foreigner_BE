@@ -32,6 +32,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BookmarkServiceImpl implements BookmarkService {
 
+    private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
+    private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
+    private static final LikeType LIKE_TYPE_POST = LikeType.POST;
     private final BookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -39,19 +42,23 @@ public class BookmarkServiceImpl implements BookmarkService {
     private final CommentRepository commentRepository;
     private final ImageRepository imageRepository;
 
-    private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
-    private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
-    private static final LikeType LIKE_TYPE_POST   = LikeType.POST;
+    private static String safeTrim(String s) {
+        if (s == null) return null;
+        int len = s.codePointCount(0, s.length());
+        if (len <= 200) return s;
+        int endIndex = s.offsetByCodePoints(0, 200);
+        return s.substring(0, endIndex);
+    }
 
     @Transactional(readOnly = true)
     @Override
-    public CursorPageResponse<BookmarkItem> getMyBookmarks( int size, String  cursor) {
+    public CursorPageResponse<BookmarkItem> getMyBookmarks(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -133,12 +140,12 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         String authorName = Boolean.TRUE.equals(p.getAnonymous())
                 ? "Anonymity"
-                : (p.getAuthor() != null ? p.getAuthor().getName() : null);
+                : (p.getAuthor() != null ? p.getAuthor().getFirstName() + p.getAuthor().getLastName() : null);
 
         Long postId = p.getId();
-        Long likeCount    = likeMap.getOrDefault(postId, 0L);
+        Long likeCount = likeMap.getOrDefault(postId, 0L);
         Long commentCount = commentMap.getOrDefault(postId, 0L);
-        Long checkCount   = p.getCheckCount();
+        Long checkCount = p.getCheckCount();
 
         String userImage = (p.getAuthor() == null) ? null
                 : userImageMap.get(p.getAuthor().getId());
@@ -162,24 +169,15 @@ public class BookmarkServiceImpl implements BookmarkService {
         );
     }
 
-    private static String safeTrim(String s) {
-        if (s == null) return null;
-        int len = s.codePointCount(0, s.length());
-        if (len <= 200) return s;
-        int endIndex = s.offsetByCodePoints(0, 200);
-        return s.substring(0, endIndex);
-    }
-
-
     @Override
     @Transactional
-    public void addBookmark( Long postId) {
+    public void addBookmark(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -197,13 +195,13 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Override
     @Transactional
-    public void removeBookmark( Long postId) {
+    public void removeBookmark(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
