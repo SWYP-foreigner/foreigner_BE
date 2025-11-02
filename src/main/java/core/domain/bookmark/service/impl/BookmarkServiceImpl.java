@@ -25,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -143,6 +144,7 @@ public class BookmarkServiceImpl implements BookmarkService {
                 : (p.getAuthor() != null ? p.getAuthor().getFirstName() +" "+ p.getAuthor().getLastName() : null);
 
         Long postId = p.getId();
+        Instant time = p.getCreatedAt();
         Long likeCount = likeMap.getOrDefault(postId, 0L);
         Long commentCount = commentMap.getOrDefault(postId, 0L);
         Long checkCount = p.getCheckCount();
@@ -159,6 +161,7 @@ public class BookmarkServiceImpl implements BookmarkService {
                 postId,
                 authorName,
                 safeTrim(p.getContent()),
+                time,
                 isLiked,
                 likeCount,
                 commentCount,
