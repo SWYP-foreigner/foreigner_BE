@@ -427,9 +427,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private StringExpression makeGetName() {
-        return user.lastName.coalesce("")
+        return user.firstName.coalesce("")
                 .concat(" ")
-                .concat(user.firstName.coalesce(""));
+                .concat(user.lastName.coalesce(""));
     }
 
     private BooleanExpression notBlockedByViewerId(Long userId) {
