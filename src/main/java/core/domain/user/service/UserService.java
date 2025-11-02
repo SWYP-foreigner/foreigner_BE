@@ -897,16 +897,16 @@ public class UserService {
      * @param userId 확인할 유저 ID
      * @return 프로필이 완료되었으면 true, 아니면 false
      */
-    public boolean isProfileCompleted(Long userId) {
+    public ProfileCompletionResponse checkProfileCompletion(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        return user.getBirthdate() != null
+        boolean completed = user.getBirthdate() != null
                 && user.getPurpose() != null
                 && user.getIntroduction() != null
                 && user.getLanguage() != null
                 && user.getHobby() != null
                 && user.getSex() != null;
+        return new ProfileCompletionResponse(userId, completed);
     }
 
 

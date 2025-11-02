@@ -286,14 +286,14 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("/is-completed/{userId}")
-    public ResponseEntity<Map<String, Object>> isProfileCompleted(@PathVariable Long userId) {
-        boolean completed = userService.isProfileCompleted(userId);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("userId", userId);
-        response.put("profileCompleted", completed);
-
+    /**
+     * 유저 프로필 완료 여부 API
+     */
+    @GetMapping("/is-completed")
+    public ResponseEntity<ProfileCompletionResponse> isProfileCompleted(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = userDetails.getUserId();
+        ProfileCompletionResponse response = userService.checkProfileCompletion(userId);
         return ResponseEntity.ok(response);
     }
 
