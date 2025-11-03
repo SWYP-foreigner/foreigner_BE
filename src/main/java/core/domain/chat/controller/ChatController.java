@@ -401,7 +401,7 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "알림 설정 변경 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 해당 채팅방의 참여자가 아닐 경우")
     })
-    @PostMapping("/rooms/{roomId}/notifications")
+    @PostMapping("/rooms/{roomId}/notifications-toggle")
     public ResponseEntity<ApiResponse<Void>> toggleChatRoomNotifications(
             @Parameter(description = "설정을 변경할 채팅방의 ID") @PathVariable Long roomId,
             @Valid @RequestBody ToggleNotificationsRequest request,@AuthenticationPrincipal CustomUserDetails principal
@@ -411,4 +411,22 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+
+    @Operation(summary = "채팅방 알림 상태 조회", description = "현재 유저의 특정 채팅방 알림 설정 상태(on/off)를 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatNotificationStatusResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 참여자가 아님",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/rooms/{roomId}/notification-status")
+    public ResponseEntity<ApiResponse<ChatNotificationStatusResponse>> getNotificationStatus(
+            @Parameter(description = "채팅방 ID") @PathVariable @Positive Long roomId,@AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long userId = principal.getUserId();
+        ChatNotificationStatusResponse response= chatService.isNotificationsEnabled(roomId, userId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

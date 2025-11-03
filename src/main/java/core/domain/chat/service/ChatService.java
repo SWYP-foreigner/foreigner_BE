@@ -1,6 +1,7 @@
 package core.domain.chat.service;
 
 
+import com.google.api.gax.rpc.NotFoundException;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
@@ -1313,5 +1314,11 @@ public class ChatService {
         ChatParticipant participant = participantOptional.get();
         participant.setNotificationsEnabled(enabled);
 
+    }
+    public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
+         ChatParticipant participant =
+                 chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                         .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+        return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
     }
 }
