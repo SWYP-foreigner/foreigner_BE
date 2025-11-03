@@ -1,7 +1,4 @@
 package core.domain.chat.service;
-
-
-import com.google.api.gax.rpc.NotFoundException;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
@@ -129,7 +126,7 @@ public class ChatService {
                                     .map(Image::getUrl)
                                     .orElse(null);
                         } else {
-                            roomName = "(알 수 없는 사용자)";
+                            roomName = "Unknown user";
                             roomImageUrl = null;
                         }
 
@@ -616,7 +613,7 @@ public class ChatService {
                     .orElse(null);
 
             if (opponent == null) {
-                roomName = "(알 수 없음)";
+                roomName = "Unknown user";
                 roomImageUrl = null;
             } else {
                 roomName = opponent. getFirstName() + " " + opponent.getLastName();
@@ -666,10 +663,6 @@ public class ChatService {
                 .orElse(null);
     }
 
-    public ChatRoom getChatRoomById(Long roomId) {
-        return chatRoomRepository.findByIdWithParticipantsAndUsers(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-    }
     @Transactional(readOnly = true)
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
@@ -715,8 +708,6 @@ public class ChatService {
      */
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -915,7 +906,7 @@ public class ChatService {
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
-        Long startTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
         ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
 
