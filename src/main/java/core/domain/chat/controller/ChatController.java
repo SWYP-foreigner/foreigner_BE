@@ -100,7 +100,7 @@ public class ChatController {
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId,
             @AuthenticationPrincipal CustomUserDetails principal
-    ) {;
+    ) {
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId);
@@ -137,8 +137,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId,
-                                                                                           @AuthenticationPrincipal CustomUserDetails principal) {
+    public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId){
         List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));

@@ -248,7 +248,6 @@ public class PostServiceImpl implements PostService {
                     author.getId(),
                     NotificationType.followuserpost,
                     post.getId(),
-                    null,
                     null
             );
             eventPublisher.publishEvent(event);

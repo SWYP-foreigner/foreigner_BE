@@ -80,7 +80,6 @@ public class ChatService {
         List<ChatRoom> rooms = chatRoomRepo.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
         return rooms.stream()
-                // 🚨 차단 필터링 로직
                 .filter(room -> {
                     if (room.getGroup()) {
                         return true;
@@ -96,7 +95,7 @@ public class ChatService {
 
                         boolean isBlockedByMe = blockRepository.existsBlock(userId, opponentId);
 
-                        return !isBlockedByMe; // '내가 차단한 경우만 숨김'이 일반적
+                        return !isBlockedByMe;
                     }
 
                     return true;
@@ -110,7 +109,6 @@ public class ChatService {
                     ChatRoom room = roomWithTime.room();
                     Instant lastMessageTime = roomWithTime.lastMessageTime();
 
-                    // 그룹 채팅방의 마지막 메시지는 차단된 유저 메시지를 제외
                     String lastMessageContent = getLastNonBlockedMessageContent(room.getId(), userId);
                     int unreadCount = countUnreadMessages(room.getId(), userId);
                     int participantCount = room.getParticipants().size();
@@ -229,8 +227,6 @@ public class ChatService {
                 countryOf(otherUser),
                 "chat_room"
         );
-
-
         return chatRoomRepo.save(newRoom);
     }
 
@@ -963,7 +959,8 @@ public class ChatService {
                         senderUser.getId(),
                         NotificationType.chat,
                         chatRoom.getId(),
-                        originalContent
+                        originalContent,
+                        chatRoom.getRoomName()
                 );
                 eventPublisher.publishEvent(event);
             }

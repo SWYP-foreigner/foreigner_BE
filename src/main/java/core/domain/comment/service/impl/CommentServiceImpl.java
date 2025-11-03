@@ -130,7 +130,8 @@ public class CommentServiceImpl implements CommentService {
                             NotificationType.post,
                             post.getId(),
                             savedComment.getId(), // ✅ 2. 저장된 댓글의 ID를 이벤트에 추가
-                            request.comment()
+                            request.comment(),
+                            null
                     );
                     eventPublisher.publishEvent(event);
                 }
@@ -143,7 +144,8 @@ public class CommentServiceImpl implements CommentService {
                             NotificationType.comment,
                             post.getId(),
                             savedComment.getId(), // ✅ 2. 저장된 답글의 ID를 이벤트에 추가
-                            request.comment()
+                            request.comment(),
+                            null
                     );
                     eventPublisher.publishEvent(event);
                 }
