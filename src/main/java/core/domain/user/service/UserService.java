@@ -123,8 +123,8 @@ public class UserService {
                 .socialId(socialId)
                 .email(email)
                 .provider(provider)
+                .createdAt(Instant.now())
                 .build();
-
         return userRepository.save(u);
     }
 
@@ -138,6 +138,7 @@ public class UserService {
                 .appleRefreshToken(appleRefreshToken)
                 .firstName(name.familyName())
                 .lastName(name.givenName())
+                .createdAt(Instant.now())
                 .build();
 
         return userRepository.save(u);

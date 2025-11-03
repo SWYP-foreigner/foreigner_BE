@@ -114,7 +114,8 @@ public class User {
                 String hobby,
                 String provider,
                 String socialId,
-                String email,String appleRefreshToken) {
+                String email,String appleRefreshToken
+                ,Instant createdAt) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.sex = sex;
@@ -128,6 +129,7 @@ public class User {
         this.socialId = socialId;
         this.email = email;
         this.appleRefreshToken = appleRefreshToken;
+        this.createdAt = createdAt;
     }
     public void updateFirstName(String firstName) {
         if (notBlank(firstName)) this.firstName = firstName.trim();

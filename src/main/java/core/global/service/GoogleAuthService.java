@@ -35,7 +35,6 @@ public class GoogleAuthService {
         AccessTokenDto accessTokenDto = googleService.exchangeCode(authCode);
 
         GoogleProfileDto profile = googleService.getGoogleProfile(accessTokenDto.getAccess_token());
-
         User user = findOrCreateUser(profile);
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
@@ -45,7 +44,8 @@ public class GoogleAuthService {
         long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
 
-        boolean isNewUserResponse = user.isNewUser();if (isNewUserResponse) {
+        boolean isNewUserResponse = user.isNewUser();
+        if (isNewUserResponse) {
             publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
         }
 
