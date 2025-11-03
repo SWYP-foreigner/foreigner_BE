@@ -1,4 +1,10 @@
-<!-- @format -->
+---
+name: "⚙️ 작업 이슈"
+about: "새로운 기능, 리팩토링, 또는 개선 작업을 등록합니다."
+title: "[FEAT]"
+labels: ["enhancement"]
+assignees: []
+---
 
 ## 📌 이슈 개요
 - 어떤 기능을 구현하거나 어떤 작업을 할지 요약합니다.
