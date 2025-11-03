@@ -297,6 +297,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         BoardCategory cat = t0.get(board.category);
         Instant createdAt = t0.get(post.createdAt);
         String link = t0.get(linkExpr);
+        Boolean anonymous = t0.get(post.anonymous);
         Boolean liked = t0.get(likedByMe);
         Long likeCount = t0.get(likeCountExpr);
         Long commentCount = t0.get(commentCountExpr);
@@ -317,6 +318,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 cat,
                 createdAt,
                 link,
+                anonymous,
                 liked,
                 likeCount,
                 commentCount,

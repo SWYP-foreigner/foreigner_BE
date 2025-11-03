@@ -29,6 +29,9 @@ public record PostDetailResponse(
         @Schema(description = "채팅방 링크", example = "https://ko-ri.cloud/chatroom/10")
         String link,
 
+        @Schema(description = "익명 여부", example = "true")
+        Boolean isAnonymous,
+
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,
 
@@ -60,6 +63,7 @@ public record PostDetailResponse(
                 postDetail.boardCategory,
                 postDetail.createdTime,
                 postDetail.link,
+                postDetail.isAnonymous,
                 postDetail.isLiked,
                 postDetail.likeCount,
                 postDetail.commentCount,

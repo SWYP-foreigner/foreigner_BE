@@ -1,10 +1,7 @@
 package core.domain.post.controller;
 
-import core.domain.chat.dto.ToggleTranslationRequest;
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
-import core.domain.post.dto.PostWriteForChatRequest;
-import core.global.config.CustomUserDetails;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,7 +16,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 

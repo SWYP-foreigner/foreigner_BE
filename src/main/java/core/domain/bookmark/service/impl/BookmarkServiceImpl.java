@@ -145,6 +145,7 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         Long postId = p.getId();
         Instant time = p.getCreatedAt();
+        Boolean anonymous = p.getAnonymous();
         Long likeCount = likeMap.getOrDefault(postId, 0L);
         Long commentCount = commentMap.getOrDefault(postId, 0L);
         Long checkCount = p.getCheckCount();
@@ -162,6 +163,7 @@ public class BookmarkServiceImpl implements BookmarkService {
                 authorName,
                 safeTrim(p.getContent()),
                 time,
+                anonymous,
                 isLiked,
                 likeCount,
                 commentCount,

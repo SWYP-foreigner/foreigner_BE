@@ -420,6 +420,7 @@ public class CommentServiceImpl implements CommentService {
                             it.authorId(),
                             it.authorName(),
                             translated.get(i),   // 번역된 content 주입
+                            it.isAnonymous(),
                             it.isLiked(),
                             it.likeCount(),
                             it.createdAt(),

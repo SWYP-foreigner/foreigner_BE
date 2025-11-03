@@ -28,7 +28,6 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
 import core.global.service.ForbiddenWordService;
-import core.global.service.GoogleService;
 import core.global.service.TranslationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;

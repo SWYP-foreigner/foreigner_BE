@@ -22,6 +22,9 @@ public record BookmarkItem(
         @Schema(description = "게시글 작성 시간", type = "string", format = "date-time", example = "2025-08-21T14:00:00Z")
         Instant createdAt,
 
+        @Schema(description = "익명 여부", example = "true")
+        Boolean isAnonymous,
+
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,
 
