@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 🐞 버그 리포트
+    url: https://github.com/Kori-AppTeam/Kori_Be/issues/new?template=bug-report.md
+    about: 발생한 버그를 보고합니다.
+
+  - name: ⚙️ 작업 이슈
+    url: https://github.com/Kori-AppTeam/Kori_Be/issues/new?template=feature-request.md
+    about: 새로운 기능, 리팩토링, 또는 개선 작업을 등록합니다.

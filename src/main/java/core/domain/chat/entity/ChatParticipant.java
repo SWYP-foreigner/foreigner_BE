@@ -48,6 +48,7 @@ public class ChatParticipant {
     @ColumnDefault("true")
     @Column(name = "notifications_enabled", nullable = false)
     private boolean notificationsEnabled = true;
+
     public void toggleTranslation(boolean enabled) {
         this.translateEnabled = enabled;
     }
