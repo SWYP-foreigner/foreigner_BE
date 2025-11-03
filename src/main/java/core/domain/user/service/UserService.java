@@ -357,7 +357,7 @@ public class UserService {
         redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
-
+        publisher.publishEvent(new NewUserJoinedEvent(u.getId()));
         return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 

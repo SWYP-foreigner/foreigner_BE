@@ -1,6 +1,7 @@
 package core.global.service;
 
 
+import core.domain.notification.dto.NewUserJoinedEvent;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
 import core.global.config.JwtTokenProvider;
@@ -44,7 +45,9 @@ public class GoogleAuthService {
         long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
 
-        boolean isNewUserResponse = user.isNewUser();
+        boolean isNewUserResponse = user.isNewUser();if (isNewUserResponse) {
+            publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
+        }
 
         publisher.publishEvent(new UserLoggedInEvent(user.getId().toString(), "google"));
 
