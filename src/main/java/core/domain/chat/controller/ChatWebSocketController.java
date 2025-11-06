@@ -31,11 +31,18 @@ public class ChatWebSocketController {
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
     @MessageMapping("/chat.sendMessage")
-    public void sendMessage(@Payload SendMessageRequest req) {
+    public void sendMessage(
+            @Payload SendMessageRequest req,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
         try {
-            chatService.processAndSendChatMessage(req);
+            if (user == null || user.getUserId() == null) {
+                log.warn("메시지 전송 시도: @AuthenticationPrincipal이 여전히 null입니다.");
+                return;
+            }
+            chatService.processAndSendChatMessage(req, user.getUserId());
 
-            log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
+            log.info("메시지 및 요약 전송 성공: roomId={}, senderId(Auth)={}", req.roomId(), user.getUserId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
         }

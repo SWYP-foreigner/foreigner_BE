@@ -905,21 +905,21 @@ public class ChatService {
     }
 
     @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req) {
+    public void processAndSendChatMessage(SendMessageRequest req,Long senderId) {
         long startTime = System.currentTimeMillis();
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), senderId, req.content());
         String originalContent = savedMessage.getContent();
 
 
         ChatRoom chatRoom = savedMessage.getChatRoom();
         List<ChatParticipant> participants = chatRoom.getParticipants();
-        User senderUser = userRepository.findById(req.senderId())
+        User senderUser = userRepository.findById(senderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, senderId)
                 .map(Image::getUrl)
                 .orElse(null);
 
-        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), senderId)
                 .ifPresent(participant -> {
                     participant.setLastReadMessageId(savedMessage.getId());
                     chatParticipantRepository.save(participant);
