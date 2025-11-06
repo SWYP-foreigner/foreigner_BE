@@ -2,7 +2,7 @@ package core.global.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
-// import lombok.NoArgsConstructor; // 👈 이것은 컴파일 에러를 유발하므로 제거합니다.
+
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 
