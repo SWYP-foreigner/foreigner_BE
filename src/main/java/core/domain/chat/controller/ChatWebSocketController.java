@@ -31,13 +31,9 @@ public class ChatWebSocketController {
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
     @MessageMapping("/chat.sendMessage")
-    public void sendMessage(@Payload SendMessageRequest req, @AuthenticationPrincipal CustomUserDetails user) {
+    public void sendMessage(@Payload SendMessageRequest req) {
         try {
-            if (user == null || user.getUserId() == null) {
-                log.warn("메시지 전송 시도: 인증된 사용자를 찾을 수 없습니다.");
-                return;
-            }
-            chatService.processAndSendChatMessage(req, user.getUserId());
+            chatService.processAndSendChatMessage(req);
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
