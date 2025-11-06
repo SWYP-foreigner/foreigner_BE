@@ -905,17 +905,17 @@ public class ChatService {
     }
 
     @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req) {
+    public void processAndSendChatMessage(SendMessageRequest req, long sendId) {
         long startTime = System.currentTimeMillis();
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), sendId, req.content());
         String originalContent = savedMessage.getContent();
 
 
         ChatRoom chatRoom = savedMessage.getChatRoom();
         List<ChatParticipant> participants = chatRoom.getParticipants();
-        User senderUser = userRepository.findById(req.senderId())
+        User senderUser = userRepository.findById(sendId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sendId)
                 .map(Image::getUrl)
                 .orElse(null);
 

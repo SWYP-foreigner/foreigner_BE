@@ -31,9 +31,9 @@ public class ChatWebSocketController {
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
     @MessageMapping("/chat.sendMessage")
-    public void sendMessage(SendMessageRequest req) {
+    public void sendMessage(SendMessageRequest req,@AuthenticationPrincipal CustomUserDetails user) {
         try {
-            chatService.processAndSendChatMessage(req);
+            chatService.processAndSendChatMessage(req,user.getUserId());
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
