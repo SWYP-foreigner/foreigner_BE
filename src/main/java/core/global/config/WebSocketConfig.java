@@ -24,9 +24,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompChannelInterceptor stompChannelInterceptor;
 
-    @Autowired
-    private SimpAnnotationMethodMessageHandler simpAnnotationMethodMessageHandler;
-
     @Bean
     public AuthenticationPrincipalArgumentResolver authenticationPrincipalArgumentResolver() {
         return new AuthenticationPrincipalArgumentResolver();
@@ -36,19 +33,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         this.stompChannelInterceptor = stompChannelInterceptor;
     }
 
-    @PostConstruct
-    public void addArgumentResolver() {
-        log.info("Manually adding AuthenticationPrincipalArgumentResolver to SimpAnnotationMethodMessageHandler...");
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
+        log.info("Adding AuthenticationPrincipalArgumentResolver via standard config method.");
 
-        List<HandlerMethodArgumentResolver> existingResolvers =
-                simpAnnotationMethodMessageHandler.getArgumentResolvers();
-
-        List<HandlerMethodArgumentResolver> newResolvers = new ArrayList<>();
-        newResolvers.add(authenticationPrincipalArgumentResolver());
-        newResolvers.addAll(existingResolvers);
-
-        simpAnnotationMethodMessageHandler.setArgumentResolvers(newResolvers);
-        log.info("AuthenticationPrincipalArgumentResolver added manually.");
+        argumentResolvers.add(0, authenticationPrincipalArgumentResolver());
     }
 
     @Override
