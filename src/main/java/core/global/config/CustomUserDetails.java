@@ -15,11 +15,6 @@ public class CustomUserDetails extends User {
 
     private Long userId;
 
-    public CustomUserDetails() {
-        super("anonymous", "", Collections.emptyList());
-        this.userId = 0L;
-    }
-
     public CustomUserDetails(
             Long userId,
             String username,
