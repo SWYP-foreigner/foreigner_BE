@@ -205,7 +205,6 @@ public class ChatController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Long userId = principal.getUserId();
-
         List<ChatMessageResponse> responses = chatService.getMessagesAround(roomId, userId, messageId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
