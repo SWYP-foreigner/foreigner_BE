@@ -71,8 +71,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                     String userEmail = auth.getName();
                     userActivityService.updateLastSeenAt(userEmail);
                 }
-
-                // 필요 시 accessor.setUser(auth) 유지
+                accessor.setUser(auth);
                 log.info("STOMP JWT 인증 완료: WebSocket 세션에 사용자 정보 등록 (userId: {})", userId);
 
             } catch (Exception e) {
@@ -82,25 +81,11 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
         } else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
 
-            Authentication auth = null;
-            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-            if (sessionAttributes != null) {
-                auth = (Authentication) sessionAttributes.get("userAuth");
-            }
-
             if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
                 String sessionId = accessor.getSessionId();
-                String dest = accessor.getDestination(); // 예: /topic/chatrooms/{roomId}
+                String dest = accessor.getDestination();
                 String roomId = parseRoomId(dest);
                 dwell.onEnter(sessionId, roomId);
-            }
-
-            if (auth != null) {
-                SecurityContextHolder.getContext().setAuthentication(auth);
-                log.debug("STOMP AUTHORIZED: SecurityContextHolder에 인증 정보 설정 완료, command={}", accessor.getCommand());
-            } else {
-                log.warn("STOMP UNAUTHORIZED: WebSocket 세션에 인증 정보가 없습니다, command={}", accessor.getCommand());
-                return null; // 인증 없으면 차단
             }
 
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
