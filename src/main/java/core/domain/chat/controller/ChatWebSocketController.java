@@ -40,7 +40,6 @@ public class ChatWebSocketController {
         try {
             if (user == null || user.getUserId() == null) {
                 log.warn("메시지 전송 시도: @AuthenticationPrincipal이 여전히 null입니다.");
-                return;
             }
             log.info("userId "+user.getUserId());
             log.info("senderId " + req.senderId());
