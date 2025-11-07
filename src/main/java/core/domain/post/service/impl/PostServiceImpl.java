@@ -28,6 +28,7 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
 import core.global.service.ForbiddenWordService;
+import core.global.service.TranslationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,7 @@ public class PostServiceImpl implements PostService {
     private final ImageService imageService;
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
+    private final TranslationService translationService;
 
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -85,8 +87,8 @@ public class PostServiceImpl implements PostService {
         };
     }
 
-    // ------- 정렬 핸들러 -------
 
+    // ------- 정렬 핸들러 -------
     private CursorPageResponse<BoardItem> handleLatest(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
         var k = parseLatest(c); // t,id
         List<BoardItem> rows = postRepository.findLatestPosts(
@@ -134,8 +136,8 @@ public class PostServiceImpl implements PostService {
         );
     }
 
-    // ------- 커서 파싱 -------
 
+    // ------- 커서 파싱 -------
     private LatestKey parseLatest(Map<String, Object> c) {
         Instant t = null;
         Long id = null;
@@ -163,19 +165,19 @@ public class PostServiceImpl implements PostService {
             return Map.of();
         }
     }
+
     private Instant popularSince() {
         return Instant.now().minus(Duration.ofDays(10));
     }
 
     // ------- 유틸 -------
-
     private Instant truncateToMillis(Instant i) {
         return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
     @Override
     @Transactional
-    public PostDetailResponse getPostDetail(Long postId) {
+    public PostDetailResponse getPostDetail(Long postId, Boolean translate) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Post post = postRepository.findById(postId)
@@ -187,7 +189,14 @@ public class PostServiceImpl implements PostService {
 
         postRepository.increaseViewCount(postId);
 
-        return postRepository.findPostDetail(email, postId);
+        if (translate) {
+            PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+
+            String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());
+            return new PostDetailResponse(postDetail, translatedContent);
+        } else {
+            return postRepository.findPostDetail(email, postId);
+        }
     }
 
     @Override
@@ -232,7 +241,6 @@ public class PostServiceImpl implements PostService {
                     author.getId(),
                     NotificationType.followuserpost,
                     post.getId(),
-                    null,
                     null
             );
             eventPublisher.publishEvent(event);

@@ -10,7 +10,7 @@ group = 'com.foreigner'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	toolchain { languageVersion = JavaLanguageVersion.of(21) }
+	toolchain { languageVersion = JavaLanguageVersion.of(17) }
 }
 
 configurations {
@@ -108,6 +108,7 @@ dependencies {
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation 'org.springframework.security:spring-security-messaging'
 }
 
 

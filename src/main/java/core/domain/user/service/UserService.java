@@ -15,12 +15,14 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
+import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
@@ -32,11 +34,9 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.repository.LikeRepository;
-import core.global.service.AppleWithdrawalService;
-import core.global.service.RedisService;
+import core.global.apple.service.AppleWithdrawalService;
+import core.global.redis.service.RedisService;
 import core.global.service.SmtpMailService;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -125,8 +125,8 @@ public class UserService {
                 .socialId(socialId)
                 .email(email)
                 .provider(provider)
+                .createdAt(Instant.now())
                 .build();
-
         return userRepository.save(u);
     }
 
@@ -140,6 +140,7 @@ public class UserService {
                 .appleRefreshToken(appleRefreshToken)
                 .firstName(name.familyName())
                 .lastName(name.givenName())
+                .createdAt(Instant.now())
                 .build();
 
         return userRepository.save(u);
@@ -317,6 +318,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
+
     @Transactional
     public LoginResponseDto signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
@@ -361,7 +363,7 @@ public class UserService {
         redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
-
+        publisher.publishEvent(new NewUserJoinedEvent(u.getId()));
         return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 
@@ -816,8 +818,9 @@ public class UserService {
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
         userNotificationSettingRepository.deleteAllByUserId(userId);
-        notificationRepository.deleteAllByUserId(userId);
         userDeviceTokenRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByActorId(userId);
         userRepository.delete(user);
     }
     /**
@@ -831,6 +834,32 @@ public class UserService {
         String profileKey = imageService.getUserProfileKey(user.getId());
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
+    }
+
+    public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String profileKey = imageService.getUserProfileKey(user.getId());
+        String followStatus;
+        if (userId.equals(currentUserId)) {
+            followStatus = "SELF";
+        } else {
+            Optional<Follow> follow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
+            if (follow.isPresent()) {
+                followStatus = follow.get().getStatus().toString();
+            } else {
+                followStatus = "NOT_FOLLOWING";
+            }
+        }
+
+        return new UserProfileCardResponse(
+                user,
+                stringToList(user.getTranslateLanguage()),
+                stringToList(user.getHobby()),
+                profileKey,
+                followStatus
+        );
     }
 
     /**
@@ -885,17 +914,19 @@ public class UserService {
 
         return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
     }
+
     @Transactional
-    public void updateUserLocation(LocationUpdateRequest dto, Long userId ) {
+    public void updateUserLocation(LocationUpdateRequest dto, Long userId) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
-        user.updateIsInKorea(isInKorea);
+        user.updateIsInKorea(Boolean.TRUE.equals(isInKorea));
     }
 
     /**
      * 주어진 위도, 경도가 대한민국 영토 내에 있는지 확인합니다.
+     *
      * @return 대한민국 내에 있으면 true, 밖에 있으면 false, 값이 없으면 null
      */
     private Boolean isLocationInKorea(Double latitude, Double longitude) {
@@ -908,6 +939,24 @@ public class UserService {
         double maxLon = 132.0;
 
         return latitude >= minLat && latitude <= maxLat &&
-                longitude >= minLon && longitude <= maxLon;
+               longitude >= minLon && longitude <= maxLon;
     }
+    /**
+     * 유저 프로필 완료 여부 확인
+     * @param userId 확인할 유저 ID
+     * @return 프로필이 완료되었으면 true, 아니면 false
+     */
+    public ProfileCompletionResponse checkProfileCompletion(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        boolean completed = user.getBirthdate() != null
+                && user.getPurpose() != null
+                && user.getIntroduction() != null
+                && user.getLanguage() != null
+                && user.getHobby() != null
+                && user.getSex() != null;
+        return new ProfileCompletionResponse(userId, completed);
+    }
+
+
 }

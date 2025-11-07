@@ -43,31 +43,7 @@ public class CommentController {
             """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공", content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            name = "성공 예시",
-                            value = """
-                        {
-                          "success": true,
-                          "data": {
-                            "items": [
-                              {
-                                "commentId": 98765,
-                                "authorName": "Anonymity",
-                                "content": "댓글 내용...",
-                                "createdAt": "2025-08-01T12:34:56Z",
-                                "likeCount": 10,
-                                "userImage": "https://..."
-                              }
-                            ],
-                            "hasNext": true,
-                            "nextCursor": "eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjUsImxjIjoxMH0"
-                          }
-                        }
-                        """
-                    )
-            )),
+            @ApiResponse(responseCode = "200", description = "성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
             @ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
@@ -77,11 +53,12 @@ public class CommentController {
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
             @Parameter(description = "다음 페이지 호출 시 전달하는 불투명 커서(Base64). 첫 페이지는 생략")
-            @RequestParam(required = false) String cursor
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "false") Boolean translate
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        commentService.getCommentList(postId, size, sort, cursor)
+                        commentService.getCommentList(postId, size, sort, cursor, translate)
                 )
         );
     }
@@ -195,23 +172,7 @@ public class CommentController {
         """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공", content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            value = """
-                        {
-                          "success": true,
-                          "data": {
-                            "items": [
-                              { "commentId": 321, "postContent": "원글 일부...", "commentContent": "댓글...", "createdAt": "2025-08-20T12:00:00Z" }
-                            ],
-                            "hasNext": true,
-                            "nextCursor": "eyJpZCI6MzE5fQ"
-                          }
-                        }
-                        """
-                    )
-            )),
+            @ApiResponse(responseCode = "200", description = "성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
             @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
     })

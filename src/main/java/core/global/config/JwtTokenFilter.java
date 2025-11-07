@@ -1,7 +1,7 @@
 package core.global.config;
 
 import core.global.enums.ErrorCode;
-import core.global.service.RedisService;
+import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;

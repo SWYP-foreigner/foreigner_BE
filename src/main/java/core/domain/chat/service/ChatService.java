@@ -1,6 +1,4 @@
 package core.domain.chat.service;
-
-
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
@@ -22,8 +20,10 @@ import core.global.metrics.SocialChatMetrics;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -45,7 +45,6 @@ import java.util.stream.IntStream;
 @Slf4j
 @RequiredArgsConstructor
 public class ChatService {
-
     private static final int MESSAGE_PAGE_SIZE = 20;
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
@@ -55,15 +54,24 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
-    private final SimpMessagingTemplate messagingTemplate; // 주입 필요
+
+
+    private SimpMessagingTemplate messagingTemplate;
+
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
     private final S3Presigner s3Presigner;
     private final SocialChatMetrics socialChatMetrics;
 
+    @Autowired
+    @Lazy
+    public void setMessagingTemplate(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
     private String countryOf(User u) {
-        return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 metrics에서 UNK 처리
+        return Optional.ofNullable(u.getCountry()).orElse(null);
     }
 
     @Value("${cdn.base-url}")
@@ -80,7 +88,6 @@ public class ChatService {
         List<ChatRoom> rooms = chatRoomRepo.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
         return rooms.stream()
-                // 🚨 차단 필터링 로직
                 .filter(room -> {
                     if (room.getGroup()) {
                         return true;
@@ -96,7 +103,7 @@ public class ChatService {
 
                         boolean isBlockedByMe = blockRepository.existsBlock(userId, opponentId);
 
-                        return !isBlockedByMe; // '내가 차단한 경우만 숨김'이 일반적
+                        return !isBlockedByMe;
                     }
 
                     return true;
@@ -110,7 +117,6 @@ public class ChatService {
                     ChatRoom room = roomWithTime.room();
                     Instant lastMessageTime = roomWithTime.lastMessageTime();
 
-                    // 그룹 채팅방의 마지막 메시지는 차단된 유저 메시지를 제외
                     String lastMessageContent = getLastNonBlockedMessageContent(room.getId(), userId);
                     int unreadCount = countUnreadMessages(room.getId(), userId);
                     int participantCount = room.getParticipants().size();
@@ -130,7 +136,7 @@ public class ChatService {
                                     .map(Image::getUrl)
                                     .orElse(null);
                         } else {
-                            roomName = "(알 수 없는 사용자)";
+                            roomName = "Unknown user";
                             roomImageUrl = null;
                         }
 
@@ -229,8 +235,6 @@ public class ChatService {
                 countryOf(otherUser),
                 "chat_room"
         );
-
-
         return chatRoomRepo.save(newRoom);
     }
 
@@ -619,7 +623,7 @@ public class ChatService {
                     .orElse(null);
 
             if (opponent == null) {
-                roomName = "(알 수 없음)";
+                roomName = "Unknown user";
                 roomImageUrl = null;
             } else {
                 roomName = opponent. getFirstName() + " " + opponent.getLastName();
@@ -669,10 +673,6 @@ public class ChatService {
                 .orElse(null);
     }
 
-    public ChatRoom getChatRoomById(Long roomId) {
-        return chatRoomRepository.findByIdWithParticipantsAndUsers(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-    }
     @Transactional(readOnly = true)
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
@@ -718,13 +718,11 @@ public class ChatService {
      */
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
 
@@ -917,21 +915,21 @@ public class ChatService {
     }
 
     @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req) {
-        Long startTime = System.currentTimeMillis();
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+    public void processAndSendChatMessage(SendMessageRequest req,Long senderId) {
+        long startTime = System.currentTimeMillis();
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), senderId, req.content());
         String originalContent = savedMessage.getContent();
 
 
         ChatRoom chatRoom = savedMessage.getChatRoom();
         List<ChatParticipant> participants = chatRoom.getParticipants();
-        User senderUser = userRepository.findById(req.senderId())
+        User senderUser = userRepository.findById(senderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, senderId)
                 .map(Image::getUrl)
                 .orElse(null);
 
-        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), senderId)
                 .ifPresent(participant -> {
                     participant.setLastReadMessageId(savedMessage.getId());
                     chatParticipantRepository.save(participant);
@@ -953,7 +951,7 @@ public class ChatService {
                 if (targetLanguage != null && !targetLanguage.isEmpty()) {
                     List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
                     if (!translatedList.isEmpty()) {
-                        targetContent = translatedList.getFirst();
+                        targetContent = translatedList.get(0);
                     }
                 }
             }
@@ -963,7 +961,8 @@ public class ChatService {
                         senderUser.getId(),
                         NotificationType.chat,
                         chatRoom.getId(),
-                        originalContent
+                        originalContent,
+                        chatRoom.getRoomName()
                 );
                 eventPublisher.publishEvent(event);
             }
@@ -1316,5 +1315,11 @@ public class ChatService {
         ChatParticipant participant = participantOptional.get();
         participant.setNotificationsEnabled(enabled);
 
+    }
+    public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
+         ChatParticipant participant =
+                 chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                         .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+        return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
     }
 }

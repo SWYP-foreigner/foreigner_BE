@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -45,9 +46,8 @@ public class ChatController {
     })
     @PostMapping("/rooms/oneTone")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
-            @RequestBody CreateRoomRequest request
+            @RequestBody CreateRoomRequest request,@AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         ChatRoom room = chatService.createRoom(userId, request.otherUserId());
         ChatRoomResponse response = ChatRoomResponse.from(room);
@@ -62,8 +62,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms")
-    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> ChatRooms() {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> ChatRooms(@AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
         ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> responseEntity =
@@ -79,8 +78,7 @@ public class ChatController {
             )
     })
     @DeleteMapping("/rooms/{roomId}/leave")
-    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId,@AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
         chatService.leaveRoom(roomId, userId);
         featureUsageMetrics.recordChatUsage();
@@ -100,10 +98,9 @@ public class ChatController {
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @PathVariable Long roomId,
-            @RequestParam(required = false) Long lastMessageId
+            @RequestParam(required = false) Long lastMessageId,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info("lastMessageId: 이거입니다!: {}",lastMessageId);
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.getMessages(roomId, userId, lastMessageId);
@@ -121,9 +118,9 @@ public class ChatController {
     })
     @GetMapping("/rooms/{roomId}/first_messages")
     public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
-            @PathVariable Long roomId
+            @PathVariable Long roomId,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         List<ChatMessageFirstResponse> responses = chatService.getFirstMessages(roomId, userId);
         featureUsageMetrics.recordChatUsage();
@@ -140,7 +137,7 @@ public class ChatController {
             )
     })
     @GetMapping("/rooms/{roomId}/participants")
-    public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId) {
+    public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId){
         List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
@@ -155,10 +152,9 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @PostMapping("/rooms/group/{roomId}/join")
-    public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId,
+                                                           @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
-
         chatService.joinGroupChat(roomId, userId);
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -180,9 +176,9 @@ public class ChatController {
     
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
             @RequestParam Long roomId,
-            @RequestParam String keyword
+            @RequestParam String keyword,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
 
         List<ChatMessageResponse> responses = chatService.searchMessages(roomId, userId, keyword);
@@ -205,11 +201,10 @@ public class ChatController {
     
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
             @PathVariable Long roomId,
-            @RequestParam Long messageId
+            @RequestParam Long messageId,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-
         List<ChatMessageResponse> responses = chatService.getMessagesAround(roomId, userId, messageId);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
@@ -242,9 +237,8 @@ public class ChatController {
     @GetMapping("/rooms/search")
     
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> searchRooms(
-            @RequestParam("roomName") String roomName
+            @RequestParam("roomName") String roomName,@AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         List<ChatRoomSummaryResponse> responses = chatService.searchRoomsByRoomName(principal.getUserId(), roomName);
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(responses));
@@ -320,8 +314,8 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
     })
     @PostMapping("/rooms/{roomId}/read-all")
-    public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId,
+                                                           @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
         chatService.markAllMessagesAsReadInRoom(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(null));
@@ -334,9 +328,9 @@ public class ChatController {
     })
     @PostMapping("/rooms/group")
     public ResponseEntity<ApiResponse<Void>> createGroupChat(
-                                                              @Valid @RequestBody CreateGroupChatRequest request
+                                                              @Valid @RequestBody CreateGroupChatRequest request,
+                                                              @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
         chatService.createGroupChatRoom(userId, request);
         featureUsageMetrics.recordChatUsage();
@@ -346,11 +340,13 @@ public class ChatController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OK 응답 반환")
     })
+
     @PostMapping("/declaration")
     public ResponseEntity<ApiResponse<Void>> okOnly(@RequestBody String ignored) {
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
     @Operation(summary = "채팅방이 그룹인지 여부 확인", description = "roomId에 해당하는 채팅방이 그룹 채팅방인지(1:1 채팅인지) 확인합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", content = @Content(schema = @Schema(implementation = ChatRoomGroupResponse.class))),
@@ -379,7 +375,7 @@ public class ChatController {
                 .status(HttpStatus.CREATED)
                 .body(core.global.dto.ApiResponse.success("차단 성공"));
     }
-    @Operation(summary = "채팅 미디어 Presigned URL 발급", // ✅ API 제목
+    @Operation(summary = "채팅 미디어 Presigned URL 발급",
             description = """
                지정된 채팅방(chatroomId)에 사진이나 동영상을 업로드할 수 있는, 15분간 유효한 일회성 URL을 발급합니다.
                
@@ -404,17 +400,32 @@ public class ChatController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "알림 설정 변경 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 해당 채팅방의 참여자가 아닐 경우")
     })
-    @PostMapping("/rooms/{roomId}/notifications")
+    @PostMapping("/rooms/{roomId}/notifications-toggle")
     public ResponseEntity<ApiResponse<Void>> toggleChatRoomNotifications(
             @Parameter(description = "설정을 변경할 채팅방의 ID") @PathVariable Long roomId,
-            @Valid @RequestBody ToggleNotificationsRequest request
+            @Valid @RequestBody ToggleNotificationsRequest request,@AuthenticationPrincipal CustomUserDetails principal
     ) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = principal.getUserId();
-
         chatService.toggleChatRoomNotifications(roomId, userId, request.enabled());
-
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+
+    @Operation(summary = "채팅방 알림 상태 조회", description = "현재 유저의 특정 채팅방 알림 설정 상태(on/off)를 조회합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatNotificationStatusResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 참여자가 아님",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/rooms/{roomId}/notification-status")
+    public ResponseEntity<ApiResponse<ChatNotificationStatusResponse>> getNotificationStatus(
+            @Parameter(description = "채팅방 ID") @PathVariable @Positive Long roomId,@AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long userId = principal.getUserId();
+        ChatNotificationStatusResponse response= chatService.isNotificationsEnabled(roomId, userId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

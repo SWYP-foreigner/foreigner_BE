@@ -25,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -32,6 +33,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BookmarkServiceImpl implements BookmarkService {
 
+    private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
+    private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
+    private static final LikeType LIKE_TYPE_POST = LikeType.POST;
     private final BookmarkRepository bookmarkRepository;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -39,13 +43,17 @@ public class BookmarkServiceImpl implements BookmarkService {
     private final CommentRepository commentRepository;
     private final ImageRepository imageRepository;
 
-    private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
-    private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
-    private static final LikeType LIKE_TYPE_POST   = LikeType.POST;
+    private static String safeTrim(String s) {
+        if (s == null) return null;
+        int len = s.codePointCount(0, s.length());
+        if (len <= 200) return s;
+        int endIndex = s.offsetByCodePoints(0, 200);
+        return s.substring(0, endIndex);
+    }
 
     @Transactional(readOnly = true)
     @Override
-    public CursorPageResponse<BookmarkItem> getMyBookmarks( int size, String  cursor) {
+    public CursorPageResponse<BookmarkItem> getMyBookmarks(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Pageable pageable = PageRequest.of(0, size + 1);
@@ -125,12 +133,14 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         String authorName = Boolean.TRUE.equals(p.getAnonymous())
                 ? "Anonymity"
-                : (p.getAuthor() != null ? p.getAuthor().getName() : null);
+                : (p.getAuthor() != null ? p.getAuthor().getFirstName() +" "+ p.getAuthor().getLastName() : null);
 
         Long postId = p.getId();
-        Long likeCount    = likeMap.getOrDefault(postId, 0L);
+        Instant time = p.getCreatedAt();
+        Boolean anonymous = p.getAnonymous();
+        Long likeCount = likeMap.getOrDefault(postId, 0L);
         Long commentCount = commentMap.getOrDefault(postId, 0L);
-        Long checkCount   = p.getCheckCount();
+        Long checkCount = p.getCheckCount();
 
         String userImage = (p.getAuthor() == null) ? null
                 : userImageMap.get(p.getAuthor().getId());
@@ -144,6 +154,8 @@ public class BookmarkServiceImpl implements BookmarkService {
                 postId,
                 authorName,
                 safeTrim(p.getContent()),
+                time,
+                anonymous,
                 isLiked,
                 likeCount,
                 commentCount,
@@ -154,18 +166,9 @@ public class BookmarkServiceImpl implements BookmarkService {
         );
     }
 
-    private static String safeTrim(String s) {
-        if (s == null) return null;
-        int len = s.codePointCount(0, s.length());
-        if (len <= 200) return s;
-        int endIndex = s.offsetByCodePoints(0, 200);
-        return s.substring(0, endIndex);
-    }
-
-
     @Override
     @Transactional
-    public void addBookmark( Long postId) {
+    public void addBookmark(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
@@ -184,7 +187,7 @@ public class BookmarkServiceImpl implements BookmarkService {
 
     @Override
     @Transactional
-    public void removeBookmark( Long postId) {
+    public void removeBookmark(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         bookmarkRepository.deleteByUserEmailAndPostId(email, postId);

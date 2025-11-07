@@ -50,6 +50,9 @@ public class Notification {
     @Column(name = "sub_reference_id")
     private Long subReferenceId;
 
+    @Column(name = "context_info", length = 255)
+    private String contextInfo;
+
     @Builder
     public Notification(User user,
                         String message,

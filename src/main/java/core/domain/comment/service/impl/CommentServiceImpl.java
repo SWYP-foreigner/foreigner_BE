@@ -11,9 +11,12 @@ import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.comment.service.CommentService;
+import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
+import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
@@ -22,6 +25,8 @@ import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
+import core.global.service.ForbiddenWordService;
+import core.global.service.TranslationService;
 import io.micrometer.common.lang.Nullable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,108 +55,39 @@ public class CommentServiceImpl implements CommentService {
     private final ForbiddenWordService forbiddenWordService;
     private final BlockRepository blockRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final TranslationService translationService;
 
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
-            Long postId, Integer size, SortOption sort, @Nullable String cursor
-    ) {
+            Long postId, Integer size, SortOption sort, @Nullable String cursor, Boolean translate) {
+
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = getUserOrThrow(email);
 
-        Long myId = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
-                .getId();
+        Long myId = user.getId();
+        int pageSize = clampPageSize(size);
 
-        final int pageSize = Math.min(Math.max(size == null ? 20 : size, 1), 100);
-
-
-        Instant cursorCreatedAt = null;
-        Long cursorId = null;
-        Long cursorLikeCount = null;
-
-        Map<String, Object> c = CursorCodec.decode(cursor);
-        if (c.get("t") instanceof String ts && !ts.isBlank()) {
-            cursorCreatedAt = Instant.parse(ts);
-        }
-        if (c.get("id") instanceof Number n1) {
-            cursorId = n1.longValue();
-        }
-        if (c.get("lc") instanceof Number n2) {
-            cursorLikeCount = n2.longValue();
-        }
-
-        Pageable pageableLatest = PageRequest.of(0, pageSize, Sort.by(
-                Sort.Order.desc("createdAt"),
-                Sort.Order.desc("id")
-        ));
+        Cur cur = decodeCursor(cursor);
+        Pageable pageableLatest = PageRequest.of(0, pageSize, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Pageable pageablePopular = PageRequest.of(0, pageSize);
 
-        Slice<Comment> slice;
-        if (sort == SortOption.POPULAR) {
-            slice = (cursorId == null || cursorLikeCount == null || cursorCreatedAt == null)
-                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
-                    : commentRepository.findPopularByCursor(
-                    myId, postId, LikeType.COMMENT, cursorLikeCount, cursorCreatedAt, cursorId, pageablePopular
-            );
-        } else {
-            slice = (cursorId == null || cursorCreatedAt == null)
-                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
-                    : commentRepository.findCommentByCursor(myId, postId, cursorCreatedAt, cursorId, pageableLatest);
-        }
-
+        Slice<Comment> slice = fetchSlice(sort, myId, postId, cur, pageableLatest, pageablePopular);
         List<Comment> rows = slice.getContent();
-        if (rows.isEmpty()) {
-            return new CursorPageResponse<>(List.of(), false, null);
-        }
+        if (rows.isEmpty()) return new CursorPageResponse<>(List.of(), false, null);
 
-        // 4) 보조 데이터(좋아요 수, 유저 이미지) 일괄 조회
-        List<Long> commentIds = rows.stream().map(Comment::getId).toList();
+        Aux aux = loadAuxData(rows, myId);
 
-        Set<Long> myLikedIds = commentIds.isEmpty()
-                ? Set.of()
-                : new HashSet<>(likeRepository.findMyLikedRelatedIds(myId, LikeType.COMMENT, commentIds));
+        // 번역 대상/결과 준비 (translate == true 일 때만)
+        List<Comment> targets = prepareTranslationTargets(rows, translate);
+        List<String> translated = translateContents(targets, translate, user.getTranslateLanguage());
 
+        // items 매핑 + 번역 치환
+        List<CommentItem> items = mapItemsWithOptionalTranslation(
+                rows, aux, targets, translated, Boolean.TRUE.equals(translate)
+        );
 
-        Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
-
-        List<Long> authorIds = rows.stream()
-                .filter(cmt -> !Boolean.TRUE.equals(cmt.getAnonymous()))
-                .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-
-        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
-                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
-
-        List<CommentItem> items = rows.stream()
-                .map(cmt -> {
-                    long lc = likeCountMap.getOrDefault(cmt.getId(), 0L);
-                    String userImage = (cmt.getAuthor() != null) ? userImageMap.get(cmt.getAuthor().getId()) : null;
-                    boolean isLiked = myLikedIds.contains(cmt.getId());
-                    return CommentItem.from(cmt, isLiked, lc, userImage);
-                })
-                .toList();
-
-        // 5) nextCursor 생성
-        Comment last = rows.get(rows.size() - 1);
-        String nextCursor;
-        if (sort == SortOption.POPULAR) {
-            long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
-            nextCursor = CursorCodec.encode(Map.of(
-                    "lc", lastLc,
-                    "t", last.getCreatedAt().toString(), // 동률 안정성
-                    "id", last.getId()
-            ));
-        } else {
-            nextCursor = CursorCodec.encode(Map.of(
-                    "t", last.getCreatedAt().toString(),
-                    "id", last.getId()
-            ));
-        }
-
+        String nextCursor = buildNextCursor(sort, rows.get(rows.size() - 1), aux.likeCountMap());
         return new CursorPageResponse<>(items, slice.hasNext(), nextCursor);
     }
 
@@ -196,7 +133,8 @@ public class CommentServiceImpl implements CommentService {
                             NotificationType.post,
                             post.getId(),
                             savedComment.getId(), // ✅ 2. 저장된 댓글의 ID를 이벤트에 추가
-                            request.comment()
+                            request.comment(),
+                            null
                     );
                     eventPublisher.publishEvent(event);
                 }
@@ -209,7 +147,8 @@ public class CommentServiceImpl implements CommentService {
                             NotificationType.comment,
                             post.getId(),
                             savedComment.getId(), // ✅ 2. 저장된 답글의 ID를 이벤트에 추가
-                            request.comment()
+                            request.comment(),
+                            null
                     );
                     eventPublisher.publishEvent(event);
                 }
@@ -363,5 +302,140 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    private User getUserOrThrow(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
 
+    private int clampPageSize(Integer size) {
+        int s = (size == null) ? 20 : size;
+        return Math.min(Math.max(s, 1), 100);
+    }
+
+    private Cur decodeCursor(@Nullable String cursor) {
+        if (cursor == null || cursor.isBlank()) return new Cur(null, null, null);
+        Map<String, Object> m = CursorCodec.decode(cursor);
+        Instant t = (m.get("t") instanceof String s && !s.isBlank()) ? Instant.parse(s) : null;
+        Long id = (m.get("id") instanceof Number n1) ? n1.longValue() : null;
+        Long lc = (m.get("lc") instanceof Number n2) ? n2.longValue() : null;
+        return new Cur(t, id, lc);
+    }
+
+    private Slice<Comment> fetchSlice(
+            SortOption sort, Long myId, Long postId, Cur cur,
+            Pageable pageableLatest, Pageable pageablePopular) {
+        if (sort == SortOption.POPULAR) {
+            return (cur.id == null || cur.lc == null || cur.t == null)
+                    ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
+                    : commentRepository.findPopularByCursor(myId, postId, LikeType.COMMENT, cur.lc, cur.t, cur.id, pageablePopular);
+        } else {
+            return (cur.id == null || cur.t == null)
+                    ? commentRepository.findByPostId(myId, postId, pageableLatest)
+                    : commentRepository.findCommentByCursor(myId, postId, cur.t, cur.id, pageableLatest);
+        }
+    }
+
+    private Aux loadAuxData(List<Comment> rows, Long myId) {
+        List<Long> commentIds = rows.stream().map(Comment::getId).toList();
+
+        Set<Long> myLikedIds = commentIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(likeRepository.findMyLikedRelatedIds(myId, LikeType.COMMENT, commentIds));
+
+        Map<Long, Long> likeCountMap = likeRepository.countByRelatedIds(LikeType.COMMENT, commentIds).stream()
+                .collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1]));
+
+        List<Long> authorIds = rows.stream()
+                .filter(cmt -> !Boolean.TRUE.equals(cmt.getAnonymous()))
+                .map(cmt -> (cmt.getAuthor() != null) ? cmt.getAuthor().getId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
+                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
+                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
+
+        return new Aux(likeCountMap, myLikedIds, userImageMap);
+    }
+
+    private List<Comment> prepareTranslationTargets(List<Comment> rows, Boolean translate) {
+        if (!Boolean.TRUE.equals(translate)) return List.of();
+        return rows.stream()
+                .filter(c -> !c.isDeleted())
+                .filter(c -> c.getContent() != null && !c.getContent().isBlank())
+                .toList();
+    }
+
+    private List<String> translateContents(List<Comment> targets, Boolean translate, String targetLang) {
+        if (!Boolean.TRUE.equals(translate) || targets.isEmpty()) return List.of();
+        List<String> src = targets.stream().map(Comment::getContent).toList();
+        return translationService.translateComments(src, targetLang);
+    }
+
+    private List<CommentItem> mapItemsWithOptionalTranslation(
+            List<Comment> rows,
+            Aux aux,
+            List<Comment> targets,
+            List<String> translated,
+            boolean doTranslate
+    ) {
+        // targets 순서를 rows와 동일하게 만들었으므로 인덱스 소비 방식 사용
+        Set<Long> targetIds = targets.stream().map(Comment::getId).collect(Collectors.toSet());
+        AtomicInteger idx = new AtomicInteger(0);
+
+        return rows.stream()
+                .map(cmt -> {
+                    long lc = aux.likeCountMap().getOrDefault(cmt.getId(), 0L);
+                    String userImage = (cmt.getAuthor() != null) ? aux.userImageMap().get(cmt.getAuthor().getId()) : null;
+                    boolean isLiked = aux.myLikedIds().contains(cmt.getId());
+
+                    CommentItem it = CommentItem.from(cmt, isLiked, lc, userImage);
+
+                    if (!doTranslate || it.deleted() || it.commentId() == null || !targetIds.contains(it.commentId())) {
+                        return it;
+                    }
+                    int i = idx.getAndIncrement();
+                    if (i >= translated.size()) return it; // 안전 가드
+
+                    return new CommentItem(
+                            it.commentId(),
+                            it.authorId(),
+                            it.authorName(),
+                            translated.get(i),   // 번역된 content 주입
+                            it.isAnonymous(),
+                            it.isLiked(),
+                            it.likeCount(),
+                            it.createdAt(),
+                            it.userImage(),
+                            it.deleted()
+                    );
+                })
+                .toList();
+    }
+
+    private String buildNextCursor(SortOption sort, Comment last, Map<Long, Long> likeCountMap) {
+        if (sort == SortOption.POPULAR) {
+            long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
+            return CursorCodec.encode(Map.of(
+                    "lc", lastLc,
+                    "t", last.getCreatedAt().toString(),
+                    "id", last.getId()
+            ));
+        }
+        return CursorCodec.encode(Map.of(
+                "t", last.getCreatedAt().toString(),
+                "id", last.getId()
+        ));
+    }
+
+    private record Cur(Instant t, Long id, Long lc) {
+    }
+
+    private record Aux(
+            Map<Long, Long> likeCountMap,
+            Set<Long> myLikedIds,
+            Map<Long, String> userImageMap
+    ) {
+    }
 }

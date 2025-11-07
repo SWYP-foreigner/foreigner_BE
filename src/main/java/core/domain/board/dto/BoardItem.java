@@ -13,6 +13,9 @@ public record BoardItem(
         @Schema(description = "내용 미리보기", example = "안녕하세요! 첫 글입니다.")
         String contentPreview,
 
+        @Schema(description = "작성자 ID", example = "123")
+        Long authorId,
+
         @Schema(description = "작성자 이름 (익명일 경우 null)", nullable = true, example = "alice")
         String authorName,
 
@@ -21,6 +24,9 @@ public record BoardItem(
 
         @Schema(description = "작성 시간(UTC)", type = "string", format = "date-time", example = "2025-08-20T12:34:56Z")
         Instant createdAt,
+
+        @Schema(description = "익명 여부", example = "true")
+        Boolean isAnonymous,
 
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,

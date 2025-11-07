@@ -5,14 +5,15 @@ import core.domain.user.dto.*;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
+import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.metrics.FeatureUsageMetrics;
-import core.global.service.AppleAuthService;
+import core.global.apple.service.AppleAuthService;
 import core.global.service.GoogleAuthService;
 import core.global.service.PasswordService;
-import core.global.service.RedisService;
+import core.global.redis.service.RedisService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,10 +29,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 @Tag(name = "User", description = "사용자 관련 API")
 @RestController
@@ -135,7 +133,16 @@ public class UserController {
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
+    @GetMapping("/{userId}/info")
+    public ResponseEntity<UserProfileCardResponse> getUserProfile(
+            @PathVariable("userId") Long userId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long currentUserId = userDetails.getUserId();
+        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
+        featureUsageMetrics.recordFollowUsage();
+        return ResponseEntity.ok(userProfile);
+    }
 
 
 
@@ -241,17 +248,6 @@ public class UserController {
         return  ResponseEntity.ok(withdrawIsApple);
     }
 
-    /**
-     * 특정 사용자 한 명의 프로필 정보를 조회합니다.
-     * @param userId 조회할 사용자의 ID
-     * @return UserResponseDto 형태의 사용자 정보
-     */
-    @GetMapping("/{userId}/info")
-    public ResponseEntity<UserProfileResponse> getUserProfile(@PathVariable("userId") Long userId) {
-        UserProfileResponse userProfile = userService.findUserProfile(userId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(userProfile);
-    }
 
     /**
      * 여러 사용자의 프로필 정보를 한 번에 조회합니다.
@@ -287,4 +283,16 @@ public class UserController {
         userService.updateUserLocation(LocationDto,userDetails.getUserId());
         return ResponseEntity.ok().build();
     }
+
+    /**
+     * 유저 프로필 완료 여부 API
+     */
+    @GetMapping("/is-completed")
+    public ResponseEntity<ProfileCompletionResponse> isProfileCompleted(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = userDetails.getUserId();
+        ProfileCompletionResponse response = userService.checkProfileCompletion(userId);
+        return ResponseEntity.ok(response);
+    }
+
 }
