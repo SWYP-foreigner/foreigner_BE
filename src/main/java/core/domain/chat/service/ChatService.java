@@ -20,8 +20,10 @@ import core.global.metrics.SocialChatMetrics;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,7 +45,6 @@ import java.util.stream.IntStream;
 @Slf4j
 @RequiredArgsConstructor
 public class ChatService {
-
     private static final int MESSAGE_PAGE_SIZE = 20;
     private final ChatRoomRepository chatRoomRepo;
     private final ChatParticipantRepository participantRepo;
@@ -53,15 +54,24 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
-    private final SimpMessagingTemplate messagingTemplate; // 주입 필요
+
+
+    private SimpMessagingTemplate messagingTemplate;
+
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
     private final S3Presigner s3Presigner;
     private final SocialChatMetrics socialChatMetrics;
 
+    @Autowired
+    @Lazy
+    public void setMessagingTemplate(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
     private String countryOf(User u) {
-        return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 metrics에서 UNK 처리
+        return Optional.ofNullable(u.getCountry()).orElse(null);
     }
 
     @Value("${cdn.base-url}")
