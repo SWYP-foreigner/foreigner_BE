@@ -132,7 +132,7 @@ public class ChatService {
 
                         if (opponent != null) {
                             if (opponent.getLastName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getLastName();
-                            if (opponent.getFirstName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getFirstName();
+                            if (opponent.getFirstName() != null && !opponent.getFirstName().isEmpty()) roomName += opponent.getFirstName();
                             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                                     .map(Image::getUrl)
                                     .orElse(null);
@@ -918,7 +918,7 @@ public class ChatService {
     }
 
     @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req, Long senderId) {
+    public void processAndSendChatMessage(SendMessageRequest req) {
         long startTime = System.currentTimeMillis();
         ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
