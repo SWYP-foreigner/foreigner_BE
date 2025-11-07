@@ -44,7 +44,7 @@ public class ChatWebSocketController {
             }
             log.info("userId "+user.getUserId());
             log.info("senderId " + req.senderId());
-            chatService.processAndSendChatMessage(req, user.getUserId());
+            chatService.processAndSendChatMessage(req);
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId(Auth)={}", req.roomId(), user.getUserId());
         } catch (Exception e) {
