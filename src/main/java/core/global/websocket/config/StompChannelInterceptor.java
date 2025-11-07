@@ -18,7 +18,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -31,7 +32,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final RedisService redisService;
     private final UserActivityService userActivityService;
     private final ChatRoomDwellRecorder dwell;
-
+    private static final Pattern ROOM_ID_PATTERN = Pattern.compile("^/topic/chatrooms/([a-zA-Z0-9_-]+)$");
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
