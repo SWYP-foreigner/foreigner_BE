@@ -445,6 +445,8 @@ public class ChatService {
 
     @Transactional
     public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
+        log.info("roomId " + roomId);
+        log.info("userId " + senderId);
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -473,11 +475,8 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
-        log.info("roomId " + roomId);
-        log.info("userId " + userId);
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        log.info("email " + email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
