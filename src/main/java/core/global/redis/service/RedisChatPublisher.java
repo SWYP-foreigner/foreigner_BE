@@ -1,4 +1,4 @@
-package core.global.service;
+package core.global.redis.service;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;

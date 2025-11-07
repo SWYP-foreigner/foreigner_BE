@@ -1,4 +1,4 @@
-package core.global.dto;
+package core.global.apple.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

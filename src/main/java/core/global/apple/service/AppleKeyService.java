@@ -1,7 +1,7 @@
-package core.global.service;
+package core.global.apple.service;
 
-import core.global.client.AppleClient;
-import core.global.dto.ApplePublicKeyResponse;
+import core.global.apple.client.AppleClient;
+import core.global.apple.dto.ApplePublicKeyResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;

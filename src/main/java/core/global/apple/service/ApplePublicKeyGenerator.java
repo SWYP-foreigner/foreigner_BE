@@ -1,7 +1,7 @@
-package core.global.service;
+package core.global.apple.service;
 
-import core.global.dto.ApplePublicKey;
-import core.global.dto.ApplePublicKeyResponse;
+import core.global.apple.dto.ApplePublicKey;
+import core.global.apple.dto.ApplePublicKeyResponse;
 import core.global.exception.BusinessException;
 import core.global.enums.ErrorCode;
 import org.springframework.stereotype.Component;

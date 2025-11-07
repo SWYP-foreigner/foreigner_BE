@@ -1,4 +1,4 @@
-package core.global.service;
+package core.global.apple.service;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

@@ -10,7 +10,7 @@ import core.global.dto.GoogleProfileDto;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLoggedInEvent;
 import core.global.enums.Ouathplatform;
-import core.global.service.RedisService;
+import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;

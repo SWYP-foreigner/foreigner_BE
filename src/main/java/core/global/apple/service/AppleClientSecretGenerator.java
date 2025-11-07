@@ -1,4 +1,4 @@
-package core.global.service;
+package core.global.apple.service;
 
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;

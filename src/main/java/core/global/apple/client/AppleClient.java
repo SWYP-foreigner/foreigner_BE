@@ -1,8 +1,8 @@
-package core.global.client;
+package core.global.apple.client;
 
-import core.global.config.AppleFeignConfig;
-import core.global.dto.ApplePublicKeyResponse;
-import core.global.dto.AppleRefreshTokenResponse;
+import core.global.apple.config.AppleFeignConfig;
+import core.global.apple.dto.ApplePublicKeyResponse;
+import core.global.apple.dto.AppleRefreshTokenResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;

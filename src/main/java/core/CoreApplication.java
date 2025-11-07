@@ -1,7 +1,7 @@
 package core;
 
 
-import core.global.service.AppleOAuthProperties;
+import core.global.apple.service.AppleOAuthProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 @EnableJpaAuditing
 @SpringBootApplication
-@EnableFeignClients(basePackages = "core.global.client")
+@EnableFeignClients(basePackages = "core.global.apple.client")
 @ConfigurationPropertiesScan
 @EnableAsync
 @EnableConfigurationProperties(AppleOAuthProperties.class)

@@ -5,7 +5,7 @@ import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.enums.ErrorCode;
 import core.global.metrics.ChatRoomDwellRecorder;
-import core.global.service.RedisService;
+import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;

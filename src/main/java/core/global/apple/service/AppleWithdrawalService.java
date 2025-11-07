@@ -1,13 +1,11 @@
-package core.global.service;
+package core.global.apple.service;
 
 import core.domain.user.entity.User;
-import core.global.client.AppleClient;
+import core.global.apple.client.AppleClient;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import feign.FeignException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;

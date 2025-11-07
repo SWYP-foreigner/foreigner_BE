@@ -1,13 +1,17 @@
-package core.global.service;
+package core.global.apple.service;
 
 import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
-import core.global.client.AppleClient;
+import core.global.apple.client.AppleClient;
+import core.global.apple.dto.AppleLoginByCodeRequest;
+import core.global.apple.dto.ApplePublicKeyResponse;
+import core.global.apple.dto.AppleRefreshTokenResponse;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
+import core.global.redis.service.RedisService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
