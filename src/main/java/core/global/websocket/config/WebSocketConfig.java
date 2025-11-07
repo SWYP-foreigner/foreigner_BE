@@ -62,8 +62,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer,
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(stompChannelInterceptor);
-
-        // 5. @Bean 메소드를 직접 호출하는 대신, 생성자에서 주입받은 필드를 사용합니다.
         registration.interceptors(this.securityContextChannelInterceptor);
     }
 
