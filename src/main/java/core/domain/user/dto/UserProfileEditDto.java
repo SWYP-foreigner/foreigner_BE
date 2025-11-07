@@ -20,16 +20,16 @@ public record UserProfileEditDto(
         @Schema(description = "성별", example = "Male")
         String gender,
 
-        @Schema(description = "생년월일 (yyyy-MM-dd 형식)", example = "1990-05-12")
+        @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/12/1988")
         String birthday,
 
-        @Schema(description = "국가 코드 (ISO 3166-1 alpha-2 형식)", example = "KR")
+        @Schema(description = "국가 코드 ", example = "KR")
         String country,
 
-        @Schema(description = "자기소개 (최대 40자)", example = "열정적인 개발자입니다.")
+        @Schema(description = "자기소개 (최대 70자)", example = "열정적인 개발자입니다.")
         String introduction,
 
-        @Schema(description = "사용 목적 (최대 40자)", example = "언어 학습")
+        @Schema(description = "사용 목적", example = "언어 학습")
         String purpose,
 
         @Schema(description = "사용 가능한 언어 목록", example = "[\"english(en)\", \"korean(ko)\"]")
@@ -38,7 +38,7 @@ public record UserProfileEditDto(
         @Schema(description = "취미 목록", example = "[\"reading\", \"traveling\"]")
         List<String> hobby,
 
-        @Schema(description = "프로필 이미지 키", example = "profile/john_doe_123.jpg")
+        @Schema(description = "프로필 이미지 키", example = "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_02.svg")
         String imageKey
 ) {
     public UserProfileEditDto(User user, List<String> languages, List<String> hobbies, String imageKey) {
@@ -54,5 +54,13 @@ public record UserProfileEditDto(
                 hobbies,
                 imageKey
         );
+    }
+
+    private static String extractYear(String birthdate) {
+        if (birthdate == null || birthdate.length() != 10) {
+            return null;
+        }
+
+        return birthdate.substring(birthdate.length() - 4);
     }
 }
