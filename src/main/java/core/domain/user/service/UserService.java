@@ -355,7 +355,7 @@ public class UserService {
 
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().toString(), u.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(u.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);

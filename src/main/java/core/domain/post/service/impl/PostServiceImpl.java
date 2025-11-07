@@ -179,6 +179,8 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public PostDetailResponse getPostDetail(Long postId, Boolean translate) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(()->new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
