@@ -90,7 +90,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
 
-            // 채팅 체류 종료
             Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
             if (sessionAttributes != null) {
                 Long userId = (Long) sessionAttributes.get("userId");
@@ -108,10 +107,8 @@ public class StompChannelInterceptor implements ChannelInterceptor {
         return message;
     }
 
-    // 유틸: roomId만 뽑기 (컨트롤러가 사용 중인 topic 경로에 맞춤)
     private String parseRoomId(String dest) {
         if (dest == null) return "unknown";
-        // 예) /topic/chatrooms/{roomId}
         String[] parts = dest.split("/");
         return parts.length > 0 ? parts[parts.length - 1] : "unknown";
     }
