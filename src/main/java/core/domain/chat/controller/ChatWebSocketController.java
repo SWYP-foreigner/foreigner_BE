@@ -42,7 +42,9 @@ public class ChatWebSocketController {
                 log.warn("메시지 전송 시도: @AuthenticationPrincipal이 여전히 null입니다.");
                 return;
             }
-            chatService.processAndSendChatMessage(req, user.getUserId());
+            log.info("userId "+user.getUserId());
+            log.info("senderId " + req.senderId());
+            chatService.processAndSendChatMessage(req);
 
             log.info("메시지 및 요약 전송 성공: roomId={}, senderId(Auth)={}", req.roomId(), user.getUserId());
         } catch (Exception e) {
