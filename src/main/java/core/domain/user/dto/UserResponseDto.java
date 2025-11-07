@@ -11,7 +11,7 @@ public record UserResponseDto(
         String firstName,
         String lastName,
         String sex,
-        String birthdate,
+        Integer birthdate,
         String country,
         String introduction,
         String purpose,
@@ -35,7 +35,7 @@ public record UserResponseDto(
                 user.getFirstName(),
                 user.getLastName(),
                 user.getSex(),
-                user.getBirthdate(),
+                extractYear(user.getBirthdate()),
                 user.getCountry(),
                 user.getIntroduction(),
                 user.getPurpose(),
@@ -52,5 +52,14 @@ public record UserResponseDto(
                 user.isAgreedToTerms(),
                 ImageUrl
         );
+    }
+
+
+    private static Integer extractYear(String birthdate) {
+        if (birthdate == null || birthdate.length() != 10) {
+            return null;
+        }
+
+        return Integer.parseInt(birthdate.substring(birthdate.length() - 4));
     }
 }

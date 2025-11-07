@@ -4,16 +4,12 @@ import core.domain.user.entity.User;
 
 import java.util.List;
 
-
-import core.domain.user.entity.User;
-import java.util.List;
-
 public record UserProfileCardResponse(
         Long userId,
         String firstname,
         String lastname,
         String gender,
-        String birthday,
+        Integer birthday,
         String country,
         String introduction,
         String purpose,
@@ -29,7 +25,7 @@ public record UserProfileCardResponse(
                 u.getFirstName(),
                 u.getLastName(),
                 u.getSex(),
-                u.getBirthdate(),
+                extractYear(u.getBirthdate()),
                 u.getCountry(),
                 u.getIntroduction(),
                 u.getPurpose(),
@@ -38,5 +34,13 @@ public record UserProfileCardResponse(
                 imageKey,
                 followStatus // 👈 추가
         );
+    }
+
+    private static Integer extractYear(String birthdate) {
+        if (birthdate == null || birthdate.length() != 10) {
+            return null;
+        }
+
+        return Integer.parseInt(birthdate.substring(birthdate.length() - 4));
     }
 }

@@ -10,7 +10,7 @@ import java.util.List;
 @Schema(description = "사용자 프로필 설정 요청 DTO")
 public record UserUpdateDto(
 
-        @Schema(description = "생년월일 (yyyy-MM-dd 형식)", example = "1990-05-12")
+        @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/11/1988")
         String birthday,
 
         @Schema(description = "국가 코드 (ISO 3166-1 alpha-2 형식)", example = "KR")

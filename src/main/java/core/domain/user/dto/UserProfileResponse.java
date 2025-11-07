@@ -9,7 +9,7 @@ public record UserProfileResponse(
         String firstname,
         String lastname,
         String gender,
-        String birthday,
+        Integer birthday,
         String country,
         String introduction,
         String purpose,
@@ -17,9 +17,15 @@ public record UserProfileResponse(
         List<String> hobby,
         String imageKey
 ) {
-
-
     public UserProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey) {
-        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), u.getBirthdate(), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
+        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
+    }
+
+    private static Integer extractYear(String birthdate) {
+        if (birthdate == null || birthdate.length() != 10) {
+            return null;
+        }
+
+        return Integer.parseInt(birthdate.substring(birthdate.length() - 4));
     }
 }
