@@ -120,7 +120,7 @@ public class ChatService {
                     String lastMessageContent = getLastNonBlockedMessageContent(room.getId(), userId);
                     int unreadCount = countUnreadMessages(room.getId(), userId);
                     int participantCount = room.getParticipants().size();
-                    String roomName;
+                    String roomName = "";
                     String roomImageUrl;
 
                     if (!room.getGroup()) {
@@ -131,7 +131,8 @@ public class ChatService {
                                 .orElse(null);
 
                         if (opponent != null) {
-                            roomName = opponent.getFirstName() + " " + opponent.getLastName();
+                            if (opponent.getLastName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getLastName();
+                            if (opponent.getFirstName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getFirstName();
                             roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                                     .map(Image::getUrl)
                                     .orElse(null);
@@ -917,21 +918,21 @@ public class ChatService {
     }
 
     @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req,Long senderId) {
+    public void processAndSendChatMessage(SendMessageRequest req, Long senderId) {
         long startTime = System.currentTimeMillis();
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), senderId, req.content());
+        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
         String originalContent = savedMessage.getContent();
 
 
         ChatRoom chatRoom = savedMessage.getChatRoom();
         List<ChatParticipant> participants = chatRoom.getParticipants();
-        User senderUser = userRepository.findById(senderId)
+        User senderUser = userRepository.findById(req.senderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, senderId)
+        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
                 .map(Image::getUrl)
                 .orElse(null);
 
-        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), senderId)
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
                 .ifPresent(participant -> {
                     participant.setLastReadMessageId(savedMessage.getId());
                     chatParticipantRepository.save(participant);
