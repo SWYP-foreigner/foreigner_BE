@@ -25,7 +25,6 @@ public class SocialChatMetrics {
     private final AtomicInteger activeChatRooms = new AtomicInteger(0);
     private final AtomicInteger totalChatRooms = new AtomicInteger(0);
     private final AtomicInteger activeFollowEdges = new AtomicInteger(0);
-    // 선택: 활성 방 추적을 위해 방별 상태 관리
     private final ConcurrentHashMap<String, Boolean> roomActiveMap = new ConcurrentHashMap<>();
 
     public SocialChatMetrics(MeterRegistry registry) {

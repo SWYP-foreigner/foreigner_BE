@@ -32,7 +32,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final RedisService redisService;
     private final UserActivityService userActivityService;
     private final ChatRoomDwellRecorder dwell;
-    private static final Pattern ROOM_ID_PATTERN = Pattern.compile("^/topic/chatrooms/([a-zA-Z0-9_-]+)$");
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
