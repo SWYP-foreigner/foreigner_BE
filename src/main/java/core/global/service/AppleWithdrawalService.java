@@ -1,24 +1,34 @@
 package core.global.service;
 
 import core.domain.user.entity.User;
-import core.domain.user.service.UserService;
-import core.global.config.JwtTokenProvider;
+import core.global.client.AppleClient;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 @Slf4j
-@RequiredArgsConstructor
 @Service
 public class AppleWithdrawalService {
 
     private final AppleOAuthProperties appleProps;
     private final AppleClient appleClient;
     private final AppleClientSecretGenerator clientSecretGenerator;
+
+    public AppleWithdrawalService(
+            AppleOAuthProperties appleProps,
+            @Lazy AppleClient appleClient,
+            AppleClientSecretGenerator clientSecretGenerator
+    ) {
+        this.appleProps = appleProps;
+        this.appleClient = appleClient;
+        this.clientSecretGenerator = clientSecretGenerator;
+    }
 
     /**
      * Apple 서버에 토큰 무효화를 요청하는 메인 메소드

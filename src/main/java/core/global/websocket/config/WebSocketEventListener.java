@@ -1,4 +1,4 @@
-package core.global.config;
+package core.global.websocket.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

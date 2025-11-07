@@ -1,7 +1,9 @@
-package core.global.config;
+package core.global.websocket.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.handler.invocation.HandlerMethodArgumentResolver;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -13,54 +15,58 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
-import org.springframework.context.annotation.Bean;
-import jakarta.annotation.PostConstruct;
+// import org.springframework.context.annotation.Bean; // <-- 1. @Bean import가 제거됩니다.
+import org.springframework.context.annotation.Lazy;
+
 import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
 @EnableWebSocketMessageBroker
 @Slf4j
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer,
+        ApplicationListener<ContextRefreshedEvent> {
 
-    private final StompChannelInterceptor stompChannelInterceptor;
-    private SimpAnnotationMethodMessageHandler simpAnnotationMethodMessageHandler;
-    @Bean
-    public AuthenticationPrincipalArgumentResolver authenticationPrincipalArgumentResolver() {
-        return new AuthenticationPrincipalArgumentResolver();
-    }
-    @Bean
-    public SecurityContextChannelInterceptor securityContextChannelInterceptor() {
-        return new SecurityContextChannelInterceptor();
+    private StompChannelInterceptor stompChannelInterceptor;
+
+    private final AuthenticationPrincipalArgumentResolver authenticationPrincipalResolver;
+    private final SecurityContextChannelInterceptor securityContextChannelInterceptor;
+
+    public WebSocketConfig(AuthenticationPrincipalArgumentResolver authenticationPrincipalResolver,
+                           SecurityContextChannelInterceptor securityContextChannelInterceptor) {
+        this.authenticationPrincipalResolver = authenticationPrincipalResolver;
+        this.securityContextChannelInterceptor = securityContextChannelInterceptor;
     }
 
-    public WebSocketConfig(StompChannelInterceptor stompChannelInterceptor) {
+
+    @Autowired
+    @Lazy
+    public void setStompChannelInterceptor(StompChannelInterceptor stompChannelInterceptor) {
         this.stompChannelInterceptor = stompChannelInterceptor;
     }
 
-    @Autowired
-    public void setSimpAnnotationMethodMessageHandler(SimpAnnotationMethodMessageHandler simpAnnotationMethodMessageHandler) {
-        this.simpAnnotationMethodMessageHandler = simpAnnotationMethodMessageHandler;
-    }
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("Context refreshed. Manually adding ArgumentResolver...");
+        SimpAnnotationMethodMessageHandler handler =
+                event.getApplicationContext().getBean(SimpAnnotationMethodMessageHandler.class);
 
-
-    @PostConstruct
-    public void addArgumentResolver() {
-        log.info("Manually adding AuthenticationPrincipalArgumentResolver to SimpAnnotationMethodMessageHandler...");
-        List<HandlerMethodArgumentResolver> existingResolvers =
-                simpAnnotationMethodMessageHandler.getArgumentResolvers();
+        List<HandlerMethodArgumentResolver> existingResolvers = handler.getArgumentResolvers();
         List<HandlerMethodArgumentResolver> newResolvers = new ArrayList<>();
-        newResolvers.add(authenticationPrincipalArgumentResolver());
+        newResolvers.add(this.authenticationPrincipalResolver);
         newResolvers.addAll(existingResolvers);
-        simpAnnotationMethodMessageHandler.setArgumentResolvers(newResolvers);
-        log.info("AuthenticationPrincipalArgumentResolver added manually.");
+        handler.setArgumentResolvers(newResolvers);
+        log.info("AuthenticationPrincipalArgumentResolver added manually after context refresh.");
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(stompChannelInterceptor);
-        registration.interceptors(securityContextChannelInterceptor());
+
+        // 5. @Bean 메소드를 직접 호출하는 대신, 생성자에서 주입받은 필드를 사용합니다.
+        registration.interceptors(this.securityContextChannelInterceptor);
     }
+
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {

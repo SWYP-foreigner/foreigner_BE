@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/home")
 @RequiredArgsConstructor
 public class MainHomeController {
-    private final UserService userService;
     private final FollowService followService;
     private final FeatureUsageMetrics featureUsageMetrics;
 

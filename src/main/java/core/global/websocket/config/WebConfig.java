@@ -1,5 +1,6 @@
-package core.global.config;
+package core.global.websocket.config;
 
+import core.global.config.UserActivityInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;

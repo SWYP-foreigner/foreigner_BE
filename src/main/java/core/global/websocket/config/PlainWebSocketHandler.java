@@ -1,4 +1,4 @@
-package core.global.config;
+package core.global.websocket.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,8 @@
-package core.global.config;
+package core.global.websocket.config;
 
 import core.domain.user.service.UserActivityService;
+import core.global.config.CustomUserDetails;
+import core.global.config.JwtTokenProvider;
 import core.global.enums.ErrorCode;
 import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.service.RedisService;
