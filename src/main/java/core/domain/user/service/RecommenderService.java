@@ -1,5 +1,6 @@
 package core.domain.user.service;
 
+import core.domain.user.dto.CommendUsersProfileResponse;
 import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -27,7 +28,7 @@ public class RecommenderService {
      * @return 추천된 사용자 목록
      */
     @Transactional(readOnly = true)
-    public List<UserProfileResponse> recommendForUser(Authentication auth, int limit) {
+    public List<CommendUsersProfileResponse> recommendForUser(Authentication auth, int limit) {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }

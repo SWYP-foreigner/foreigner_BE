@@ -1,5 +1,6 @@
 package core.domain.user.service;
 
+import core.domain.user.dto.CommendUsersProfileResponse;
 import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -47,7 +48,7 @@ public class ContentBasedRecommender {
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
 
     @Transactional(readOnly = true)
-    public List<UserProfileResponse> recommendForUser(Long meId, int limit) {
+    public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -169,11 +170,11 @@ public class ContentBasedRecommender {
     private static class Scored<T> { private T item; private double score; }
 
 
-    private UserProfileResponse toDto(User u) {
+    private CommendUsersProfileResponse toDto(User u) {
         String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
                 .map(image -> image.getUrl())
                 .orElse(null);
 
-        return new UserProfileResponse(u,  csvToSet(u.getLanguage()).stream().toList(), csvToSet(u.getHobby()).stream().toList(),imageKey);
+        return new CommendUsersProfileResponse(u,  csvToSet(u.getLanguage()).stream().toList(), csvToSet(u.getHobby()).stream().toList(),imageKey);
     }
 }
