@@ -2,6 +2,7 @@ package core.domain.user.dto;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import core.global.exception.ValidBirthday;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -9,8 +10,14 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "사용자 프로필 설정 요청 DTO")
 public record UserUpdateDto(
+        @Schema(description = "이름 (first name)", example = "John")
+        String firstname,
+
+        @Schema(description = "성 (last name)", example = "Doe")
+        String lastname,
 
         @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/11/1988")
+        @ValidBirthday
         String birthday,
 
         @Schema(description = "국가 코드 (ISO 3166-1 alpha-2 형식)", example = "KR")

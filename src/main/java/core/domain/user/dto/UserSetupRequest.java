@@ -2,7 +2,10 @@ package core.domain.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import core.domain.user.entity.User;
+import core.global.exception.ValidBirthday;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -17,10 +20,12 @@ public record UserSetupRequest(
         @Schema(description = "성 (last name)", example = "Doe")
         String lastname,
 
-        @Schema(description = "성별", example = "male")
+        @Schema(description = "성별", example = "Male")
+        @Pattern(regexp = "Male|Female|unspecified", message = "gender는 Male|Female|unspecified 중 하나여야 합니다.")
         String gender,
 
         @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/12/1988")
+        @ValidBirthday
         String birthday,
 
         @Schema(description = "국가 코드", example = "KR")
@@ -33,6 +38,7 @@ public record UserSetupRequest(
         String purpose,
 
         @Schema(description = "사용자 이메일", example = "john.doe@example.com")
+        @Email(message = "올바른 이메일 형식이 아닙니다.")
         String email,
 
         @Schema(description = "사용 가능한 언어 목록", example = "[\"english(en)\", \"korean(ko)\"]")

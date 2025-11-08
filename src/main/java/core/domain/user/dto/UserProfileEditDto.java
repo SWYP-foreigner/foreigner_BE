@@ -3,6 +3,7 @@ package core.domain.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import core.domain.user.entity.User;
+import core.global.exception.ValidBirthday;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public record UserProfileEditDto(
         String gender,
 
         @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/12/1988")
+        @ValidBirthday
         String birthday,
 
         @Schema(description = "국가 코드 ", example = "KR")
