@@ -227,7 +227,7 @@ public class UserController {
      * 사용자 프로필 조회
      */
     @GetMapping("/profile/setting")
-    @Operation(summary = "프로필 조회", description = "현재 사용자의 프로필 정보를 조회합니다.")
+    @Operation(summary = "프로필 수정용 조회", description = "수정을 위해 현재 사용자의 프로필 정보를 조회합니다.")
     public ResponseEntity<UserProfileResponse> getProfile() {
         UserProfileResponse response = userService.getUserProfile();
         featureUsageMetrics.recordFollowUsage();
