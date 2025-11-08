@@ -21,6 +21,7 @@ import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.metrics.SocialChatMetrics;
+import core.global.service.PerspectiveService;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,7 @@ public class ChatService {
     private final S3Presigner s3Presigner;
     private final SocialChatMetrics socialChatMetrics;
     private final ChatReportRepository chatReportRepository;
+    private final PerspectiveService perspectiveService;
 
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 metrics에서 UNK 처리
@@ -939,6 +941,33 @@ public class ChatService {
                     participant.setLastReadMessageId(savedMessage.getId());
                     chatParticipantRepository.save(participant);
                 });
+
+        boolean needsAiCheck = (originalContent.contains("http") || originalContent.contains("www.") || originalContent.contains(".com"));
+
+        if (needsAiCheck) {
+            log.debug("URL 감지. Perspective API 검사 시작... (User ID: {})", req.senderId());
+
+            if (perspectiveService.isHarmful(originalContent)) {
+                log.warn("스팸 메시지 감지(AI): senderId={}, content={}", req.senderId(), originalContent);
+
+                // todo: (예: 1L - 실제 관리자 계정 ID로 변경 필요)
+                Long systemReporterId = 1L;
+
+                if (!chatReportRepository.existsByReporterUserIdAndMessageId(systemReporterId, savedMessage.getId())) {
+                    try {
+                        ChatReportRequest aiReportRequest = new ChatReportRequest(
+                                savedMessage.getId(),
+                                "AI_DETECTED_SPAM",
+                                "Perspective API가 스팸/유해 콘텐츠로 감지함"
+                        );
+                        reportChat(systemReporterId, aiReportRequest);
+                        log.info("AI가 감지한 스팸 메시지를 자동으로 신고 처리했습니다. (Message ID: {})", savedMessage.getId());
+                    } catch (Exception e) {
+                        log.warn("AI 자동 신고 처리 중 오류 발생 (무시): {}", e.getMessage());
+                    }
+                }
+            }
+        }
 
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
