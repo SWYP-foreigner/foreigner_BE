@@ -132,5 +132,39 @@ public class TranslationService {
         }
     }
 
+    public String detectLanguage(String text) {
+        if (text == null || text.isBlank()) {
+            return "und";
+        }
 
+        try (TranslationServiceClient client = TranslationServiceClient.create()) {
+            LocationName parent = LocationName.of(projectId, "global");
+
+            DetectLanguageRequest request =
+                    DetectLanguageRequest.newBuilder()
+                            .setParent(parent.toString())
+                            .setMimeType("text/plain")
+                            .setContent(text)
+                            .build();
+
+            DetectLanguageResponse response = client.detectLanguage(request);
+
+            // 가장 확률이 높은 언어 반환
+            if (response.getLanguagesCount() > 0) {
+                String langCode = response.getLanguages(0).getLanguageCode();
+                log.debug("감지된 언어: {} (내용: {}...)", langCode, text.substring(0, Math.min(text.length(), 20)));
+                return langCode;
+            }
+            return "und"; // 감지 실패
+
+        } catch (Exception e) {
+            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 언어 감지 API 호출 실패!", e);
+            throw new BusinessException(
+                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL,
+                    "언어 감지에 실패했습니다.",
+                    e
+            );
+        }
+    }
 }
