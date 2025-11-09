@@ -21,7 +21,10 @@ public record UserSetupRequest(
         String lastname,
 
         @Schema(description = "성별", example = "Male")
-        @Pattern(regexp = "Male|Female|unspecified", message = "gender는 Male|Female|unspecified 중 하나여야 합니다.")
+        @Pattern(
+                regexp = "^(Male|Female|NotSaying)$",
+                message = "gender는 Male|Female|NotSaying 중 하나여야 합니다."
+        )
         String gender,
 
         @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/12/1988")
