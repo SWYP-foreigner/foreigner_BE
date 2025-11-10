@@ -25,8 +25,8 @@ public record UserSetupRequest(
         @Schema(description = "성별", example = "Male")
         @JsonDeserialize(using = EmptyToNullStringDeserializer.class)
         @Pattern(
-                regexp = "^(Male|Female|NotSaying)$",
-                message = "gender는 Male|Female|NotSaying 중 하나여야 합니다."
+                regexp = "^(Male|Female|NoGender)$",
+                message = "gender는 Male|Female|NoGender 중 하나여야 합니다."
         )
         String gender,
 
