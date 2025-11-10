@@ -5,6 +5,7 @@ import core.domain.user.entity.User;
 import core.global.enums.NotificationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,4 +42,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     );
 
     void deleteAllByActorId(Long actorId);
+
+    Slice<Notification> findByCreatedAtBefore(Instant cutoffDate, Pageable pageable);
 }
