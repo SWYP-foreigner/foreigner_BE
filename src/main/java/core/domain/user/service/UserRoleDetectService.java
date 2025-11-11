@@ -14,6 +14,7 @@ public class UserRoleDetectService {
     private final ImageService imageService;
 
     public void isProfileSetUpUser(User user) {
+        String userProfileKey = imageService.getUserProfileKey(user.getId());
         if (user.getBirthdate() == null
             || user.getLastName() == null
             || user.getFirstName() == null
@@ -22,7 +23,8 @@ public class UserRoleDetectService {
             || user.getLanguage() == null
             || user.getHobby() == null
             || user.getSex() == null
-            || DEFAULT_PROFILE_URL.equals(imageService.getUserProfileKey(user.getId()))) {
+            || userProfileKey == null
+            || DEFAULT_PROFILE_URL.equals(userProfileKey)) {
             throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
     }
