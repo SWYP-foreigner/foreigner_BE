@@ -1,0 +1,29 @@
+package core.domain.user.service;
+
+import core.domain.user.entity.User;
+import core.global.enums.ErrorCode;
+import core.global.exception.BusinessException;
+import core.global.image.service.ImageService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@RequiredArgsConstructor
+@Service
+public class UserRoleDetectService {
+    private static final String DEFAULT_PROFILE_URL = "https://cdn.ko-ri.cloud/default/character_05.svg";
+    private final ImageService imageService;
+
+    public void isProfileSetUpUser(User user) {
+        if (user.getBirthdate() == null
+            || user.getLastName() == null
+            || user.getFirstName() == null
+            || user.getPurpose() == null
+            || user.getIntroduction() == null
+            || user.getLanguage() == null
+            || user.getHobby() == null
+            || user.getSex() == null
+            || DEFAULT_PROFILE_URL.equals(imageService.getUserProfileKey(user.getId()))) {
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+    }
+}

@@ -9,8 +9,10 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.image.service.ImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +38,7 @@ public class ChatAiService {
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final ClovaXService clovaXService;
+    private final UserRoleDetectService userRoleDetectService;
 
     /**
      * AI와 1:1 채팅방 생성
@@ -47,9 +50,7 @@ public class ChatAiService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
 
         Optional<ChatRoom> existingRoomOptional = chatRoomRepository.findOneToOneChatRoomByParticipants(userId, AI_USER_ID);
@@ -83,9 +84,7 @@ public class ChatAiService {
     public AiMessageResponse sendMessageToAi(Long userId, Long roomId, AiMessageRequest request) {
         User sender = findUserById(userId);
 
-        if(sender.getBirthdate()==null||sender.getPurpose()==null||sender.getIntroduction()==null||sender.getLanguage()==null||sender.getHobby()==null||sender.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(sender);
 
 
         ChatRoom chatRoom = findChatRoomById(roomId);
@@ -140,9 +139,7 @@ public class ChatAiService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+
 
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
@@ -179,9 +176,8 @@ public class ChatAiService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
@@ -211,9 +207,8 @@ public class ChatAiService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         ChatMessage message = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
