@@ -48,7 +48,7 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL.getHttpStatus(),
                     ErrorCode.TRANSLATE_FAIL,
                     ErrorCode.TRANSLATE_FAIL.getMessage(),
                     e
@@ -91,7 +91,7 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL.getHttpStatus(),
                     ErrorCode.TRANSLATE_FAIL,
                     ErrorCode.TRANSLATE_FAIL.getMessage(),
                     e
@@ -124,7 +124,7 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
+                    ErrorCode.TRANSLATE_FAIL.getHttpStatus(),
                     ErrorCode.TRANSLATE_FAIL,
                     ErrorCode.TRANSLATE_FAIL.getMessage(),
                     e

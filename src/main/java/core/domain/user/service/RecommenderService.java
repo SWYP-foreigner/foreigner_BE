@@ -9,6 +9,7 @@ import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,20 +24,13 @@ public class RecommenderService {
 
     /**
      * 인증 객체에서 이메일을 추출하여 사용자 ID를 얻고 추천 로직을 실행합니다.
-     * @param auth 인증 객체
      * @param limit 추천받을 사용자 수
      * @return 추천된 사용자 목록
      */
     @Transactional(readOnly = true)
-    public List<CommendUsersProfileResponse> recommendForUser(Authentication auth, int limit) {
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
+    public List<CommendUsersProfileResponse> recommendForUser(int limit) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
 
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
