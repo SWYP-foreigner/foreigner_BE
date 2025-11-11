@@ -179,11 +179,6 @@ public class UserService {
     @Transactional
     public void setupUserProfile(UserSetupRequest dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            log.warn("인증 정보 없음 - 이메일 프로필 업데이트 불가");
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
@@ -279,15 +274,10 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfileResponse getUserProfile() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
+
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
                 ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -300,16 +290,9 @@ public class UserService {
     @Transactional
     public void deleteProfileImage() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
         String email = (auth instanceof JwtAuthenticationToken jwtAuth)
                 ? jwtAuth.getToken().getClaim("templates/email")
                 : auth.getName();
-        if (email == null || email.isBlank()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -499,10 +482,6 @@ public class UserService {
     @Transactional
     public UserProfileEditDto updateUserProfile(UserProfileEditDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
@@ -574,10 +553,6 @@ public class UserService {
     @Transactional
     public void updateUserSetup(UserUpdateDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
