@@ -1,5 +1,8 @@
 package core.global.config;
 
+import core.global.constants.AIOnlyPaths;
+import core.global.constants.AdminOnlyPaths;
+import core.global.constants.UserOnlyPaths;
 import core.global.metrics.ActiveUserRecordFilter;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
@@ -77,6 +80,17 @@ public class SecurityConfig {
                                 "/ws"
 
                         ).permitAll()
+                        // 2) ADMIN 전용
+                        // hasRole("ADMIN")은 내부적으로 "ROLE_ADMIN" 권한을 찾습니다.
+                        .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
+
+                        // 3) AI 전용
+                        .requestMatchers(AIOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("AI")
+
+                        // 4) USER 전용(ADMIN도 접근 가능하도록 할지 선택)
+                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER", "ADMIN","AI")
+
+                        // 5) 그 밖의 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
