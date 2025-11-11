@@ -16,6 +16,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 
 
@@ -34,8 +35,9 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(
-            @Payload SendMessageRequest req
+            @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
     ) {
+        log.info(String.valueOf(principal.getUserId()));
         try {
             chatService.processAndSendChatMessage(req);
         } catch (Exception e) {
