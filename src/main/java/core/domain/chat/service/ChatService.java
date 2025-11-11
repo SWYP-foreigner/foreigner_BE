@@ -721,9 +721,7 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
 
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
