@@ -29,7 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 @EnableWebSecurity
-@EnableWebSocketSecurity
+//@EnableWebSocketSecurity
 public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
@@ -87,7 +87,7 @@ public class SecurityConfig {
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
-    @Bean
+   /* @Bean
     public AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
         messages
                 .simpTypeMatchers(SimpMessageType.DISCONNECT).permitAll()
@@ -95,7 +95,7 @@ public class SecurityConfig {
                 .anyMessage().authenticated();
 
         return messages.build();
-    }
+    }*/
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
