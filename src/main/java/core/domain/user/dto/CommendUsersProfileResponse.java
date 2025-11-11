@@ -4,7 +4,7 @@ import core.domain.user.entity.User;
 
 import java.util.List;
 
-public record FollowDTO(
+public record CommendUsersProfileResponse(
         Long userId,
         String firstname,
         String lastname,
@@ -13,27 +13,12 @@ public record FollowDTO(
         String country,
         String introduction,
         String purpose,
-        String email,
         List<String> language,
         List<String> hobby,
         String imageKey
 ) {
-
-    public FollowDTO(User u, List<String> languages, List<String> hobbies, String imageKey) {
-        this(
-                u.getId(),
-                u.getFirstName(),
-                u.getLastName(),
-                u.getSex(),
-                extractYear(u.getBirthdate()),
-                u.getCountry(),
-                u.getIntroduction(),
-                u.getPurpose(),
-                u.getEmail(),
-                languages,
-                hobbies,
-                imageKey
-        );
+    public CommendUsersProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey) {
+        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
     }
 
     private static Integer extractYear(String birthdate) {

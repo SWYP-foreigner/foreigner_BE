@@ -14,6 +14,7 @@ import core.global.service.TranslationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -53,14 +54,12 @@ public class MyPageController {
     }
 
 
-
     @Operation(summary = "Received/Sent 수 조회", description = "PENDING 상태의 보낸/받은 팔로우 요청 수를 조회합니다.")
     @GetMapping("/follows/pending/count")
     public ResponseEntity<Map<String, Long>> getPendingFollowsCount(Authentication authentication) {
         Map<String, Long> counts = followService.getPendingFollowCounts(authentication);
         return ResponseEntity.ok(counts);
     }
-
 
 
     @Operation(
@@ -134,7 +133,7 @@ public class MyPageController {
             description = "Skip된 정보를 수정 완료합니다."
     )
     public ResponseEntity<ApiResponse<LoginResponseDto>> skipSetUpProfile(
-            @RequestBody UserUpdateDto dto
+            @Valid @RequestBody UserUpdateDto dto
     ) {
         return ResponseEntity.ok(ApiResponse.success(userService.finalizeSkipSetupAndReissueToken(dto)));
     }
@@ -144,8 +143,8 @@ public class MyPageController {
             summary = "마이 프로필 수정(인증된 사용자)",
             description = "SecurityContext 의 인증 객체에서 사용자 정보를 가져와 프로필을 부분 수정합니다."
     )
-    public ResponseEntity<UserProfileEditDto>  editProfile(
-            @RequestBody UserProfileEditDto dto
+    public ResponseEntity<UserProfileEditDto> editProfile(
+            @Valid @RequestBody UserProfileEditDto dto
     ) {
         featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userService.updateUserProfile(dto));

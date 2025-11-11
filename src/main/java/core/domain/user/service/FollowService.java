@@ -12,15 +12,12 @@ import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
 import core.global.metrics.SocialChatMetrics;
-import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -112,23 +109,18 @@ public class FollowService {
                             .toList();
 
                     return new FollowDTO(
-                            target.getFirstName(),
-                            target.getLastName(),
-                            target.getSex(),
-                            target.getBirthdate(),
-                            target.getCountry(),
-                            target.getIntroduction(),
-                            target.getPurpose(),
-                            target.getEmail(),
+                            target,
                             languages,
                             hobbies,
-                            imageKey,
-                            target.getId()
+                            imageKey
                     );
                 })
                 .toList();
     }
-    /** 현재 로그인 사용자가 targetUserId를 팔로우 신청 */
+
+    /**
+     * 현재 로그인 사용자가 targetUserId를 팔로우 신청
+     */
     @Transactional
     public void follow(Authentication auth, Long targetUserId) {
         String email = auth.getName();
@@ -197,7 +189,9 @@ public class FollowService {
         eventPublisher.publishEvent(event);
     }
 
-    /** 상대(fromUserId)가 보낸 팔로우 요청을 '현재 로그인 사용자'가 수락 */
+    /**
+     * 상대(fromUserId)가 보낸 팔로우 요청을 '현재 로그인 사용자'가 수락
+     */
     @Transactional
     public void acceptFollow(Authentication auth, Long fromUserId) {
         log.info("[ACCEPT FOLLOW] 요청 시작: 수락자={}, 신청자={}", auth.getName(), fromUserId);
@@ -281,7 +275,9 @@ public class FollowService {
      */
 
 
-    /** 현재 로그인 사용자가 targetUserId 언팔 */
+    /**
+     * 현재 로그인 사용자가 targetUserId 언팔
+     */
     @Transactional
     public void unfollow(Authentication auth, Long targetUserId) {
         log.info("[UNFOLLOW] 요청 시작: 사용자={}, 대상={}", auth.getName(), targetUserId);
@@ -310,7 +306,9 @@ public class FollowService {
     }
 
 
-    /** 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회 */
+    /**
+     * 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회
+     */
     @Transactional(readOnly = true)
     public List<FollowDTO> getMyFollowsByStatus(Authentication auth, FollowStatus status, boolean isFollowers) {
         log.info("[GET FOLLOWS] 요청 시작: 사용자={}, 상태={}, 팔로워 조회 여부={}", auth.getName(), status, isFollowers);
@@ -352,18 +350,10 @@ public class FollowService {
                             : List.of();
 
                     return new FollowDTO(
-                            targetUser.getFirstName(),
-                            targetUser.getLastName(),
-                            targetUser.getSex(),
-                            targetUser.getBirthdate(),
-                            targetUser.getCountry(),
-                            targetUser.getIntroduction(),
-                            targetUser.getPurpose(),
-                            targetUser.getEmail(),
+                            targetUser,
                             languages,
                             hobbies,
-                            imageKey,
-                            targetUser.getId()
+                            imageKey
                     );
 
                 })
@@ -374,8 +364,9 @@ public class FollowService {
     }
 
 
-
-    /** 상대(fromUserId)가 나에게 보낸 요청 거절 */
+    /**
+     * 상대(fromUserId)가 나에게 보낸 요청 거절
+     */
     @Transactional
     public void declineFollow(Authentication auth, Long fromUserId) {
         String toEmail = auth.getName();

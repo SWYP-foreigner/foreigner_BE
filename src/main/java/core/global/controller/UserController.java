@@ -211,7 +211,7 @@ public class UserController {
 
     @PatchMapping("/profile/setup")
     @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성 ", description = "현재 사용자의 프로필 정보를 세팅합니다.")
-    public ResponseEntity<Void> setUpProfile(@RequestBody UserSetupRequest dto) {
+    public ResponseEntity<Void> updateProfile(@Valid @RequestBody UserSetupRequest dto) {
         userService.setupUserProfile(dto);
         return ResponseEntity.ok(null);
     }
@@ -227,7 +227,7 @@ public class UserController {
      * 사용자 프로필 조회
      */
     @GetMapping("/profile/setting")
-    @Operation(summary = "프로필 조회", description = "현재 사용자의 프로필 정보를 조회합니다.")
+    @Operation(summary = "프로필 수정용 조회", description = "수정을 위해 현재 사용자의 프로필 정보를 조회합니다.")
     public ResponseEntity<UserProfileResponse> getProfile() {
         UserProfileResponse response = userService.getUserProfile();
         featureUsageMetrics.recordFollowUsage();

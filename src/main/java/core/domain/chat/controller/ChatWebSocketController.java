@@ -16,6 +16,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 
 
@@ -34,17 +35,11 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(
-            @Payload SendMessageRequest req,
-            @AuthenticationPrincipal CustomUserDetails user
+            @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
     ) {
+        log.info(String.valueOf(principal.getUserId()));
         try {
-            if (user == null || user.getUserId() == null) {
-                log.warn("메시지 전송 시도: @AuthenticationPrincipal이 여전히 null입니다.");
-                return;
-            }
-            chatService.processAndSendChatMessage(req, user.getUserId());
-
-            log.info("메시지 및 요약 전송 성공: roomId={}, senderId(Auth)={}", req.roomId(), user.getUserId());
+            chatService.processAndSendChatMessage(req);
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
         }
