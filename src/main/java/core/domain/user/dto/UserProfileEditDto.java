@@ -2,9 +2,12 @@ package core.domain.user.dto;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import core.domain.user.entity.User;
+import core.global.config.EmptyToNullStringDeserializer;
 import core.global.exception.ValidBirthday;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Pattern;
 
 import java.util.List;
 
@@ -19,6 +22,11 @@ public record UserProfileEditDto(
         String lastname,
 
         @Schema(description = "성별", example = "Male")
+        @JsonDeserialize(using = EmptyToNullStringDeserializer.class)
+        @Pattern(
+                regexp = "^(Male|Female|NoGender)$",
+                message = "gender는 Male|Female|NoGender 중 하나여야 합니다."
+        )
         String gender,
 
         @Schema(description = "생년월일 (MM/DD/YYYY 형식)", example = "05/12/1988")

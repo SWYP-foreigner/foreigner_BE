@@ -11,6 +11,7 @@ import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
@@ -54,7 +55,7 @@ public class ChatService {
     private final TranslationService translationService;
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
-
+    private final UserRoleDetectService userRoleDetectService;
 
     private SimpMessagingTemplate messagingTemplate;
 
@@ -187,9 +188,8 @@ public class ChatService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
         List<ChatRoom> existingRooms = chatRoomRepo.findOneToOneRoomByParticipantIds(userIds);
@@ -252,9 +252,8 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
@@ -290,9 +289,8 @@ public class ChatService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -378,6 +376,8 @@ public class ChatService {
     ) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+
+        userRoleDetectService.isProfileSetUpUser(userRepository.findById(userId).orElseThrow(()-> new BusinessException(ErrorCode.USER_NOT_FOUND)));
 
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
@@ -481,9 +481,7 @@ public class ChatService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
@@ -725,9 +723,7 @@ public class ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
 
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         ChatRoom room = chatRoomRepo.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -856,9 +852,7 @@ public class ChatService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
@@ -891,9 +885,8 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
@@ -908,9 +901,8 @@ public class ChatService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
@@ -1030,9 +1022,8 @@ public class ChatService {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(owner.getBirthdate()==null||owner.getPurpose()==null||owner.getIntroduction()==null||owner.getLanguage()==null||owner.getHobby()==null||owner.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(owner);
+
 
         if (request.roomName() == null || request.roomName().isBlank()) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
@@ -1187,9 +1178,8 @@ public class ChatService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         if (blockedUser.getEmail().equals(email)) {
             throw new BusinessException(ErrorCode.CANNOT_BLOCK);
