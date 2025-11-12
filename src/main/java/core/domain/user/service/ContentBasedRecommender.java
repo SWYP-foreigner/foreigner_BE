@@ -6,10 +6,10 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.exception.UserErrorCode;
 import core.global.image.repository.ImageRepository;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -50,7 +50,7 @@ public class ContentBasedRecommender {
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
         User me = userRepository.findById(meId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
         Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);

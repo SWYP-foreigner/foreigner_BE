@@ -1,8 +1,8 @@
 package core.global.image.service.impl;
 
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
+import core.global.exception.ImageErrorCode;
 import core.global.image.dto.ImageDto;
 import core.global.image.dto.PresignedUrlRequest;
 import core.global.image.dto.PresignedUrlResponse;
@@ -60,10 +60,10 @@ public class ImageServiceImpl implements ImageService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         if (request.files() == null || request.files().isEmpty()) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
         if (request.uploadSessionId() == null || request.uploadSessionId().isBlank()) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
 
@@ -208,7 +208,7 @@ public class ImageServiceImpl implements ImageService {
             }
         } catch (Exception e) {
             Thread.currentThread().interrupt();
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         } finally {
             pool.shutdown();
         }
@@ -245,10 +245,10 @@ public class ImageServiceImpl implements ImageService {
             log.warn("[POST IMG] copy failed: src={}, dst={}, status={}, msg={}",
                     srcKey, dstKey, e.statusCode(),
                     e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage());
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         } catch (SdkException e) {
             log.warn("[POST IMG] copy failed: src={}, dst={}, err={}", srcKey, dstKey, e.getMessage());
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
         return dstKey; // ← 여기서 삭제하지 않음
     }
@@ -306,13 +306,13 @@ public class ImageServiceImpl implements ImageService {
         }
         boolean exists = existsOnS3(key);
         if (!exists) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_DELETE_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_FILE_DELETE_FAILED);
         }
 
         try {
             s3Client.deleteObject(b -> b.bucket(bucket).key(key));
         } catch (SdkException e) {
-            throw new BusinessException(ErrorCode.IMAGE_FILE_DELETE_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_FILE_DELETE_FAILED);
         }
     }
 
@@ -352,7 +352,7 @@ public class ImageServiceImpl implements ImageService {
                 continuation = res.isTruncated() ? res.nextContinuationToken() : null;
             } while (continuation != null);
         } catch (SdkException e) {
-            throw new BusinessException(ErrorCode.IMAGE_FOLDER_DELETE_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_FOLDER_DELETE_FAILED);
         }
     }
 
@@ -362,7 +362,7 @@ public class ImageServiceImpl implements ImageService {
         // 1) 입력 검증
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
             log.warn("[UPI] fail.input_validation reason=null_or_blank userId={}", userId);
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         // 2) URL/Key 판정 및 변환
@@ -396,7 +396,7 @@ public class ImageServiceImpl implements ImageService {
                 contentType = head.contentType();      // 업로드 시 넣은 content-type
             } catch (SdkException e) {
                 log.warn("[UPI] headObject.failed userId={} key={} err={}", userId, reqKey, e.getMessage());
-                throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
             if (etag == null || etag.isBlank()) {
                 // ETag가 없을 일은 드물지만, 안전망으로 시간스탬프 사용
@@ -449,7 +449,7 @@ public class ImageServiceImpl implements ImageService {
                 finalKey = dstKey;
             } catch (SdkException e) {
                 log.warn("[UPI] staging_move_failed userId={} src={} dst={} err={}", userId, reqKey, dstKey, e.getMessage());
-                throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
         } else {
             // default거나 이미 영구키면 그대로 사용
@@ -486,7 +486,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public String upsertChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
@@ -536,7 +536,7 @@ public class ImageServiceImpl implements ImageService {
                         .metadataDirective(MetadataDirective.COPY));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
             } catch (SdkException e) {
-                throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
             finalKey = dstKey;
         }
@@ -596,12 +596,12 @@ public class ImageServiceImpl implements ImageService {
         try {
             head = s3Client.headObject(b -> b.bucket(bucket).key(key));
         } catch (SdkException e) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
         long size = head.contentLength();
-        if (size <= 0 || size > maxBytes) throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        if (size <= 0 || size > maxBytes) throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
-        if (!ct.startsWith("image/")) throw new BusinessException(ErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+        if (!ct.startsWith("image/")) throw new BusinessException(ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
     }
 
     public List<ImageDto> findImagesForChatRooms(List<Long> roomIds) {

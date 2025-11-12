@@ -2,7 +2,7 @@ package core.global.apple.service;
 
 import core.domain.user.entity.User;
 import core.global.apple.client.AppleClient;
-import core.global.enums.ErrorCode;
+import core.global.exception.AuthErrorCode;
 import core.global.exception.BusinessException;
 import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class AppleWithdrawalService {
         String appleRefreshToken = user.getAppleRefreshToken();
 
         if (appleRefreshToken == null) {
-            throw new BusinessException(ErrorCode.INVALID_APPLE_REFRESH_TOKEN);
+            throw new BusinessException(AuthErrorCode.INVALID_APPLE_REFRESH_TOKEN);
         }
         String clientSecret = clientSecretGenerator.generateRevokeClientSecret();
         MultiValueMap<String, String> formData = createRevokeFormData(clientSecret, appleRefreshToken);
@@ -48,10 +48,10 @@ public class AppleWithdrawalService {
         } catch (FeignException e) {
             log.error("Apple server returned an error during token revocation.");
             log.error("Status: {}, Reason: {}", e.status(), e.contentUTF8());
-            throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
+            throw new BusinessException(AuthErrorCode.INVALID_APPLE_REQUEST);
         } catch (Exception e) {
             log.error("An unexpected error occurred during Apple token revocation.", e);
-            throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
+            throw new BusinessException(AuthErrorCode.INVALID_APPLE_REQUEST);
         }
     }
 

@@ -25,10 +25,11 @@ import core.domain.usernotificationsetting.repository.UserNotificationSettingRep
 import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
 import core.global.exception.BusinessException;
+import core.global.exception.ImageErrorCode;
+import core.global.exception.UserErrorCode;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
@@ -154,7 +155,7 @@ public class UserService {
     @Transactional
     public void updateUser(User user, AppleLoginByCodeRequest.FullNameDto fullName) {
         if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
         if (fullName != null) {
             boolean isUpdated = false;
@@ -182,7 +183,7 @@ public class UserService {
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
@@ -280,7 +281,7 @@ public class UserService {
                 : auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         String profileKey = imageService.getUserProfileKey(user.getId());
 
@@ -295,24 +296,24 @@ public class UserService {
                 : auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         imageService.deleteUserProfileImage(user.getId());
     }
 
     @Transactional
     public LoginResponseDto signup(SignupRequest req) {
         if (!req.isAgreedToTerms()) {
-            throw new BusinessException(ErrorCode.AGREEMENT_INPUT);
+            throw new BusinessException(UserErrorCode.AGREEMENT_INPUT);
         }
 
         String email = normalizeEmail(req.getEmail());
         if (userRepository.existsByEmail(email)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
+            throw new BusinessException(UserErrorCode.DUPLICATE_RESOURCE);
         }
 
         String verified = redisTemplate.opsForValue().get(EMAIL_VERIFIED_FLAG_KEY + email);
         if (!"1".equals(verified)) {
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
         String rawPw = req.getPassword();
@@ -379,19 +380,19 @@ public class UserService {
         User u = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("[LOGIN] 사용자 없음: email={}", email);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
         if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
         if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
             log.warn("[LOGIN] 비밀번호 불일치: email={}", email);
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
         String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
@@ -414,7 +415,7 @@ public class UserService {
         String email = normalizeEmail(rawEmail);
 
         if (userRepository.existsByEmail(email)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
+            throw new BusinessException(UserErrorCode.DUPLICATE_RESOURCE);
         }
 
         Duration ttl = Duration.ofMinutes(CODE_TTL_MIN);
@@ -485,7 +486,7 @@ public class UserService {
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
         if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
@@ -556,7 +557,7 @@ public class UserService {
         String email = auth.getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (dto.birthday() != null) user.updateBirthdate(dto.birthday());
         if (notBlank(dto.country())) user.updateCountry(dto.country().trim());
@@ -693,7 +694,7 @@ public class UserService {
     @Transactional
     public boolean withdrawUser(Long userId, String accessToken) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean isApple = false;
 
         if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
@@ -756,7 +757,7 @@ public class UserService {
      */
     public UserProfileResponse findUserProfile(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
 
         String profileKey = imageService.getUserProfileKey(user.getId());
@@ -766,7 +767,7 @@ public class UserService {
 
     public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         String profileKey = imageService.getUserProfileKey(user.getId());
         String followStatus;
@@ -814,10 +815,10 @@ public class UserService {
     @Transactional(readOnly = true)
     public ChatUserProfileResponse getUserChatProfile(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ImageErrorCode.IMAGE_NOT_FOUND));
 
         return ChatUserProfileResponse.from(user, image.getUrl());
     }
@@ -831,7 +832,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserAppleStatusResponse checkUserAppleStatus(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         boolean isApple = Ouathplatform.APPLE.toString().equals(user.getProvider());
 
@@ -847,7 +848,7 @@ public class UserService {
     public void updateUserLocation(LocationUpdateRequest dto, Long userId) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
         user.updateIsInKorea(Boolean.TRUE.equals(isInKorea));
     }
@@ -876,7 +877,7 @@ public class UserService {
      */
     public ProfileCompletionResponse checkProfileCompletion(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean completed = user.getBirthdate() != null
                 && user.getPurpose() != null
                 && user.getIntroduction() != null

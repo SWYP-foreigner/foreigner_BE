@@ -4,7 +4,7 @@ package core.global.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import core.global.dto.ApiErrorResponse;
-import core.global.enums.ErrorCode;
+import core.global.exception.AuthErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -32,19 +31,19 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         String errorMessage = authException.getMessage();
         int httpStatus = HttpStatus.UNAUTHORIZED.value();
 
-        if (ErrorCode.JWT_TOKEN_NOT_FOUND.getMessage().equals(errorMessage) ||
-                ErrorCode.JWT_TOKEN_INVALID.getMessage().equals(errorMessage)) {
+        if (AuthErrorCode.JWT_TOKEN_NOT_FOUND.getMessage().equals(errorMessage) ||
+            AuthErrorCode.JWT_TOKEN_INVALID.getMessage().equals(errorMessage)) {
             httpStatus = HttpStatus.UNAUTHORIZED.value();
-        } else if (ErrorCode.JWT_TOKEN_EXPIRED.getMessage().equals(errorMessage) ||
-                ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage().equals(errorMessage)) {
+        } else if (AuthErrorCode.JWT_TOKEN_EXPIRED.getMessage().equals(errorMessage) ||
+                   AuthErrorCode.JWT_TOKEN_BLACKLISTED.getMessage().equals(errorMessage)) {
             httpStatus = HttpStatus.UNAUTHORIZED.value();
         }
 
         // 응답 객체 생성
-        ApiErrorResponse errorResponse = new ApiErrorResponse(
+        ApiErrorResponse errorResponse = ApiErrorResponse.of(
+                "AuthErrorCode",
                 errorMessage,
-                String.valueOf(httpStatus),
-                LocalDateTime.now()
+                String.valueOf(httpStatus)
         );
 
         response.setStatus(httpStatus);

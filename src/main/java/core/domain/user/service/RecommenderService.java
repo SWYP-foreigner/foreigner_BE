@@ -1,13 +1,11 @@
 package core.domain.user.service;
 
 import core.domain.user.dto.CommendUsersProfileResponse;
-import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.exception.UserErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -33,7 +31,7 @@ public class RecommenderService {
         String email = auth.getName();
 
         User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         return recommender.recommendForUser(me.getId(), limit);
     }

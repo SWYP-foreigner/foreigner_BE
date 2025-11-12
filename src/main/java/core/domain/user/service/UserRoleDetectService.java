@@ -1,8 +1,8 @@
 package core.domain.user.service;
 
 import core.domain.user.entity.User;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.exception.UserErrorCode;
 import core.global.image.service.ImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,7 @@ public class UserRoleDetectService {
             || user.getSex() == null
             || userProfileKey == null
             || DEFAULT_PROFILE_URL.equals(userProfileKey)) {
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
         }
     }
 }

@@ -21,6 +21,9 @@ import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
+import core.global.exception.CommonErrorCode;
+import core.global.exception.CommunityErrorCode;
+import core.global.exception.UserErrorCode;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
 import core.global.like.entity.Like;
@@ -73,11 +76,11 @@ public class PostServiceImpl implements PostService {
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
-            throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
+            throw new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND);
         }
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
         final Map<String, Object> c = safeDecode(cursor);
@@ -183,15 +186,15 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         if(blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
-            throw new BusinessException(ErrorCode.BLOCKED_USER_POST);
+            throw new BusinessException(CommunityErrorCode.BLOCKED_USER_POST);
         }
 
         postRepository.increaseViewCount(postId);
@@ -210,12 +213,12 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void writePost(@Positive Long boardId, PostWriteRequest request) {
         if (boardId == 1) {
-            throw new BusinessException(ErrorCode.NOT_AVAILABLE_WRITE);
+            throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_WRITE);
         }
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
 
@@ -259,7 +262,7 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findByCategory(BoardCategory.ACTIVITY)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         validateChatRoomPolicy(board.getCategory(), request.link());
 
@@ -272,7 +275,7 @@ public class PostServiceImpl implements PostService {
 
     private void validatePostForbiddenWord(String content) {
         if (forbiddenWordService.containsForbiddenWord(content)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
         }
     }
 
@@ -281,7 +284,7 @@ public class PostServiceImpl implements PostService {
                 category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
 
         if (!allowAnonymous && !link.isEmpty()) {
-            throw new BusinessException(ErrorCode.NOT_AVAILABLE_LINK);
+            throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_LINK);
         }
 
     }
@@ -291,13 +294,13 @@ public class PostServiceImpl implements PostService {
                 category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
 
         if (!allowAnonymous && isAnonymous) {
-            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
+            throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_ANONYMOUS);
         }
     }
 
     private Post getPost(String email, PostWriteRequest request, Board board) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -309,7 +312,7 @@ public class PostServiceImpl implements PostService {
 
     private Post getPost(String email, PostWriteForChatRequest request, Board board) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -325,15 +328,15 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         if (!email.equals(post.getAuthor().getEmail())) {
-            throw new BusinessException(ErrorCode.POST_EDIT_FORBIDDEN);
+            throw new BusinessException(CommunityErrorCode.POST_EDIT_FORBIDDEN);
         }
 
         if (request.content() != null && !request.content().equals(post.getContent())) {
@@ -351,16 +354,16 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.POST_DELETE_FORBIDDEN);
+            throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
         }
 
         String folderPrefix = "posts/" + postId;
@@ -381,14 +384,14 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
-            throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
+            throw new BusinessException(CommunityErrorCode.LIKE_ALREADY_EXIST);
         }
 
         likeRepository.save(Like.builder()
@@ -404,7 +407,7 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -418,7 +421,7 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -459,7 +462,7 @@ public class PostServiceImpl implements PostService {
     @Override
     public CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(Long postId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
     }
@@ -470,23 +473,23 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         User blockedUser = postRepository.findUserByPostId(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockedUser.getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
@@ -498,23 +501,23 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         if (post.getAuthor().getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockPostRepository.existsBlock(me.getId(), post.getId())) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         blockPostRepository.save(new BlockPost(me, post));
