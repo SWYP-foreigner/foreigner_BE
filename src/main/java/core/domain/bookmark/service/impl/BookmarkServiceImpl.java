@@ -9,10 +9,11 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.exception.BusinessException;
+import core.global.exception.CommunityErrorCode;
+import core.global.exception.UserErrorCode;
 import core.global.image.repository.ImageRepository;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
@@ -172,15 +173,15 @@ public class BookmarkServiceImpl implements BookmarkService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         Optional<Bookmark> bookmark = bookmarkRepository.findByUserEmailAndPostId(email, postId);
         if (bookmark.isPresent()) {
-            throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
+            throw new BusinessException(CommunityErrorCode.BOOKMARK_ALREADY_EXIST);
         }
 
         Post post = postRepository.findById(postId).
-                orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         bookmarkRepository.save(Bookmark.createBookmark(user, post));
     }

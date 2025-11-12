@@ -8,8 +8,8 @@ import core.global.apple.dto.ApplePublicKeyResponse;
 import core.global.apple.dto.AppleRefreshTokenResponse;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.ErrorCode;
 import core.global.enums.Ouathplatform;
+import core.global.exception.AuthErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.Claims;
@@ -67,19 +67,19 @@ public class AppleAuthService {
             String expectedIssuer = "https://appleid.apple.com";
             String actualIssuer = claims.getIssuer();
             if (!expectedIssuer.equals(actualIssuer)) {
-                throw new BusinessException(ErrorCode.INVALID_JWT_ISSUER);
+                throw new BusinessException(AuthErrorCode.INVALID_JWT_ISSUER);
             }
 
 
             String expectedAudience = appleProps.appBundleId();
             String actualAudience = claims.getAudience();
             if (!expectedAudience.equals(actualAudience)) {
-                throw new BusinessException(ErrorCode.INVALID_JWT_AUDIENCE);
+                throw new BusinessException(AuthErrorCode.INVALID_JWT_AUDIENCE);
             }
 
             String nonceFromToken = claims.get("nonce", String.class);
             if (nonce == null || !nonce.equals(nonceFromToken)) {
-                throw new BusinessException(ErrorCode.INVALID_JWT_NONCE);
+                throw new BusinessException(AuthErrorCode.INVALID_JWT_NONCE);
             }
 
             return claims;
@@ -88,7 +88,7 @@ public class AppleAuthService {
             throw e;
         } catch (Exception e) {
             log.error("Apple identityToken 검증 중 예상치 못한 심각한 오류 발생", e);
-            throw new BusinessException(ErrorCode.INVALID_JWT_APPLE);
+            throw new BusinessException(AuthErrorCode.INVALID_JWT_APPLE);
         }
     }
 
@@ -155,7 +155,7 @@ public class AppleAuthService {
             return response.refreshToken();
         } catch (Exception e) {
             log.error("Failed to get token from Apple server.", e);
-            throw new BusinessException(ErrorCode.INVALID_APPLE_REQUEST);
+            throw new BusinessException(AuthErrorCode.INVALID_APPLE_REQUEST);
         }
     }
 

@@ -14,6 +14,9 @@ import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
+import core.global.exception.ChatErrorCode;
+import core.global.exception.ImageErrorCode;
+import core.global.exception.UserErrorCode;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
 import core.global.image.service.ImageService;
@@ -84,7 +87,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<ChatRoom> rooms = chatRoomRepo.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
@@ -164,7 +167,7 @@ public class ChatService {
 
     private String getLastNonBlockedMessageContent(Long roomId, Long userId) {
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<User> blockedUsers = blockRepository.findByUser(currentUser)
                 .stream()
@@ -186,7 +189,7 @@ public class ChatService {
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
         User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -219,9 +222,9 @@ public class ChatService {
 
     private ChatRoom createNewOneToOneChatRoom(Long userId1, Long userId2) {
         User currentUser = userRepository.findById(userId1)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         User otherUser = userRepository.findById(userId2)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         ChatRoom newRoom = new ChatRoom(false, Instant.now(), "1:1 채팅방");
 
@@ -250,13 +253,13 @@ public class ChatService {
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         participant.leave();
         deleteRoomIfEmpty(roomId);
         return true;
@@ -271,7 +274,7 @@ public class ChatService {
     @Transactional
     public void deleteRoomIfEmpty(Long roomId) {
         ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         long remainingActiveParticipants = participantRepo.countByChatRoomIdAndStatus(roomId, ChatParticipantStatus.ACTIVE);
 
@@ -287,13 +290,13 @@ public class ChatService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         List<ChatParticipant> participants = chatParticipantRepository.findByChatRoom(chatRoom);
         return participants.stream()
@@ -327,7 +330,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatMessage> getRawMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
         if (participant.getStatus() == ChatParticipantStatus.LEFT && participant.getLastLeftAt() != null) {
             Instant lastLeftAt = participant.getLastLeftAt();
@@ -375,9 +378,9 @@ public class ChatService {
 
     ) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
-        userRoleDetectService.isProfileSetUpUser(userRepository.findById(userId).orElseThrow(()-> new BusinessException(ErrorCode.USER_NOT_FOUND)));
+        userRoleDetectService.isProfileSetUpUser(userRepository.findById(userId).orElseThrow(()-> new BusinessException(UserErrorCode.USER_NOT_FOUND)));
 
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
@@ -449,13 +452,13 @@ public class ChatService {
         log.info("roomId " + roomId);
         log.info("userId " + senderId);
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         ChatParticipant senderParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
         if (senderParticipant.getStatus() == ChatParticipantStatus.LEFT) {
             senderParticipant.reJoin();
@@ -479,12 +482,12 @@ public class ChatService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
@@ -558,7 +561,7 @@ public class ChatService {
         Long newLastReadId = req.lastReadMessageId();
 
         ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         Long previousLastReadId = readerParticipant.getLastReadMessageId() == null ? 0L : readerParticipant.getLastReadMessageId();
 
@@ -600,7 +603,7 @@ public class ChatService {
      */
     private ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
          ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
                 .orElse(null);
@@ -677,7 +680,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         List<ChatParticipant> activeParticipants = chatRoom.getParticipants().stream()
                 .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
@@ -720,26 +723,26 @@ public class ChatService {
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
 
         userRoleDetectService.isProfileSetUpUser(user);
 
         ChatRoom room = chatRoomRepo.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         if (!room.getGroup()) {
-            throw new BusinessException(ErrorCode.CHAT_NOT_GROUP);
+            throw new BusinessException(ChatErrorCode.CHAT_NOT_GROUP);
         }
 //
 //        User user = userRepository.findById(userId)
-//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+//                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .ifPresentOrElse(
                         participant -> {
                             if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
-                                throw new BusinessException(ErrorCode.ALREADY_CHAT_PARTICIPANT);
+                                throw new BusinessException(ChatErrorCode.ALREADY_CHAT_PARTICIPANT);
                             } else {
                                 participant.reJoin();
                             }
@@ -850,7 +853,7 @@ public class ChatService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -883,15 +886,13 @@ public class ChatService {
     @Transactional(readOnly = true)
     public ChatUserProfileResponse getUserProfile(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
+        String image = imageService.getUserProfileKey(userId);
 
-        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
-
-        return ChatUserProfileResponse.from(user, image.getUrl());
+        return ChatUserProfileResponse.from(user, image);
     }
 
     @Transactional
@@ -899,13 +900,13 @@ public class ChatService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
         participant.toggleTranslation(enable);
     }
 
@@ -919,7 +920,7 @@ public class ChatService {
         ChatRoom chatRoom = savedMessage.getChatRoom();
         List<ChatParticipant> participants = chatRoom.getParticipants();
         User senderUser = userRepository.findById(req.senderId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
                 .map(Image::getUrl)
                 .orElse(null);
@@ -1007,7 +1008,7 @@ public class ChatService {
     @Transactional
     public void AllmarkMessagesAsRead(Long roomId, Long readerId, Long lastReadMessageId) {
         ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
 
         readerParticipant.setLastReadMessageId(lastReadMessageId);
     }
@@ -1020,13 +1021,13 @@ public class ChatService {
     @Transactional
     public void createGroupChatRoom(Long userId, CreateGroupChatRequest request) {
         User owner = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(owner);
 
 
         if (request.roomName() == null || request.roomName().isBlank()) {
-            throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
+            throw new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND);
         }
 
         ChatRoom newRoom = new ChatRoom(
@@ -1046,7 +1047,7 @@ public class ChatService {
                 imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
             } catch (Exception e) {
                 log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
-                throw new BusinessException(ErrorCode.IMAGE_PROCESSING_FAILED);
+                throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);
             }
         }
     }
@@ -1057,13 +1058,13 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
         List<ChatMessage> olderMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(olderMessages);
 
         ChatMessage targetMessage = chatMessageRepository.findById(targetMessageId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
         List<ChatMessage> newerMessages = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
@@ -1133,10 +1134,10 @@ public class ChatService {
     @Transactional
     public void deleteMessageAndBroadcast(Long messageId, Long userId) {
         ChatMessage message = chatMessageRepository.findById(messageId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
         if (!message.getSender().getId().equals(userId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+            throw new BusinessException(ChatErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
         Map<String, String> payload = Map.of(
                 "id", messageId.toString(),
@@ -1163,7 +1164,7 @@ public class ChatService {
      */
     public boolean isChatRoomGroup(Long roomId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         return Boolean.TRUE.equals(room.getGroup());
     }
@@ -1173,23 +1174,23 @@ public class ChatService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         User blockedUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         if (blockedUser.getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
@@ -1204,9 +1205,9 @@ public class ChatService {
     @Transactional
     public void processAndSendMediaMessage(SendMediaMessageRequest req) {
         ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         User sender = userRepository.findById(req.senderId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
         chatMessageRepository.save(savedMessage);
@@ -1302,7 +1303,7 @@ public class ChatService {
 
         Optional<ChatParticipant> participantOptional = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId);
         if (participantOptional.isEmpty()) {
-            throw new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND);
+            throw new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND);
         }
 
         ChatParticipant participant = participantOptional.get();
@@ -1312,7 +1313,7 @@ public class ChatService {
     public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
          ChatParticipant participant =
                  chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                         .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+                         .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
     }
 }

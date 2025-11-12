@@ -2,7 +2,7 @@ package core.global.security;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import core.global.enums.ErrorCode;
+import core.global.exception.AuthErrorCode;
 import core.global.exception.BusinessException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
@@ -133,9 +133,9 @@ public class JwtTokenProvider {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (SignatureException | MalformedJwtException e) {
-            throw new BusinessException(ErrorCode.INVALID_JWT);
+            throw new BusinessException(AuthErrorCode.INVALID_JWT);
         } catch (ExpiredJwtException e) {
-            throw new BusinessException(ErrorCode.JWT_EXPIRED);
+            throw new BusinessException(AuthErrorCode.JWT_EXPIRED);
         }
     }
     /**

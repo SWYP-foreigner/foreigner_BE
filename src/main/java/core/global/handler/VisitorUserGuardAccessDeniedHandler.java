@@ -1,6 +1,6 @@
 package core.global.handler;
 
-import core.global.enums.ErrorCode;
+import core.global.exception.UserErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -51,7 +51,7 @@ public class VisitorUserGuardAccessDeniedHandler implements AccessDeniedHandler 
             String body = """
                     {"error":"%s","message":"%s","timestamp":"%s"}
                     """.formatted(
-                    ErrorCode.PROFILE_SET_NOT_COMPLETED.getMessage(), // "프로필이 완성되지 않았습니다."
+                    UserErrorCode.PROFILE_SET_NOT_COMPLETED.getMessage(), // "프로필이 완성되지 않았습니다."
                     "428",
                     now
             );
