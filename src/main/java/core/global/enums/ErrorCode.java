@@ -19,6 +19,7 @@ public enum ErrorCode {
     DUPLICATE_RESOURCE(HttpStatus.FORBIDDEN, "중복된 이메일입니다."),
     AUTHENTICATION_OVER_FAILED(HttpStatus.FORBIDDEN, "횟수가 넘어갔습니다."),
     AUTHENTICATION_FAILED(HttpStatus.FORBIDDEN, "이메일 또는 비밀번호가 올바르지 않습니다."),
+    AUTHENTICATION_ADMIN_FAILED(HttpStatus.UNAUTHORIZED, "관리자 계정이 아닙니다. 접근 권한이 없습니다."),
     PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST, "비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
     CANNOT_FOLLOW_YOURSELF(HttpStatus.BAD_REQUEST, "자기자신은  팔로우가 불가능합니다."),

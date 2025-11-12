@@ -11,7 +11,6 @@ public record AuthResponse(
         long expiresInMillis,   // 액세스 토큰 만료(ms)
         Long userId,
         String email,
-        Boolean isNewUser,
-        String role
+        Boolean isNewUser
 ) {
 }

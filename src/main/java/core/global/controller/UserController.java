@@ -8,6 +8,7 @@ import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.apple.dto.withdrawIsApple;
 import core.global.config.CustomUserDetails;
+import core.global.exception.BusinessException;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.metrics.FeatureUsageMetrics;
@@ -15,10 +16,13 @@ import core.global.apple.service.AppleAuthService;
 import core.global.service.GoogleAuthService;
 import core.global.service.PasswordService;
 import core.global.redis.service.RedisService;
+import core.global.util.CookieUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +51,7 @@ public class UserController {
     private final ApplicationEventPublisher publisher;
     private final GoogleAuthService googleAuthService;
     private final FeatureUsageMetrics featureUsageMetrics;
+    private final CookieUtil cookieUtil;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -176,6 +181,37 @@ public class UserController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
         AuthResponse response = userService.login(req);
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "관리자 웹페이지 전용 로그인",
+            description = "관리자 계정(ADMIN)인지 확인하고, HttpOnly 쿠키에 accessToken을 발급합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "관리자 로그인 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "아이디 또는 비밀번호 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자(ADMIN) 계정이 아님")
+    })
+    @PostMapping("/admin/login")
+    public ResponseEntity<ApiResponse<String>> adminWebLogin(
+            @Valid @RequestBody EmailLoginDto req,
+            HttpServletResponse httpResponse
+    ) {
+        try {
+            AuthResponse authResponse = userService.adminLogin(req);
+
+            long maxAgeInSeconds = authResponse.expiresInMillis() / 1000;
+            cookieUtil.createTokenCookie(
+                    httpResponse,
+                    "accessToken",
+                    authResponse.accessToken(),
+                    maxAgeInSeconds
+            );
+
+            return ResponseEntity.ok(ApiResponse.success("관리자 로그인 성공"));
+
+        } catch (BusinessException e) {
+            return ResponseEntity.status(e.getStatus())
+                    .body(ApiResponse.fail(e.getMessage()));
+        }
     }
 
     @PostMapping("/email/check")

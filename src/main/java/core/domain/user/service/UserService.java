@@ -423,9 +423,48 @@ public class UserService {
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "email"));
 
-        String role = u.getUserRole().name();
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
+    }
 
-        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser(), role);
+    @Transactional
+    public AuthResponse adminLogin(EmailLoginDto req) {
+
+        String email = normalizeEmail(req.getEmail());
+
+        User u = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("[ADMIN LOGIN] 사용자 없음: email={}", email);
+                    return new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+                });
+
+        log.debug("[ADMIN LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
+
+        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+            log.warn("[ADMIN LOGIN] provider 불일치: provider={}", u.getProvider());
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
+            log.warn("[ADMIN LOGIN] 비밀번호 불일치: email={}", email);
+            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        if (u.getUserRole() != Role.ADMIN) {
+            log.warn("[ADMIN LOGIN] 관리자 계정이 아님: id={}, role={}", u.getId(), u.getUserRole());
+            throw new BusinessException(ErrorCode.AUTHENTICATION_ADMIN_FAILED);
+        }
+
+        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());
+        String refresh = jwtTokenProvider.createRefreshToken(u.getId());
+        long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
+        Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
+        long refreshExpirationMillis = refreshExpiration.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(u.getId(), refresh, refreshExpirationMillis);
+
+        log.info("[ADMIN LOGIN] 관리자 로그인 성공: id={}, email={}", u.getId(), u.getEmail());
+        publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "email"));
+
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 
     /**
