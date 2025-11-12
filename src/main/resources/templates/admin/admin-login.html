@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>관리자 로그인</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; }
+        .login-container { background-color: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        h1 { color: #333; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; }
+        .form-group input { width: 300px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
+        .btn-login { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
+        .btn-login:hover { background-color: #0056b3; }
+        #error-message { color: red; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h1>관리자 페이지 로그인</h1>
+    <form id="loginForm">
+        <div class="form-group">
+            <label for="email">이메일</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        <div class="form-group">
+            <label for="password">비밀번호</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn-login">로그인</button>
+        <p id="error-message"></p>
+    </form>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorMessageEl = document.getElementById('error-message');
+        errorMessageEl.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/v1/member/doLogin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || '로그인에 실패했습니다.');
+            }
+
+            if (data.role !== 'ADMIN') {
+                throw new Error('관리자 계정이 아닙니다. 접근 권한이 없습니다.');
+            }
+
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+
+            window.location.href = '/admin/users/home';
+
+        } catch (error) {
+            errorMessageEl.textContent = error.message;
+            errorMessageEl.style.display = 'block';
+        }
+    });
+</script>
+</body>
+</html>

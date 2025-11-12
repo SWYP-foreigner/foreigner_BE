@@ -423,7 +423,9 @@ public class UserService {
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "email"));
 
-        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
+        String role = u.getUserRole().name();
+
+        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser(), role);
     }
 
     /**
