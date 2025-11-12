@@ -20,11 +20,11 @@ UPDATE users
 SET user_role = 'VISITOR'
 WHERE user_role <> 'ADMIN'
   AND (
-    birthdate    IS NULL OR
-    purpose      IS NULL OR
-    introduction IS NULL OR
-        language     IS NULL OR
-        hobby        IS NULL OR
-        sex          IS NULL OR
-        country      IS NULL
+    birth_date    IS NULL OR
+    visit_purpose IS NULL OR
+    introduction  IS NULL OR
+    languages     IS NULL OR
+    hobby         IS NULL OR
+    sex           IS NULL OR
+    nationality   IS NULL
     );
