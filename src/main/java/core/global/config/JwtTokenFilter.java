@@ -128,8 +128,17 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
-            String role = jwtTokenProvider.getRoleFromToken(token);      // "USER" / "VISITOR" / "ADMIN"
+            String role = jwtTokenProvider.getRoleFromToken(token);
 
+            if ("OUTCAST".equals(role)) {
+                log.warn("Access denied for OUTCAST user. email={}");
+                jwtAuthenticationEntryPoint.commence(
+                        request,
+                        response,
+                        new BadCredentialsException(ErrorCode.JWT_INVAIL_ROLE.getMessage())
+                );
+                return;
+            }
             List<GrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // ROLE_USER 등
 

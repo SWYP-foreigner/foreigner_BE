@@ -8,6 +8,7 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -110,7 +111,12 @@ public class JwtTokenProvider {
 
     public String getRoleFromToken(String token) {
         Object v = getAllClaimsFromToken(token).get("role");
-        return v != null ? String.valueOf(v) : "VISITOR"; // 기본값 안전장치
+
+        if (v == null) {
+            throw new BadCredentialsException("Invalid token: Missing 'role' claim.");
+        }
+
+        return String.valueOf(v);
     }
 
     public Map<String, String> parseHeaders(String token) throws JsonProcessingException {

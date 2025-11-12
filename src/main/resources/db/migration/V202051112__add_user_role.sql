@@ -25,6 +25,6 @@ WHERE user_role <> 'ADMIN'
     introduction IS NULL OR
         language     IS NULL OR
         hobby        IS NULL OR
-        sex          IS NULL
+        sex          IS NULL OR
+        country      IS NULL
     );
-
