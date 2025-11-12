@@ -9,6 +9,7 @@ import core.domain.post.repository.CrawledDataRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.config.CustomUserDetails;
 import core.global.enums.CrawledDataStatus;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
@@ -18,6 +19,7 @@ import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,8 +50,11 @@ public class CrawledDataAdminService {
         Board targetBoard = boardRepository.findById(boardId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
 
-        // TODO: 게시글 작성자를 특정 관리자 계정으로 설정해야 합니다. 여기서는 ID 1번 유저를 관리자로 가정합니다.
-        User adminUser = userRepository.findById(1L)
+        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        Long adminUserId = principal.getUserId();
+
+        User adminUser = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         Post newPost = new Post(
