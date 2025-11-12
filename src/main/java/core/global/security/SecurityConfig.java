@@ -1,4 +1,4 @@
-package core.global.config;
+package core.global.security;
 
 import core.global.constants.*;
 import core.global.metrics.ActiveUserRecordFilter;
@@ -42,30 +42,32 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1) 완전 공개
+
+                        // 1) [수정] 완전 공개 경로 (JWT 불필요)
+                        // PermitAllPaths에 정의된 경로들
                         .requestMatchers(PermitAllPaths.PATTERNS.toArray(String[]::new)).permitAll()
 
-                        // 2) ADMIN 전용
+                        // 2) ADMIN 전용 경로
                         .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
 
-                        // 3) USER 전용(ADMIN 포함)
-                        .requestMatchers(UserOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("USER","ADMIN")
+                        // 3) AI 전용 경로 (ADMIN도 접근 가능)
+                        .requestMatchers(AIOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("AI", "ADMIN")
 
-                        // 4) (선택) 인증만 필요
-                        .requestMatchers(AIOnlyPaths.PATTERNS.toArray(String[]::new)).authenticated()
-
-                        // 5) 나머지
-                        .anyRequest().authenticated()
+                        // 4) [핵심] 나머지 모든 경로 (모든 일반 기능)
+                        // VISITOR, USER, ADMIN 모두 접근 가능하도록 설정
+                        // (클라이언트가 준비될 때까지 VISITOR와 USER를 동일하게 취급)
+                        .anyRequest().hasAnyRole("VISITOR", "USER", "ADMIN")
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
-                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-        );
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                );
+
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
-
     /* todo chat 리팩토링 끝날시 다시 open
     *   */
     /* @Bean

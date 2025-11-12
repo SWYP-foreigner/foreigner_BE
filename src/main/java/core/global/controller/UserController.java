@@ -8,7 +8,7 @@ import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.apple.dto.withdrawIsApple;
 import core.global.config.CustomUserDetails;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.apple.service.AppleAuthService;

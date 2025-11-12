@@ -1,5 +1,6 @@
-package core.global.config;
+package core.global.security;
 
+import core.global.config.CustomUserDetails;
 import core.global.enums.ErrorCode;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -40,31 +41,18 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
-    private static final List<String> EXCLUDE_URLS = List.of(
-            "/api/v1/member/google/app-login",
-            "/api/v1/member/apple/app-login",
-            "/api/v1/member/doLogin",
-            "/api/v1/member/signup",
-            "/api/v1/member/verify-code",
-            "/api/v1/member/send-verification-email",
-            "/api/v1/member/password/**",
-            "/api/v1/member/email/check",
-            "/api/v1/member/refresh",
-            "/api/v1/images/presign",
-            "/actuator/**",
-            "/error", "/error/**",
-            "/ws/**", "/ws"
-    );
+
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
-        boolean shouldNotFilter = EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
+        boolean shouldNotFilter = PermitAllPaths.PATTERNS.stream()
+                .anyMatch(url -> pathMatcher.match(url, requestUri));
 
         if (requestUri.startsWith("/ws")) {
             log.info(">>>> [DEPLOYMENT CHECK] /ws request detected in shouldNotFilter. Result={}", shouldNotFilter);
         }
-        return EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
+        return shouldNotFilter;
     }
 
     @PostConstruct

@@ -23,7 +23,7 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
