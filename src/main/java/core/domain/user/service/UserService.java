@@ -591,18 +591,20 @@ public class UserService {
 
 
         // 3) VISITOR -> USER 승급
+        // 3) [삭제] VISITOR -> USER 승급 로직 (엔티티가 이미 처리함)
+        /*
         if (user.getUserRole() == Role.VISITOR) {
             user.changeUserRole(Role.USER);
         }
-        // (필요 시: userRepository.save(user); // JPA 영속 상태면 생략 가능)
+        */
+        // (JPA가 @Transactional에 의해 자동으로 save/flush 해줄 것임)
 
-        // 4) 새 accessToken 발급 (role=USER)
+        // 4) 새 accessToken 발급 (엔티티가 결정한 현재 role 사용)
         String accessToken = jwtTokenProvider.createAccessToken(
                 user.getId(),
-                user.getUserRole().name(),
+                user.getUserRole().name(), // user 객체의 최신 role을 그대로 읽음
                 user.getEmail()
         );
-
         // 5) 리프레시 토큰
         String refreshToken = redisService.getRefreshToken(user.getId());
         if (refreshToken == null) {
