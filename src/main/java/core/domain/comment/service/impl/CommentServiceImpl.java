@@ -1,9 +1,5 @@
 package core.domain.comment.service.impl;
 
-import core.domain.notification.dto.NotificationEvent;
-import core.domain.user.entity.BlockUser;
-import core.domain.user.repository.BlockRepository;
-import core.global.service.ForbiddenWordService;
 import core.domain.comment.dto.CommentItem;
 import core.domain.comment.dto.CommentUpdateRequest;
 import core.domain.comment.dto.CommentWriteRequest;
@@ -18,6 +14,7 @@ import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
@@ -56,6 +53,7 @@ public class CommentServiceImpl implements CommentService {
     private final BlockRepository blockRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TranslationService translationService;
+    private final UserRoleDetectService userRoleDetectService;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,6 +62,7 @@ public class CommentServiceImpl implements CommentService {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Long myId = user.getId();
         int pageSize = clampPageSize(size);
@@ -101,8 +100,8 @@ public class CommentServiceImpl implements CommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -172,6 +171,9 @@ public class CommentServiceImpl implements CommentService {
     public void updateComment(Long commentId, CommentUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
@@ -194,6 +196,9 @@ public class CommentServiceImpl implements CommentService {
     public void deleteComment(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
@@ -215,6 +220,9 @@ public class CommentServiceImpl implements CommentService {
     @Transactional(readOnly = true)
     public CursorPageResponse<UserCommentItem> getMyCommentList(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
@@ -246,8 +254,8 @@ public class CommentServiceImpl implements CommentService {
     public void addLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, commentId, LikeType.COMMENT);
         if (existedLike.isPresent()) {
@@ -267,6 +275,9 @@ public class CommentServiceImpl implements CommentService {
     public void deleteLike(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
+
         likeRepository.deleteByUserEmailAndIdAndType(email, commentId, LikeType.COMMENT);
     }
 
@@ -274,6 +285,9 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public void blockUser(Long commentId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = getUserOrThrow(email);
+        userRoleDetectService.isProfileSetUpUser(user);
 
         User blockedUser = commentRepository.findUserByCommentId(commentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

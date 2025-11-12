@@ -18,6 +18,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
@@ -60,6 +61,7 @@ public class PostServiceImpl implements PostService {
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
     private final TranslationService translationService;
+    private final UserRoleDetectService userRoleDetectService;
 
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -179,8 +181,11 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public PostDetailResponse getPostDetail(Long postId, Boolean translate) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(()->new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -294,6 +299,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        userRoleDetectService.isProfileSetUpUser(user);
+
         final Post post = new Post(request, user, board);
         eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
@@ -303,6 +310,8 @@ public class PostServiceImpl implements PostService {
     private Post getPost(String email, PostWriteForChatRequest request, Board board) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
         eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
@@ -314,6 +323,11 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void updatePost(Long postId, @Valid PostUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -335,6 +349,12 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void deletePost(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -363,6 +383,10 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
+
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
             throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
@@ -380,6 +404,12 @@ public class PostServiceImpl implements PostService {
     public void removeLike(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+
+
         likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
 
@@ -387,6 +417,12 @@ public class PostServiceImpl implements PostService {
     @Transactional(readOnly = true)
     public CursorPageResponse<UserPostItem> getMyPostList(String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
@@ -434,6 +470,12 @@ public class PostServiceImpl implements PostService {
     public void blockUser(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+
+
         User blockedUser = postRepository.findUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -455,6 +497,12 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void blockPost(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));

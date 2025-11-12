@@ -35,6 +35,7 @@ public class FollowService {
     private final ApplicationEventPublisher eventPublisher;
     private final SocialChatMetrics socialChatMetrics;
     private final FollowActivityLogRepository followActivityLogRepository;
+    private final UserRoleDetectService userRoleDetectService;
 
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 SocialChatMetrics에서 UNK 처리
@@ -127,6 +128,9 @@ public class FollowService {
 
         User follower = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(follower);
+
 
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> {
