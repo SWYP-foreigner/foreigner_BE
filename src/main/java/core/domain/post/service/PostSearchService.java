@@ -35,14 +35,6 @@ public class PostSearchService {
     private final UserRepository userRepository;
     private final SuggestMemoryIndex memoryIndex;
 
-    private static Long toLong(Object o) {
-        return (o == null) ? null : ((Number) o).longValue();
-    }
-
-    private static Double toDouble(Object o) {
-        return (o == null) ? null : ((Number) o).doubleValue();
-    }
-
     @Transactional(readOnly = true)
     public CursorPageResponse<SearchResultView> search(
             String q,
