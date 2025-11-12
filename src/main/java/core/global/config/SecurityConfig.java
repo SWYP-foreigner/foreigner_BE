@@ -66,6 +66,8 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /* todo chat 리팩토링 끝날시 다시 open
+    *   */
     /* @Bean
      public AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
          messages

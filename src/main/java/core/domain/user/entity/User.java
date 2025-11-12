@@ -28,6 +28,7 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
+    // ... (id, name, firstName, lastName 등 다른 필드는 동일)
     @Column(name = "name")
     private String name;
 
@@ -98,6 +99,7 @@ public class User {
     @Column(name = "is_in_korea")
     private boolean isInKorea;
 
+
     @Enumerated(EnumType.STRING)
     @Column(name = "user_role", nullable = false, length = 20)
     private Role userRole = Role.VISITOR;
@@ -107,6 +109,7 @@ public class User {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserNotificationSetting> notificationSettings = new ArrayList<>();
+
     @Builder
     public User(String firstName,
                 String lastName,
@@ -120,7 +123,7 @@ public class User {
                 String provider,
                 String socialId,
                 String email,String appleRefreshToken
-                ,Instant createdAt) {
+            ,Instant createdAt) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.sex = sex;
@@ -135,7 +138,32 @@ public class User {
         this.email = email;
         this.appleRefreshToken = appleRefreshToken;
         this.createdAt = createdAt;
+
+        this.updateRoleBasedOnProfile();
     }
+
+    /**
+     * [핵심 로직]
+     * 프로필 필드 완성도에 따라 userRole을 VISITOR 또는 USER로 자동 변경합니다.
+     * ADMIN 역할은 절대 변경하지 않습니다.
+     */
+    private void updateRoleBasedOnProfile() {
+        if (this.userRole == Role.ADMIN) {
+            return;
+        }
+
+        if (this.birthdate == null
+                || this.purpose == null
+                || this.introduction == null
+                || this.language == null
+                || this.hobby == null
+                || this.sex == null) {
+            this.userRole = Role.VISITOR;
+        } else {
+            this.userRole = Role.USER;
+        }
+    }
+
 
     public void updateFirstName(String firstName) {
         if (notBlank(firstName)) this.firstName = firstName.trim();
@@ -147,33 +175,8 @@ public class User {
         touchUpdatedAt();
     }
 
-    public void updateSex(String sex) {
-        if (sex != null) this.sex = sex;
-        touchUpdatedAt();
-    }
-
-    public void updateBirthdate(String birthdate) {
-        if (birthdate != null) this.birthdate = birthdate;
-        touchUpdatedAt();
-    }
-
     public void updateCountry(String country) {
         if (notBlank(country)) this.country = country.trim();
-        touchUpdatedAt();
-    }
-
-    public void updateIntroduction(String introduction) {
-        if (notBlank(introduction)) this.introduction = introduction.trim();
-        touchUpdatedAt();
-    }
-
-    public void updatePurpose(String purpose) {
-        if (notBlank(purpose)) this.purpose = purpose.trim();
-        touchUpdatedAt();
-    }
-
-    public void updateLanguage(String language) {
-        if (notBlank(language)) this.language = language;
         touchUpdatedAt();
     }
 
@@ -182,10 +185,49 @@ public class User {
         touchUpdatedAt();
     }
 
-    public void updateHobby(String hobby) {
-        if (notBlank(hobby)) this.hobby = hobby;
+
+    public void updateSex(String sex) {
+        if (sex != null) this.sex = sex;
+        updateRoleBasedOnProfile();
         touchUpdatedAt();
     }
+
+    public void updateBirthdate(String birthdate) {
+        if (birthdate != null) this.birthdate = birthdate;
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
+    public void updateIntroduction(String introduction) {
+        if (notBlank(introduction)) this.introduction = introduction.trim();
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
+    public void updatePurpose(String purpose) {
+        if (notBlank(purpose)) this.purpose = purpose.trim();
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
+    public void updateLanguage(String language) {
+        if (notBlank(language)) this.language = language;
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
+    public void updateHobby(String hobby) {
+        if (notBlank(hobby)) this.hobby = hobby;
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
+    public void updateGender(String s) {
+        this.sex = s;
+        updateRoleBasedOnProfile();
+        touchUpdatedAt();
+    }
+
 
     public void updatePassword(String password) {
         if (notBlank(password)) this.password = password;
@@ -245,11 +287,11 @@ public class User {
     }
 
 
+    /**
+     * (주의) 이 메서드는 ADMIN 등에 의해 강제로 역할을 변경할 때 사용됩니다.
+     * 프로필 기반의 자동 역할 변경(updateRoleBasedOnProfile) 로직을 우회합니다.
+     */
     public void changeUserRole(Role role) {
         this.userRole = role;
-    }
-
-    public void updateGender(String s) {
-        this.sex = s;
     }
 }
