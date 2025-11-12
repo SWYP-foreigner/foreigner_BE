@@ -363,7 +363,6 @@ public class UserService {
         redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
-        publisher.publishEvent(new NewUserJoinedEvent(u.getId()));
         return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 
@@ -374,7 +373,6 @@ public class UserService {
     }
 
     private String buildLocalSocialId(String email) {
-        // 결정적(동일 이메일이면 동일 결과) + 노출 안전하게 해시
         return "local:" + sha256Hex(email);
     }
 
@@ -601,10 +599,9 @@ public class UserService {
 
     @Transactional
     public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
-        // 1) 기존 로직 수행 (필드 업데이트)
+
         updateSkipUserSetup(dto);
 
-        // 2) 현재 사용자 로드
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -614,30 +611,18 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-
-        // 3) VISITOR -> USER 승급
-        // 3) [삭제] VISITOR -> USER 승급 로직 (엔티티가 이미 처리함)
-        /*
-        if (user.getUserRole() == Role.VISITOR) {
-            user.changeUserRole(Role.USER);
-        }
-        */
-        // (JPA가 @Transactional에 의해 자동으로 save/flush 해줄 것임)
-
-        // 4) 새 accessToken 발급 (엔티티가 결정한 현재 role 사용)
         String accessToken = jwtTokenProvider.createAccessToken(
                 user.getId(),
-                user.getUserRole().name(), // user 객체의 최신 role을 그대로 읽음
+                user.getUserRole().name(),
                 user.getEmail()
         );
-        // 5) 리프레시 토큰
         String refreshToken = redisService.getRefreshToken(user.getId());
         if (refreshToken == null) {
             refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
             long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
             redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
         }
-
+        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
         return new LoginResponseDto(
                 user.getId(),
                 accessToken,
