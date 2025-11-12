@@ -44,7 +44,7 @@ public class OnboardingVisitorShareWeeklyScheduler {
         Instant fromUtc = fromWeek.atStartOfDay(KST).toInstant();
         Instant toUtc = toWeek.atStartOfDay(KST).toInstant();
 
-        List<Object[]> rows = userRepository.visitorShareWeekly(fromUtc.toString(), toUtc.toString());
+        List<Object[]> rows = userRepository.visitorShareWeekly(fromUtc, toUtc);
         List<MultiGauge.Row<?>> out = new ArrayList<>();
 
         for (Object[] r : rows) {
