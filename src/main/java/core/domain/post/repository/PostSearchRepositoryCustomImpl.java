@@ -180,6 +180,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                                 authorNameExpr,       // authorName (익명시 "Anonymity")
                                 p.board.category,     // category
                                 p.createdAt,          // createdAt
+                                p.anonymous,
                                 likedByMe,
                                 likeCountExpr,        // likeCount (실제)
                                 commentCountExpr,     // commentCount (실제)
