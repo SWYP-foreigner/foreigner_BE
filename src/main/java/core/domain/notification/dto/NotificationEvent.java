@@ -19,9 +19,13 @@ public record NotificationEvent(
         NotificationType notificationType,
         Long referenceId,
         Long commentId,
-        String contentSnippet
+        String contentSnippet,
+        String roomName
 ) {
     public NotificationEvent(Long recipientId, Long actorId, NotificationType notificationType, Long referenceId, String contentSnippet) {
-        this(recipientId, actorId, notificationType, referenceId, null, contentSnippet);
+        this(recipientId, actorId, notificationType, referenceId, null, contentSnippet,null);
+    }
+    public NotificationEvent(Long recipientId, Long actorId, NotificationType notificationType, Long referenceId, String contentSnippet,String roomName) {
+        this(recipientId, actorId, notificationType, referenceId, null, contentSnippet,roomName);
     }
 }

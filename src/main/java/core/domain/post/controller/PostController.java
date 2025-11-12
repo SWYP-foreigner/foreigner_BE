@@ -1,10 +1,7 @@
 package core.domain.post.controller;
 
-import core.domain.chat.dto.ToggleTranslationRequest;
 import core.domain.post.dto.*;
 import core.domain.post.service.PostService;
-import core.domain.post.dto.PostWriteForChatRequest;
-import core.global.config.CustomUserDetails;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,7 +16,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -156,27 +152,7 @@ public class PostController {
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "200", description = "성공",
-                    content = @Content(mediaType = "application/json",
-                            examples = @ExampleObject(
-                                    name = "성공 예시",
-                                    value = """
-                                                {
-                                                  "success": true,
-                                                  "data": {
-                                                    "items": [
-                                                      { "postId": 123, "title": "제목", "contentPreview": "내용...", "authorName": "Anonymity",
-                                                        "createdAt": "2025-08-13T07:20:35Z", "likeCount": 10, "commentCount": 2, "viewCount": 345, "score": 123456 },
-                                                      { "postId": 122, "title": "다음 글", "contentPreview": "내용...", "authorName": "홍길동",
-                                                        "createdAt": "2025-08-13T07:19:10Z", "likeCount": 0, "commentCount": 0, "viewCount": 12, "score": 2345 }
-                                                    ],
-                                                    "hasNext": true,
-                                                    "nextCursor": "eyJ0IjoiMjAyNS0wOC0xM1QwNzoxOToxMFoiLCJpZCI6MTIyfQ"
-                                                  }
-                                                }
-                                            """
-                            )
-                    )
+                    responseCode = "200", description = "성공"
             ),
             @ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content(
                     examples = @ExampleObject(value = "{ \"code\": \"INVALID_CURSOR\", \"message\": \"cursor 형식이 올바르지 않습니다.\" }")

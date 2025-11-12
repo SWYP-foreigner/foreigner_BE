@@ -20,6 +20,9 @@ public record CommentItem(
         @Schema(description = "댓글 내용", example = "좋은 글이네요!")
         String content,
 
+        @Schema(description = "익명 여부", example = "true")
+        Boolean isAnonymous,
+
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,
 
@@ -46,6 +49,7 @@ public record CommentItem(
                     null,
                     "삭제된 댓글입니다.",
                     false,
+                    false,
                     0L,
                     c.getCreatedAt(),
                     null,
@@ -57,6 +61,7 @@ public record CommentItem(
                 c.getAuthor().getId(),
                 (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "Anonymity",
                 c.getContent(),
+                c.getAnonymous(),
                 isLiked,
                 likeCount,
                 c.getCreatedAt(),

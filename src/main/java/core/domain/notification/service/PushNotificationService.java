@@ -104,10 +104,17 @@ public class PushNotificationService {
                             .putData("followerId", String.valueOf(event.actorId()));
                     break;
                 case chat:
+                    String roomName = event.roomName();
+                    if (roomName == null) {
+                        roomName = "Unknown Chat Room";
+                        log.warn("Chat notification event is missing roomName. ChatRoom ID: {}. Using default value '{}'.", event.referenceId(), roomName);
+                    }
+
                     messageBuilder
                             .putData("type", "chat")
                             .putData("roomId", String.valueOf(event.referenceId()))
-                            .putData("myId", String.valueOf(recipient.getId()));
+                            .putData("myId", String.valueOf(recipient.getId()))
+                            .putData("roomName", roomName);
                     break;
                 case newuser:
                     messageBuilder

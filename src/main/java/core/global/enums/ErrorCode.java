@@ -113,11 +113,12 @@ public enum ErrorCode {
     JWT_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "액세스 토큰이 만료되었습니다."),
     JWT_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
     JWT_TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "블랙리스트에 등록된 토큰입니다."),
+    JWT_INVAIL_ROLE(HttpStatus.UNAUTHORIZED, "추방된 유저입니다"),
     ELASTICSEARCH_INDEX_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "인덱스 작업에 실패했습니다."),
     ELASTICSEARCH_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색에 실패했습니다."),
     ELASTICSEARCH_SEARCH_SUGGEST_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검색 제안에 실패했습니다."),
     BLOCKED_USER_POST(HttpStatus.CONFLICT, "접근할 수 없는 글입니다."),
-    PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "프로필이 완성되지 않았습니다.");
+    PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "Your profile is incomplete. Please complete your profile setup");
     private final HttpStatus errorCode;
     private final String message;
 

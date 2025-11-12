@@ -18,6 +18,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.image.repository.ImageRepository;
@@ -28,7 +29,6 @@ import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
 import core.global.service.ForbiddenWordService;
-import core.global.service.GoogleService;
 import core.global.service.TranslationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -61,6 +61,7 @@ public class PostServiceImpl implements PostService {
     private final BlockRepository blockRepository;
     private final BlockPostRepository blockPostRepository;
     private final TranslationService translationService;
+    private final UserRoleDetectService userRoleDetectService;
 
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -184,9 +185,7 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -249,7 +248,6 @@ public class PostServiceImpl implements PostService {
                     author.getId(),
                     NotificationType.followuserpost,
                     post.getId(),
-                    null,
                     null
             );
             eventPublisher.publishEvent(event);
@@ -301,9 +299,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
         final Post post = new Post(request, user, board);
         eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
@@ -314,9 +311,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
         final Post post = new Post(request, user, board);
         eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
@@ -331,9 +327,7 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -359,9 +353,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
@@ -414,9 +407,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
@@ -429,9 +421,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         final int pageSize = Math.min(Math.max(size, 1), 50);
 
@@ -482,9 +473,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         User blockedUser = postRepository.findUserByPostId(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -511,9 +501,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
+
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));

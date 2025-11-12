@@ -2,6 +2,7 @@ package core.domain.bookmark.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.Instant;
 import java.util.List;
 
 @Schema(name = "BookmarkListResponse", description = "북마크 상세 항목 응답")
@@ -17,6 +18,12 @@ public record BookmarkItem(
 
         @Schema(description = "게시글 내용", example = "안녕하세요, 첫 글입니다.")
         String content,
+
+        @Schema(description = "게시글 작성 시간", type = "string", format = "date-time", example = "2025-08-21T14:00:00Z")
+        Instant createdAt,
+
+        @Schema(description = "익명 여부", example = "true")
+        Boolean isAnonymous,
 
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,

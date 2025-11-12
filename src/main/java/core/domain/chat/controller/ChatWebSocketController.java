@@ -10,11 +10,13 @@ import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 
 
@@ -23,32 +25,26 @@ import org.springframework.stereotype.Controller;
 public class ChatWebSocketController {
 
     private final ChatService chatService;
-    private final SimpMessageSendingOperations template;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
+
+
     /**
      * @apiNote 새로운 메시지를 전송하고, 해당 채팅방의 구독자들에게 브로드캐스트합니다.
      *
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
     @MessageMapping("/chat.sendMessage")
-    public void sendMessage(SendMessageRequest req) {
+    public void sendMessage(
+            @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        log.info(String.valueOf(principal.getUserId()));
         try {
             chatService.processAndSendChatMessage(req);
-
-            log.info("메시지 및 요약 전송 성공: roomId={}, senderId={}", req.roomId(), req.senderId());
         } catch (Exception e) {
             log.error("메시지 전송 실패", e);
         }
     }
-    /**
-     * @apiNote 사용자가 메시지를 입력 중임을 알리는 이벤트를 다른 참여자에게 전송합니다.
-     *
-     * @param event 타이핑 이벤트 정보 (roomId, userId, isTyping)
-     */
-    @MessageMapping("/chat.typing")
-    public void handleTypingEvent(@Payload TypingEvent event) {
-        template.convertAndSend("/topic/chatrooms/" + event.roomId(), event);
-    }
+
 
     /**
      * @apiNote 메시지 읽음 상태를 업데이트하고, 해당 채팅방의 다른 참여자에게 실시간으로 알립니다.

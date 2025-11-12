@@ -66,7 +66,6 @@ public class Post {
     private List<Comment> comments = new ArrayList<>();
 
     public Post(PostWriteRequest request, User author, Board board) {
-
         this.author = author;
         this.board = board;
         this.content = request.content();

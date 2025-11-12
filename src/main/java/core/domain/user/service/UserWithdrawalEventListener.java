@@ -1,8 +1,8 @@
 package core.domain.user.service;
 
 import core.domain.user.dto.UserWithdrawalEvent;
-import core.global.config.JwtTokenProvider;
-import core.global.service.RedisService;
+import core.global.security.JwtTokenProvider;
+import core.global.redis.service.RedisService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;

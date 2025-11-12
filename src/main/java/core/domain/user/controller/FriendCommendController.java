@@ -1,6 +1,7 @@
 package core.domain.user.controller;
 
 
+import core.domain.user.dto.CommendUsersProfileResponse;
 import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.service.RecommenderService;
 import core.global.metrics.FeatureUsageMetrics;
@@ -29,13 +30,12 @@ public class FriendCommendController {
 
     @GetMapping("/content-based")
     @Operation(summary = "친구 추천 기능", description = "콘텐츠 기반 필터링으로 친구를 추천합니다.")
-    public ResponseEntity<List<UserProfileResponse>> recommend(
+    public ResponseEntity<List<CommendUsersProfileResponse>> recommend(
             @RequestParam(defaultValue = "50") int limit
     ) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        List<UserProfileResponse> list = recommenderService.recommendForUser(auth, limit);
-        log.info(">>>> 최종 반환 유저: {}", list);
+        List<CommendUsersProfileResponse> list = recommenderService.recommendForUser(auth, limit);
         featureUsageMetrics.recordFollowUsage();
 
         return ResponseEntity.ok(list);
