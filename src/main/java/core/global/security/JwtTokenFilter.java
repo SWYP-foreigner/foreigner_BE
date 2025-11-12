@@ -1,5 +1,6 @@
-package core.global.config;
+package core.global.security;
 
+import core.global.config.CustomUserDetails;
 import core.global.enums.ErrorCode;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -16,6 +17,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -38,37 +41,18 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
-    private static final List<String> EXCLUDE_URLS = List.of(
-            "/api/v1/member/google/app-login",
-            "/api/v1/member/google/**",
-            "/api/v1/member/apple/app-login",
-            "/auth/**",
-            "/api/v1/member/signup",
-            "/api/v1/member/doLogin",
-            "/api/v1/member/verify-code",
-            "/api/v1/member/signup",
-            "/api/v1/member/send-verification-email",
-            "/api/v1/member/refresh",
-            "/api/v1/member/password/**",
-            "/api/v1/member/email/check",
-            "/actuator/**",
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/swagger-resources/**",
-            "/swagger-ui.html",
-            "/ws/**"
-    );
+
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
-        boolean shouldNotFilter = EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
+        boolean shouldNotFilter = PermitAllPaths.PATTERNS.stream()
+                .anyMatch(url -> pathMatcher.match(url, requestUri));
 
         if (requestUri.startsWith("/ws")) {
             log.info(">>>> [DEPLOYMENT CHECK] /ws request detected in shouldNotFilter. Result={}", shouldNotFilter);
         }
-        return EXCLUDE_URLS.stream().anyMatch(url -> pathMatcher.match(url, requestUri));
+        return shouldNotFilter;
     }
 
     @PostConstruct
@@ -132,12 +116,24 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
+            String role = jwtTokenProvider.getRoleFromToken(token);
 
+            if ("OUTCAST".equals(role)) {
+                log.warn("Access denied for OUTCAST user. email={}");
+                jwtAuthenticationEntryPoint.commence(
+                        request,
+                        response,
+                        new BadCredentialsException(ErrorCode.JWT_INVAIL_ROLE.getMessage())
+                );
+                return;
+            }
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // ROLE_USER 등
 
-            CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
-
+            CustomUserDetails principal = new CustomUserDetails(userId, email, authorities);
             Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(auth);
+
             log.debug("SecurityContext에 인증 정보 저장 완료. userId={}, email={}", userId, email);
 
             chain.doFilter(request, response);

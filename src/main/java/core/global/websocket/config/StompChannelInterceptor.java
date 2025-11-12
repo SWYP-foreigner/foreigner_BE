@@ -2,7 +2,7 @@ package core.global.websocket.config;
 
 import core.domain.user.service.UserActivityService;
 import core.global.config.CustomUserDetails;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.enums.ErrorCode;
 import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.redis.service.RedisService;
@@ -16,10 +16,8 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 import java.util.ArrayList;
 import java.util.Map;
 

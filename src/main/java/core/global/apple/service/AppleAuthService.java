@@ -6,7 +6,7 @@ import core.global.apple.client.AppleClient;
 import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.apple.dto.ApplePublicKeyResponse;
 import core.global.apple.dto.AppleRefreshTokenResponse;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.Ouathplatform;
@@ -129,7 +129,7 @@ public class AppleAuthService {
         }
 
         boolean isNewUserResponse = user.isNewUser();
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserRole().toString(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);

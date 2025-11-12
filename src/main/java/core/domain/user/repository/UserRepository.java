@@ -87,6 +87,44 @@ public interface UserRepository extends JpaRepository<User, Long> {
   """, nativeQuery = true)
     List<Object[]> countInactive30dAndTotal();
 
+    /**
+     * 최근 N주: KST(Asia/Seoul) 기준 "캘린더 주" 단위 VISITOR/전체 집계
+     * 반환: [week_kst(yyyy-MM-dd, 주 시작일), total_users, visitors]
+     */
+    @Query(value = """
+    SELECT
+      date_trunc('week', (u.created_at AT TIME ZONE 'Asia/Seoul'))::date AS week_kst,
+      COUNT(*) AS total_users,
+      SUM(CASE WHEN user_role = 'USER' THEN 1 ELSE 0 END) AS users
+    FROM users u
+    WHERE u.created_at >= :from AND u.created_at < :to
+    GROUP BY week_kst
+    ORDER BY week_kst
+    """, nativeQuery = true)
+    List<Object[]> visitorShareWeekly(
+            @Param("from") String fromIsoDateTimeUtc,
+            @Param("to")   String toIsoDateTimeUtc
+    );
+
+    /**
+     * 이번 주(캘린더 주, KST 기준) VISITOR/전체 스냅샷
+     * 반환: [total_users, visitors]
+     */
+    @Query(value = """
+    WITH bounds AS (
+      SELECT
+        date_trunc('week', (NOW() AT TIME ZONE 'Asia/Seoul')) AT TIME ZONE 'Asia/Seoul' AS w_start_kst,
+        (date_trunc('week', (NOW() AT TIME ZONE 'Asia/Seoul')) + INTERVAL '7 day') AT TIME ZONE 'Asia/Seoul' AS w_end_kst
+    )
+    SELECT
+      COUNT(*) AS total_users,
+      SUM(CASE WHEN user_role = 'USER' THEN 1 ELSE 0 END) AS users
+    FROM users u, bounds b
+    WHERE u.created_at >= (b.w_start_kst AT TIME ZONE 'UTC')
+      AND u.created_at <  (b.w_end_kst   AT TIME ZONE 'UTC')
+    """, nativeQuery = true)
+    Object[] visitorShareCurrentWeek();
+
     @Query("SELECT u FROM User u")
     Stream<User> findAllAsStream();
 }

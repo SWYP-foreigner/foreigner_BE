@@ -1,4 +1,4 @@
-package core.global.config;
+package core.global.security;
 
 // import 생략
 

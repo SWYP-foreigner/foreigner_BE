@@ -121,7 +121,7 @@ google:
 logging:
   level:
     root: INFO
-    core.global.config.JwtTokenFilter: DEBUG
+    core.global.config.core.global.security.JwtTokenFilter: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web.socket: TRACE
     org.springframework.messaging: TRACE

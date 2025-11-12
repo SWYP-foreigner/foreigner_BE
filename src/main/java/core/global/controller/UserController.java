@@ -6,8 +6,9 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
+import core.global.apple.dto.withdrawIsApple;
 import core.global.config.CustomUserDetails;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.apple.service.AppleAuthService;
@@ -103,7 +104,7 @@ public class UserController {
             return new ResponseEntity<>(ApiResponse.fail("Refresh token mismatch or blacklisted"), HttpStatus.UNAUTHORIZED);
         }
         redisService.deleteRefreshToken(user.getId());
-        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserRole().toString(),user.getEmail());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);

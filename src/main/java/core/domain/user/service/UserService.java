@@ -23,11 +23,12 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
 import core.global.exception.BusinessException;
 import core.global.image.entity.Image;
 import core.global.image.repository.ImageRepository;
@@ -147,7 +148,6 @@ public class UserService {
 
     /**
      * 사용자 정보(이름)를 업데이트합니다.
-     *
      * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
@@ -262,7 +262,7 @@ public class UserService {
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         UserSetupRequest result = new UserSetupRequest(
@@ -270,6 +270,9 @@ public class UserService {
 
         log.info("newUser {}", user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
+        if (user.getUserRole() == Role.VISITOR) {
+            user.changeUserRole(Role.USER);
+        }
     }
 
     private boolean notBlank(String s) {
@@ -346,12 +349,13 @@ public class UserService {
         Instant now = Instant.now();
         u.updateCreatedAt(now);
         u.updateUpdatedAt(now);
+        u.changeUserRole(Role.VISITOR);
 
         userRepository.save(u);
 
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().toString(), u.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(u.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
@@ -411,7 +415,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
         }
 
-        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
         Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
@@ -497,16 +501,18 @@ public class UserService {
     }
 
     @Transactional
-    public UserProfileEditDto updateUserProfile(UserProfileEditDto dto) {
+    public ProfileEditResponseDto updateUserProfile(UserProfileEditDto dto) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+        if (auth == null || !auth.isAuthenticated()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
 
         String email = auth.getName();
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Role oldRole = user.getUserRole();
 
         if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
         if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
@@ -516,7 +522,7 @@ public class UserService {
 
         if (notBlank(dto.introduction())) {
             String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
         if (notBlank(dto.purpose())) {
             user.updatePurpose(dto.purpose());
@@ -532,11 +538,9 @@ public class UserService {
                     .toList();
 
             if (!languages.isEmpty()) {
-                // CSV 형태로 저장
                 String userLanguagesCsv = String.join(",", languages);
                 user.updateLanguage(userLanguagesCsv);
 
-                // 첫 번째 요소에서 번역 코드 추출
                 String firstTranslatedLanguage = languages.stream()
                         .map(s -> {
                             Matcher matcher = pattern.matcher(s);
@@ -567,12 +571,83 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        return new UserProfileEditDto(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        Role newRole = user.getUserRole();
+
+        ProfileEditResponseDto responseDto = new ProfileEditResponseDto(
+                user,
+                stringToList(user.getLanguage()),
+                stringToList(user.getHobby()),
+                finalImageKey
+        );
+
+        if (oldRole == Role.VISITOR && newRole == Role.USER) {
+
+            String accessToken = jwtTokenProvider.createAccessToken(
+                    user.getId(),
+                    user.getUserRole().name(),
+                    user.getEmail()
+            );
+
+            redisService.deleteRefreshToken(user.getId());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+            responseDto.setNewTokens(accessToken, refreshToken);
+        }
+
+        // 7. 최종 응답 반환
+        return responseDto;
     }
 
+    @Transactional
+    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
+        // 1) 기존 로직 수행 (필드 업데이트)
+        updateSkipUserSetup(dto);
+
+        // 2) 현재 사용자 로드
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+
+        // 3) VISITOR -> USER 승급
+        // 3) [삭제] VISITOR -> USER 승급 로직 (엔티티가 이미 처리함)
+        /*
+        if (user.getUserRole() == Role.VISITOR) {
+            user.changeUserRole(Role.USER);
+        }
+        */
+        // (JPA가 @Transactional에 의해 자동으로 save/flush 해줄 것임)
+
+        // 4) 새 accessToken 발급 (엔티티가 결정한 현재 role 사용)
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getId(),
+                user.getUserRole().name(), // user 객체의 최신 role을 그대로 읽음
+                user.getEmail()
+        );
+        // 5) 리프레시 토큰
+        String refreshToken = redisService.getRefreshToken(user.getId());
+        if (refreshToken == null) {
+            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+        }
+
+        return new LoginResponseDto(
+                user.getId(),
+                accessToken,
+                refreshToken,
+                user.isNewUser()
+        );
+    }
 
     @Transactional
-    public void updateUserSetup(UserUpdateDto dto) {
+    public void updateSkipUserSetup(UserUpdateDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
@@ -775,7 +850,6 @@ public class UserService {
         notificationRepository.deleteAllByActorId(userId);
         userRepository.delete(user);
     }
-
     /**
      * 단일 사용자 정보 조회 로직
      */
