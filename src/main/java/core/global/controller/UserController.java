@@ -6,6 +6,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
+import core.global.apple.dto.withdrawIsApple;
 import core.global.config.CustomUserDetails;
 import core.global.config.JwtTokenProvider;
 import core.global.dto.*;

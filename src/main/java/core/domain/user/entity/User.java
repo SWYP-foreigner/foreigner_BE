@@ -157,7 +157,8 @@ public class User {
                 || this.introduction == null
                 || this.language == null
                 || this.hobby == null
-                || this.sex == null) {
+                || this.sex == null
+                || this.country == null){
             this.userRole = Role.VISITOR;
         } else {
             this.userRole = Role.USER;
