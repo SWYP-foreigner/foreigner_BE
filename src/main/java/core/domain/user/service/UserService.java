@@ -501,16 +501,18 @@ public class UserService {
     }
 
     @Transactional
-    public UserProfileEditDto updateUserProfile(UserProfileEditDto dto) {
+    public ProfileEditResponseDto updateUserProfile(UserProfileEditDto dto) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+        if (auth == null || !auth.isAuthenticated()) {
             throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
         }
 
         String email = auth.getName();
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        Role oldRole = user.getUserRole();
 
         if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
         if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
@@ -520,7 +522,7 @@ public class UserService {
 
         if (notBlank(dto.introduction())) {
             String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
         if (notBlank(dto.purpose())) {
             user.updatePurpose(dto.purpose());
@@ -536,11 +538,9 @@ public class UserService {
                     .toList();
 
             if (!languages.isEmpty()) {
-                // CSV 형태로 저장
                 String userLanguagesCsv = String.join(",", languages);
                 user.updateLanguage(userLanguagesCsv);
 
-                // 첫 번째 요소에서 번역 코드 추출
                 String firstTranslatedLanguage = languages.stream()
                         .map(s -> {
                             Matcher matcher = pattern.matcher(s);
@@ -571,7 +571,32 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        return new UserProfileEditDto(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        Role newRole = user.getUserRole();
+
+        ProfileEditResponseDto responseDto = new ProfileEditResponseDto(
+                user,
+                stringToList(user.getLanguage()),
+                stringToList(user.getHobby()),
+                finalImageKey
+        );
+
+        if (oldRole == Role.VISITOR && newRole == Role.USER) {
+
+            String accessToken = jwtTokenProvider.createAccessToken(
+                    user.getId(),
+                    user.getUserRole().name(),
+                    user.getEmail()
+            );
+
+            redisService.deleteRefreshToken(user.getId());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+            responseDto.setNewTokens(accessToken, refreshToken);
+        }
+
+        // 7. 최종 응답 반환
+        return responseDto;
     }
 
     @Transactional
