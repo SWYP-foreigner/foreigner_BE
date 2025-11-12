@@ -37,7 +37,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 /*todo
-                   현재는 클라이언트 버전 상태를 고려하여 visitor와 유저를 하나로 묶어버린 상태
+                    완료 추후에 클라이언트에서 변경되고 나서 user와 visitor 경로 권한 분리 후 429->403으로 내려주게 변경
 
                 *   */
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
