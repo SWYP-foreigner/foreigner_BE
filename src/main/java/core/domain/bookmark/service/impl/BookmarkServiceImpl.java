@@ -177,11 +177,11 @@ public class BookmarkServiceImpl implements BookmarkService {
 
         Optional<Bookmark> bookmark = bookmarkRepository.findByUserEmailAndPostId(email, postId);
         if (bookmark.isPresent()) {
-            throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
+            throw new BusinessException(CommunityErrorCode.BOOKMARK_ALREADY_EXIST);
         }
 
         Post post = postRepository.findById(postId).
-                orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         bookmarkRepository.save(Bookmark.createBookmark(user, post));
     }

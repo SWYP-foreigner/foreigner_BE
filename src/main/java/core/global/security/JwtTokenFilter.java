@@ -2,6 +2,7 @@ package core.global.security;
 
 import core.global.config.CustomUserDetails;
 import core.global.exception.AuthErrorCode;
+import core.global.exception.UserErrorCode;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.io.Decoders;
@@ -123,7 +124,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
-                        new BadCredentialsException(ErrorCode.JWT_INVAIL_ROLE.getMessage())
+                        new BadCredentialsException(UserErrorCode.JWT_INVALID_ROLE.getMessage())
                 );
                 return;
             }

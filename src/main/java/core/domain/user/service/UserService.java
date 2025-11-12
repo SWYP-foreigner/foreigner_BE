@@ -583,13 +583,9 @@ public class UserService {
         updateSkipUserSetup(dto);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
-        }
-
         String email = auth.getName();
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         String accessToken = jwtTokenProvider.createAccessToken(
                 user.getId(),
