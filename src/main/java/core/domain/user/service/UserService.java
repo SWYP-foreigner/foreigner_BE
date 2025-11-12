@@ -23,10 +23,11 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.config.JwtTokenProvider;
+import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
 import core.global.exception.BusinessException;
 import core.global.exception.ImageErrorCode;
 import core.global.exception.UserErrorCode;
@@ -148,7 +149,6 @@ public class UserService {
 
     /**
      * 사용자 정보(이름)를 업데이트합니다.
-     *
      * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
@@ -258,7 +258,7 @@ public class UserService {
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
         UserSetupRequest result = new UserSetupRequest(
@@ -266,6 +266,9 @@ public class UserService {
 
         log.info("newUser {}", user.isNewUser());
         log.info("프로필 업데이트 성공 반환: {}", result);
+        if (user.getUserRole() == Role.VISITOR) {
+            user.changeUserRole(Role.USER);
+        }
     }
 
     private boolean notBlank(String s) {
@@ -330,12 +333,13 @@ public class UserService {
         Instant now = Instant.now();
         u.updateCreatedAt(now);
         u.updateUpdatedAt(now);
+        u.changeUserRole(Role.VISITOR);
 
         userRepository.save(u);
 
         redisTemplate.delete(EMAIL_VERIFIED_FLAG_KEY + email);
 
-        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().toString(), u.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(u.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
@@ -343,7 +347,6 @@ public class UserService {
         redisService.saveRefreshToken(u.getId(), refreshToken, expirationMillis);
 
         publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "local"));
-        publisher.publishEvent(new NewUserJoinedEvent(u.getId()));
         return new LoginResponseDto(u.getId(), accessToken, refreshToken, u.isNewUser());
     }
 
@@ -354,7 +357,6 @@ public class UserService {
     }
 
     private String buildLocalSocialId(String email) {
-        // 결정적(동일 이메일이면 동일 결과) + 노출 안전하게 해시
         return "local:" + sha256Hex(email);
     }
 
@@ -395,7 +397,7 @@ public class UserService {
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
-        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getEmail());
+        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());
         String refresh = jwtTokenProvider.createRefreshToken(u.getId());
         long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
         Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
@@ -481,12 +483,14 @@ public class UserService {
     }
 
     @Transactional
-    public UserProfileEditDto updateUserProfile(UserProfileEditDto dto) {
+    public ProfileEditResponseDto updateUserProfile(UserProfileEditDto dto) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Role oldRole = user.getUserRole();
 
         if (notBlank(dto.firstname())) user.updateFirstName(dto.firstname().trim());
         if (notBlank(dto.lastname())) user.updateLastName(dto.lastname().trim());
@@ -496,7 +500,7 @@ public class UserService {
 
         if (notBlank(dto.introduction())) {
             String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
         if (notBlank(dto.purpose())) {
             user.updatePurpose(dto.purpose());
@@ -512,11 +516,9 @@ public class UserService {
                     .toList();
 
             if (!languages.isEmpty()) {
-                // CSV 형태로 저장
                 String userLanguagesCsv = String.join(",", languages);
                 user.updateLanguage(userLanguagesCsv);
 
-                // 첫 번째 요소에서 번역 코드 추출
                 String firstTranslatedLanguage = languages.stream()
                         .map(s -> {
                             Matcher matcher = pattern.matcher(s);
@@ -547,12 +549,70 @@ public class UserService {
             finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
         }
 
-        return new UserProfileEditDto(user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
+        Role newRole = user.getUserRole();
+
+        ProfileEditResponseDto responseDto = new ProfileEditResponseDto(
+                user,
+                stringToList(user.getLanguage()),
+                stringToList(user.getHobby()),
+                finalImageKey
+        );
+
+        if (oldRole == Role.VISITOR && newRole == Role.USER) {
+
+            String accessToken = jwtTokenProvider.createAccessToken(
+                    user.getId(),
+                    user.getUserRole().name(),
+                    user.getEmail()
+            );
+
+            redisService.deleteRefreshToken(user.getId());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+            responseDto.setNewTokens(accessToken, refreshToken);
+        }
+
+        // 7. 최종 응답 반환
+        return responseDto;
     }
 
+    @Transactional
+    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
+
+        updateSkipUserSetup(dto);
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new BusinessException(ErrorCode.EMAIL_NOT_AVAILABLE);
+        }
+
+        String email = auth.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getId(),
+                user.getUserRole().name(),
+                user.getEmail()
+        );
+        String refreshToken = redisService.getRefreshToken(user.getId());
+        if (refreshToken == null) {
+            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
+            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
+        }
+        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
+        return new LoginResponseDto(
+                user.getId(),
+                accessToken,
+                refreshToken,
+                user.isNewUser()
+        );
+    }
 
     @Transactional
-    public void updateUserSetup(UserUpdateDto dto) {
+    public void updateSkipUserSetup(UserUpdateDto dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
 

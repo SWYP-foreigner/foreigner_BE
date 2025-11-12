@@ -1,10 +1,13 @@
 package core.domain.user.controller;
 
 import core.domain.user.dto.FollowDTO;
+import core.domain.user.dto.ProfileEditResponseDto;
 import core.domain.user.dto.UserProfileEditDto;
 import core.domain.user.dto.UserUpdateDto;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.dto.ApiResponse;
+import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
 import core.global.metrics.FeatureUsageMetrics;
@@ -128,24 +131,26 @@ public class MyPageController {
     @PatchMapping(value = "/profile/skip-setup", consumes = "application/json", produces = "application/json")
     @Operation(
             summary = "프로필 셋업 마무리",
-            description = "Skip된 정보를 수정 완료합니다."
+            description = "로그인 후 사용자가 하는 첫 프로필 셋업.사용자가 데이터를 다 넣는다면 USER로 ROLE을 가지고" +
+                    "한개라도 스킵을한다면 ROLE이 VISITOR가 됩니다."
     )
-    public ResponseEntity<Void> editProfile(
+    public ResponseEntity<ApiResponse<LoginResponseDto>> skipSetUpProfile(
             @Valid @RequestBody UserUpdateDto dto
     ) {
-        userService.updateUserSetup(dto);
-        return ResponseEntity.ok(null);
+        return ResponseEntity.ok(ApiResponse.success(userService.finalizeSkipSetupAndReissueToken(dto)));
     }
 
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(
-            summary = "마이 프로필 수정(인증된 사용자)",
-            description = "SecurityContext 의 인증 객체에서 사용자 정보를 가져와 프로필을 부분 수정합니다."
+            summary = "마이페이지 프로필 수정",
+            description = "기존사용자(USER)와 스킵한 사용자(VISITOR)모두 수정에 사용합니다. 스킵한 VISITOR 유저가 완료할 시에는" +
+                    " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다." // (설명 수정)
     )
-    public ResponseEntity<UserProfileEditDto> editProfile(
-            @Valid @RequestBody UserProfileEditDto dto
+    public ResponseEntity<ProfileEditResponseDto> editProfile( // 1. 반환 타입 변경
+                                                               @Valid @RequestBody UserProfileEditDto dto
     ) {
         featureUsageMetrics.recordFollowUsage();
+        // userService.updateUserProfile이 이제 ProfileEditResponseDto를 반환함
         return ResponseEntity.ok(userService.updateUserProfile(dto));
     }
 
@@ -160,6 +165,7 @@ public class MyPageController {
 
         return ResponseEntity.ok().build();
     }
+
 
 
 }

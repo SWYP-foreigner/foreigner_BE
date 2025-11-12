@@ -142,7 +142,7 @@ logging:
 
     # 애플리케이션 커스텀 로거(운영 기본 INFO)
     core: INFO
-    core.global.config.JwtTokenFilter: INFO
+    core.global.config.core.global.security.JwtTokenFilter: INFO
     core.global.search: INFO
 
 # 운영에서는 에러 본문 노출 금지

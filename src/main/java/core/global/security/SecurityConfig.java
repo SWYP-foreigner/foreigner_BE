@@ -1,22 +1,18 @@
-package core.global.config;
+package core.global.security;
 
+import core.global.constants.*;
 import core.global.metrics.ActiveUserRecordFilter;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.simp.SimpMessageType;
-import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.socket.EnableWebSocketSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.messaging.access.intercept.MessageMatcherDelegatingAuthorizationManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -40,62 +36,52 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                /*todo
+                    완료 추후에 클라이언트에서 변경되고 나서 user와 visitor 경로 권한 분리 후 429->403으로 내려주게 변경
+
+                *   */
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/admin/**").authenticated()
-                        .requestMatchers(
-                                "/api/v1/member/refresh",
-                                "/api/v1/images/presign",
-                                "/api/v1/member/google/app-login",
-                                "/api/v1/member/apple/app-login",
-                                "/api/v1/member/apple/**",
-                                "/api/v1/member/profile/**",
-                                "/api/v1/mypage/profile/**",
-                                "/api/v1/board/*",
-                                "/api/v1/users/**",
-                                "/error",
-                                "/api/v1/mypage/profile/find",
-                                "/api/v1/mypage/**",
-                                "/error/**",
-                                "/api/v1/member/doLogin",
-                                "/api/v1/member/verify-code",
-                                "/api/v1/member/signup",
-                                "/api/v1/member/send-verification-email",
-                                "/api/v1/member/password/**",
-                                "/api/v1/member/email/check",
-                                "/actuator/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/swagger-resources/**",
-                                "/swagger-ui.html",
-                                "/ws/**",
-                                "/ws"
 
-                        ).permitAll()
-                        .anyRequest().authenticated()
+                        // 1) [수정] 완전 공개 경로 (JWT 불필요)
+                        // PermitAllPaths에 정의된 경로들
+                        .requestMatchers(PermitAllPaths.PATTERNS.toArray(String[]::new)).permitAll()
+
+                        // 2) ADMIN 전용 경로
+                        .requestMatchers(AdminOnlyPaths.PATTERNS.toArray(String[]::new)).hasRole("ADMIN")
+
+                        // 3) AI 전용 경로 (ADMIN도 접근 가능)
+                        .requestMatchers(AIOnlyPaths.PATTERNS.toArray(String[]::new)).hasAnyRole("AI", "ADMIN")
+
+                        // 4) [핵심] 나머지 모든 경로 (모든 일반 기능)
+                        // VISITOR, USER, ADMIN 모두 접근 가능하도록 설정
+                        // (클라이언트가 준비될 때까지 VISITOR와 USER를 동일하게 취급)
+                        .anyRequest().hasAnyRole("VISITOR", "USER", "ADMIN")
                 )
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
+
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
-   /* @Bean
-    public AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
-        messages
-                .simpTypeMatchers(SimpMessageType.DISCONNECT).permitAll()
-                .simpDestMatchers("/app/**").authenticated()
-                .anyMessage().authenticated();
+    /* todo chat 리팩토링 끝날시 다시 open   */
+    /* @Bean
+     public AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
+         messages
+                 .simpTypeMatchers(SimpMessageType.DISCONNECT).permitAll()
+                 .simpDestMatchers("/app/**").authenticated()
+                 .anyMessage().authenticated();
 
-        return messages.build();
-    }*/
+         return messages.build();
+     }*/
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();

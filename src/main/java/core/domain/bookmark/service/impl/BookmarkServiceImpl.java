@@ -57,14 +57,6 @@ public class BookmarkServiceImpl implements BookmarkService {
     public CursorPageResponse<BookmarkItem> getMyBookmarks(int size, String cursor) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         Pageable pageable = PageRequest.of(0, size + 1);
 
         Long cursorId = null;
@@ -183,18 +175,13 @@ public class BookmarkServiceImpl implements BookmarkService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
-
         Optional<Bookmark> bookmark = bookmarkRepository.findByUserEmailAndPostId(email, postId);
         if (bookmark.isPresent()) {
-            throw new BusinessException(CommunityErrorCode.BOOKMARK_ALREADY_EXIST);
+            throw new BusinessException(ErrorCode.BOOKMARK_ALREADY_EXIST);
         }
 
         Post post = postRepository.findById(postId).
-                orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
 
         bookmarkRepository.save(Bookmark.createBookmark(user, post));
     }
@@ -203,14 +190,6 @@ public class BookmarkServiceImpl implements BookmarkService {
     @Transactional
     public void removeBookmark(Long postId) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
-
 
         bookmarkRepository.deleteByUserEmailAndPostId(email, postId);
     }

@@ -2,8 +2,8 @@ package core.global.websocket.config;
 
 import core.domain.user.service.UserActivityService;
 import core.global.config.CustomUserDetails;
-import core.global.config.JwtTokenProvider;
 import core.global.exception.AuthErrorCode;
+import core.global.security.JwtTokenProvider;
 import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;

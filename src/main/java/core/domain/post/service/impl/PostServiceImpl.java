@@ -386,8 +386,9 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        userRoleDetectService.isProfileSetUpUser(user);
-
+        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
+            throw new BusinessException(ErrorCode.PROFILE_SET_NOT_COMPLETED);
+        }
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {

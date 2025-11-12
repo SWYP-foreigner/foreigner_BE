@@ -15,7 +15,7 @@ public class BirthdayValidator implements ConstraintValidator<ValidBirthday, Str
 
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
-        if (value == null || value.isBlank()) return true; // null 허용(옵션 필드인 경우). 필수면 여기서 false 처리.
+        if (value == null || value.isBlank()) return true;
         try {
             LocalDate.parse(value, FORMATTER);
             return true;
