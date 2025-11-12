@@ -36,6 +36,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                /*todo
+                   현재는 클라이언트 버전 상태를 고려하여 visitor와 유저를 하나로 묶어버린 상태
+
+                *   */
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -68,8 +72,7 @@ public class SecurityConfig {
 
         return http.build();
     }
-    /* todo chat 리팩토링 끝날시 다시 open
-    *   */
+    /* todo chat 리팩토링 끝날시 다시 open   */
     /* @Bean
      public AuthorizationManager<Message<?>> messageAuthorizationManager(MessageMatcherDelegatingAuthorizationManager.Builder messages) {
          messages
