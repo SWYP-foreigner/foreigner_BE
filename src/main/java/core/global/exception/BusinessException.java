@@ -1,29 +1,28 @@
 package core.global.exception;
 
-import core.global.enums.ErrorCode;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
 public class BusinessException extends RuntimeException {
     private final HttpStatus status;
-    private final ErrorCode errorCode;
+    private final AppError error;
 
-    public BusinessException(ErrorCode errorCode) {
-        super(errorCode.getMessage());
-        this.status = errorCode.getErrorCode();
-        this.errorCode = errorCode;
+    public BusinessException(AppError error) {
+        super(error.message());
+        this.status = error.httpStatus();
+        this.error = error;
     }
 
-    public BusinessException(HttpStatus status, ErrorCode errorCode, String message, Throwable cause) {
+    public BusinessException(HttpStatus status, AppError error, String message, Throwable cause) {
         super(message, cause);
         this.status = status;
-        this.errorCode = errorCode;
+        this.error = error;
     }
 
     public BusinessException(HttpStatus status, String message) {
         super(message);
         this.status = status;
-        this.errorCode = null;
+        this.error = null;
     }
 }
