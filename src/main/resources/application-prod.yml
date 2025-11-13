@@ -116,6 +116,8 @@ google:
   cloud:
     project:
       id: ${GCP_PROJECT_ID}
+    perspective:
+      api-key: ${GCP_PERSPECTIVE_API_KEY}
 
 
 logging:
