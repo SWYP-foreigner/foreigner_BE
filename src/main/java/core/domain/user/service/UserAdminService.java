@@ -20,12 +20,12 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.apple.service.AppleWithdrawalService;
-import core.global.enums.ErrorCode;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
-import core.global.image.repository.ImageRepository;
-import core.global.like.repository.LikeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -58,7 +58,7 @@ public class UserAdminService {
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         return UserBasicInfoDto.from(user);
     }
@@ -107,7 +107,7 @@ public class UserAdminService {
     public void hardDeleteUser(Long userId) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if ("APPLE".equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);

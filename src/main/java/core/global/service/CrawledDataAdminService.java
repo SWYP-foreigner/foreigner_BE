@@ -10,12 +10,13 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
+import core.global.entity.image.entity.Image;
+import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.CrawledDataStatus;
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,17 +46,17 @@ public class CrawledDataAdminService {
     @Transactional
     public void approveAndPost(Long crawledDataId, Long boardId, String content) {
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CRAWLED_DATA_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
 
         Board targetBoard = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         Long adminUserId = principal.getUserId();
 
         User adminUser = userRepository.findById(adminUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         Post newPost = new Post(
                 crawledData.getTitle() + "\n\n" + content,
@@ -77,7 +78,7 @@ public class CrawledDataAdminService {
     @Transactional
     public void rejectCrawledData(Long crawledDataId) {
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CRAWLED_DATA_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
 
         crawledData.updateStatus(CrawledDataStatus.REJECTED, null);
     }
@@ -85,6 +86,6 @@ public class CrawledDataAdminService {
     @Transactional(readOnly = true)
     public CrawledData getCrawledDataById(Long id) {
         return crawledDataRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CRAWLED_DATA_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
     }
 }

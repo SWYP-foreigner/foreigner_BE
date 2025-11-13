@@ -1349,24 +1349,24 @@ public class ChatService {
                 return;
             }
             else {
-                throw new BusinessException(ErrorCode.DUPLICATE_REPORT);
+                throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
             }
         }
 
         User reporterUser = null;
         if (reporterUserId != null) {
             reporterUser = userRepository.findById(reporterUserId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         }
 
         ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
         User reportedUser = reportedMessage.getSender();
         ChatRoom chatRoom = reportedMessage.getChatRoom();
 
         if (reportedUser.getId().equals(reporterUserId)) {
-            throw new BusinessException(ErrorCode.CANNOT_REPORT_SELF);
+            throw new BusinessException(ChatErrorCode.CANNOT_REPORT_SELF);
         }
 
         ChatReport chatReport = new ChatReport(

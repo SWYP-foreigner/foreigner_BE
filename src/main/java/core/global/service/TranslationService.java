@@ -161,8 +161,8 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 언어 감지 API 호출 실패!", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
-                    ErrorCode.TRANSLATE_FAIL,
+                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
+                    CommonErrorCode.TRANSLATE_FAIL,
                     "언어 감지에 실패했습니다.",
                     e
             );

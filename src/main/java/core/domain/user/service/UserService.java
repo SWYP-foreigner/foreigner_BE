@@ -23,6 +23,7 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.ImageType;
@@ -417,24 +418,24 @@ public class UserService {
         User u = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("[ADMIN LOGIN] 사용자 없음: email={}", email);
-                    return new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+                    return new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
                 });
 
         log.debug("[ADMIN LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
         if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[ADMIN LOGIN] provider 불일치: provider={}", u.getProvider());
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
         if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
             log.warn("[ADMIN LOGIN] 비밀번호 불일치: email={}", email);
-            throw new BusinessException(ErrorCode.AUTHENTICATION_FAILED);
+            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
 
         if (u.getUserRole() != Role.ADMIN) {
             log.warn("[ADMIN LOGIN] 관리자 계정이 아님: id={}, role={}", u.getId(), u.getUserRole());
-            throw new BusinessException(ErrorCode.AUTHENTICATION_ADMIN_FAILED);
+            throw new BusinessException(AuthErrorCode.AUTHENTICATION_ADMIN_FAILED);
         }
 
         String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());

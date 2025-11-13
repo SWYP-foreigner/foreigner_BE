@@ -9,13 +9,13 @@ import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.BoardCategory;
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
+import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.exception.BusinessException;
-import core.global.image.repository.ImageRepository;
-import core.global.like.repository.LikeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,11 +48,11 @@ public class BoardAdminService {
         try {
             category = BoardCategory.valueOf(request.categoryName().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_BOARD_CATEGORY);
+            throw new BusinessException(CommunityErrorCode.INVALID_BOARD_CATEGORY);
         }
 
         if (boardRepository.existsByCategory(category)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_CATEGORY);
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_CATEGORY);
         }
 
         Board newBoard = new Board(category);
@@ -62,7 +62,7 @@ public class BoardAdminService {
     @Transactional
     public void deleteBoardAndAssociatedPosts(Long boardId) {
         Board board = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         List<Post> postsToDelete = postRepository.findByBoard(board);
 

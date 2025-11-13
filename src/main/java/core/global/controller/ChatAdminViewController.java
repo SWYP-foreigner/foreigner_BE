@@ -3,7 +3,7 @@ package core.global.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatRoomRepository;
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
 import core.global.service.ChatAdminService;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +44,7 @@ public class ChatAdminViewController {
             Model model
     ) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND)); // CHATROOM_NOT_FOUND ErrorCode 필요
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         Page<ChatParticipantInfoDto> participantPage = chatAdminService.getChatRoomParticipants(roomId, pageable);
 

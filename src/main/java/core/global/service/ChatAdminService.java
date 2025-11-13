@@ -8,7 +8,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.global.enums.ChatReportStatus;
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,7 +39,7 @@ public class ChatAdminService {
     @Transactional
     public void deleteChatRoom(Long roomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         chatMessageRepository.deleteAllByChatRoomId(roomId);
         chatRoomRepository.delete(chatRoom);
@@ -59,7 +59,7 @@ public class ChatAdminService {
     @Transactional
     public void processChatReport(Long reportId) {
         ChatReport report = chatReportRepository.findById(reportId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.REPORT_NOT_FOUND));
 
         report.processReport();
     }

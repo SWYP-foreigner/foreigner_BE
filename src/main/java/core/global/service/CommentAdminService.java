@@ -5,7 +5,7 @@ import core.domain.comment.dto.CommentSearchRequest;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.user.service.UserAdminService;
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,7 +28,7 @@ public class CommentAdminService {
     @Transactional
     public void deleteComment(Long commentId) {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
 
         commentRepository.delete(comment);
     }
@@ -36,7 +36,7 @@ public class CommentAdminService {
     @Transactional
     public void deleteCommentAndBanUser(Long commentId) {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
 
         Long authorId = comment.getAuthor().getId();
 
