@@ -1,6 +1,6 @@
 package core.global.handler;
 
-import core.global.exception.UserErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;

@@ -4,7 +4,7 @@ import core.domain.user.dto.CommendUsersProfileResponse;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.exception.BusinessException;
-import core.global.exception.UserErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

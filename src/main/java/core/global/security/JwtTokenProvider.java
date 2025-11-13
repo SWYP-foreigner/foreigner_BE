@@ -2,7 +2,7 @@ package core.global.security;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import core.global.exception.AuthErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;

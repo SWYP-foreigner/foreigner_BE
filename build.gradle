@@ -39,6 +39,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'org.springframework.boot:spring-boot-starter-logging'
+    implementation 'org.springframework.security:spring-security-messaging'
+
     // --- DB ---
     runtimeOnly   'org.postgresql:postgresql'
 
@@ -106,9 +108,9 @@ dependencies {
     implementation "io.micrometer:micrometer-tracing-bridge-brave"
     implementation "org.codehaus.janino:janino:3.1.12"
 
+
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
-    implementation 'org.springframework.security:spring-security-messaging'
 }
 
 
@@ -181,4 +183,17 @@ tasks.register('preflight') {
     group = "verification"
     description = "Run tests, coverage and verification before starting server."
     dependsOn tasks.clean, tasks.test, tasks.jacocoTestReport, tasks.check
+}
+
+// 최신화된 Errorcode 노션으로 보내기
+tasks.register('runNotionSync', JavaExec) {
+    group = "notion"
+    description = "Sync error codes to Notion"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'core.global.docs.NotionSyncRunner'
+}
+
+// build 전에 실행되도록 의존성 추가
+tasks.named('build') {
+    dependsOn 'runNotionSync'
 }

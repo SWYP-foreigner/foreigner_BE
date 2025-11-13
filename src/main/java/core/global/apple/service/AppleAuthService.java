@@ -9,7 +9,7 @@ import core.global.apple.dto.AppleRefreshTokenResponse;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.enums.Ouathplatform;
-import core.global.exception.AuthErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.Claims;

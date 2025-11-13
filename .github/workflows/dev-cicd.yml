@@ -93,6 +93,13 @@ jobs:
           docker ps || true
           echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
 
+      - name: Sync error codes to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+        run: |
+          ./gradlew --no-daemon runNotionSync
+
   build:
     needs: [ preflight, quality ]
     runs-on: ubuntu-latest

@@ -1,6 +1,5 @@
 package core.domain.notification.service;
 
-import com.google.cloud.PageImpl;
 import core.domain.notification.dto.*;
 import core.domain.notification.entity.Notification;
 import core.domain.notification.repository.NotificationRepository;
@@ -13,11 +12,11 @@ import core.domain.usernotificationsetting.repository.UserNotificationSettingRep
 import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
-import core.global.exception.CommonErrorCode;
-import core.global.exception.UserErrorCode;
-import core.global.image.dto.NotificationSliceResponseDto;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.entity.image.dto.NotificationSliceResponseDto;
+import core.global.entity.image.entity.Image;
+import core.global.entity.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
