@@ -17,10 +17,22 @@
         .search-form input, .search-form label { padding: 5px; margin-right: 10px; }
         .search-form button { padding: 5px 10px; }
         td small { color: #777; }
+
+        .btn-home {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 <h1>댓글 관리</h1>
+
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
 
 <div class="search-form">
     <form th:action="@{/admin/comments}" method="get" th:object="${searchRequest}">

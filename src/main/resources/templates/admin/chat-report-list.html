@@ -17,6 +17,7 @@
         .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
         .btn-home {
             display: inline-block;
             margin-bottom: 15px;
@@ -34,7 +35,7 @@
 <div th:if="${successMessage}" class="message success" th:text="${successMessage}"></div>
 <div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
 
-<a th:href="@{/admin/home}" class="btn-home">관리자 홈</a>
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
 
 <table>
     <thead>
@@ -81,6 +82,5 @@
        th:href="@{/admin/chats/reports(page=${reportPage.number + 1}, sort=${param.sort})}">다음</a>
 </div>
 
-<a th:href="@{/admin/users/home}" style="margin-top: 30px; display: inline-block;">← 관리자 홈으로</a>
 </body>
 </html>
