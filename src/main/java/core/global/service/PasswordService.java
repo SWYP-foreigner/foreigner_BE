@@ -3,7 +3,7 @@ package core.global.service;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.exception.BusinessException;
-import core.global.exception.UserErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;

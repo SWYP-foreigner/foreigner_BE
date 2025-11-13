@@ -4,7 +4,7 @@ package core.global.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import core.global.dto.ApiErrorResponse;
-import core.global.exception.AuthErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

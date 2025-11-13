@@ -1,6 +1,6 @@
 package core.global.metrics;
 
-import core.global.Country;
+import core.global.constants.Country;
 import io.micrometer.core.instrument.*;
 import org.springframework.stereotype.Component;
 

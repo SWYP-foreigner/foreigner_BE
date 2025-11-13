@@ -1,8 +1,8 @@
 package core.global.security;
 
 import core.global.config.CustomUserDetails;
-import core.global.exception.AuthErrorCode;
-import core.global.exception.UserErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.io.Decoders;
