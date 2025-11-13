@@ -1,6 +1,5 @@
 package core.domain.notification.service;
 
-import com.google.cloud.PageImpl;
 import core.domain.notification.dto.*;
 import core.domain.notification.entity.Notification;
 import core.domain.notification.repository.NotificationRepository;
@@ -10,13 +9,14 @@ import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.enums.ErrorCode;
 import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
-import core.global.image.dto.NotificationSliceResponseDto;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.entity.image.dto.NotificationSliceResponseDto;
+import core.global.entity.image.entity.Image;
+import core.global.entity.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -133,7 +133,7 @@ public class UserNotificationService {
         if (optionalUser.isPresent()) {
             return optionalUser.get();
         } else {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
     }
 
@@ -167,10 +167,10 @@ public class UserNotificationService {
      */
     public void markNotificationAsRead(Long userId, Long notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.NOTIFICATION_NOT_FOUND));
 
         if (!notification.getUser().getId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NOTIFICATION_FORBIDDEN);
+            throw new BusinessException(CommonErrorCode.NOTIFICATION_FORBIDDEN);
         }
 
         notification.markAsRead();

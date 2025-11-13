@@ -33,9 +33,8 @@ public class FriendCommendController {
     public ResponseEntity<List<CommendUsersProfileResponse>> recommend(
             @RequestParam(defaultValue = "50") int limit
     ) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        List<CommendUsersProfileResponse> list = recommenderService.recommendForUser(auth, limit);
+        List<CommendUsersProfileResponse> list = recommenderService.recommendForUser(limit);
         featureUsageMetrics.recordFollowUsage();
 
         return ResponseEntity.ok(list);

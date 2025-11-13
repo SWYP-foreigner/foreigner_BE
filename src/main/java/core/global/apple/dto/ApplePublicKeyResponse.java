@@ -1,6 +1,6 @@
 package core.global.apple.dto;
 
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 
 import java.util.List;
@@ -14,6 +14,6 @@ public record ApplePublicKeyResponse(List<ApplePublicKey> keys) {
         return keys.stream()
                 .filter(key -> key.kid().equals(kid) && key.alg().equals(alg))
                 .findAny()
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_JWT));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_JWT));
     }
 }

@@ -1,6 +1,6 @@
 package core.global.apple.service;
 
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -94,7 +94,7 @@ public class AppleClientSecretGenerator {
 
         } catch (IOException e) {
             log.error("Failed to parse Apple private key. Check key format and properties.", e);
-            throw new BusinessException(ErrorCode.INVALID_PRIVATE_KEY_APPLE);
+            throw new BusinessException(AuthErrorCode.INVALID_PRIVATE_KEY_APPLE);
         }
     }
 }

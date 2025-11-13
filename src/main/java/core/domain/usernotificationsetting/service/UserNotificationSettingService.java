@@ -10,8 +10,9 @@ import core.domain.usernotificationsetting.dto.NotificationSettingInitRequestDto
 import core.domain.usernotificationsetting.dto.NotificationSettingResponseDto;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,11 +30,11 @@ public class UserNotificationSettingService {
     @Transactional(readOnly = true)
     public List<NotificationSettingResponseDto> getUserNotificationSettings(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_UNAUTHORIZED));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<UserNotificationSetting> settings = repository.findByUserId(user.getId());
         if (settings.isEmpty()) {
-            throw new BusinessException(ErrorCode.NOTIFICATION_SETTING_NOT_FOUND);
+            throw new BusinessException(CommonErrorCode.NOTIFICATION_SETTING_NOT_FOUND);
         }
 
         return settings.stream()
@@ -46,14 +47,14 @@ public class UserNotificationSettingService {
             Long userId, NotificationSettingBulkUpdateRequestDto request) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<NotificationSettingResponse> responses = new ArrayList<>();
 
         for (NotificationSettingBulkUpdateRequestDto.SettingItem item : request.settings()) {
             UserNotificationSetting setting = repository
                     .findByUserIdAndNotificationType(user.getId(), item.notificationType())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(CommonErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
 
             setting.updateEnabled(item.enabled());
 
@@ -71,7 +72,7 @@ public class UserNotificationSettingService {
     @Transactional
     public void initializeNotificationSettings(Long userId, NotificationSettingInitRequestDto request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         for (NotificationSettingInitItem item : request.getSettings()) {
             UserNotificationSetting setting = repository

@@ -1,7 +1,8 @@
 package core.global.security;
 
 import core.global.config.CustomUserDetails;
-import core.global.enums.ErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.redis.service.RedisService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.io.Decoders;
@@ -75,16 +76,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         String requestUri = request.getRequestURI();
 
-        // --- 🔽 1. [수정] 헤더(앱) 또는 쿠키(웹)에서 토큰 추출 🔽 ---
         String token = resolveToken(request);
 
-        // --- 🔽 2. [수정] 토큰이 없는 경우 (가장 큰 변경점) 🔽 ---
         if (token == null) {
             log.trace("JWT 토큰 없음 (헤더 및 쿠키). URI={}", requestUri);
-            // 토큰이 없으면, 인증 없이 다음 필터로 넘김.
-            // SecurityConfig가 이 경로가 public인지 (permitAll)
-            // 아니면 protected인지 (hasRole) 판단할 것임.
-            // (기존의 jwtAuthenticationEntryPoint.commence() 호출 로직 삭제)
             chain.doFilter(request, response);
             return;
         }
@@ -96,7 +91,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
-                        new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage())
+                        new BadCredentialsException(AuthErrorCode.JWT_TOKEN_BLACKLISTED.getMessage())
                 );
                 return;
             }
@@ -106,7 +101,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
-                        new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage())
+                        new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage())
                 );
                 return;
             }
@@ -120,7 +115,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
-                        new BadCredentialsException(ErrorCode.JWT_INVAIL_ROLE.getMessage())
+                        new BadCredentialsException(UserErrorCode.JWT_INVALID_ROLE.getMessage())
                 );
                 return;
             }
@@ -142,7 +137,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             jwtAuthenticationEntryPoint.commence(
                     request,
                     response,
-                    new BadCredentialsException(ErrorCode.JWT_TOKEN_EXPIRED.getMessage())
+                    new BadCredentialsException(AuthErrorCode.JWT_TOKEN_EXPIRED.getMessage())
             );
         } catch (Exception e) {
             log.error("JWT 필터 처리 중 예외 발생: {}", e.getMessage(), e);
@@ -150,7 +145,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             jwtAuthenticationEntryPoint.commence(
                     request,
                     response,
-                    new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage())
+                    new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage())
             );
         }
     }

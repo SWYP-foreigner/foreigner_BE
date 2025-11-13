@@ -2,8 +2,8 @@ package core.global.apple.service;
 
 import core.global.apple.dto.ApplePublicKey;
 import core.global.apple.dto.ApplePublicKeyResponse;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
-import core.global.enums.ErrorCode;
 import org.springframework.stereotype.Component;
 
 import java.math.BigInteger;
@@ -27,7 +27,7 @@ public class ApplePublicKeyGenerator {
         ApplePublicKey matchedKey = publicKeyResponse.keys().stream()
                 .filter(key -> key.kid().equals(tokenHeaders.get("kid")) && key.alg().equals(tokenHeaders.get("alg")))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NO_MATCHING_APPLE_KEY)); // 또는 적절한 예외
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.NO_MATCHING_APPLE_KEY)); // 또는 적절한 예외
 
         // 2. 찾은 키를 사용하여 PublicKey 객체를 생성합니다.
         return createPublicKey(matchedKey);
@@ -46,7 +46,7 @@ public class ApplePublicKeyGenerator {
 
             return keyFactory.generatePublic(publicKeySpec);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            throw new BusinessException(ErrorCode.PUBLIC_KEY_GENERATION_FAILED);
+            throw new BusinessException(AuthErrorCode.PUBLIC_KEY_GENERATION_FAILED);
         }
     }
 }

@@ -17,9 +17,12 @@ import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
-import core.global.image.repository.ImageRepository;
-import core.global.like.entity.Like;
-import core.global.like.repository.LikeRepository;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.like.entity.Like;
+import core.global.entity.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.service.ForbiddenWordService;
@@ -97,21 +100,21 @@ public class CommentServiceImpl implements CommentService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         if (forbiddenWordService.containsForbiddenWord(request.comment())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_WORD_DETECTED);
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
         }
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
         Comment parent = null;
         if (request.parentId() != null) {
             parent = commentRepository.findById(request.parentId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
             if (!parent.getPost().getId().equals(post.getId())) {
-                throw new BusinessException(ErrorCode.INVALID_PARENT_COMMENT);
+                throw new BusinessException(CommunityErrorCode.INVALID_PARENT_COMMENT);
             }
         }
 
@@ -153,7 +156,7 @@ public class CommentServiceImpl implements CommentService {
                 }
             }
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_COMMENT_INPUT);
+            throw new BusinessException(CommunityErrorCode.INVALID_COMMENT_INPUT);
         }
     }
 
@@ -162,7 +165,7 @@ public class CommentServiceImpl implements CommentService {
                 category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
 
         if (!allowAnonymous && isAnonymous) {
-            throw new BusinessException(ErrorCode.NOT_AVAILABLE_ANONYMOUS);
+            throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_ANONYMOUS);
         }
     }
 
@@ -175,14 +178,14 @@ public class CommentServiceImpl implements CommentService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
 
         if (!email.equals(comment.getAuthor().getEmail())) {
-            throw new BusinessException(ErrorCode.COMMENT_EDIT_FORBIDDEN);
+            throw new BusinessException(CommunityErrorCode.COMMENT_EDIT_FORBIDDEN);
         }
 
         if (comment.isDeleted()) {
-            throw new BusinessException(ErrorCode.COMMENT_ALREADY_DELETED);
+            throw new BusinessException(CommunityErrorCode.COMMENT_ALREADY_DELETED);
         }
 
         if (request.content() != null) {
@@ -200,10 +203,10 @@ public class CommentServiceImpl implements CommentService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
 
         if (comment.getAuthor() == null || !comment.getAuthor().getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.COMMENT_DELETE_FORBIDDEN);
+            throw new BusinessException(CommunityErrorCode.COMMENT_DELETE_FORBIDDEN);
         }
 
         boolean hasAliveChildren = commentRepository.existsByParentIdAndDeletedFalse(commentId);
@@ -259,7 +262,7 @@ public class CommentServiceImpl implements CommentService {
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, commentId, LikeType.COMMENT);
         if (existedLike.isPresent()) {
-            throw new BusinessException(ErrorCode.LIKE_ALREADY_EXIST);
+            throw new BusinessException(CommunityErrorCode.LIKE_ALREADY_EXIST);
         }
 
 
@@ -290,17 +293,17 @@ public class CommentServiceImpl implements CommentService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         User blockedUser = commentRepository.findUserByCommentId(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockedUser.getEmail().equals(email)) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (blockRepository.existsBlock(me.getId(), blockedUser.getId()) || blockRepository.existsBlock(blockedUser.getId(), me.getId())) {
-            throw new BusinessException(ErrorCode.CANNOT_BLOCK);
+            throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
@@ -318,7 +321,7 @@ public class CommentServiceImpl implements CommentService {
 
     private User getUserOrThrow(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 
     private int clampPageSize(Integer size) {

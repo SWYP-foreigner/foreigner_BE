@@ -9,8 +9,9 @@ import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.pagination.CursorPageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,14 +35,6 @@ public class PostSearchService {
     private final UserRepository userRepository;
     private final SuggestMemoryIndex memoryIndex;
 
-    private static Long toLong(Object o) {
-        return (o == null) ? null : ((Number) o).longValue();
-    }
-
-    private static Double toDouble(Object o) {
-        return (o == null) ? null : ((Number) o).doubleValue();
-    }
-
     @Transactional(readOnly = true)
     public CursorPageResponse<SearchResultView> search(
             String q,
@@ -53,11 +46,11 @@ public class PostSearchService {
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
-            throw new BusinessException(ErrorCode.BOARD_NOT_FOUND);
+            throw new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND);
         }
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         List<Long> blockedIds = blockRepository.getBlockUsersByUserEmail(email)
                 .stream().map(User::getId).toList();
 

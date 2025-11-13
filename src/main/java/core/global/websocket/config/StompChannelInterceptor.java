@@ -2,8 +2,8 @@ package core.global.websocket.config;
 
 import core.domain.user.service.UserActivityService;
 import core.global.config.CustomUserDetails;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.security.JwtTokenProvider;
-import core.global.enums.ErrorCode;
 import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;
@@ -41,18 +41,18 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 log.warn("STOMP CONNECT Authorization 헤더 없음 또는 Bearer 형식 아님");
-                throw new BadCredentialsException(ErrorCode.JWT_TOKEN_NOT_FOUND.getMessage());
+                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_NOT_FOUND.getMessage());
             }
             String token = authHeader.substring(7);
 
             try {
                 if (redisService.isBlacklisted(token)) {
                     log.warn("STOMP JWT 토큰이 블랙리스트에 있습니다.");
-                    throw new BadCredentialsException(ErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
+                    throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
                 }
                 if (!jwtTokenProvider.validateToken(token)) {
                     log.warn("STOMP JWT 토큰이 유효하지 않습니다.");
-                    throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
+                    throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
                 }
 
                 String email = jwtTokenProvider.getEmailFromToken(token);
@@ -74,7 +74,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             } catch (Exception e) {
                 log.error("STOMP JWT 처리 중 예외 발생: {}", e.getMessage(), e);
-                throw new BadCredentialsException(ErrorCode.JWT_TOKEN_INVALID.getMessage());
+                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
 
         } else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {

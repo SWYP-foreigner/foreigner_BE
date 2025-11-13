@@ -13,10 +13,10 @@ import core.domain.comment.entity.QComment;
 import core.domain.post.dto.SearchResultView;
 import core.domain.post.entity.QPost;
 import core.domain.user.entity.QUser;
+import core.global.entity.image.entity.QImage;
+import core.global.entity.like.entity.QLike;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
-import core.global.image.entity.QImage;
-import core.global.like.entity.QLike;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static core.domain.post.entity.QPost.post;
-import static core.global.like.entity.QLike.like;
+import static core.global.entity.like.entity.QLike.like;
 
 @Repository
 @RequiredArgsConstructor
@@ -180,6 +180,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                                 authorNameExpr,       // authorName (익명시 "Anonymity")
                                 p.board.category,     // category
                                 p.createdAt,          // createdAt
+                                p.anonymous,
                                 likedByMe,
                                 likeCountExpr,        // likeCount (실제)
                                 commentCountExpr,     // commentCount (실제)

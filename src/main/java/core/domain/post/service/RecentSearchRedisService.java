@@ -2,8 +2,8 @@ package core.domain.post.service;
 
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -76,7 +76,7 @@ public class RecentSearchRedisService {
     private Long getUserId() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         return user.getId();
     }
 }

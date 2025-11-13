@@ -3,8 +3,9 @@ package core.global.service;
 import com.google.cloud.translate.v3.*;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,9 +49,9 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
-                    ErrorCode.TRANSLATE_FAIL,
-                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
+                    CommonErrorCode.TRANSLATE_FAIL,
+                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
                     e
             );
         }
@@ -60,7 +61,7 @@ public class TranslationService {
     @Transactional
     public void saveUserLanguage(Authentication auth, String language) {
         User user = userRepository.findByEmail(auth.getName())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         if (language != null && !language.isEmpty()) {
             user.updateTranslateLanguage(language);
         }
@@ -91,9 +92,9 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
-                    ErrorCode.TRANSLATE_FAIL,
-                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
+                    CommonErrorCode.TRANSLATE_FAIL,
+                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
                     e
             );
         }
@@ -124,9 +125,9 @@ public class TranslationService {
         } catch (Exception e) {
             log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
             throw new BusinessException(
-                    ErrorCode.TRANSLATE_FAIL.getErrorCode(),
-                    ErrorCode.TRANSLATE_FAIL,
-                    ErrorCode.TRANSLATE_FAIL.getMessage(),
+                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
+                    CommonErrorCode.TRANSLATE_FAIL,
+                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
                     e
             );
         }

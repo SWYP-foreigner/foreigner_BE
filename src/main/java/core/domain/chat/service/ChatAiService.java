@@ -5,20 +5,18 @@ import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.global.enums.ErrorCode;
 import core.global.exception.BusinessException;
-import core.global.image.service.ImageService;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +46,7 @@ public class ChatAiService {
     @Transactional
     public ChatAiRoomResponse createAiChatRoom(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -137,7 +135,7 @@ public class ChatAiService {
     @Transactional
     public void deleteAiChatRoom(Long userId, Long roomId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
 
 
@@ -149,19 +147,19 @@ public class ChatAiService {
 
     private User findUserById(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 
     private ChatRoom findChatRoomById(Long roomId) {
         return chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
     private void validateParticipant(Long userId, ChatRoom chatRoom) {
         boolean isParticipant = chatRoom.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
         if (!isParticipant) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+            throw new BusinessException(ChatErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
     }
     /**
@@ -174,7 +172,7 @@ public class ChatAiService {
     @Transactional(readOnly = true)
     public MessageSliceResponse getChatMessages(Long userId, Long roomId, Long lastMessageId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
@@ -205,16 +203,16 @@ public class ChatAiService {
     public void deleteReportedMessage(Long userId, Long messageId) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
 
 
         ChatMessage message = chatMessageRepository.findById(messageId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
         validateParticipant(userId, message.getChatRoom());
         if (!message.getSender().getId().equals(AI_USER_ID)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN_MESSAGE_DELETE);
+            throw new BusinessException(ChatErrorCode.FORBIDDEN_MESSAGE_DELETE);
         }
         chatMessageRepository.delete(message);
     }

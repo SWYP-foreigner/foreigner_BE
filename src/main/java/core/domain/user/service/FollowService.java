@@ -10,7 +10,8 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
-import core.global.image.repository.ImageRepository;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.entity.image.repository.ImageRepository;
 import core.global.metrics.SocialChatMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,7 @@ public class FollowService {
     @Transactional(readOnly = true)
     public Map<String, Long> getPendingFollowCounts(Authentication authentication) {
         User me = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         long sentCount = followRepository.countByUserIdAndStatus(me.getId(), FollowStatus.PENDING);
         long receivedCount = followRepository.countByFollowingIdAndStatus(me.getId(), FollowStatus.PENDING);
@@ -83,7 +84,7 @@ public class FollowService {
     @Transactional(readOnly = true)
     public List<FollowDTO> getMyAcceptedFollows(Authentication authentication) {
         User me = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         List<Follow> follows = followRepository.findAllAcceptedFollowsByUserId(me.getId(), FollowStatus.ACCEPTED);
 
@@ -127,7 +128,7 @@ public class FollowService {
         String email = auth.getName();
 
         User follower = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(follower);
 
@@ -135,12 +136,12 @@ public class FollowService {
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> {
                     log.warn("[FOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         if (follower.getId().equals(targetUser.getId())) {
             log.warn("[FOLLOW] 자기 자신 팔로우 시도 차단: 사용자={}", follower.getId());
-            throw new BusinessException(ErrorCode.CANNOT_FOLLOW_YOURSELF);
+            throw new BusinessException(UserErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
         Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
@@ -150,11 +151,11 @@ public class FollowService {
             switch (existing.getStatus()) {
                 case PENDING -> {
                     log.info("[FOLLOW] 이미 팔로우 신청 대기 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
+                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
                 }
                 case ACCEPTED -> {
                     log.warn("[FOLLOW] 이미 팔로우 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
+                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
                 }
             }
         }
@@ -162,11 +163,11 @@ public class FollowService {
             switch (existing.getStatus()) {
                 case PENDING -> {
                     log.info("[FOLLOW] 이미 팔로우 신청 대기 중(Rev): from={}, to={}", targetUser.getId(), follower.getId());
-                    throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
+                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
                 }
                 case ACCEPTED -> {
                     log.warn("[FOLLOW] 이미 팔로우 중(Rev): from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(ErrorCode.FOLLOW_ALREADY_EXISTS);
+                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
                 }
             }
         }
@@ -204,20 +205,20 @@ public class FollowService {
         User toUser = userRepository.findByEmail(toEmail)
                 .orElseThrow(() -> {
                     log.warn("[ACCEPT FOLLOW] 수락자 사용자 찾기 실패: email={}", toEmail);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         User fromUser = userRepository.findById(fromUserId)
                 .orElseThrow(() -> {
                     log.warn("[ACCEPT FOLLOW] 신청자 사용자 찾기 실패: 신청자 ID={}", fromUserId);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         Follow follow = followRepository
                 .findByUserAndFollowingAndStatus(fromUser, toUser, FollowStatus.PENDING)
                 .orElseThrow(() -> {
                     log.warn("[ACCEPT FOLLOW] 대기 중인 팔로우 요청 없음: from={}, to={}", fromUser.getId(), toUser.getId());
-                    return new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
                 });
 
         follow.accept();
@@ -243,15 +244,15 @@ public class FollowService {
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> {
                     log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         if (me.getId().equals(friendId)) {
             log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
         User friend = userRepository.findById(friendId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         Optional<Follow> targetFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
                 me.getId(), friendId, FollowStatus.ACCEPTED);
 
@@ -270,7 +271,7 @@ public class FollowService {
 
         if (targetFollow.isEmpty() && targetInverseFollow.isEmpty()) {
             log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - friendId: {}", friendId);
-            throw new BusinessException(ErrorCode.FOLLOW_NOT_FOUND);
+            throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);
         }
     }
 
@@ -290,19 +291,19 @@ public class FollowService {
         User follower = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("[UNFOLLOW] 팔로워 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> {
                     log.warn("[UNFOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         Follow follow = followRepository.findByUserAndFollowing(follower, targetUser)
                 .orElseThrow(() -> {
                     log.warn("[UNFOLLOW] 팔로우 관계 없음: from={}, to={}", follower.getId(), targetUser.getId());
-                    return new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
                 });
 
         followRepository.delete(follow);
@@ -321,7 +322,7 @@ public class FollowService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         Stream<Follow> followStream;
@@ -377,14 +378,14 @@ public class FollowService {
         User toUser = userRepository.findByEmail(toEmail)
                 .orElseThrow(() -> {
                     log.warn("[DECLINE FOLLOW] 거절자 사용자 찾기 실패: email={}", toEmail);
-                    return new BusinessException(ErrorCode.USER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
                 });
 
         Follow followReq = followRepository
                 .findByUser_IdAndFollowing_IdAndStatus(fromUserId, toUser.getId(), FollowStatus.PENDING)
                 .orElseThrow(() -> {
                     log.warn("[DECLINE FOLLOW] 대기 중인 요청 없음: from={}, to={}", fromUserId, toUser.getId());
-                    return new BusinessException(ErrorCode.FOLLOWER_NOT_FOUND);
+                    return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
                 });
 
         followRepository.delete(followReq);
