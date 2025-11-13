@@ -99,8 +99,10 @@ public class CommentServiceImpl implements CommentService {
     public void writeComment(Long postId, CommentWriteRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        if (forbiddenWordService.containsForbiddenWord(request.comment())) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
+        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(request.comment());
+
+        if (!forbiddenWords.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
         }
 
         User user = getUserOrThrow(email);

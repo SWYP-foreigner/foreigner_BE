@@ -274,8 +274,10 @@ public class PostServiceImpl implements PostService {
     }
 
     private void validatePostForbiddenWord(String content) {
-        if (forbiddenWordService.containsForbiddenWord(content)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
+        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(content);
+
+        if (!forbiddenWords.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
         }
     }
 

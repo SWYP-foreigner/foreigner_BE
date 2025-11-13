@@ -56,15 +56,16 @@ public class ForbiddenWordService {
         }
     }
 
-    public boolean containsForbiddenWord(String text) {
+    public List<String> containsForbiddenWord(String text) {
+        List<String> forbiddenWords = new ArrayList<>();
+
         if (text == null || text.isBlank()) {
-            return false;
+            return forbiddenWords;
         }
 
         Matcher m = WORD.matcher(text);
 
         int idx = 0;
-        boolean found = false;
 
         while (m.find()) {
             String token = m.group();
@@ -73,12 +74,13 @@ public class ForbiddenWordService {
 
             String normalized = token.toLowerCase(Locale.ROOT);
             if (forbiddenSet.contains(normalized)) {
-                found = true;
+                forbiddenWords.add(token);
             } else {
                 log.trace("ok[{}]: '{}' (pos: {}-{})", idx, token, start, end);
             }
             idx++;
         }
-        return found;
+
+        return forbiddenWords;
     }
 }

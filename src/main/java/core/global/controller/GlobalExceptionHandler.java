@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiErrorResponse> handleBusiness(BusinessException ex) {
-        return ResponseEntity.status(ex.getStatus()).body(ApiErrorResponse.of("BUSINESS_ERROR", ex.getError().code(), ex.getMessage()));
+        return ResponseEntity.status(ex.getStatus()).body(ApiErrorResponse.of("BUSINESS_ERROR", ex.getError().code(), ex.getMessage(), ex.getDetail()));
     }
 
     // Bean Validation - DTO 바인딩/필드 검증 실패(@ValidBirthday 포함)
