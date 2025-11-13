@@ -1,4 +1,4 @@
-package core.global;
+package core.global.constants;
 
 import java.util.List;
 import java.util.Set;
