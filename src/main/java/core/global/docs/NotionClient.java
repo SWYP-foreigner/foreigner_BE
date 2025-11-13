@@ -1,5 +1,6 @@
 package core.global.docs;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -37,8 +38,59 @@ public class NotionClient {
      */
     public void syncErrorCodes(List<ErrorCodeDoc> docs) throws Exception {
         for (ErrorCodeDoc doc : docs) {
-            createPage(doc);
+            String pageId = findPageIdByCode(doc.code());
+            if (pageId == null) {
+                // 없으면 새로 생성
+                createPage(doc);
+            } else {
+                // 있으면 업데이트
+                updatePage(pageId, doc);
+            }
         }
+    }
+
+
+    private String findPageIdByCode(String code) throws Exception {
+        ObjectNode root = objectMapper.createObjectNode();
+
+        // filter: property "code" (Title) equals {code}
+        ObjectNode filter = objectMapper.createObjectNode();
+        filter.put("property", "code"); // 노션 DB 속성 이름과 동일해야 함
+
+        ObjectNode title = objectMapper.createObjectNode();
+        title.put("equals", code);
+        filter.set("title", title);
+
+        root.set("filter", filter);
+
+        String body = objectMapper.writeValueAsString(root);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(NOTION_API_BASE + "/databases/" + databaseId + "/query"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + token)
+                .header("Notion-Version", NOTION_VERSION)
+                .header("Content-Type", "application/json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response =
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            System.err.println("Notion query 실패: " + response.statusCode());
+            System.err.println(response.body());
+            return null;
+        }
+
+        JsonNode json = objectMapper.readTree(response.body());
+        JsonNode results = json.get("results");
+        if (results == null || !results.isArray() || results.isEmpty()) {
+            return null;
+        }
+
+        // 첫 번째 결과의 id만 사용
+        return results.get(0).get("id").asText();
     }
 
     private void createPage(ErrorCodeDoc doc) throws Exception {
@@ -97,6 +149,59 @@ public class NotionClient {
         int statusCode = response.statusCode();
         if (statusCode < 200 || statusCode >= 300) {
             System.err.println("Notion createPage 실패: " + statusCode);
+            System.err.println(response.body());
+        }
+    }
+
+    private void updatePage(String pageId, ErrorCodeDoc doc) throws Exception {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode properties = objectMapper.createObjectNode();
+
+        // code (Title)
+        ObjectNode nameProp = objectMapper.createObjectNode();
+        ArrayNode titleArray = objectMapper.createArrayNode();
+        ObjectNode titleText = objectMapper.createObjectNode();
+        ObjectNode textObj = objectMapper.createObjectNode();
+        textObj.put("content", doc.code());
+        titleText.set("text", textObj);
+        titleArray.add(titleText);
+        nameProp.set("title", titleArray);
+        properties.set("code", nameProp);
+
+        // httpStatus (Number)
+        ObjectNode statusProp = objectMapper.createObjectNode();
+        statusProp.put("number", doc.httpStatus());
+        properties.set("httpStatus", statusProp);
+
+        // message (Rich text)
+        ObjectNode msgProp = objectMapper.createObjectNode();
+        ArrayNode richTextArray = objectMapper.createArrayNode();
+        ObjectNode msgText = objectMapper.createObjectNode();
+        ObjectNode msgTextContent = objectMapper.createObjectNode();
+        msgTextContent.put("content", doc.message());
+        msgText.set("text", msgTextContent);
+        richTextArray.add(msgText);
+        msgProp.set("rich_text", richTextArray);
+        properties.set("message", msgProp);
+
+        root.set("properties", properties);
+
+        String body = objectMapper.writeValueAsString(root);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(NOTION_API_BASE + "/pages/" + pageId))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + token)
+                .header("Notion-Version", NOTION_VERSION)
+                .header("Content-Type", "application/json; charset=utf-8")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response =
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            System.err.println("Notion updatePage 실패: " + response.statusCode());
             System.err.println(response.body());
         }
     }
