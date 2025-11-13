@@ -5,6 +5,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;

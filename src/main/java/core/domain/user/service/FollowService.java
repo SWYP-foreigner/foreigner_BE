@@ -8,6 +8,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.FollowActivityLogRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.FollowActionType;
 import core.global.enums.FollowStatus;
 import core.global.enums.NotificationType;

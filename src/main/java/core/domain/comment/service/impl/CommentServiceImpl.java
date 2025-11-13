@@ -15,12 +15,12 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
@@ -428,6 +428,7 @@ public class CommentServiceImpl implements CommentService {
 
                     return new CommentItem(
                             it.commentId(),
+                            it.parentCommentId(),
                             it.authorId(),
                             it.authorName(),
                             translated.get(i),   // 번역된 content 주입
