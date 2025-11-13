@@ -943,21 +943,17 @@ public class ChatService {
             if (perspectiveService.isHarmful(originalContent)) {
                 log.warn("스팸 메시지 감지(AI): senderId={}, content={}", req.senderId(), originalContent);
 
-                // todo: (예: 1L - 실제 관리자 계정 ID로 변경 필요)
-                Long systemReporterId = 1L;
+                try {
+                    ChatReportRequest aiReportRequest = new ChatReportRequest(
+                            savedMessage.getId(),
+                            "AI_DETECTED_SPAM",
+                            "Perspective API가 스팸/유해 콘텐츠로 감지함"
+                    );
+                    reportChat(null, aiReportRequest);
 
-                if (!chatReportRepository.existsByReporterUserIdAndMessageId(systemReporterId, savedMessage.getId())) {
-                    try {
-                        ChatReportRequest aiReportRequest = new ChatReportRequest(
-                                savedMessage.getId(),
-                                "AI_DETECTED_SPAM",
-                                "Perspective API가 스팸/유해 콘텐츠로 감지함"
-                        );
-                        reportChat(systemReporterId, aiReportRequest);
-                        log.info("AI가 감지한 스팸 메시지를 자동으로 신고 처리했습니다. (Message ID: {})", savedMessage.getId());
-                    } catch (Exception e) {
-                        log.warn("AI 자동 신고 처리 중 오류 발생 (무시): {}", e.getMessage());
-                    }
+                    log.info("AI가 감지한 스팸 메시지를 자동으로 신고 처리했습니다. (Message ID: {})", savedMessage.getId());
+                } catch (Exception e) {
+                    log.warn("AI 자동 신고 처리 중 오류 발생: {}", e.getMessage());
                 }
             }
         }
@@ -1345,12 +1341,22 @@ public class ChatService {
     @Transactional
     public void reportChat(Long reporterUserId, ChatReportRequest request) {
 
-        if (chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId())) {
-            throw new BusinessException(ErrorCode.DUPLICATE_REPORT);
+        boolean alreadyReported = chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId());
+
+        if (alreadyReported) {
+            if (reporterUserId == null) {
+                return;
+            }
+            else {
+                throw new BusinessException(ErrorCode.DUPLICATE_REPORT);
+            }
         }
 
-        User reporterUser = userRepository.findById(reporterUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User reporterUser = null;
+        if (reporterUserId != null) {
+            reporterUser = userRepository.findById(reporterUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        }
 
         ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MESSAGE_NOT_FOUND));

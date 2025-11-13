@@ -25,7 +25,8 @@ public final class PermitAllPaths {
             "/v3/api-docs/**",
             "/swagger-resources/**",
             "/admin/login",
-            "/api/v1/member/admin/login"
+            "/api/v1/member/admin/login",
+            "/admin/test/send-message"
     );
 
     private PermitAllPaths() { }

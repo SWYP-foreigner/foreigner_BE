@@ -18,12 +18,16 @@ public record ChatReportDto(
         Instant createdAt
 ) {
     public static ChatReportDto from(ChatReport report) {
+
+        Long reporterId = (report.getReporterUser() != null) ? report.getReporterUser().getId() : null;
+        String reporterName = (report.getReporterUser() != null) ? report.getReporterUser().getName() : "AI SYSTEM";
+
         return new ChatReportDto(
                 report.getId(),
                 report.getChatRoom().getId(),
                 report.getMessageId(),
-                report.getReporterUser().getId(),
-                report.getReporterUser().getName(),
+                reporterId,
+                reporterName,
                 report.getReportedUser().getId(),
                 report.getReportedUser().getName(),
                 report.getMessageContent(),

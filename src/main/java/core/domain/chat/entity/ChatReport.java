@@ -26,7 +26,7 @@ public class ChatReport {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reporter_user_id", nullable = false)
+    @JoinColumn(name = "reporter_user_id", nullable = true)
     private User reporterUser; // 신고한 사람
 
     @ManyToOne(fetch = FetchType.LAZY)
