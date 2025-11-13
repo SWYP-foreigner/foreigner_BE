@@ -99,11 +99,7 @@ public class CommentServiceImpl implements CommentService {
     public void writeComment(Long postId, CommentWriteRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(request.comment());
-
-        if (!forbiddenWords.isEmpty()) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
-        }
+        validateCommentForbiddenWord(request.comment());
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
@@ -162,6 +158,14 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    private void validateCommentForbiddenWord(String content) {
+        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(content);
+
+        if (!forbiddenWords.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
+        }
+    }
+
     private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
         final boolean allowAnonymous =
                 category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
@@ -178,6 +182,8 @@ public class CommentServiceImpl implements CommentService {
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
+
+        validateCommentForbiddenWord(request.content());
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));

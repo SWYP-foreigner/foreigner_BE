@@ -329,6 +329,8 @@ public class PostServiceImpl implements PostService {
     public void updatePost(Long postId, @Valid PostUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
+        validatePostForbiddenWord(request.content());
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
