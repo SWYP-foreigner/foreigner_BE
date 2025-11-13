@@ -1,4 +1,4 @@
-package core.global.image.entity;
+package core.global.entity.image.entity;
 
 import core.global.enums.ImageType;
 import jakarta.persistence.*;

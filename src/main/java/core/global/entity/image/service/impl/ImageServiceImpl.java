@@ -1,15 +1,15 @@
-package core.global.image.service.impl;
+package core.global.entity.image.service.impl;
 
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
-import core.global.exception.ImageErrorCode;
-import core.global.image.dto.ImageDto;
-import core.global.image.dto.PresignedUrlRequest;
-import core.global.image.dto.PresignedUrlResponse;
-import core.global.image.entity.Image;
-import core.global.image.repository.ImageRepository;
-import core.global.image.service.ImageService;
-import core.global.image.utils.UrlUtil;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.entity.image.dto.ImageDto;
+import core.global.entity.image.dto.PresignedUrlRequest;
+import core.global.entity.image.dto.PresignedUrlResponse;
+import core.global.entity.image.entity.Image;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.ImageService;
+import core.global.entity.image.utils.UrlUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

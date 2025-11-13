@@ -7,7 +7,7 @@ import core.domain.board.service.BoardService;
 import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
 import core.global.enums.BoardCategory;
 import core.global.exception.BusinessException;
-import core.global.exception.CommunityErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

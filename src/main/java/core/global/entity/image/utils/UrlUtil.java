@@ -1,4 +1,4 @@
-package core.global.image.utils;
+package core.global.entity.image.utils;
 
 import core.global.enums.ImageType;
 

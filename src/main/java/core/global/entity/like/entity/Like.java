@@ -1,4 +1,4 @@
-package core.global.like.entity;
+package core.global.entity.like.entity;
 
 import core.domain.user.entity.User;
 import core.global.enums.LikeType;

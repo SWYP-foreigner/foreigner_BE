@@ -2,7 +2,7 @@ package core.global.apple.service;
 
 import core.domain.user.entity.User;
 import core.global.apple.client.AppleClient;
-import core.global.exception.AuthErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;

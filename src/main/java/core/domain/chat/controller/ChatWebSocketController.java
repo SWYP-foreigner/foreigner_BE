@@ -1,22 +1,14 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
-import core.global.service.TranslationService;
-import core.domain.user.repository.UserRepository;
-import core.global.image.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 
 

@@ -1,13 +1,13 @@
-package core.global.exception;
+package core.global.enums.errorcode;
 
-import com.fasterxml.jackson.core.JsonParseException;
+import core.global.exception.AppError;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
 @AllArgsConstructor
-public enum UserErrorCode implements AppError{
+public enum UserErrorCode implements AppError {
     FOLLOW_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로우를 찾을수없습니다."),
     INVALID_FOLLOW_STATUS(HttpStatus.CONFLICT, "팔로우상태가 아닙니다."),
     AGREEMENT_INPUT(HttpStatus.CONFLICT, "약관 동의가 필요합니다."),

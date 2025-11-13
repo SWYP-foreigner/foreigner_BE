@@ -1,4 +1,4 @@
-package core.global.image.dto;
+package core.global.entity.image.dto;
 
 import java.util.Map;
 

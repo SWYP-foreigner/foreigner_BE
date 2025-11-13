@@ -1,4 +1,4 @@
-package core.global.image;
+package core.global.entity.image;
 
 import lombok.Getter;
 import lombok.Setter;

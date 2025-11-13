@@ -1,4 +1,4 @@
-package core.global.image.dto;
+package core.global.entity.image.dto;
 
 import core.domain.notification.dto.NotificationResponseDto;
 import lombok.Builder;

@@ -1,6 +1,6 @@
 package core.global.apple.dto;
 
-import core.global.exception.AuthErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 
 import java.util.List;

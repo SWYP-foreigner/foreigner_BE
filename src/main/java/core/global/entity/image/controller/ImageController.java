@@ -1,11 +1,11 @@
-package core.global.image.controller;
+package core.global.entity.image.controller;
 
 import core.global.dto.ApiResponse;
 import core.global.dto.UpsertChatRoomImageRequest;
-import core.global.image.dto.ImageDto;
-import core.global.image.dto.PresignedUrlRequest;
-import core.global.image.dto.PresignedUrlResponse;
-import core.global.image.service.ImageService;
+import core.global.entity.image.dto.ImageDto;
+import core.global.entity.image.dto.PresignedUrlRequest;
+import core.global.entity.image.dto.PresignedUrlResponse;
+import core.global.entity.image.service.ImageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

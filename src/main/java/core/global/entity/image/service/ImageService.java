@@ -1,9 +1,8 @@
-package core.global.image.service;
+package core.global.entity.image.service;
 
-import core.global.dto.UpsertChatRoomImageRequest;
-import core.global.image.dto.ImageDto;
-import core.global.image.dto.PresignedUrlRequest;
-import core.global.image.dto.PresignedUrlResponse;
+import core.global.entity.image.dto.ImageDto;
+import core.global.entity.image.dto.PresignedUrlRequest;
+import core.global.entity.image.dto.PresignedUrlResponse;
 import jakarta.transaction.Transactional;
 
 import java.util.List;

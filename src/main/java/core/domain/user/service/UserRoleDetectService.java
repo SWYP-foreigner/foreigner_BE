@@ -2,8 +2,8 @@ package core.domain.user.service;
 
 import core.domain.user.entity.User;
 import core.global.exception.BusinessException;
-import core.global.exception.UserErrorCode;
-import core.global.image.service.ImageService;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.entity.image.service.ImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
