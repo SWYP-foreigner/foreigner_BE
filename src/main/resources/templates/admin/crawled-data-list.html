@@ -33,6 +33,31 @@
         .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* --- 🔽 크롤링 제어 버튼 스타일 추가 🔽 --- */
+        .crawl-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .crawl-controls span { font-weight: bold; margin-right: 10px; }
+        .btn-crawl {
+            padding: 8px 12px;
+            background-color: #28a745; /* 초록색 */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn-crawl:hover { background-color: #218838; }
+        .btn-crawl:disabled { background-color: #94d3a2; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -40,7 +65,21 @@
 
 <div th:if="${successMessage}" class="message success" th:text="${successMessage}"></div>
 <div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
+
 <a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+
+<div class="crawl-controls">
+    <span>🔄 수동 크롤링 실행: </span>
+    <button type="button" class="btn-crawl" onclick="triggerCrawl('/admin/crawl/koreanet/festivals', 'Korea.net')">
+        Korea.net
+    </button>
+    <button type="button" class="btn-crawl" onclick="triggerCrawl('/admin/crawl/klife/community', 'K-Life')">
+        K-Life
+    </button>
+    <button type="button" class="btn-crawl" onclick="triggerCrawl('/admin/crawl/seoulglobal/news', 'Seoul Global')">
+        Seoul Global
+    </button>
+</div>
 <table>
     <thead>
     <tr>
@@ -48,7 +87,8 @@
         <th>제목 (원본 링크)</th>
         <th>출처</th>
         <th>수집일</th>
-        <th>관리</th> </tr>
+        <th>관리</th>
+    </tr>
     </thead>
     <tbody>
     <tr th:each="data : ${crawledDataPage.content}">
@@ -82,5 +122,35 @@
     <a th:if="${crawledDataPage.hasNext()}"
        th:href="@{/admin/crawled-data(page=${crawledDataPage.number + 1})}">다음</a>
 </div>
+
+<script>
+    async function triggerCrawl(url, siteName) {
+        if (!confirm(`[${siteName}] 크롤링을 시작하시겠습니까?\n(작업 완료까지 시간이 소요될 수 있습니다.)`)) {
+            return;
+        }
+
+        // 버튼 중복 클릭 방지 (비활성화)
+        const buttons = document.querySelectorAll('.btn-crawl');
+        buttons.forEach(btn => btn.disabled = true);
+
+        try {
+            const response = await fetch(url); // GET 요청
+
+            if (response.ok) {
+                const message = await response.text();
+                alert("성공: " + message);
+                window.location.reload(); // 목록 갱신을 위해 새로고침
+            } else {
+                const errorText = await response.text();
+                alert("실패: " + errorText);
+            }
+        } catch (error) {
+            alert("오류 발생: " + error.message);
+        } finally {
+            // 버튼 다시 활성화
+            buttons.forEach(btn => btn.disabled = false);
+        }
+    }
+</script>
 </body>
 </html>
