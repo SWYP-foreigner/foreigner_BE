@@ -37,6 +37,8 @@ public interface ImageService {
     /** 현재 프로필 이미지 key 조회(없으면 null) */
     String getUserProfileKey(Long userId);
 
+    String getRoomImageUrl(Long roomId);
+
     /** key 또는 URL을 내부 key로 정규화 */
     String normalizeKey(String keyOrUrl);
 

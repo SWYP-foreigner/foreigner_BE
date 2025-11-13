@@ -11,6 +11,7 @@ import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.exception.UserErrorCode;
 import core.global.image.repository.ImageRepository;
+import core.global.image.service.ImageService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class ContentBasedRecommender {
     private static final double ACTIVITY_SCORE_HALF_LIFE_DAYS = 7.0;
 
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
+    private final ImageService imageService;
 
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
@@ -171,9 +173,7 @@ public class ContentBasedRecommender {
 
 
     private CommendUsersProfileResponse toDto(User u) {
-        String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
-                .map(image -> image.getUrl())
-                .orElse(null);
+        String imageKey = imageService.getUserProfileKey(u.getId());
 
         return new CommendUsersProfileResponse(u,  csvToSet(u.getLanguage()).stream().toList(), csvToSet(u.getHobby()).stream().toList(),imageKey);
     }

@@ -137,9 +137,7 @@ public class ChatService {
                         if (opponent != null) {
                             if (opponent.getLastName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getLastName();
                             if (opponent.getFirstName() != null && !opponent.getFirstName().isEmpty()) roomName += opponent.getFirstName();
-                            roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
-                                    .map(Image::getUrl)
-                                    .orElse(null);
+                            roomImageUrl = imageService.getUserProfileKey(opponent.getId());
                         } else {
                             roomName = "Unknown user";
                             roomImageUrl = null;
@@ -147,9 +145,7 @@ public class ChatService {
 
                     } else {
                         roomName = room.getRoomName();
-                        roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, room.getId())
-                                .map(Image::getUrl)
-                                .orElse(null);
+                        roomImageUrl = imageService.getRoomImageUrl(room.getId());
                     }
 
                     return new ChatRoomSummaryResponse(
@@ -872,8 +868,10 @@ public class ChatService {
                     .toList();
         }
 
+        String senderImageUrl=imageService.getUserProfileKey(userId);
+
         return messages.stream()
-                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, imageRepository))
+                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, senderImageUrl))
                 .collect(Collectors.toList());
     }
 

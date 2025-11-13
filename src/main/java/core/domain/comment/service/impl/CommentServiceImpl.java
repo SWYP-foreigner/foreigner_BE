@@ -21,6 +21,7 @@ import core.global.exception.CommonErrorCode;
 import core.global.exception.CommunityErrorCode;
 import core.global.exception.UserErrorCode;
 import core.global.image.repository.ImageRepository;
+import core.global.image.service.ImageService;
 import core.global.like.entity.Like;
 import core.global.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
@@ -50,13 +51,13 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
-    private final ImageRepository imageRepository;
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
     private final BlockRepository blockRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TranslationService translationService;
     private final UserRoleDetectService userRoleDetectService;
+    private final ImageService imageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -369,9 +370,20 @@ public class CommentServiceImpl implements CommentService {
                 .distinct()
                 .toList();
 
-        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
-                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
+        Map<Long, String> userImageMap;
+        if (authorIds.isEmpty()) {
+            userImageMap = Map.of();
+        } else {
+            userImageMap = authorIds.stream()
+                    .map(userId -> Map.entry(userId, imageService.getUserProfileKey(userId))) // 첫 이미지 URL 또는 null
+                    .filter(e -> e.getValue() != null)                             // null URL 제거
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (existing, incoming) -> existing,
+                            LinkedHashMap::new
+                    ));
+        }
 
         return new Aux(likeCountMap, myLikedIds, userImageMap);
     }
