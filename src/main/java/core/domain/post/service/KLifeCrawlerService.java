@@ -35,7 +35,7 @@ public class KLifeCrawlerService {
     private static final String DETAIL_CONTENT_SELECTOR = "div.rhymix_content.xe_content";
     private static final String DETAIL_IMAGE_SELECTOR = "div.rhymix_content.xe_content img";
 
-    // @Scheduled(cron = "0 5 * * * *") // 매시간 5분에 실행
+    @Scheduled(cron = "0 30 5 * * *")
     @Transactional
     public void crawlKLifeCommunity() {
         log.info("Starting k-life.co community crawling...");

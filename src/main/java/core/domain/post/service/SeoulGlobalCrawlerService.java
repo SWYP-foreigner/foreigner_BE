@@ -36,7 +36,7 @@ public class SeoulGlobalCrawlerService {
     private static final String SOURCE_SITE = "global.seoul.go.kr";
     private static final Pattern POST_NO_PATTERN = Pattern.compile("contDetail\\('([^']+)'\\)");
 
-    //@Scheduled(cron = "0 10 * * * *")
+    @Scheduled(cron = "0 0 6 * * *")
     @Transactional
     public void crawlSeoulGlobalNews() {
         log.info("Starting Seoul Global Center news crawling...");
