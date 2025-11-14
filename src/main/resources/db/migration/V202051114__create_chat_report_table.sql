@@ -1,4 +1,3 @@
--- V...__create_chat_report_table.sql (수정본)
 
 CREATE TABLE chat_report
 (
@@ -13,16 +12,15 @@ CREATE TABLE chat_report
     status             VARCHAR(50) NOT NULL,
     created_at         TIMESTAMP WITH TIME ZONE NOT NULL,
 
-    -- Foreign Key Constraints 수정
     CONSTRAINT fk_reporter_user
         FOREIGN KEY (reporter_user_id)
-            REFERENCES users (user_id), -- "user" (id) -> users (user_id)로 변경
+            REFERENCES users (user_id), -- "user" (id) -> users (user_id)
     CONSTRAINT fk_reported_user
         FOREIGN KEY (reported_user_id)
-            REFERENCES users (user_id), -- "user" (id) -> users (user_id)로 변경
+            REFERENCES users (user_id), -- "user" (id) -> users (user_id)
     CONSTRAINT fk_chatroom
         FOREIGN KEY (chatroom_id)
-            REFERENCES chat_room (id), -- chat_room 테이블은 그대로 둔다고 가정합니다.
+            REFERENCES chat_room (chatroom_id), -- chat_room (id) -> chat_room (chatroom_id)
 
     -- Unique Constraint
     CONSTRAINT uk_reporter_message
