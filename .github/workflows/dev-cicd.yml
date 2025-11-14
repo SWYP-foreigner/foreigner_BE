@@ -200,7 +200,7 @@ jobs:
             
             FIREBASE_CREDENTIALS_JSON_PATH=./firebase.json
             SERVER_URL=${{ secrets.SERVER_URL }}
-            
+            GCP_PERSPECTIVE_API_KEY=${{ secrets.GCP_PERSPECTIVE_API_KEY }}
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
             
