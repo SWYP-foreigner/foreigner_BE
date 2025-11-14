@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>사용자 상세 정보</title>
+    <style>
+        body { font-family: sans-serif; }
+        .container { display: flex; gap: 20px; padding: 20px; }
+        .main-info, .related-info { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
+        .main-info { flex-basis: 40%; align-self: flex-start; }
+        .related-info { flex-basis: 60%; }
+        h1, h2 { border-bottom: 2px solid #f2f2f2; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .pagination { margin-top: 10px; text-align: center; }
+        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="main-info">
+        <h1>사용자 상세 정보</h1>
+
+        <div th:object="${user}">
+            <p><strong>ID:</strong> <span th:text="*{userId}"></span></p>
+            <p><strong>이름:</strong> <span th:text="*{name}"></span></p>
+            <p><strong>이메일:</strong> <span th:text="*{email}"></span></p>
+            <p><strong>국가:</strong> <span th:text="*{country}"></span></p>
+            <p><strong>가입일:</strong> <span th:text="*{#temporals.format(createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
+            <p><strong>마지막 접속일:</strong> <span th:text="*{lastSeenAt != null ? #temporals.format(lastSeenAt, 'yyyy-MM-dd HH:mm') : '기록 없음'}"></span></p>
+        </div>
+
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            <form th:action="@{/admin/users/{id}/delete(id=${user.userId})}"
+                  method="post"
+                  onsubmit="return confirm('경고: 이 사용자를 DB에서 영구적으로 삭제합니다. 모든 관련 데이터(게시글, 댓글 등)가 삭제되며, 이 작업은 되돌릴 수 없습니다. 정말 진행하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                    사용자 영구 삭제
+                </button>
+            </form>
+        </div>
+
+        <a th:href="@{/admin/users}" style="margin-top: 20px; display: block;">← 목록으로 돌아가기</a>
+    </div>
+
+    <div class="related-info">
+        <h2>친구 목록</h2>
+        <table>
+            <thead><tr><th>ID</th><th>이름</th><th>이메일</th></tr></thead>
+            <tbody>
+            <tr th:each="f : ${followings.content}">
+                <td th:text="${f.targetUserId}"></td>
+                <td th:text="${f.targetUserName}"></td>
+                <td th:text="${f.targetUserEmail}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${followings}, 'followPage')}"></div>
+
+        <h2 style="margin-top: 30px;">차단 목록</h2>
+        <table>
+            <thead><tr><th>ID</th><th>이름</th><th>이메일</th></tr></thead>
+            <tbody>
+            <tr th:each="b : ${blockedUsers.content}">
+                <td th:text="${b.targetUserId}"></td>
+                <td th:text="${b.targetUserName}"></td>
+                <td th:text="${b.targetUserEmail}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${blockedUsers}, 'blockPage')}"></div>
+
+        <h2 style="margin-top: 30px;">참여 채팅방</h2>
+        <table>
+            <thead><tr><th>ID</th><th>방 이름</th><th>그룹 여부</th><th>참여자 수</th></tr></thead>
+            <tbody>
+            <tr th:each="c : ${chatRooms.content}">
+                <td th:text="${c.chatRoomId}"></td>
+                <td th:text="${c.roomName}"></td>
+                <td th:text="${c.isGroup} ? '그룹' : '1:1'"></td>
+                <td th:text="${c.participantCount}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${chatRooms}, 'chatPage')}"></div>
+
+        <h2 style="margin-top: 30px;">최근 작성 게시글</h2>
+        <table>
+            <thead><tr><th>게시글 ID</th><th>내용</th><th>작성일</th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${posts.content}">
+                <td th:text="${p.postId}"></td>
+                <td th:text="${p.content}"></td>
+                <td th:text="${#temporals.format(p.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${posts}, 'postPage')}"></div>
+
+        <h2 style="margin-top: 30px;">최근 작성 댓글</h2>
+        <table>
+            <thead><tr><th>댓글 ID</th><th>게시글 ID</th><th>내용</th><th>작성일</th></tr></thead>
+            <tbody>
+            <tr th:each="c : ${comments.content}">
+                <td th:text="${c.commentId}"></td>
+                <td th:text="${c.postId}"></td>
+                <td th:text="${c.content}"></td>
+                <td th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${comments}, 'commentPage')}"></div>
+
+        <h2 style="margin-top: 30px;">최근 채팅 기록</h2>
+        <table>
+            <thead><tr><th>메시지 ID</th><th>채팅방 ID</th><th>내용</th><th>전송 시각</th></tr></thead>
+            <tbody>
+            <tr th:each="m : ${messages.content}">
+                <td th:text="${m.messageId}"></td>
+                <td th:text="${m.chatRoomId}"></td>
+                <td th:text="${m.content}"></td>
+                <td th:text="${#temporals.format(m.sentAt, 'yyyy-MM-dd HH:mm')}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div th:replace="~{admin/fragments/pagination :: pagination(${messages}, 'messagePage')}"></div>
+    </div>
+</div>
+
+</body>
+</html>

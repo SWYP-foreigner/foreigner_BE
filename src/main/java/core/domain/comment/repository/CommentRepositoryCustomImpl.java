@@ -1,10 +1,17 @@
 package core.domain.comment.repository;
 
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.core.types.dsl.PathBuilder;
 import com.querydsl.jpa.JPAExpressions;
+import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import core.domain.comment.dto.CommentListResponse;
+import core.domain.comment.dto.CommentSearchRequest;
 import core.domain.comment.entity.Comment;
 import core.domain.comment.entity.QComment;
 import core.domain.post.entity.QPost;
@@ -13,19 +20,26 @@ import core.domain.user.entity.QUser;
 import core.global.entity.like.entity.QLike;
 import core.global.enums.LikeType;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
-import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.domain.*;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+
+import static core.domain.comment.entity.QComment.comment;
+import static core.domain.user.entity.QBlockUser.blockUser;
+import static core.domain.user.entity.QUser.user;
 
 @RequiredArgsConstructor
 public class CommentRepositoryCustomImpl implements CommentRepositoryCustom {
 
     private final JPAQueryFactory query;
 
-    private static final QComment c = QComment.comment;
+    private static final QComment c = comment;
     private static final QUser u = new QUser("u");
     private static final QPost p = QPost.post;
     private static final QBlockUser bu1 = new QBlockUser("bu1");
@@ -137,6 +151,106 @@ public class CommentRepositoryCustomImpl implements CommentRepositoryCustom {
                 .fetch();
 
         return toSlice(rows, pageable);
+    }
+
+    @Override
+    public Page<CommentListResponse> searchComments(CommentSearchRequest condition, Pageable pageable) {
+
+        JPQLQuery<Long> reportCountSubQuery = JPAExpressions.select(blockUser.count())
+                .from(blockUser)
+                .where(blockUser.blocked.id.eq(comment.author.id));
+
+        List<CommentListResponse> content = query
+                .select(Projections.constructor(CommentListResponse.class,
+                        comment.id,
+                        comment.post.id,
+                        user.name,
+                        user.email,
+                        comment.content,
+                        comment.createdAt,
+                        reportCountSubQuery,
+                        comment.deleted
+                ))
+                .from(comment)
+                .join(comment.author, user)
+                .where(
+                        authorEmailContains(condition.authorEmail()),
+                        authorNameContains(condition.authorName()),
+                        contentContains(condition.content()),
+                        createdAtBetween(condition.startDate(), condition.endDate()),
+                        onlyReported(condition.onlyReported(), reportCountSubQuery)
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .orderBy(getOrderSpecifiers(pageable.getSort()).toArray(OrderSpecifier[]::new))
+                .fetch();
+
+        long total = query.select(comment.id).from(comment).join(comment.author, user)
+                .where(
+                        authorEmailContains(condition.authorEmail()),
+                        contentContains(condition.content()),
+                        createdAtBetween(condition.startDate(), condition.endDate()),
+                        onlyReported(condition.onlyReported(), reportCountSubQuery)
+                )
+                .fetchCount();
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private List<OrderSpecifier> getOrderSpecifiers(Sort sort) {
+        List<OrderSpecifier> orders = new ArrayList<>();
+        if (sort != null && !sort.isEmpty()) {
+            sort.forEach(order -> {
+                Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+                PathBuilder<Comment> pathBuilder = new PathBuilder<>(Comment.class, "comment");
+
+                switch (order.getProperty()) {
+                    case "authorName":
+                        orders.add(new OrderSpecifier<>(direction, user.name));
+                        break;
+                    case "reportCount":
+                        orders.add(new OrderSpecifier<>(direction,
+                                JPAExpressions.select(blockUser.count())
+                                        .from(blockUser)
+                                        .where(blockUser.blocked.id.eq(comment.author.id))
+                        ));
+                        break;
+                    default:
+                        orders.add(new OrderSpecifier(direction, pathBuilder.get(order.getProperty(), Comparable.class)));
+                        break;
+                }
+            });
+        }
+
+        orders.add(new OrderSpecifier(Order.DESC, comment.id));
+        return orders;
+    }
+
+    private BooleanExpression onlyReported(Boolean onlyReported, JPQLQuery<Long> subQuery) {
+        if (onlyReported == null || !onlyReported) return null;
+        return subQuery.gt(0L);
+    }
+
+    private BooleanExpression authorEmailContains(String email) {
+        return StringUtils.hasText(email) ? user.email.containsIgnoreCase(email) : null;
+    }
+
+    private BooleanExpression contentContains(String content) {
+        return StringUtils.hasText(content) ? comment.content.containsIgnoreCase(content) : null;
+    }
+
+    private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return null;
+        }
+        return comment.createdAt.between(
+                startDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant(),
+                endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant()
+        );
+    }
+
+    private BooleanExpression authorNameContains(String name) {
+        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
     }
 
     /** 차단(양방향) 필터: userId가 null이면 필터 비활성화 */

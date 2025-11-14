@@ -2,9 +2,11 @@ package core.domain.chat.service;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
+import core.domain.chat.entity.ChatReport;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.BlockUser;
@@ -21,6 +23,7 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.metrics.SocialChatMetrics;
+import core.global.service.PerspectiveService;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +70,8 @@ public class ChatService {
     private final BlockRepository blockRepository;
     private final S3Presigner s3Presigner;
     private final SocialChatMetrics socialChatMetrics;
+    private final ChatReportRepository chatReportRepository;
+    private final PerspectiveService perspectiveService;
 
     @Autowired
     @Lazy
@@ -931,6 +936,29 @@ public class ChatService {
                     chatParticipantRepository.save(participant);
                 });
 
+        boolean needsAiCheck = (originalContent.contains("http") || originalContent.contains("www.") || originalContent.contains(".com"));
+
+        if (needsAiCheck) {
+            log.debug("URL 감지. Perspective API 검사 시작... (User ID: {})", req.senderId());
+
+            if (perspectiveService.isHarmful(originalContent)) {
+                log.warn("스팸 메시지 감지(AI): senderId={}, content={}", req.senderId(), originalContent);
+
+                try {
+                    ChatReportRequest aiReportRequest = new ChatReportRequest(
+                            savedMessage.getId(),
+                            "AI_DETECTED_SPAM",
+                            "Perspective API가 스팸/유해 콘텐츠로 감지함"
+                    );
+                    reportChat(null, aiReportRequest);
+
+                    log.info("AI가 감지한 스팸 메시지를 자동으로 신고 처리했습니다. (Message ID: {})", savedMessage.getId());
+                } catch (Exception e) {
+                    log.warn("AI 자동 신고 처리 중 오류 발생: {}", e.getMessage());
+                }
+            }
+        }
+
         for (ChatParticipant participant : participants) {
             User recipient = participant.getUser();
             String targetContent = null;
@@ -1310,10 +1338,54 @@ public class ChatService {
         participant.setNotificationsEnabled(enabled);
 
     }
+
+    @Transactional
+    public void reportChat(Long reporterUserId, ChatReportRequest request) {
+
+        boolean alreadyReported = chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId());
+
+        if (alreadyReported) {
+            if (reporterUserId == null) {
+                return;
+            }
+            else {
+                throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
+            }
+        }
+
+        User reporterUser = null;
+        if (reporterUserId != null) {
+            reporterUser = userRepository.findById(reporterUserId)
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        }
+
+        ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
+        User reportedUser = reportedMessage.getSender();
+        ChatRoom chatRoom = reportedMessage.getChatRoom();
+
+        if (reportedUser.getId().equals(reporterUserId)) {
+            throw new BusinessException(ChatErrorCode.CANNOT_REPORT_SELF);
+        }
+
+        ChatReport chatReport = new ChatReport(
+                reporterUser,
+                reportedUser,
+                chatRoom,
+                request.messageId(),
+                reportedMessage.getContent(),
+                request.reasonCategory(),
+                request.reasonDetail()
+        );
+        chatReportRepository.save(chatReport);
+    }
+
     public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
          ChatParticipant participant =
                  chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                          .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
+
     }
 }

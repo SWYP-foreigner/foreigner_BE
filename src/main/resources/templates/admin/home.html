@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>관리자 페이지</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; }
+        .menu-container { text-align: center; }
+        h1 { color: #333; margin-bottom: 40px; }
+        /* --- 🔽 grid-template-columns를 4칸으로 변경 🔽 --- */
+        .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+
+        .menu-item {
+            background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 40px 20px; text-decoration: none; color: #333; transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+        .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
+        .menu-item .icon { font-size: 48px; margin-bottom: 15px; }
+        .menu-item .title { font-size: 20px; font-weight: bold; }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 15px;
+        }
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 16px;
+        }
+        .dropdown-content a:hover { background-color: #f1f1f1; }
+        .menu-item:hover .dropdown-content {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="menu-container">
+    <h1>관리자 페이지</h1>
+    <div class="menu-grid">
+        <a th:href="@{/admin/users}" class="menu-item">
+            <div class="icon">👥</div>
+            <div class="title">사용자 관리</div>
+        </a>
+
+        <div class="menu-item">
+            <div class="icon">📝</div>
+            <div class="title">커뮤니티 관리</div>
+            <div class="dropdown-content">
+                <a th:href="@{/admin/posts}">게시글 관리</a>
+                <a th:href="@{/admin/comments}">댓글 관리</a>
+                <a th:href="@{/admin/boards}">카테고리 관리</a>
+            </div>
+        </div>
+
+        <div class="menu-item">
+            <div class="icon">💬</div>
+            <div class="title">채팅 관리</div>
+            <div class="dropdown-content">
+                <a th:href="@{/admin/chats}">채팅방 목록</a>
+                <a th:href="@{/admin/chats/search}">채팅 내용 검색</a>
+                <a th:href="@{/admin/chats/reports}">신고 내역 관리</a>
+            </div>
+        </div>
+
+        <a th:href="@{/admin/metrics}" class="menu-item">
+            <div class="icon">📊</div>
+            <div class="title">통계 대시보드</div>
+        </a>
+
+        <a th:href="@{/admin/crawled-data}" class="menu-item">
+            <div class="icon">🕸️</div>
+            <div class="title">크롤링 관리</div>
+        </a>
+    </div>
+</div>
+
+</body>
+</html>

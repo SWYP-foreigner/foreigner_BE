@@ -81,6 +81,14 @@ public class Post {
         this.checkCount = 0L;
     }
 
+    public Post(String content, User author, Board board) {
+        this.content = content;
+        this.author = author;
+        this.board = board;
+        this.anonymous = false;
+        this.checkCount = 0L;
+    }
+
     public void changeContent(String content) {
         this.content = content;
     }

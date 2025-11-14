@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>사용자 관리</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .search-form input { padding: 5px; margin-right: 10px; }
+        .search-form button { padding: 5px 10px; }
+        .btn-home {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>사용자 목록</h1>
+
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+
+<div class="search-form">
+    <form th:action="@{/admin/users}" method="get" th:object="${searchRequest}">
+        <label for="email">이메일:</label>
+        <input type="text" id="email" name="email" th:value="*{email}" placeholder="이메일 검색">
+
+        <label for="name">이름:</label>
+        <input type="text" id="name" name="name" th:value="*{name}" placeholder="이름 검색">
+
+        <label for="startDate">가입일:</label>
+        <input type="date" id="startDate" name="startDate" th:value="*{startDate}">
+        <span>~</span>
+        <input type="date" id="endDate" name="endDate" th:value="*{endDate}">
+
+        <button type="submit">검색</button>
+    </form>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>이메일</th>
+        <th>이름</th>
+        <th>국가</th>
+        <th>가입일</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="user : ${userPage.content}">
+        <td th:text="${user.userId}">1</td>
+        <td>
+            <a th:href="@{/admin/users/{id}(id=${user.userId})}" th:text="${user.email}">user@example.com</a>
+        </td>
+        <td th:text="${user.name}">홍길동</td>
+        <td th:text="${user.country}">대한민국</td>
+        <td th:text="${#temporals.format(user.createdAt, 'yyyy-MM-dd HH:mm')}">2025-10-14 16:22</td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pagination" th:if="${userPage.totalPages > 1}">
+    <a th:href="@{/admin/users(page=${userPage.number - 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+       th:if="${userPage.hasPrevious()}">이전</a>
+
+    <span th:each="pageNumber : ${#numbers.sequence(0, userPage.totalPages - 1)}">
+            <a th:href="@{/admin/users(page=${pageNumber}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+               th:text="${pageNumber + 1}"
+               th:classappend="${pageNumber == userPage.number} ? 'active'"></a>
+        </span>
+
+    <a th:href="@{/admin/users(page=${userPage.number + 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+       th:if="${userPage.hasNext()}">다음</a>
+</div>
+</body>
+</html>

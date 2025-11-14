@@ -197,7 +197,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(CommunityErrorCode.BLOCKED_USER_POST);
         }
 
-        postRepository.increaseViewCount(postId);
+        postRepository.incrementViewCount(postId);
 
         if (translate) {
             PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);

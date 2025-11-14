@@ -10,6 +10,7 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -42,7 +44,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
-
+    private static final String HEADER_PREFIX = "Bearer ";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -71,26 +73,18 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        /**
-         * 인터셉터 : 사용자가 설정에 따라
-         * 컨트롤러로 넘어가는 구조로 만든다.
-         * 시큐리티
-         */
-        String authHeader = request.getHeader("Authorization");
+
         String requestUri = request.getRequestURI();
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("Authorization 헤더가 없거나 Bearer 형식이 아님 URI={}", requestUri);
-            jwtAuthenticationEntryPoint.commence(
-                    request,
-                    response,
-                    new BadCredentialsException(AuthErrorCode.JWT_TOKEN_NOT_FOUND.getMessage())
-            );
+        String token = resolveToken(request);
+
+        if (token == null) {
+            log.trace("JWT 토큰 없음 (헤더 및 쿠키). URI={}", requestUri);
+            chain.doFilter(request, response);
             return;
         }
 
-        String token = authHeader.substring(7);
-
+        // --- 3. [유지] 토큰이 있는 경우, 기존 유효성 검사 로직 수행 ---
         try {
             if (redisService.isBlacklisted(token)) {
                 log.warn("블랙리스트에 등록된 토큰입니다. URI={}", requestUri);
@@ -100,9 +94,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                         new BadCredentialsException(AuthErrorCode.JWT_TOKEN_BLACKLISTED.getMessage())
                 );
                 return;
-                // accessToken 은 사라질 수가 없다. accessToken (로그아웃 +회원 탈퇴) 현재의 accessToken
-                //
-
             }
 
             if (!jwtTokenProvider.validateToken(token)) {
@@ -120,7 +111,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             String role = jwtTokenProvider.getRoleFromToken(token);
 
             if ("OUTCAST".equals(role)) {
-                log.warn("Access denied for OUTCAST user. email={}");
+                log.warn("Access denied for OUTCAST user. email={}", email);
                 jwtAuthenticationEntryPoint.commence(
                         request,
                         response,
@@ -128,8 +119,9 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 );
                 return;
             }
+
             List<GrantedAuthority> authorities = new ArrayList<>();
-            authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // ROLE_USER 등
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role)); // ROLE_USER, ROLE_ADMIN
 
             CustomUserDetails principal = new CustomUserDetails(userId, email, authorities);
             Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
@@ -139,10 +131,8 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
             chain.doFilter(request, response);
 
-
         } catch (ExpiredJwtException e) {
             log.warn("JWT 토큰 만료: {}", e.getMessage());
-            // 프론트에 인증객체가 삭제 돼었느 걸
             SecurityContextHolder.clearContext();
             jwtAuthenticationEntryPoint.commence(
                     request,
@@ -158,5 +148,41 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage())
             );
         }
+    }
+
+    /**
+     * [신규] 헤더 또는 쿠키에서 토큰을 추출 (헤더 우선)
+     */
+    private String resolveToken(HttpServletRequest request) {
+        String token = resolveTokenFromHeader(request);
+        if (token == null) {
+            token = resolveTokenFromCookie(request);
+        }
+        return token;
+    }
+
+    /**
+     * [수정] 헤더에서 토큰 추출
+     */
+    private String resolveTokenFromHeader(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith(HEADER_PREFIX)) {
+            return bearerToken.substring(HEADER_PREFIX.length());
+        }
+        return null;
+    }
+
+    /**
+     * [신규] HttpOnly 쿠키에서 토큰 추출
+     */
+    private String resolveTokenFromCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        return Arrays.stream(request.getCookies())
+                .filter(cookie -> "accessToken".equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 }

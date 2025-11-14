@@ -2,6 +2,7 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.user.entity.User;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -14,7 +15,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
+public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>, ChatMessageRepositoryCustom {
 
     void deleteByChatRoomId(Long chatRoomId);
     /**
@@ -98,4 +99,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     List<ChatMessage> findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
             Long roomId, Long startId, Long endId);
+
+    Page<ChatMessage> findBySenderId(Long senderId, Pageable pageable);
+
+    void deleteAllByChatRoomId(Long chatRoomId);
 }
