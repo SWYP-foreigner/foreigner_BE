@@ -1,9 +1,6 @@
 package core.domain.post.controller;
 
-import core.domain.post.service.AllkpopCrawlerService;
-import core.domain.post.service.KLifeCrawlerService;
-import core.domain.post.service.KoreaNetCrawlerService;
-import core.domain.post.service.SeoulGlobalCrawlerService;
+import core.domain.post.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +16,7 @@ public class CrawlerController {
     private final KLifeCrawlerService kLifeCrawlerService;
     private final SeoulGlobalCrawlerService seoulGlobalCrawlerService;
     private final AllkpopCrawlerService allkpopCrawlerService;
+    private final MyDramaListCrawlerService myDramaListCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -54,5 +52,14 @@ public class CrawlerController {
     public ResponseEntity<String> triggerAllkpopNewsCrawl() {
         allkpopCrawlerService.crawlAllkpopNews();
         return ResponseEntity.ok("Allkpop news crawling triggered successfully.");
+    }
+
+    /**
+     * mydramalist.com 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/mydramalist")
+    public ResponseEntity<String> triggerMyDramaListCrawl() {
+        myDramaListCrawlerService.crawlMyDramaList();
+        return ResponseEntity.ok("MyDramaList crawling triggered successfully.");
     }
 }
