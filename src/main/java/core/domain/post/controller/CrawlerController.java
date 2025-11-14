@@ -1,5 +1,6 @@
 package core.domain.post.controller;
 
+import core.domain.post.service.AllkpopCrawlerService;
 import core.domain.post.service.KLifeCrawlerService;
 import core.domain.post.service.KoreaNetCrawlerService;
 import core.domain.post.service.SeoulGlobalCrawlerService;
@@ -17,6 +18,7 @@ public class CrawlerController {
     private final KoreaNetCrawlerService koreaNetCrawlerService;
     private final KLifeCrawlerService kLifeCrawlerService;
     private final SeoulGlobalCrawlerService seoulGlobalCrawlerService;
+    private final AllkpopCrawlerService allkpopCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -43,5 +45,14 @@ public class CrawlerController {
     public ResponseEntity<String> triggerSeoulGlobalNewsCrawl() {
         seoulGlobalCrawlerService.crawlSeoulGlobalNews();
         return ResponseEntity.ok("Seoul Global Center news crawling triggered successfully.");
+    }
+
+    /**
+     * allkpop.com 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/allkpop/news")
+    public ResponseEntity<String> triggerAllkpopNewsCrawl() {
+        allkpopCrawlerService.crawlAllkpopNews();
+        return ResponseEntity.ok("Allkpop news crawling triggered successfully.");
     }
 }

@@ -42,6 +42,7 @@
             border-radius: 5px;
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 10px;
         }
         .crawl-controls span { font-weight: bold; margin-right: 10px; }
@@ -77,6 +78,9 @@
     </button>
     <button type="button" class="btn-crawl" onclick="triggerCrawl('/admin/crawl/seoulglobal/news', 'Seoul Global')">
         Seoul Global
+    </button>
+    <button type="button" class="btn-crawl" onclick="triggerCrawl('/admin/crawl/allkpop/news', 'Allkpop')">
+        Allkpop
     </button>
 </div>
 
