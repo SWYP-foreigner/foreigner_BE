@@ -3,7 +3,7 @@
 //import core.domain.board.dto.CategoryListResponse;
 //import core.domain.board.entity.Board;
 //import core.domain.board.repository.BoardRepository;
-//import core.domain.post.dto.PostWriteAnonymousAvailableResponse;
+//import core.domain.post.dto.comunity.PostWriteAnonymousAvailableResponse;
 //import core.global.enums.BoardCategory;
 //import core.global.exception.BusinessException;
 //import org.junit.jupiter.api.DisplayName;

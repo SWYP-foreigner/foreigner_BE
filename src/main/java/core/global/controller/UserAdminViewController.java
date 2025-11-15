@@ -2,7 +2,7 @@ package core.global.controller;
 
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.comment.dto.RecentCommentDto;
-import core.domain.post.dto.RecentPostDto;
+import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.user.dto.*;
 import core.domain.user.service.UserAdminService;
 import lombok.RequiredArgsConstructor;

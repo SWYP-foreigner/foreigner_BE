@@ -10,7 +10,7 @@ import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.comment.entity.QComment;
-import core.domain.post.dto.SearchResultView;
+import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.entity.QPost;
 import core.domain.user.entity.QUser;
 import core.global.entity.image.entity.QImage;

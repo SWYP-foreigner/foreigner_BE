@@ -1,10 +1,10 @@
-package core.domain.post.dto;
+package core.domain.post.dto.admin;
 
 import core.domain.post.entity.Post;
 
 import java.time.Instant;
 
-public record PostListResponse(
+public record PostListForAdminResponse(
         Long postId,
         String authorName,
         String authorEmail,
@@ -12,10 +12,10 @@ public record PostListResponse(
         Instant createdAt,
         Long reportCount
 ) {
-    public static PostListResponse from(Post post, Long reportCount) {
+    public static PostListForAdminResponse from(Post post, Long reportCount) {
         String truncatedContent = post.getContent().length() > 50 ?
                 post.getContent().substring(0, 50) + "..." : post.getContent();
-        return new PostListResponse(
+        return new PostListForAdminResponse(
                 post.getId(),
                 post.getAuthor().getName(),
                 post.getAuthor().getEmail(),

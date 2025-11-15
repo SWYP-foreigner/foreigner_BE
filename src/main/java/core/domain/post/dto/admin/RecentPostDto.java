@@ -1,4 +1,4 @@
-package core.domain.post.dto;
+package core.domain.post.dto.admin;
 
 import core.domain.post.entity.Post;
 

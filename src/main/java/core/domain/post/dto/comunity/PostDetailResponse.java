@@ -1,4 +1,4 @@
-package core.domain.post.dto;
+package core.domain.post.dto.comunity;
 
 import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -35,6 +35,9 @@ public record PostDetailResponse(
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,
 
+        @Schema(description = "북마크 여부", example = "true")
+        Boolean isBookmarked,
+
         @Schema(description = "좋아요 수", example = "12")
         Long likeCount,
 
@@ -65,6 +68,7 @@ public record PostDetailResponse(
                 postDetail.link,
                 postDetail.isAnonymous,
                 postDetail.isLiked,
+                postDetail.isBookmarked,
                 postDetail.likeCount,
                 postDetail.commentCount,
                 postDetail.viewCount,

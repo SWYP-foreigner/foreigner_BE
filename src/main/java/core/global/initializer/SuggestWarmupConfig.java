@@ -1,7 +1,7 @@
 package core.global.initializer;
 
 import core.domain.post.repository.PostSearchRepositoryCustom;
-import core.domain.post.service.SuggestMemoryIndex;
+import core.domain.post.service.search.SuggestMemoryIndex;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;

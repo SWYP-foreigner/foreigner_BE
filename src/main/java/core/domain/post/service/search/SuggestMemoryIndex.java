@@ -1,4 +1,4 @@
-package core.domain.post.service;
+package core.domain.post.service.search;
 
 import org.springframework.stereotype.Component;
 

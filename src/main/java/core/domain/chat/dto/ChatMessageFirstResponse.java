@@ -19,13 +19,8 @@ public record ChatMessageFirstResponse(
         String content,
         Instant sentAt
 ) {
-    public static ChatMessageFirstResponse fromEntity(ChatMessage message, ChatRoom room, ImageRepository imageRepository) {
+    public static ChatMessageFirstResponse fromEntity(ChatMessage message, ChatRoom room, String senderImageUrl) {
         User sender = message.getSender();
-        String senderImageUrl;
-        senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                .map(Image::getUrl)
-                .orElse(null);
-
 
         return new ChatMessageFirstResponse(
                 message.getId(),

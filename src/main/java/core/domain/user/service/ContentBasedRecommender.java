@@ -5,6 +5,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
@@ -36,6 +37,7 @@ public class ContentBasedRecommender {
     private static final double TEMPERATURE = 0.7;
     private static final double ACTIVITY_SCORE_HALF_LIFE_DAYS = 1.0;
     private static final java.security.SecureRandom RAND = new java.security.SecureRandom();
+    private final ImageService imageService;
 
 
 
@@ -145,9 +147,7 @@ public class ContentBasedRecommender {
     }
 
     private CommendUsersProfileResponse toDto(User u) {
-        String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, u.getId())
-                .map(image -> image.getUrl())
-                .orElse(null);
+        String imageKey = imageService.getUserProfileKey(u.getId());
 
         return new CommendUsersProfileResponse(u,  csvToSet(u.getLanguage()).stream().toList(), csvToSet(u.getHobby()).stream().toList(),imageKey);
     }

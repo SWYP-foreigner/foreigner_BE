@@ -31,6 +31,9 @@ public record BoardItem(
         @Schema(description = "좋아요 여부", example = "true")
         Boolean isLiked,
 
+        @Schema(description = "북마크 여부", example = "true")
+        Boolean isBookmarked,
+
         @Schema(description = "좋아요 수", example = "10")
         Long likeCount,
 
