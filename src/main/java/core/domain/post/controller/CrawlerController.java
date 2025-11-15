@@ -18,6 +18,7 @@ public class CrawlerController {
     private final AllkpopCrawlerService allkpopCrawlerService;
     private final MyDramaListCrawlerService myDramaListCrawlerService;
     private final SoompiCrawlerService soompiCrawlerService;
+    private final HarpersBazaarCrawlerService harpersBazaarCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -71,5 +72,14 @@ public class CrawlerController {
     public ResponseEntity<String> triggerSoompiCrawl() {
         soompiCrawlerService.crawlSoompiLatest();
         return ResponseEntity.ok("Soompi latest news crawling triggered successfully.");
+    }
+
+    /**
+     * harpersbazaar.co.kr 패션 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/harpersbazaar/news")
+    public ResponseEntity<String> triggerHarpersBazaarCrawl() {
+        harpersBazaarCrawlerService.crawlHarpersBazaar();
+        return ResponseEntity.ok("Harpers Bazaar fashion news crawling triggered successfully.");
     }
 }
