@@ -4,6 +4,8 @@ package core.domain.user.repository;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.global.enums.FollowStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -57,6 +59,16 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
             "AND f.status = :status")
     List<Follow> findAllAcceptedFollowsByUserId(@Param("userId") Long userId,
                                                 @Param("status") FollowStatus status);
+
+    @Query(value = "SELECT f FROM Follow f " +
+            "WHERE (f.user.id = :userId OR f.following.id = :userId) " +
+            "AND f.status = :status",
+            countQuery = "SELECT count(f) FROM Follow f " +
+                    "WHERE (f.user.id = :userId OR f.following.id = :userId) " +
+                    "AND f.status = :status")
+    Page<Follow> findAllAcceptedFollowsByUserId(@Param("userId") Long userId,
+                                                @Param("status") FollowStatus status,
+                                                Pageable pageable);
 
     long countByUserIdAndStatus(Long userId, FollowStatus status);
 

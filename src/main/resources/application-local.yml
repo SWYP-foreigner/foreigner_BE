@@ -119,6 +119,8 @@ google:
       id: ${GCP_PROJECT_ID}
     translate:
       api-key: ${GCP_TRANSLATE_API_KEY}
+    perspective:
+      api-key: ${GCP_PERSPECTIVE_API_KEY}
 
   mail:
     from: ${NAVER_HOST}

@@ -2,7 +2,11 @@ package core.domain.post.repository;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.PostListResponse;
+import core.domain.post.dto.PostSearchRequest;
 import core.domain.post.dto.UserPostItem;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -23,5 +27,7 @@ public interface PostRepositoryCustom {
         List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
 
         List<BoardItem> findPostsByIdsForSearch(Long viewerId, List<Long> ids);
+
+        Page<PostListResponse> searchPosts(PostSearchRequest condition, Pageable pageable);
 
 }

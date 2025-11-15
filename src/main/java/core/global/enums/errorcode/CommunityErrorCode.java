@@ -26,7 +26,9 @@ public enum CommunityErrorCode implements AppError {
     BOOKMARK_ALREADY_EXIST(HttpStatus.CONFLICT, "북마크가 이미 존재합니다."),
     BOOKMARK_NOT_FOUND(HttpStatus.NOT_FOUND, "북마크가 존재하지 않습니다."),
     BLOCKED_USER_POST(HttpStatus.FORBIDDEN, "접근할 수 없는 글입니다."),
-    NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다.");
+    NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),
+    CRAWLED_DATA_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 크롤링 데이터입니다."),
+    DUPLICATE_CATEGORY(HttpStatus.FORBIDDEN, "중복된 카테고리입니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

@@ -52,7 +52,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -122,6 +122,8 @@ google:
   cloud:
     project:
       id: ${GCP_PROJECT_ID}
+    perspective:
+      api-key: ${GCP_PERSPECTIVE_API_KEY}
 
 
 logging:

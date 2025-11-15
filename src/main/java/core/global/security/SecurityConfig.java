@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
 
+
                         // 1) [수정] 완전 공개 경로 (JWT 불필요)
                         // PermitAllPaths에 정의된 경로들
                         .requestMatchers(PermitAllPaths.PATTERNS.toArray(String[]::new)).permitAll()

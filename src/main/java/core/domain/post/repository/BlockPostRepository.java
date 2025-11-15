@@ -1,10 +1,13 @@
 package core.domain.post.repository;
 
 import core.domain.post.entity.BlockPost;
+import core.domain.post.entity.Post;
 import feign.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
 
 public interface BlockPostRepository extends JpaRepository<BlockPost, Long> {
 
@@ -19,4 +22,5 @@ public interface BlockPostRepository extends JpaRepository<BlockPost, Long> {
     @Query("DELETE FROM BlockPost bp WHERE bp.user.id = :userId OR bp.post.author.id = :userId")
     void deleteAllBlockPostsRelatedToUser(@Param("userId") Long userId);
 
+    void deleteAllByPostIn(List<Post> posts);
 }

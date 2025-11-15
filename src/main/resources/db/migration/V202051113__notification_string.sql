@@ -10,7 +10,7 @@ ALTER TABLE notification
                                   'chat',
                                   'follow',
                                   'receive',
-                                  'newuser',        --
-                                  'followuserpost'  --
+                                  'newuser',
+                                  'followuserpost'
                 )
             );

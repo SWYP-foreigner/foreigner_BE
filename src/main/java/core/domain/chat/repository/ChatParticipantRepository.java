@@ -3,6 +3,8 @@ package core.domain.chat.repository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.global.enums.ChatParticipantStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +18,7 @@ import java.util.Optional;
 public interface ChatParticipantRepository extends JpaRepository<ChatParticipant, Long> {
 
     List<ChatParticipant> findByChatRoomId(Long chatRoomId);
+    Page<ChatParticipant> findByChatRoomId(Long chatRoomId, Pageable pageable);
 
     Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 
@@ -50,4 +53,5 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
 
+    Page<ChatParticipant> findByUserId(Long userId, Pageable pageable);
 }

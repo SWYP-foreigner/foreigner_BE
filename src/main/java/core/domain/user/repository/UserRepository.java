@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
     Optional<User> findByProviderAndSocialId(String provider, String socialId);
 
     Optional<User> findByEmail(String email);
@@ -46,7 +46,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
               SUM(CASE WHEN last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '720 hour' THEN 1 ELSE 0 END) AS h_720_inf
             FROM users
             """, nativeQuery = true)
-    Object[] countInactiveBuckets();
+    List<Object[]> countInactiveBuckets();
 
     /**
      * 주차별 코호트: 해당 주에 가입한 유저의 최근 30일 활동 여부

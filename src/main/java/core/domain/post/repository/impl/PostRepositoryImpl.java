@@ -2,6 +2,8 @@ package core.domain.post.repository.impl;
 
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.*;
 import com.querydsl.jpa.JPAExpressions;
@@ -10,7 +12,10 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
 import core.domain.post.dto.PostDetailResponse;
+import core.domain.post.dto.PostListResponse;
+import core.domain.post.dto.PostSearchRequest;
 import core.domain.post.dto.UserPostItem;
+import core.domain.post.entity.Post;
 import core.domain.post.entity.QBlockPost;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostRepositoryCustom;
@@ -22,11 +27,19 @@ import core.global.enums.BoardCategory;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
-import java.time.Instant;
+import java.time.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static core.domain.post.entity.QBlockPost.blockPost;
 
 import static core.domain.bookmark.entity.QBookmark.bookmark;
 
@@ -445,6 +458,101 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .fetch();
     }
 
+    @Override
+    public Page<PostListResponse> searchPosts(PostSearchRequest condition, Pageable pageable) {
+        List<PostListResponse> content = query
+                .select(Projections.constructor(PostListResponse.class,
+                        post.id,
+                        user.name,
+                        user.email,
+                        post.content,
+                        post.createdAt,
+                        JPAExpressions.select(blockPost.count())
+                                .from(blockPost)
+                                .where(blockPost.post.id.eq(post.id))
+                ))
+                .from(post)
+                .join(post.author, user)
+                .where(
+                        authorEmailContains(condition.authorEmail()),
+                        authorNameContains(condition.authorName()),
+                        contentContains(condition.content()),
+                        createdAtBetween(condition.startDate(), condition.endDate())
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .orderBy(getOrderSpecifiers(pageable.getSort()).toArray(OrderSpecifier[]::new))
+                .fetch();
+
+        long total = query
+                .select(post.id)
+                .from(post)
+                .join(post.author, user)
+                .where(
+                        authorEmailContains(condition.authorEmail()),
+                        authorNameContains(condition.authorName()),
+                        contentContains(condition.content()),
+                        createdAtBetween(condition.startDate(), condition.endDate())
+                )
+                .fetchCount();
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private BooleanExpression authorEmailContains(String email) {
+        return StringUtils.hasText(email) ? user.email.containsIgnoreCase(email) : null;
+    }
+
+    private BooleanExpression authorNameContains(String name) {
+        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
+    }
+
+    private BooleanExpression contentContains(String content) {
+        return StringUtils.hasText(content) ? post.content.containsIgnoreCase(content) : null;
+    }
+
+    private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return null;
+        }
+
+        Instant startInstant = startDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant();
+
+        return post.createdAt.between(startInstant, endInstant);
+    }
+
+    private List<OrderSpecifier> getOrderSpecifiers(Sort sort) {
+        List<OrderSpecifier> orders = new ArrayList<>();
+        if (sort != null && !sort.isEmpty()) {
+            sort.forEach(order -> {
+                Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+                PathBuilder<Post> pathBuilder = new PathBuilder<>(Post.class, "post");
+
+                switch (order.getProperty()) {
+                    case "authorName":
+                        orders.add(new OrderSpecifier<>(direction, user.name));
+                        break;
+
+                    case "reportCount":
+                        orders.add(new OrderSpecifier<>(direction,
+                                JPAExpressions.select(blockPost.count())
+                                        .from(blockPost)
+                                        .where(blockPost.post.id.eq(post.id))
+                        ));
+                        break;
+
+                    default:
+                        orders.add(new OrderSpecifier(direction, pathBuilder.get(order.getProperty(), Comparable.class)));
+                        break;
+                }
+            });
+        }
+
+        orders.add(new OrderSpecifier(Order.DESC, post.id));
+        return orders;
+    }
+
     private StringExpression makeGetName() {
         return user.firstName.coalesce("")
                 .concat(" ")
@@ -453,7 +561,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private BooleanExpression notBlockedByViewerId(Long userId) {
         if (userId == null) return null; // 비로그인 때는 필터 생략
-        QBlockPost bp = QBlockPost.blockPost;
+        QBlockPost bp = blockPost;
         return JPAExpressions
                 .selectOne()
                 .from(bp)
@@ -467,7 +575,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
     private BooleanExpression notBlockedByViewerEmail(String email) {
         if (email == null || email.isBlank()) return null;
-        QBlockPost bp = QBlockPost.blockPost;
+        QBlockPost bp = blockPost;
         return JPAExpressions
                 .selectOne()
                 .from(bp)
@@ -530,15 +638,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     // 익명일 때 null 로 바꿔주는 CASE 식
-
     private Expression<String> nullIfAnonymous(Expression<String> expr) {
         return new CaseBuilder()
                 .when(post.anonymous.isTrue())
                 .then(Expressions.nullExpression(String.class))
                 .otherwise(expr);
     }
-    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
 
+    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
         return JPAExpressions
@@ -549,6 +656,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 .and(u.relatedId.eq(user.id))
                 );
     }
+
     private Expression<String> firstPostImageUrlExpr() {
         QImage pi1 = new QImage("pi1");
         QImage pi2 = new QImage("pi2");
@@ -585,7 +693,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     // 🔹 viewerId(로그인 유저 id)로 좋아요 여부
-
     private Expression<Boolean> likedByViewerId(Long viewerId) {
         if (viewerId == null) return Expressions.FALSE; // 비로그인
         return JPAExpressions
