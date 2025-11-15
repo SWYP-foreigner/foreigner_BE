@@ -17,6 +17,7 @@ public class CrawlerController {
     private final SeoulGlobalCrawlerService seoulGlobalCrawlerService;
     private final AllkpopCrawlerService allkpopCrawlerService;
     private final MyDramaListCrawlerService myDramaListCrawlerService;
+    private final SoompiCrawlerService soompiCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -61,5 +62,14 @@ public class CrawlerController {
     public ResponseEntity<String> triggerMyDramaListCrawl() {
         myDramaListCrawlerService.crawlMyDramaList();
         return ResponseEntity.ok("MyDramaList crawling triggered successfully.");
+    }
+
+    /**
+     * soompi.com 최신 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/soompi/latest")
+    public ResponseEntity<String> triggerSoompiCrawl() {
+        soompiCrawlerService.crawlSoompiLatest();
+        return ResponseEntity.ok("Soompi latest news crawling triggered successfully.");
     }
 }
