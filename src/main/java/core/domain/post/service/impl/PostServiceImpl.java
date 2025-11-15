@@ -4,7 +4,7 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.notification.dto.NotificationEvent;
-import core.domain.post.dto.*;
+import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
 import core.domain.post.event.PostCreatedEvent;

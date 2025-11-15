@@ -1,4 +1,4 @@
-package core.domain.post.dto;
+package core.domain.post.dto.comunity;
 
 import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;

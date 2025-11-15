@@ -2,7 +2,7 @@ package core.domain.post.listener;
 
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
-import core.domain.post.service.SuggestMemoryIndex;
+import core.domain.post.service.search.SuggestMemoryIndex;
 import core.global.service.SimpleKeywordExtractor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

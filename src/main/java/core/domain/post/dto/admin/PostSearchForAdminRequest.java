@@ -1,10 +1,10 @@
-package core.domain.post.dto;
+package core.domain.post.dto.admin;
 
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 
-public record PostSearchRequest(
+public record PostSearchForAdminRequest(
         String authorEmail,
         String authorName,
         String content,

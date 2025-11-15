@@ -2,7 +2,7 @@ package core.global.controller;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.post.dto.CrawledDataDto;
+import core.domain.post.dto.crawling.CrawledDataDto;
 import core.domain.post.entity.CrawledData;
 import core.global.exception.BusinessException;
 import core.global.service.CrawledDataAdminService;
