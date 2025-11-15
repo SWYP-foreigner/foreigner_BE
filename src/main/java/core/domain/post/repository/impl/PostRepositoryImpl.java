@@ -28,6 +28,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+import static core.domain.bookmark.entity.QBookmark.bookmark;
+
 @Repository
 @RequiredArgsConstructor
 public class PostRepositoryImpl implements PostRepositoryCustom {
@@ -73,6 +75,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Boolean> likedByMe = likedByViewerId(userId);
 
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
+
         Expression<String> userImageUrlOrNull = nullIfAnonymous(userImageUrlExpr());
 
         Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
@@ -91,6 +95,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.createdAt,
                         post.anonymous,
                         likedByMe,
+                        bookmarkedByMe,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
@@ -175,6 +180,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
         Expression<Boolean> likedByMe = likedByViewerId(userId);
 
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
+
+
         Expression<Long> authorIdExpr = authorIdExpr();
 
         Expression<String> authorNameExpr = getAuthorName();
@@ -199,6 +207,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.createdAt,
                         post.anonymous,
                         likedByMe,
+                        bookmarkedByMe,
                         likes,
                         comments,
                         views,
@@ -252,7 +261,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         );
 
         Expression<String> linkExpr = Expressions.constant("CHAT LINK");
-
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerEmail(email);
         Expression<Boolean> likedByMe = likedByViewerEmail(email);
         BooleanExpression notBlocked = notBlockedByViewerEmail(email);
 
@@ -268,6 +277,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         linkExpr,
                         post.anonymous,
                         likedByMe,
+                        bookmarkedByMe,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
@@ -302,6 +312,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         String link = t0.get(linkExpr);
         Boolean anonymous = t0.get(post.anonymous);
         Boolean liked = t0.get(likedByMe);
+        Boolean bookmarked = t0.get(bookmarkedByMe);
         Long likeCount = t0.get(likeCountExpr);
         Long commentCount = t0.get(commentCountExpr);
         Long viewCount = t0.get(post.checkCount);
@@ -323,6 +334,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 link,
                 anonymous,
                 liked,
+                bookmarked,
                 likeCount,
                 commentCount,
                 viewCount,
@@ -396,6 +408,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Expression<Boolean> likedByMe = likedByViewerId(viewerId);
         Expression<Long> authorIdExpr = authorIdExpr();
         BooleanExpression visibleToMe = visibleTo(viewerId);
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(viewerId);
 
         QImage uimg = new QImage("uimg");
         Expression<String> userImageUrlExpr =
@@ -416,6 +429,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         board.category,
                         post.createdAt,
                         likedByMe,
+                        bookmarkedByMe,
                         likeCountExpr,
                         commentCountExpr,
                         post.checkCount,
@@ -516,14 +530,15 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     // 익명일 때 null 로 바꿔주는 CASE 식
+
     private Expression<String> nullIfAnonymous(Expression<String> expr) {
         return new CaseBuilder()
                 .when(post.anonymous.isTrue())
                 .then(Expressions.nullExpression(String.class))
                 .otherwise(expr);
     }
-
     // User 프로필 이미지 URL 서브쿼리 (중복 제거)
+
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
         return JPAExpressions
@@ -534,7 +549,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 .and(u.relatedId.eq(user.id))
                 );
     }
-
     private Expression<String> firstPostImageUrlExpr() {
         QImage pi1 = new QImage("pi1");
         QImage pi2 = new QImage("pi2");
@@ -571,6 +585,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     // 🔹 viewerId(로그인 유저 id)로 좋아요 여부
+
     private Expression<Boolean> likedByViewerId(Long viewerId) {
         if (viewerId == null) return Expressions.FALSE; // 비로그인
         return JPAExpressions
@@ -594,6 +609,29 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         like.type.eq(LIKE_TYPE_POST)
                                 .and(like.relatedId.eq(post.id))
                                 .and(like.user.email.eq(email))
+                )
+                .exists();
+    }
+
+    private Expression<Boolean> bookmarkedByViewerId(Long viewerId) {
+        if (viewerId == null) return Expressions.FALSE; // 비로그인
+        return JPAExpressions
+                .selectOne()
+                .from(bookmark)
+                .where(
+                        bookmark.user.id.eq(viewerId)
+                )
+
+                .exists();
+    }
+
+    private Expression<Boolean> bookmarkedByViewerEmail(String  email) {
+        if (email == null) return Expressions.FALSE; // 비로그인
+        return JPAExpressions
+                .selectOne()
+                .from(bookmark)
+                .where(
+                        bookmark.user.email.eq(email)
                 )
                 .exists();
     }
