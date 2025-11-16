@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>자체 포스트 등록</title>
+    <style>
+        /* 폼 페이지를 위한 최소한의 스타일 */
+        body { font-family: sans-serif; padding: 20px; }
+        .btn-back {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #6c757d; /* 회색 */
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .btn-back:hover { background-color: #5a6268; }
+
+        .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .post-form-container {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .post-form-container h2 { margin-top: 0; }
+        .post-form-container div { margin-bottom: 15px; }
+        .post-form-container label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .post-form-container input[type="text"],
+        .post-form-container textarea,
+        .post-form-container select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .btn-submit {
+            padding: 8px 12px;
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-submit:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+<h1>📝 자체 포스트 등록 </h1>
+
+<div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
+
+<a th:href="@{/admin/crawled-data}" class="btn-back">← 목록으로 돌아가기</a>
+
+<div class="post-form-container">
+    <form th:action="@{/admin/posts/custom}" method="POST" enctype="multipart/form-data">
+
+        <div>
+            <label for="boardCategory">게시판 선택:</label>
+            <select id="boardCategory" name="boardCategory" required>
+                <option value="" disabled selected>-- 카테고리 선택 --</option>
+                <option value="NEWS">News</option>
+                <option value="TIP">Tip</option>
+                <option value="QNA">Q&A</option>
+                <option value="EVENT">Event</option>
+                <option value="FREE_TALK">Free talk</option>
+                <option value="ACTIVITY">Activity</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="content">본문:</label>
+            <textarea id="content" name="content" rows="10" required></textarea>
+        </div>
+        <div>
+            <label for="images">이미지 (다중 선택 가능):</label>
+            <input type="file" id="images" name="images" multiple accept="image/*">
+        </div>
+        <div>
+            <button type="submit" class="btn-submit">
+                포스트 등록하기
+            </button>
+        </div>
+    </form>
+</div>
+</body>
+</html>
