@@ -75,7 +75,8 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, List<String> urls);
 
-    List<Image> findByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
+    List<Image> findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType imageType,
+                                                                     List<Long> relatedIds);
 
     Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
