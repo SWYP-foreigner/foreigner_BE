@@ -79,6 +79,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
+    boolean existsByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
 
     @Modifying
     @Query("DELETE FROM Image i WHERE i.imageType = :imageType AND i.relatedId = :relatedId")

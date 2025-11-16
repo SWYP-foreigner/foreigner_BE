@@ -233,7 +233,7 @@ public class PostServiceImpl implements PostService {
 
         final Post post = getPost(email, request, board);
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        imageService.savePostImages(post.getId(), request.imageUrls());
         publishFollowerNotification(post);
     }
 
@@ -283,7 +283,7 @@ public class PostServiceImpl implements PostService {
 
         final Post post = getPost(email, request, board);
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        imageService.savePostImages(post.getId(), request.imageUrls());
     }
 
     private void validatePostForbiddenWord(String content) {
@@ -360,7 +360,7 @@ public class PostServiceImpl implements PostService {
             post.changeContent(request.content());
         }
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+        imageService.updatePostImages(post.getId(), request.images(), request.removedImages());
         eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
 
     }

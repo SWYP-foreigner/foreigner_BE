@@ -3,6 +3,7 @@ package core.global.entity.image.service;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
+import core.global.exception.BusinessException;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -11,10 +12,14 @@ public interface ImageService {
 
     List<PresignedUrlResponse> generatePresignedUrls(PresignedUrlRequest request);
 
-    @Transactional
-    void saveOrUpdatePostImages(Long postId,
-                                List<String> toAdd,
-                                List<String> toRemove);
+//    @Transactional
+//    void saveOrUpdatePostImages(Long postId,
+//                                List<String> toAdd,
+//                                List<String> toRemove);
+
+    void savePostImages(Long postId, List<String> toAdd) throws BusinessException;
+
+    void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove);
 
     void deleteObject(String keyOrUrl);
 

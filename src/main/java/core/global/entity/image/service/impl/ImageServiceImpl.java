@@ -1,8 +1,5 @@
 package core.global.entity.image.service.impl;
 
-import core.global.enums.ImageType;
-import core.global.exception.BusinessException;
-import core.global.enums.errorcode.ImageErrorCode;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
@@ -10,6 +7,9 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.image.utils.UrlUtil;
+import core.global.enums.ImageType;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.exception.BusinessException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -124,15 +124,53 @@ public class ImageServiceImpl implements ImageService {
                 clientHeaders
         );
     }
+//
+//    @Transactional
+//    @Override
+//    public void saveOrUpdatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
+//        final List<String> adds = normalizeList(toAdd);
+//        final List<String> removes = normalizeList(toRemove);
+//        if (adds.isEmpty() && removes.isEmpty()) return;
+//
+//        // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
+//        List<String> bulkDeleteKeys = deleteRemovedImagesAndCollectKeys(postId, removes);
+//
+//        // 2) 생존 이미지 조회 + position 재정렬 + 생존 URL 집합 생성
+//        SurvivorContext survivorContext = loadAndReorderSurvivors(postId);
+//
+//        if (adds.isEmpty()) {
+//            // 추가할 게 없으면 여기서 삭제 끝내고 종료
+//            deleteObjectsBulk(bulkDeleteKeys);
+//            return;
+//        }
+//
+//        final String basePrefix = "posts/" + postId;
+//
+//        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
+//        CopyResult copyResult = copyNewImagesInParallel(
+//                postId,
+//                adds,
+//                basePrefix,
+//                survivorContext.survivorUrls(),
+//                survivorContext.nextPosition()
+//        );
+//
+//        // 4) DB 저장
+//        if (!copyResult.toSave().isEmpty()) {
+//            imageRepository.saveAll(copyResult.toSave());
+//        }
+//
+//        // 5) S3 삭제(사용자 제거 + 스테이징 원본)
+//        bulkDeleteKeys.addAll(copyResult.stagingToDelete());
+//        deleteObjectsBulk(bulkDeleteKeys);
+//    }
 
-    @Transactional
-    @Override
-    public void saveOrUpdatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
-        final List<String> adds = (toAdd == null) ? List.of() : toAdd;
-        final List<String> removes = (toRemove == null) ? List.of() : toRemove;
-        if (adds.isEmpty() && removes.isEmpty()) return;
+    private List<String> normalizeList(List<String> list) {
+        return (list == null) ? List.of() : list;
+    }
 
-        // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
+
+    private List<String> deleteRemovedImagesAndCollectKeys(Long postId, List<String> removes) {
         List<String> bulkDeleteKeys = new ArrayList<>();
         if (!removes.isEmpty()) {
             List<String> removeKeys = removes.stream()
@@ -146,10 +184,11 @@ public class ImageServiceImpl implements ImageService {
             bulkDeleteKeys.addAll(
                     removeKeys.stream().filter(k -> !isDefaultUrlOrKey(k)).toList()
             );
-
         }
+        return bulkDeleteKeys;
+    }
 
-        // 2) 생존 조회
+    private SurvivorContext loadAndReorderSurvivors(Long postId) {
         List<Image> survivors = imageRepository
                 .findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId);
 
@@ -159,43 +198,51 @@ public class ImageServiceImpl implements ImageService {
             img.changePosition(pos++);
 
             String storedKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
-            survivorUrls.add(UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, storedKey));
+            String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, storedKey);
+            survivorUrls.add(finalUrl);
         }
 
-        if (adds.isEmpty()) {
-            deleteObjectsBulk(bulkDeleteKeys);
-            return;
-        }
+        return new SurvivorContext(survivors, survivorUrls, pos);
+    }
 
-        final String basePrefix = "posts/" + postId;
-        final int startOrder = pos;
-
-        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
+    private CopyResult copyNewImagesInParallel(
+            Long postId,
+            List<String> adds,
+            String basePrefix,
+            Set<String> survivorUrls,
+            int startOrder
+    ) {
         var pool = java.util.concurrent.Executors.newFixedThreadPool(
-                Math.min(Math.max(1, adds.size()), 8) // 동시성 8 권장
+                Math.min(Math.max(1, adds.size()), 8)
         );
+
         var tasks = new ArrayList<java.util.concurrent.Callable<Image>>();
         var stagingToDelete = new java.util.concurrent.ConcurrentLinkedQueue<String>();
 
         for (int i = 0; i < adds.size(); i++) {
             final int myOrder = startOrder + i;
             final String raw = adds.get(i);
+
             tasks.add(() -> {
                 String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
+
+                // 1) 기본 이미지인 경우
                 if (isDefaultUrlOrKey(srcKey)) {
                     String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, srcKey);
                     if (survivorUrls.contains(finalUrl)) return null;
                     return Image.of(ImageType.POST, postId, finalUrl, myOrder);
                 }
 
+                // 2) 일반/스테이징 이미지인 경우
                 String finalKey = ensureFinalKey(basePrefix, myOrder, srcKey);
                 String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
                 if (survivorUrls.contains(finalUrl)) return null;
 
-                // 스테이징이면, COPY 성공했으니 원본을 벌크 삭제 대상에 추가
+                // 스테이징이면 COPY 성공 후 원본 삭제 후보에 추가
                 if (isStagingKey(srcKey) && !srcKey.equals(finalKey) && !isDefaultUrlOrKey(srcKey)) {
                     stagingToDelete.add(srcKey);
                 }
+
                 return Image.of(ImageType.POST, postId, finalUrl, myOrder);
             });
         }
@@ -213,13 +260,88 @@ public class ImageServiceImpl implements ImageService {
             pool.shutdown();
         }
 
-        if (!toSave.isEmpty()) imageRepository.saveAll(toSave);
-
-        // 4) 한 번에 삭제(사용자 제거 + 스테이징 원본)
-        if (!stagingToDelete.isEmpty()) bulkDeleteKeys.addAll(stagingToDelete);
-        deleteObjectsBulk(bulkDeleteKeys);
+        return new CopyResult(toSave, new ArrayList<>(stagingToDelete));
     }
 
+
+@Override
+@Transactional
+
+public void savePostImages(Long postId, List<String> toAdd) throws BusinessException {
+        final List<String> adds = normalizeList(toAdd);
+        if (adds.isEmpty()) return;
+
+        // 1) 이미지가 존재하면 예외
+        if (imageRepository.existsByImageTypeAndRelatedId(ImageType.POST, postId)) {
+            throw new BusinessException(ImageErrorCode.POST_IMAGES_ALREADY_EXIST);
+            // 또는 비슷한 커스텀 에러코드 (이미 정의되어 있다면 그걸 사용)
+        }
+
+        // 2) 생존 이미지 조회 + position 재정렬 + 생존 URL 집합 생성
+        SurvivorContext survivorContext = loadAndReorderSurvivors(postId);
+
+        final String basePrefix = "posts/" + postId;
+
+        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
+        CopyResult copyResult = copyNewImagesInParallel(
+                postId,
+                adds,
+                basePrefix,
+                survivorContext.survivorUrls(),
+                survivorContext.nextPosition()
+        );
+
+        // 4) DB 저장
+        if (!copyResult.toSave().isEmpty()) {
+            imageRepository.saveAll(copyResult.toSave());
+        }
+
+        // 스테이징 원본 삭제
+        if (!copyResult.stagingToDelete().isEmpty()) {
+            deleteObjectsBulk(copyResult.stagingToDelete());
+        }
+    }
+
+    @Override
+    @Transactional
+
+    public void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
+        final List<String> adds = normalizeList(toAdd);
+        final List<String> removes = normalizeList(toRemove);
+        if (adds.isEmpty() && removes.isEmpty()) return;
+
+        // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
+        List<String> bulkDeleteKeys = deleteRemovedImagesAndCollectKeys(postId, removes);
+
+        // 2) 생존 이미지 조회 + position 재정렬 + 생존 URL 집합 생성
+        SurvivorContext survivorContext = loadAndReorderSurvivors(postId);
+
+        if (adds.isEmpty()) {
+            // 추가할 게 없으면 여기서 삭제 끝내고 종료
+            deleteObjectsBulk(bulkDeleteKeys);
+            return;
+        }
+
+        final String basePrefix = "posts/" + postId;
+
+        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
+        CopyResult copyResult = copyNewImagesInParallel(
+                postId,
+                adds,
+                basePrefix,
+                survivorContext.survivorUrls(),
+                survivorContext.nextPosition()
+        );
+
+        // 4) DB 저장
+        if (!copyResult.toSave().isEmpty()) {
+            imageRepository.saveAll(copyResult.toSave());
+        }
+
+        // 5) S3 삭제(사용자 제거 + 스테이징 원본)
+        bulkDeleteKeys.addAll(copyResult.stagingToDelete());
+        deleteObjectsBulk(bulkDeleteKeys);
+    }
 
     private boolean isStagingKey(String key) {
         String k = UrlUtil.trimSlashes(key);
@@ -464,9 +586,6 @@ public class ImageServiceImpl implements ImageService {
         return finalUrl;
     }
 
-
-
-
     @Override
     @Transactional
     public void deleteUserProfileImage(Long userId) {
@@ -597,7 +716,6 @@ public class ImageServiceImpl implements ImageService {
         return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
     }
 
-
     // 내부 검증/확장자 유틸 (이미 클래스에 없다면 추가)
     private void validateImageHeadOrThrow(String key, long maxBytes) {
         HeadObjectResponse head;
@@ -621,6 +739,19 @@ public class ImageServiceImpl implements ImageService {
         return images.stream()
                 .map(image -> new ImageDto(image.getId(), image.getRelatedId(), image.getUrl()))
                 .collect(Collectors.toList());
+    }
+
+    private record SurvivorContext(
+            List<Image> survivors,
+            Set<String> survivorUrls,
+            int nextPosition
+    ) {
+    }
+
+    private record CopyResult(
+            List<Image> toSave,
+            List<String> stagingToDelete
+    ) {
     }
 
 }
