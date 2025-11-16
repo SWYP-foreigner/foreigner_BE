@@ -19,6 +19,7 @@ public class CrawlerController {
     private final MyDramaListCrawlerService myDramaListCrawlerService;
     private final SoompiCrawlerService soompiCrawlerService;
     private final HarpersBazaarCrawlerService harpersBazaarCrawlerService;
+    private final KLifeInformationCrawlerService kLifeInformationCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -36,6 +37,12 @@ public class CrawlerController {
     public ResponseEntity<String> triggerKLifeCommunityCrawl() {
         kLifeCrawlerService.crawlKLifeCommunity();
         return ResponseEntity.ok("k-life.co community crawling triggered successfully.");
+    }
+
+    @GetMapping("/klife/information")
+    public ResponseEntity<String> triggerKLifeInformationCrawl() {
+        kLifeInformationCrawlerService.crawlKLifeInformation();
+        return ResponseEntity.ok("k-life.co information crawling triggered successfully.");
     }
 
     /**
