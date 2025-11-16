@@ -20,7 +20,7 @@ public record CommentListResponse(
         return new CommentListResponse(
                 comment.getId(),
                 comment.getPost().getId(),
-                comment.getAuthor().getName(),
+                comment.getAuthor().getFirstName()+" "+comment.getAuthor().getLastName(),
                 comment.getAuthor().getEmail(),
                 truncatedContent,
                 comment.getCreatedAt(),

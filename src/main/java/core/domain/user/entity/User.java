@@ -28,10 +28,6 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    // ... (id, name, firstName, lastName 등 다른 필드는 동일)
-    @Column(name = "name")
-    private String name;
-
     @Column(name = "first_name", nullable = true)
     private String firstName;
 
