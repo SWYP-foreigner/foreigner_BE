@@ -3,10 +3,7 @@ package core.domain.comment.repository;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.NumberExpression;
-import com.querydsl.core.types.dsl.PathBuilder;
+import com.querydsl.core.types.dsl.*;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -164,7 +161,7 @@ public class CommentRepositoryCustomImpl implements CommentRepositoryCustom {
                 .select(Projections.constructor(CommentListResponse.class,
                         comment.id,
                         comment.post.id,
-                        user.name,
+                        Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName),
                         user.email,
                         comment.content,
                         comment.createdAt,
@@ -206,7 +203,8 @@ public class CommentRepositoryCustomImpl implements CommentRepositoryCustom {
 
                 switch (order.getProperty()) {
                     case "authorName":
-                        orders.add(new OrderSpecifier<>(direction, user.name));
+                        StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
+                        orders.add(new OrderSpecifier<>(direction, fullName));
                         break;
                     case "reportCount":
                         orders.add(new OrderSpecifier<>(direction,
@@ -250,9 +248,11 @@ public class CommentRepositoryCustomImpl implements CommentRepositoryCustom {
     }
 
     private BooleanExpression authorNameContains(String name) {
-        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
-    }
+        if (!StringUtils.hasText(name)) return null;
 
+        StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
+        return fullName.containsIgnoreCase(name);
+    }
     /** 차단(양방향) 필터: userId가 null이면 필터 비활성화 */
     private BooleanExpression visibleTo(Long userId) {
         if (userId == null) return null;

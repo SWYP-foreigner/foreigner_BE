@@ -22,7 +22,7 @@ public record ChatMessageSearchResultDto(
                 message.getChatRoom().getId(),
                 message.getChatRoom().getRoomName(),
                 message.getSender().getId(),
-                message.getSender().getName(),
+                message.getSender().getFirstName()+" "+message.getSender().getLastName(),
                 message.getSender().getEmail(),
                 truncatedContent,
                 message.getSentAt()

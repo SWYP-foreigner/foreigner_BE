@@ -31,7 +31,7 @@ public record UserResponseDto(
     public static UserResponseDto from(User user,String ImageUrl) {
         return new UserResponseDto(
                 user.getId(),
-                user.getName(),
+                user.getFirstName()+" "+user.getLastName(),
                 user.getFirstName(),
                 user.getLastName(),
                 user.getSex(),

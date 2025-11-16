@@ -16,7 +16,7 @@ public record ChatParticipantInfoDto(
         return new ChatParticipantInfoDto(
                 participant.getId(),
                 participant.getUser().getId(),
-                participant.getUser().getName(),
+                participant.getUser().getFirstName()+" "+participant.getUser().getLastName(),
                 participant.getJoinedAt(),
                 participant.getStatus()
         );

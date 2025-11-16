@@ -12,7 +12,7 @@ public record FollowingInfoDto(
         User following = follow.getFollowing();
         return new FollowingInfoDto(
                 following.getId(),
-                following.getName(),
+                following.getFirstName()+" "+following.getLastName(),
                 following.getEmail()
         );
     }

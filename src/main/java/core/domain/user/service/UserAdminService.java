@@ -77,7 +77,7 @@ public class UserAdminService {
         Page<Follow> acceptedFollowsPage = followRepository.findAllAcceptedFollowsByUserId(userId, FollowStatus.ACCEPTED, pageable);
         return acceptedFollowsPage.map(follow -> {
             User friend = follow.getUser().getId().equals(userId) ? follow.getFollowing() : follow.getUser();
-            return new FollowingInfoDto(friend.getId(), friend.getName(), friend.getEmail());
+            return new FollowingInfoDto(friend.getId(), friend.getFirstName()+" "+friend.getLastName(), friend.getEmail());
         });
     }
 
