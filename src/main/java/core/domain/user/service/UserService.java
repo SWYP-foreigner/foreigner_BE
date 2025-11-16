@@ -951,12 +951,10 @@ public class UserService {
         user.updateCountry(country);
     }
     @Transactional
-    public void updateUserResidence(Long userId, String country) {
-
+    public void updateUserResidence(Long userId, String residence) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        user.updateResidence(country);
+        user.updateResidence(residence);
     }
     /**
      * 유저 프로필 완료 여부 확인
