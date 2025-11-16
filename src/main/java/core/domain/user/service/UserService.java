@@ -716,69 +716,6 @@ public class UserService {
 
 
     /**
-     * 두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
-     *
-     * @param firstName
-     * @param lastName
-     * @return
-     */
-//    @Transactional(readOnly = true)
-//    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName)
-//    {
-//
-//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-//        String userEmail = auth.getName();
-//
-//        User me = userRepository.findByEmail(userEmail)
-//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-//
-//        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
-//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-//        }
-//
-//
-//        String fn = firstName == null ? null : firstName.trim();
-//        String ln = lastName == null ? null : lastName.trim();
-//
-//        List<User>users;
-//
-//        if (notBlank(fn) && notBlank(ln)) {
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        } else if (notBlank(fn)) {
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        } else { // notBlank(ln) 보장됨
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        }
-//
-//        if (users.isEmpty()) {
-//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-//        }
-//
-//        return users.stream()
-//                .map(this::toSearchDto)
-//                .toList();
-//    }
-
-    /**
-     * 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회)
-     */
-
-
-    private UserSearchDTO toSearchDto(User u) {
-        return UserSearchDTO.builder()
-                .id(u.getId())
-                .firstName(u.getFirstName())
-                .lastName(u.getLastName())
-                .gender(u.getSex())
-                .country(u.getCountry())
-                .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
-                .build();
-    }
-
-    /**
      * 회원 탈퇴를 처리하는 메서드.
      * 사용자와 관련된 모든 데이터를 삭제하고, 토큰을 무효화합니다.
      *
