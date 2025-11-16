@@ -4,7 +4,7 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.notification.dto.NotificationEvent;
-import core.domain.post.dto.*;
+import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
 import core.domain.post.event.PostCreatedEvent;
@@ -278,8 +278,10 @@ public class PostServiceImpl implements PostService {
     }
 
     private void validatePostForbiddenWord(String content) {
-        if (forbiddenWordService.containsForbiddenWord(content)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
+        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(content);
+
+        if (!forbiddenWords.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
         }
     }
 
@@ -330,6 +332,8 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void updatePost(Long postId, @Valid PostUpdateRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        validatePostForbiddenWord(request.content());
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));

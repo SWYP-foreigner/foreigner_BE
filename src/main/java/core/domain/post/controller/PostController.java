@@ -1,6 +1,6 @@
 package core.domain.post.controller;
 
-import core.domain.post.dto.*;
+import core.domain.post.dto.comunity.*;
 import core.domain.post.service.PostService;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;

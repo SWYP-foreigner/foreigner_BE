@@ -12,7 +12,7 @@ public record BlockedUserInfoDto(
         User blocked = blockUser.getBlocked();
         return new BlockedUserInfoDto(
                 blocked.getId(),
-                blocked.getName(),
+                blocked.getFirstName()+" "+blocked.getLastName(),
                 blocked.getEmail()
         );
     }

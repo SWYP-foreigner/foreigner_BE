@@ -15,12 +15,12 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.*;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
@@ -50,13 +50,13 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
-    private final ImageRepository imageRepository;
     private final LikeRepository likeRepository;
     private final ForbiddenWordService forbiddenWordService;
     private final BlockRepository blockRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TranslationService translationService;
     private final UserRoleDetectService userRoleDetectService;
+    private final ImageService imageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -99,9 +99,7 @@ public class CommentServiceImpl implements CommentService {
     public void writeComment(Long postId, CommentWriteRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        if (forbiddenWordService.containsForbiddenWord(request.comment())) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
-        }
+        validateCommentForbiddenWord(request.comment());
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
@@ -160,6 +158,14 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    private void validateCommentForbiddenWord(String content) {
+        List<String> forbiddenWords = forbiddenWordService.containsForbiddenWord(content);
+
+        if (!forbiddenWords.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN_WORD_DETECTED, forbiddenWords);
+        }
+    }
+
     private void validateAnonymousPolicy(BoardCategory category, Boolean isAnonymous) {
         final boolean allowAnonymous =
                 category == BoardCategory.FREE_TALK || category == BoardCategory.QNA;
@@ -176,6 +182,8 @@ public class CommentServiceImpl implements CommentService {
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
+
+        validateCommentForbiddenWord(request.content());
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
@@ -369,9 +377,20 @@ public class CommentServiceImpl implements CommentService {
                 .distinct()
                 .toList();
 
-        Map<Long, String> userImageMap = authorIds.isEmpty() ? Map.of()
-                : imageRepository.findUrlByRelatedIds(ImageType.USER, authorIds).stream()
-                .collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1]));
+        Map<Long, String> userImageMap;
+        if (authorIds.isEmpty()) {
+            userImageMap = Map.of();
+        } else {
+            userImageMap = authorIds.stream()
+                    .map(userId -> Map.entry(userId, imageService.getUserProfileKey(userId))) // 첫 이미지 URL 또는 null
+                    .filter(e -> e.getValue() != null)                             // null URL 제거
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (existing, incoming) -> existing,
+                            LinkedHashMap::new
+                    ));
+        }
 
         return new Aux(likeCountMap, myLikedIds, userImageMap);
     }
@@ -417,6 +436,7 @@ public class CommentServiceImpl implements CommentService {
 
                     return new CommentItem(
                             it.commentId(),
+                            it.parentCommentId(),
                             it.authorId(),
                             it.authorName(),
                             translated.get(i),   // 번역된 content 주입

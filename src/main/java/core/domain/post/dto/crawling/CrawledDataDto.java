@@ -1,4 +1,4 @@
-package core.domain.post.dto;
+package core.domain.post.dto.crawling;
 
 import core.domain.post.entity.CrawledData;
 import core.global.enums.CrawledDataStatus;

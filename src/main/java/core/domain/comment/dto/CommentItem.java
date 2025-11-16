@@ -11,6 +11,9 @@ public record CommentItem(
         @Schema(description = "댓글 ID", example = "10", nullable = true)
         Long commentId,
 
+        @Schema(description = "부모 댓글 ID", example = "10", nullable = true)
+        Long parentCommentId,
+
         @Schema(description = "작성자 ID", example = "10", nullable = true)
         Long authorId,
 
@@ -47,6 +50,7 @@ public record CommentItem(
                     null,
                     null,
                     null,
+                    null,
                     "삭제된 댓글입니다.",
                     false,
                     false,
@@ -58,6 +62,7 @@ public record CommentItem(
         }
         return new CommentItem(
                 c.getId(),
+                c.getParent()==null ? null : c.getParent().getId(),
                 c.getAuthor().getId(),
                 (!c.getAnonymous()) ? c.getAuthor().getLastName() + " " + c.getAuthor().getFirstName() : "Anonymity",
                 c.getContent(),

@@ -16,7 +16,7 @@ public record UserBasicInfoDto(
     public static UserBasicInfoDto from(User user) {
         return new UserBasicInfoDto(
                 user.getId(),
-                user.getName(),
+                user.getFirstName()+" "+user.getLastName(),
                 user.getEmail(),
                 user.getCountry(),
                 user.getIntroduction(),

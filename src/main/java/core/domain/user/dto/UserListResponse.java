@@ -18,7 +18,7 @@ public record UserListResponse(
         return new UserListResponse(
                 user.getId(),
                 user.getEmail(),
-                user.getName(),
+                user.getFirstName()+" "+user.getLastName(),
                 user.getCountry(),
                 user.getCreatedAt()
         );

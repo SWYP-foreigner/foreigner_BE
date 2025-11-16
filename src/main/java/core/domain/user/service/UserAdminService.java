@@ -9,7 +9,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.dto.RecentCommentDto;
 import core.domain.comment.repository.CommentRepository;
-import core.domain.post.dto.RecentPostDto;
+import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
 import core.domain.post.repository.PostRepository;
@@ -77,7 +77,7 @@ public class UserAdminService {
         Page<Follow> acceptedFollowsPage = followRepository.findAllAcceptedFollowsByUserId(userId, FollowStatus.ACCEPTED, pageable);
         return acceptedFollowsPage.map(follow -> {
             User friend = follow.getUser().getId().equals(userId) ? follow.getFollowing() : follow.getUser();
-            return new FollowingInfoDto(friend.getId(), friend.getName(), friend.getEmail());
+            return new FollowingInfoDto(friend.getId(), friend.getFirstName()+" "+friend.getLastName(), friend.getEmail());
         });
     }
 

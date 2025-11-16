@@ -8,7 +8,10 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.FollowActivityLogRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.*;
+import core.global.entity.image.service.ImageService;
+import core.global.enums.FollowActionType;
+import core.global.enums.FollowStatus;
+import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.repository.ImageRepository;
@@ -32,11 +35,11 @@ public class FollowService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
-    private final ImageRepository imageRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SocialChatMetrics socialChatMetrics;
     private final FollowActivityLogRepository followActivityLogRepository;
     private final UserRoleDetectService userRoleDetectService;
+    private final ImageService imageService;
 
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null); // null/빈값은 SocialChatMetrics에서 UNK 처리
@@ -48,12 +51,10 @@ public class FollowService {
                 .followingId(following.getId())
                 .actionType(actionType)
                 .source(source)
-                .followerIsInKorea(follower.isInKorea())
                 .followerCountry(follower.getCountry())
                 .followerSex(follower.getSex())
                 .followerBirthdate(follower.getBirthdate())
                 .followerLanguage(follower.getLanguage())
-                .followingIsInKorea(following.isInKorea())
                 .followingCountry(following.getCountry())
                 .followingSex(following.getSex())
                 .followingBirthdate(following.getBirthdate())
@@ -92,9 +93,7 @@ public class FollowService {
                 .map(f -> {
                     User target = f.getUser().getId().equals(me.getId()) ? f.getFollowing() : f.getUser();
 
-                    String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, target.getId())
-                            .map(image -> image.getUrl())
-                            .orElse(null);
+                    String imageKey = imageService.getUserProfileKey(target.getId());
 
                     List<String> languages = Arrays.stream(
                                     Optional.ofNullable(target.getLanguage()).orElse("")
@@ -337,9 +336,7 @@ public class FollowService {
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
 
-                    String imageKey = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, targetUser.getId())
-                            .map(image -> image.getUrl())
-                            .orElse(null);
+                    String imageKey = imageService.getUserProfileKey(targetUser.getId());
                     List<String> languages = (targetUser.getLanguage() != null && !targetUser.getLanguage().isBlank())
                             ? Arrays.stream(targetUser.getLanguage().split(","))
                             .map(String::trim)

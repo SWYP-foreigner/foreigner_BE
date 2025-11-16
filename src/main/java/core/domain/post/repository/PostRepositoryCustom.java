@@ -1,10 +1,10 @@
 package core.domain.post.repository;
 
 import core.domain.board.dto.BoardItem;
-import core.domain.post.dto.PostDetailResponse;
-import core.domain.post.dto.PostListResponse;
-import core.domain.post.dto.PostSearchRequest;
-import core.domain.post.dto.UserPostItem;
+import core.domain.post.dto.comunity.PostDetailResponse;
+import core.domain.post.dto.admin.PostListForAdminResponse;
+import core.domain.post.dto.admin.PostSearchForAdminRequest;
+import core.domain.post.dto.comunity.UserPostItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -12,22 +12,19 @@ import java.time.Instant;
 import java.util.List;
 
 public interface PostRepositoryCustom {
-        List<BoardItem> findLatestPosts(Long userId, Long boardId,
-                                        Instant cursorCreatedAt,
-                                        Long cursorId,
-                                        int size,
-                                        String q);
+    List<BoardItem> findLatestPosts(Long userId, Long boardId,
+                                    Instant cursorCreatedAt,
+                                    Long cursorId,
+                                    int size,
+                                    String q);
 
-        List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q);
+    List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q);
 
-        PostDetailResponse findPostDetail(String email, Long postId);
+    PostDetailResponse findPostDetail(String email, Long postId);
 
-        List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne);
+    List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne);
 
-        List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
+    List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
 
-        List<BoardItem> findPostsByIdsForSearch(Long viewerId, List<Long> ids);
-
-        Page<PostListResponse> searchPosts(PostSearchRequest condition, Pageable pageable);
-
+    Page<PostListForAdminResponse> searchPostsByAdmin(PostSearchForAdminRequest condition, Pageable pageable);
 }

@@ -576,6 +576,14 @@ public class ImageServiceImpl implements ImageService {
                 .orElse(null);
     }
 
+    @Override
+    public String getRoomImageUrl(Long roomId) {
+        return imageRepository
+                .findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, roomId)
+                .map(Image::getUrl)
+                .orElse(null);
+    }
+
     private boolean isDefaultUrlOrKey(String keyOrUrl) {
         if (keyOrUrl == null || keyOrUrl.isBlank()) return false;
         String k = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, keyOrUrl);

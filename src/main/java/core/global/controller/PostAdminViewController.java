@@ -1,10 +1,9 @@
 package core.global.controller;
 
-import core.domain.post.dto.PostListResponse;
-import core.domain.post.dto.PostSearchRequest;
+import core.domain.post.dto.admin.PostListForAdminResponse;
+import core.domain.post.dto.admin.PostSearchForAdminRequest;
 import core.global.service.PostAdminService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,11 +21,11 @@ public class PostAdminViewController {
 
     @GetMapping
     public String postListPage(
-            @ModelAttribute PostSearchRequest request,
+            @ModelAttribute PostSearchForAdminRequest request,
             @PageableDefault(size = 10, sort = {"createdAt", "id"}, direction = Sort.Direction.DESC) Pageable pageable,
             Model model
     ) {
-        Page<PostListResponse> postPage = postAdminService.searchPosts(request, pageable);
+        Page<PostListForAdminResponse> postPage = postAdminService.searchPosts(request, pageable);
         model.addAttribute("postPage", postPage);
         model.addAttribute("searchRequest", request);
         return "admin/post-list";

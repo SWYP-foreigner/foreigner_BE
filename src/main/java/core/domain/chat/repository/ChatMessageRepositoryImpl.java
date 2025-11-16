@@ -2,6 +2,7 @@ package core.domain.chat.repository;
 
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.chat.dto.ChatMessageSearchRequest;
 import core.domain.chat.dto.ChatMessageSearchResultDto;
@@ -33,7 +34,7 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepositoryCustom {
                         chatRoom.id,
                         chatRoom.roomName,
                         user.id,
-                        user.name,
+                        Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName),
                         user.email,
                         chatMessage.content,
                         chatMessage.sentAt
@@ -73,6 +74,6 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepositoryCustom {
     }
 
     private BooleanExpression senderNameContains(String name) {
-        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
+        return StringUtils.hasText(name) ? user.firstName.containsIgnoreCase(name) : null;
     }
 }

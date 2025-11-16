@@ -1,6 +1,10 @@
 package core.domain.post.controller;
 
+
 import core.domain.post.service.*;
+import core.domain.post.service.crawling.KLifeCrawlerService;
+import core.domain.post.service.crawling.KoreaNetCrawlerService;
+import core.domain.post.service.crawling.SeoulGlobalCrawlerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

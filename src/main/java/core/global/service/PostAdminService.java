@@ -1,7 +1,7 @@
 package core.global.service;
 
-import core.domain.post.dto.PostListResponse;
-import core.domain.post.dto.PostSearchRequest;
+import core.domain.post.dto.admin.PostListForAdminResponse;
+import core.domain.post.dto.admin.PostSearchForAdminRequest;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.service.UserAdminService;
@@ -21,8 +21,8 @@ public class PostAdminService {
     private final UserAdminService userAdminService;
 
     @Transactional(readOnly = true)
-    public Page<PostListResponse> searchPosts(PostSearchRequest request, Pageable pageable) {
-        return postRepository.searchPosts(request, pageable);
+    public Page<PostListForAdminResponse> searchPosts(PostSearchForAdminRequest request, Pageable pageable) {
+        return postRepository.searchPostsByAdmin(request, pageable);
     }
 
     @Transactional

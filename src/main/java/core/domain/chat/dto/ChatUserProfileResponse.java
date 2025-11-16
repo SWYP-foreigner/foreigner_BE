@@ -22,7 +22,7 @@ public record ChatUserProfileResponse(
     public static ChatUserProfileResponse from(User user,String imageUrls) {
         return new ChatUserProfileResponse(
                 user.getId(),
-                user.getName(),
+                user.getFirstName() + " " + user.getLastName(),
                 user.getFirstName(),
                 user.getLastName(),
                 user.getSex(),
