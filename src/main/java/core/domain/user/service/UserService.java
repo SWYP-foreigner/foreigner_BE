@@ -941,31 +941,22 @@ public class UserService {
         return new UserAppleStatusResponse(isApple, isRejoiningWithoutFullName);
     }
 
+
     @Transactional
-    public void updateUserLocation(LocationUpdateRequest dto, Long userId) {
+    public void updateUserCountry(Long userId, String country) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        Boolean isInKorea = isLocationInKorea(dto.getLatitude(), dto.getLongitude());
-        user.updateIsInKorea(Boolean.TRUE.equals(isInKorea));
+
+        user.updateCountry(country);
     }
+    @Transactional
+    public void updateUserResidence(Long userId, String country) {
 
-    /**
-     * 주어진 위도, 경도가 대한민국 영토 내에 있는지 확인합니다.
-     *
-     * @return 대한민국 내에 있으면 true, 밖에 있으면 false, 값이 없으면 null
-     */
-    private Boolean isLocationInKorea(Double latitude, Double longitude) {
-        if (latitude == null || longitude == null) {
-            return null;
-        }
-        double minLat = 33.0;
-        double maxLat = 38.7;
-        double minLon = 124.5;
-        double maxLon = 132.0;
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        return latitude >= minLat && latitude <= maxLat &&
-               longitude >= minLon && longitude <= maxLon;
+        user.updateResidence(country);
     }
     /**
      * 유저 프로필 완료 여부 확인
