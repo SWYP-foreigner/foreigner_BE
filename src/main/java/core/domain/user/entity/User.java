@@ -96,8 +96,8 @@ public class User {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
-    @Column(name = "is_in_korea")
-    private boolean isInKorea;
+    @Column(name = "residence", length = 50)
+    private String residence;
 
 
     @Enumerated(EnumType.STRING)
@@ -274,10 +274,11 @@ public class User {
     public void updateUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
-    public void updateIsInKorea(boolean isInKorea) {
-        this.isInKorea = isInKorea;
+    public void updateResidence(String residence) {
+        if (notBlank(residence)) this.residence = residence.trim();
         touchUpdatedAt();
     }
+
 
     private boolean notBlank(String s) {
         return s != null && !s.trim().isEmpty();
