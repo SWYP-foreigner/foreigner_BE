@@ -1,5 +1,7 @@
 package core.global.entity.image.service.impl;
 
+import core.domain.post.entity.Post;
+import core.global.entity.image.S3Props;
 import core.global.enums.ImageType;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.ImageErrorCode;
@@ -16,12 +18,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,6 +40,7 @@ public class ImageServiceImpl implements ImageService {
 
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
+    private final S3Props s3Props;
     private final ImageRepository imageRepository;
 
     @Value("${ncp.s3.bucket}")
@@ -615,4 +621,47 @@ public class ImageServiceImpl implements ImageService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
+
+        if (multipartFiles == null || multipartFiles.isEmpty() || multipartFiles.stream().allMatch(MultipartFile::isEmpty)) {
+            return;
+        }
+
+        List<Image> newImages = new ArrayList<>();
+        int orderIndex = 0;
+
+        for (MultipartFile file : multipartFiles) {
+            if (file.isEmpty()) continue;
+
+            String originalFileName = file.getOriginalFilename();
+            String extension = "";
+            if (originalFileName != null && originalFileName.contains(".")) {
+                extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+            }
+            String uniqueFileName = UUID.randomUUID() + extension;
+            String s3Key = "post-images/" + post.getId() + "/" + uniqueFileName;
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(s3Props.getBucket())
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            String uploadedUrl = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/" + s3Key;
+
+            Image image = Image.of(
+                    ImageType.POST,
+                    post.getId(),
+                    uploadedUrl,
+                    orderIndex++
+            );
+            newImages.add(image);
+        }
+
+        imageRepository.saveAll(newImages);
+    }
 }

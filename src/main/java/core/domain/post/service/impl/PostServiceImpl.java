@@ -41,13 +41,17 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
 
 @Slf4j
 @Service
@@ -76,7 +80,7 @@ public class PostServiceImpl implements PostService {
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
-            throw new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND);
+            throw new BusinessException(BOARD_NOT_FOUND);
         }
 
         User user = userRepository.findByEmail(email)
@@ -218,7 +222,7 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
 
@@ -262,7 +266,7 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findByCategory(BoardCategory.ACTIVITY)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
 
         validateChatRoomPolicy(board.getCategory(), request.link());
 
@@ -542,6 +546,28 @@ public class PostServiceImpl implements PostService {
         PopularKey(Long sc, Long id) {
             this.sc = sc;
             this.id = id;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void createAdminPost(String content,
+                                BoardCategory category,
+                                List<MultipartFile> images, User adminUser) throws IOException {
+
+        Board board = boardRepository.findByCategory(category)
+                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
+
+        Post post = new Post(
+                content,
+                adminUser,
+                board
+        );
+
+        Post savedPost = postRepository.save(post);
+
+        if (images != null && !images.isEmpty()) {
+            imageService.uploadAndSavePostImages(savedPost, images);
         }
     }
 }

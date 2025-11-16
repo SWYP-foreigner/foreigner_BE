@@ -58,6 +58,27 @@
         }
         .btn-crawl:hover { background-color: #218838; }
         .btn-crawl:disabled { background-color: #94d3a2; cursor: not-allowed; }
+
+        .admin-actions {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn-create {
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .btn-create:hover { background-color: #0056b3; }
     </style>
 </head>
 <body>
@@ -92,6 +113,13 @@
         Harpers Bazaar
     </button>
 </div>
+
+<div class="admin-actions">
+    <a th:href="@{/admin/posts/new}" class="btn-create">
+        📝 자체 포스트 등록하기
+    </a>
+</div>
+<h2>승인 대기 목록</h2>
 
 <table>
     <thead>
