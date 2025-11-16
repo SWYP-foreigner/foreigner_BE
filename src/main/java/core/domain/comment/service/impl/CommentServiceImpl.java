@@ -16,13 +16,16 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
 import core.global.entity.image.service.ImageService;
-import core.global.enums.*;
-import core.global.exception.BusinessException;
+import core.global.entity.like.entity.Like;
+import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.BoardCategory;
+import core.global.enums.LikeType;
+import core.global.enums.NotificationType;
+import core.global.enums.SortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.entity.like.entity.Like;
-import core.global.entity.like.repository.LikeRepository;
+import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.service.ForbiddenWordService;
@@ -38,7 +41,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -47,6 +52,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CommentServiceImpl implements CommentService {
 
+    private static final int FLOOD_WINDOW_MINUTES = 5;  // 도배 판단 기준 시간
+    private static final int FLOOD_MAX_COMMENTS = 15;       // 5분 동안 허용할 최대 댓글 수
+    private static final int DUP_WINDOW_MINUTES = 5;
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
@@ -93,7 +101,6 @@ public class CommentServiceImpl implements CommentService {
         return new CursorPageResponse<>(items, slice.hasNext(), nextCursor);
     }
 
-
     @Override
     @Transactional
     public void writeComment(Long postId, CommentWriteRequest request) {
@@ -103,6 +110,10 @@ public class CommentServiceImpl implements CommentService {
 
         User user = getUserOrThrow(email);
         userRoleDetectService.isProfileSetUpUser(user);
+
+        validateDuplicateContent(email, request.comment());
+
+        validateCommentFlooding(email);
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
@@ -200,7 +211,6 @@ public class CommentServiceImpl implements CommentService {
             comment.changeContent(request.content());
         }
     }
-
 
     @Override
     @Transactional
@@ -315,6 +325,45 @@ public class CommentServiceImpl implements CommentService {
         }
 
         blockRepository.save(new BlockUser(me, blockedUser));
+    }
+
+    private void validateCommentFlooding(String email) {
+        Instant cutOff = Instant.now().minus(FLOOD_WINDOW_MINUTES, ChronoUnit.MINUTES);
+
+        long recentCommentCount =
+                commentRepository.countByAuthorEmailAndCreatedAtAfter(email, cutOff);
+
+        if (recentCommentCount >= FLOOD_MAX_COMMENTS) {
+            throw new BusinessException(CommunityErrorCode.TOO_MANY_COMMENTS);
+        }
+    }
+
+    private void validateDuplicateContent(String email, String rawContent) {
+        // 1) 내용 정규화 (원하는 만큼만)
+        String normalizedContent = normalizeContent(rawContent);
+
+        // 2) 5분 전 시점
+        Instant cutOff = Instant.now().minus(DUP_WINDOW_MINUTES, ChronoUnit.MINUTES);
+
+        // 3) 같은 유저 + 같은 내용 + 5분 이내
+        boolean exists = commentRepository
+                .existsByAuthorEmailAndContentAndCreatedAtAfter(email, normalizedContent, cutOff);
+
+        if (exists) {
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_POST);
+        }
+    }
+
+    private String normalizeContent(String content) {
+        if (content == null) {
+            return null;
+        }
+
+        String result = content;
+        result = Normalizer.normalize(result, Normalizer.Form.NFC);
+        result = result.replaceAll("\\s+", " ").trim();
+        result = result.toLowerCase(Locale.ROOT);
+        return result;
     }
 
 
