@@ -258,7 +258,7 @@ public class UserService {
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
         if (notBlank(dto.imageKey())) {
-            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
 
         UserSetupRequest result = new UserSetupRequest(
@@ -587,7 +587,7 @@ public class UserService {
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            finalImageKey = imageService.updateUserProfileImage(user.getId(), dto.imageKey());
         }
 
         Role newRole = user.getUserRole();
@@ -708,7 +708,7 @@ public class UserService {
         }
 
         if (notBlank(dto.imageKey())) {
-            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.updateUserProfileImage(user.getId(), dto.imageKey());
         }
         NewUserJoinedEvent event = new NewUserJoinedEvent(user.getId());
         eventPublisher.publishEvent(event);

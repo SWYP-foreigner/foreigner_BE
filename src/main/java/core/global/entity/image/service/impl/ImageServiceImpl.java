@@ -33,15 +33,14 @@ import static software.amazon.awssdk.services.s3.model.ObjectIdentifier.builder;
 @RequiredArgsConstructor
 public class ImageServiceImpl implements ImageService {
 
+    private static final long PROFILE_MAX_BYTES = 10L * 1024 * 1024;
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
     private final ImageRepository imageRepository;
-
     @Value("${ncp.s3.bucket}")
     private String bucket;
     @Value("${ncp.s3.endpoint}")
     private String endPoint;
-
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
@@ -124,51 +123,10 @@ public class ImageServiceImpl implements ImageService {
                 clientHeaders
         );
     }
-//
-//    @Transactional
-//    @Override
-//    public void saveOrUpdatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
-//        final List<String> adds = normalizeList(toAdd);
-//        final List<String> removes = normalizeList(toRemove);
-//        if (adds.isEmpty() && removes.isEmpty()) return;
-//
-//        // 1) DB 삭제 + 삭제 대상 키 수집(사용자 제거)
-//        List<String> bulkDeleteKeys = deleteRemovedImagesAndCollectKeys(postId, removes);
-//
-//        // 2) 생존 이미지 조회 + position 재정렬 + 생존 URL 집합 생성
-//        SurvivorContext survivorContext = loadAndReorderSurvivors(postId);
-//
-//        if (adds.isEmpty()) {
-//            // 추가할 게 없으면 여기서 삭제 끝내고 종료
-//            deleteObjectsBulk(bulkDeleteKeys);
-//            return;
-//        }
-//
-//        final String basePrefix = "posts/" + postId;
-//
-//        // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
-//        CopyResult copyResult = copyNewImagesInParallel(
-//                postId,
-//                adds,
-//                basePrefix,
-//                survivorContext.survivorUrls(),
-//                survivorContext.nextPosition()
-//        );
-//
-//        // 4) DB 저장
-//        if (!copyResult.toSave().isEmpty()) {
-//            imageRepository.saveAll(copyResult.toSave());
-//        }
-//
-//        // 5) S3 삭제(사용자 제거 + 스테이징 원본)
-//        bulkDeleteKeys.addAll(copyResult.stagingToDelete());
-//        deleteObjectsBulk(bulkDeleteKeys);
-//    }
 
     private List<String> normalizeList(List<String> list) {
         return (list == null) ? List.of() : list;
     }
-
 
     private List<String> deleteRemovedImagesAndCollectKeys(Long postId, List<String> removes) {
         List<String> bulkDeleteKeys = new ArrayList<>();
@@ -263,22 +221,16 @@ public class ImageServiceImpl implements ImageService {
         return new CopyResult(toSave, new ArrayList<>(stagingToDelete));
     }
 
-
-@Override
-@Transactional
-
-public void savePostImages(Long postId, List<String> toAdd) throws BusinessException {
+    @Override
+    @Transactional
+    public void savePostImages(Long postId, List<String> toAdd) throws BusinessException {
         final List<String> adds = normalizeList(toAdd);
         if (adds.isEmpty()) return;
 
         // 1) 이미지가 존재하면 예외
         if (imageRepository.existsByImageTypeAndRelatedId(ImageType.POST, postId)) {
             throw new BusinessException(ImageErrorCode.POST_IMAGES_ALREADY_EXIST);
-            // 또는 비슷한 커스텀 에러코드 (이미 정의되어 있다면 그걸 사용)
         }
-
-        // 2) 생존 이미지 조회 + position 재정렬 + 생존 URL 집합 생성
-        SurvivorContext survivorContext = loadAndReorderSurvivors(postId);
 
         final String basePrefix = "posts/" + postId;
 
@@ -287,8 +239,8 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
                 postId,
                 adds,
                 basePrefix,
-                survivorContext.survivorUrls(),
-                survivorContext.nextPosition()
+                Collections.emptySet(),
+                0
         );
 
         // 4) DB 저장
@@ -304,7 +256,6 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
 
     @Override
     @Transactional
-
     public void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
         final List<String> adds = normalizeList(toAdd);
         final List<String> removes = normalizeList(toRemove);
@@ -385,7 +336,7 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
 
         final int LIMIT = 1000; // S3/NCP 일반 한도
         for (int i = 0; i < keys.size(); i += LIMIT) {
-            List<String> chunk = keys.subList(i, Math.min(i + LIMIT, keys.size()));
+            List<String> chunk = filtered.subList(i, Math.min(i + LIMIT, filtered.size()));
             try {
                 var res = s3Client.deleteObjects(b -> b.bucket(bucket).delete(d -> d.objects(
                         chunk.stream()
@@ -478,68 +429,165 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
         }
     }
 
-    @Override
+    /**
+     * 초기 셋업 시 유저 프로필 설정
+     *
+     * @param userId
+     * @param requestedKeyOrUrl
+     * @return
+     */
     @Transactional
-    public String upsertUserProfileImage(Long userId, String requestedKeyOrUrl) {
+    @Override
+    public String saveUserProfileImage(Long userId, String requestedKeyOrUrl) {
         // 1) 입력 검증
-        if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
-            log.warn("[UPI] fail.input_validation reason=null_or_blank userId={}", userId);
-            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        validateProfileInput(userId, requestedKeyOrUrl);
+
+        if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
+            throw new BusinessException(ImageErrorCode.USER_IMAGES_ALREADY_EXIST);
         }
 
         // 2) URL/Key 판정 및 변환
-        boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
-        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+        RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
 
         // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
-        if (!isDefaultIncoming) {
-            long maxBytes = 10L * 1024 * 1024;
-            validateImageHeadOrThrow(reqKey, maxBytes);
-        }
+        validateImageHeadIfNecessary(requestInfo);
+
+        // 5) 최종 후보 키/URL 계산 (버전드 키 전략)
+        String candidateFinalKey = computeCandidateFinalKey(userId, requestInfo);
+
+        // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
+        String finalKey = moveStagingIfNecessary(userId, requestInfo, candidateFinalKey);
+
+        // 10) 저장
+        return saveImageInDB(userId, finalKey);
+    }
+
+    /**
+     * 프로필 수정 시 이미지 변경
+     *
+     * @param userId
+     * @param requestedKeyOrUrl
+     * @return
+     */
+    @Transactional
+    @Override
+    public String updateUserProfileImage(Long userId, String requestedKeyOrUrl) {
+        // 1) 입력 검증
+        validateProfileInput(userId, requestedKeyOrUrl);
+
+        // 2) URL/Key 판정 및 변환
+        RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
+
+
+        // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
+        validateImageHeadIfNecessary(requestInfo);
 
         // 4) 기존 이미지 조회
         Optional<Image> existingOpt =
                 imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
 
         // 5) 최종 후보 키/URL 계산 (버전드 키 전략)
-        boolean reqIsStaging = isStagingKey(reqKey);
-        String candidateFinalKey;
-        if (!isDefaultIncoming && reqIsStaging) {
-            // staging 객체의 ETag로 버전 키 생성
-            String ext = extOf(reqKey);
-            String etag;
-            String contentType = null;
-            try {
-                var head = s3Client.headObject(b -> b.bucket(bucket).key(reqKey));
-                etag = head.eTag();                    // 예: "d41d8cd98f00b204e9800998ecf8427e" 또는 "etag-...-N"
-                if (etag != null) {
-                    etag = etag.replace("\"", "").replace(":", "_");
-                }
-                contentType = head.contentType();      // 업로드 시 넣은 content-type
-            } catch (SdkException e) {
-                log.warn("[UPI] headObject.failed userId={} key={} err={}", userId, reqKey, e.getMessage());
-                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
-            }
-            if (etag == null || etag.isBlank()) {
-                // ETag가 없을 일은 드물지만, 안전망으로 시간스탬프 사용
-                etag = String.valueOf(System.currentTimeMillis());
-            }
-            candidateFinalKey = "users/%d/profile.%s.%s".formatted(userId, etag, ext);
-            // 실제 copy는 아래 9)에서 수행
-        } else {
-            // default이거나 이미 영구키면 그대로 사용
-            candidateFinalKey = (!isDefaultIncoming && !reqIsStaging)
-                    ? reqKey
-                    : (isDefaultIncoming ? reqKey : reqKey);
-        }
+        String candidateFinalKey = computeCandidateFinalKey(userId, requestInfo);
         String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
 
+
         // 6) 동일 URL이면 no-op (버전 키면 보통 달라서 여기 안 걸림)
-        if (existingOpt.isPresent() && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)) {
+        if (isNoOp(existingOpt, candidateFinalUrl)) {
             return candidateFinalUrl;
         }
 
         // 7) 기존 S3 삭제 (있으면, 그리고 default가 아니면)
+        deleteOldS3ImageIfNecessary(userId, existingOpt);
+
+        // 8) 기존 DB 삭제
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+
+        // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
+        String finalKey = moveStagingIfNecessary(userId, requestInfo, candidateFinalKey);
+
+        // 10) 저장
+        return saveImageInDB(userId, finalKey);
+    }
+
+    private String saveImageInDB(Long userId, String finalKey) {
+        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
+        imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
+        return finalUrl;
+    }
+
+    private String computeCandidateFinalKey(Long userId, RequestInfo requestInfo) {
+        String reqKey = requestInfo.getReqKey();
+
+        if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
+            // staging 객체의 ETag로 버전 키 생성
+            return buildVersionedProfileKey(userId, reqKey);
+        }
+
+        // default이거나 이미 영구키면 그대로 사용
+        return reqKey;
+    }
+
+    private String buildVersionedProfileKey(Long userId, String reqKey) {
+        String ext = extOf(reqKey);
+        String etag;
+        String contentType = null;
+        try {
+            var head = s3Client.headObject(b -> b.bucket(bucket).key(reqKey));
+            etag = head.eTag();                    // 예: "d41d8cd98f00b204e9800998ecf8427e"
+            if (etag != null) {
+                etag = etag.replace("\"", "").replace(":", "_");
+            }
+            contentType = head.contentType();      // 필요하다면 이후 사용 가능
+        } catch (SdkException e) {
+            log.warn("[UPI] headObject.failed userId=? key={} err={}", reqKey, e.getMessage());
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+
+        if (etag == null || etag.isBlank()) {
+            etag = String.valueOf(System.currentTimeMillis());
+        }
+
+        return "users/%d/profile.%s.%s".formatted(userId, etag, ext);
+    }
+
+    private RequestInfo resolveRequestInfo(String requestedKeyOrUrl) {
+        boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
+        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+        boolean reqIsStaging = isStagingKey(reqKey);
+
+        return new RequestInfo(isDefaultIncoming, reqKey, reqIsStaging);
+    }
+
+    private boolean isNoOp(Optional<Image> existingOpt, String candidateFinalUrl) {
+        return existingOpt.isPresent()
+               && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl);
+    }
+
+    private String moveStagingIfNecessary(Long userId, RequestInfo requestInfo, String candidateFinalKey) {
+        String reqKey = requestInfo.getReqKey();
+
+        if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
+            String dstKey = candidateFinalKey;
+            try {
+                // 메타데이터는 REPLACE하여 표준화(원치 않으면 COPY로 유지 가능)
+                s3Client.copyObject(b -> b
+                        .sourceBucket(bucket).sourceKey(reqKey)
+                        .destinationBucket(bucket).destinationKey(dstKey)
+                        .acl(ObjectCannedACL.PUBLIC_READ)
+                        .metadataDirective(MetadataDirective.REPLACE)
+                        .cacheControl("public, max-age=31536000, immutable")); // 버전 키이므로 aggressive 캐시 OK
+                s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+                return dstKey;
+            } catch (SdkException e) {
+                log.warn("[UPI] staging_move_failed userId={} src={} dst={} err={}", userId, reqKey, dstKey, e.getMessage());
+                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+            }
+        }
+
+        return candidateFinalKey;
+    }
+
+    private void deleteOldS3ImageIfNecessary(Long userId, Optional<Image> existingOpt) {
         existingOpt.ifPresent(old -> {
             if (!isDefaultUrlOrKey(old.getUrl())) {
                 try {
@@ -551,39 +599,18 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
                 }
             }
         });
+    }
 
-        // 8) 기존 DB 삭제
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
+    private void validateImageHeadIfNecessary(RequestInfo requestInfo) {
+        if (requestInfo.isDefaultIncoming()) return;
+        validateImageHeadOrThrow(requestInfo.getReqKey(), PROFILE_MAX_BYTES);
+    }
 
-        // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
-        String finalKey = reqKey;
-        if (!isDefaultIncoming && reqIsStaging) {
-            String dstKey = candidateFinalKey;
-            try {
-                // 메타데이터는 REPLACE하여 표준화(원치 않으면 COPY로 유지 가능)
-                s3Client.copyObject(b -> b
-                        .sourceBucket(bucket).sourceKey(reqKey)
-                        .destinationBucket(bucket).destinationKey(dstKey)
-                        .acl(ObjectCannedACL.PUBLIC_READ)
-                        .metadataDirective(MetadataDirective.REPLACE)
-                        .cacheControl("public, max-age=31536000, immutable")); // 버전 키이므로 aggressive 캐시 OK
-                s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
-                finalKey = dstKey;
-            } catch (SdkException e) {
-                log.warn("[UPI] staging_move_failed userId={} src={} dst={} err={}", userId, reqKey, dstKey, e.getMessage());
-                throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
-            }
-        } else {
-            // default거나 이미 영구키면 그대로 사용
-            finalKey = candidateFinalKey;
+    private void validateProfileInput(Long userId, String requestedKeyOrUrl) {
+        if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
+            log.warn("[UPI] fail.input_validation reason=null_or_blank userId={}", userId);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
-
-        // 10) 저장
-        String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
-
-        // 11) 종료
-        return finalUrl;
     }
 
     @Override
@@ -601,35 +628,97 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
         }
     }
 
+
+    /**
+     * 초기 채팅방 생성 시 이미지 등록
+     *
+     * @param chatRoomId
+     * @param requestedKeyOrUrl
+     * @return
+     */
     @Transactional
     @Override
-    public String upsertChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
-        if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
-            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+    public String saveChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
+        // 1) 입력 검증
+        validateProfileInput(chatRoomId, requestedKeyOrUrl);
+
+        if (imageRepository.existsByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId)) {
+            throw new BusinessException(ImageErrorCode.CHATROOM_IMAGES_ALREADY_EXIST);
         }
 
-        boolean isDefaultIncoming = isDefaultUrlOrKey(requestedKeyOrUrl);
-        String reqKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
+        // 2) URL/Key 판정 및 변환
+        RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
 
-        // 존재/타입/용량 검증 (10MB 예시)
-        if (!isDefaultIncoming) {
-            validateImageHeadOrThrow(reqKey, 10L * 1024 * 1024);
-        }
+        // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
+        validateImageHeadIfNecessary(requestInfo);
 
+        // 5) 최종 후보 키/URL 계산
+        String candidateFinalKey = computeChatRoomCandidateFinalKey(chatRoomId, requestInfo);
+
+        // 9) staging → 영구 이동 또는 as-is 사용
+        String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
+
+        // 10) 저장 및 종료
+        return saveChatRoomImageInDB(chatRoomId, finalKey);
+    }
+
+    /**
+     * 채팅방 이미지 수정 시 이미지 변경
+     *
+     * @param chatRoomId
+     * @param requestedKeyOrUrl
+     * @return
+     */
+    @Transactional
+    @Override
+    public String updateChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
+        // 1) 입력 검증
+        validateProfileInput(chatRoomId, requestedKeyOrUrl);
+
+        // 2) URL/Key 판정 및 변환
+        RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
+
+        // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
+        validateImageHeadIfNecessary(requestInfo);
+
+        // 4) 기존 이미지 조회
         Optional<Image> existingOpt =
                 imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoomId);
 
-        // (신규) 후보 finalKey/Url 계산 (staging이면 이동 후 키, 아니면 reqKey 그대로, default는 그대로)
-        String candidateFinalKey = (!isDefaultIncoming && isStagingKey(reqKey))
-                ? "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, extOf(reqKey))
-                : reqKey;
+        // 5) 최종 후보 키/URL 계산
+        String candidateFinalKey = computeChatRoomCandidateFinalKey(chatRoomId, requestInfo);
         String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
 
-        if (existingOpt.isPresent() && Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl)) {
+        // 6) 동일 URL이면 no-op
+        if (isNoOp(existingOpt, candidateFinalUrl)) {
             return candidateFinalUrl;
         }
 
-        // 기존 S3 삭제 (있고, default가 아니면)
+        // 7) 기존 S3 삭제 (있고, default가 아니면)
+        deleteOldS3ImageIfNecessaryForChatRoom(chatRoomId, existingOpt);
+
+        // 8) 기존 DB 삭제
+        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+
+        // 9) staging → 영구 이동 또는 as-is 사용
+        String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
+
+        // 10) 저장 및 종료
+        return saveChatRoomImageInDB(chatRoomId, finalKey);
+    }
+
+    private String computeChatRoomCandidateFinalKey(Long chatRoomId, RequestInfo requestInfo) {
+        String reqKey = requestInfo.getReqKey();
+
+        if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
+            return "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, extOf(reqKey));
+        }
+        // default거나 이미 영구키면 그대로 사용
+        return reqKey;
+    }
+
+    private void deleteOldS3ImageIfNecessaryForChatRoom(Long chatRoomId,
+                                                        Optional<Image> existingOpt) {
         existingOpt.ifPresent(old -> {
             if (!isDefaultUrlOrKey(old.getUrl())) {
                 try {
@@ -642,28 +731,38 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
                 log.info("[CHAT_ROOM {}] old image is default - skip S3 delete", chatRoomId);
             }
         });
+    }
 
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+    private String moveChatRoomStagingIfNecessary(Long chatRoomId,
+                                                  RequestInfo requestInfo,
+                                                  String candidateFinalKey) {
+        String reqKey = requestInfo.getReqKey();
 
-        String finalKey = reqKey;
-        if (!isDefaultIncoming && isStagingKey(reqKey)) {
+        if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
             String dstKey = "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, extOf(reqKey));
             try {
-                s3Client.copyObject(b -> b.sourceBucket(bucket).sourceKey(reqKey)
+                s3Client.copyObject(b -> b
+                        .sourceBucket(bucket).sourceKey(reqKey)
                         .destinationBucket(bucket).destinationKey(dstKey)
                         .acl(ObjectCannedACL.PUBLIC_READ)
                         .metadataDirective(MetadataDirective.COPY));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+                return dstKey;
             } catch (SdkException e) {
                 throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
-            finalKey = dstKey;
         }
 
+        // default거나 이미 영구키면 candidateFinalKey 그대로 사용
+        return candidateFinalKey;
+    }
+
+    private String saveChatRoomImageInDB(Long chatRoomId, String finalKey) {
         String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
         imageRepository.save(Image.of(ImageType.CHAT_ROOM, chatRoomId, finalUrl, 0));
         return finalUrl;
     }
+
 
     @Transactional
     @Override
@@ -739,6 +838,30 @@ public void savePostImages(Long postId, List<String> toAdd) throws BusinessExcep
         return images.stream()
                 .map(image -> new ImageDto(image.getId(), image.getRelatedId(), image.getUrl()))
                 .collect(Collectors.toList());
+    }
+
+    private static class RequestInfo {
+        private final boolean defaultIncoming;
+        private final String reqKey;
+        private final boolean staging;
+
+        private RequestInfo(boolean defaultIncoming, String reqKey, boolean staging) {
+            this.defaultIncoming = defaultIncoming;
+            this.reqKey = reqKey;
+            this.staging = staging;
+        }
+
+        boolean isDefaultIncoming() {
+            return defaultIncoming;
+        }
+
+        String getReqKey() {
+            return reqKey;
+        }
+
+        boolean isStaging() {
+            return staging;
+        }
     }
 
     private record SurvivorContext(
