@@ -40,7 +40,7 @@ public class PushNotificationService {
      * @param message 사용자에게 보여줄 최종 메시지
      */
     @Transactional
-    public void sendPushNotification(User recipient, NotificationEvent event, String message) {
+    public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
@@ -138,11 +138,21 @@ public class PushNotificationService {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
             } catch (FirebaseMessagingException e) {
-                if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED) {
-                    log.info("사용자 ID {}: 만료된 FCM 토큰 발견 (기기 토큰: ...{}). DB에서 삭제합니다.", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
+                MessagingErrorCode code = e.getMessagingErrorCode();
+                String errorMessage = e.getMessage();
+                if (code == MessagingErrorCode.UNREGISTERED ||
+                        (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
+                        code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                    log.info("만료/무효 토큰 삭제: {} (코드: {})", userDeviceToken.getDeviceToken(), code);
                     userDeviceTokenRepository.delete(userDeviceToken);
+                } else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
+                        code == MessagingErrorCode.UNAVAILABLE ||
+                        code == MessagingErrorCode.INTERNAL) {
+                    log.warn("재시도 필요: {} (코드: {})", errorMessage, code);
+                    throw e;  // 호출자에게 예외를 전파하여 재시도 처리
                 } else {
-                    log.error("푸시 알림 발송 실패: 사용자 ID {}", recipient.getId(), e);
+                    log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
+                    // 여기에 fallback 로직 추가 가능 (e.g., 이메일 알림)
                 }
             }
         }
