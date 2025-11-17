@@ -1,25 +1,34 @@
 package core.global.entity.image.service;
 
 import core.global.entity.image.dto.ImageDto;
+import jakarta.transaction.Transactional;
 
 import java.util.List;
 
 public interface ProfileImageService {
 
     // USER
-    String saveUserProfileImage(Long userId, String requestedKeyOrUrl);
 
+    @Transactional
+    void saveUserProfileImage(Long userId, String requestedKeyOrUrl);
+
+    @Transactional
     String updateUserProfileImage(Long userId, String requestedKeyOrUrl);
 
+    @Transactional
     void deleteUserProfileImage(Long userId);
 
     String getUserProfileKey(Long userId);
 
     // CHAT ROOM
-    String saveChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl);
 
+    @Transactional
+    void saveChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl);
+
+    @Transactional
     String updateChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl);
 
+    @Transactional
     void deleteChatRoomProfileImage(Long chatRoomId);
 
     String getRoomImageUrl(Long roomId);
