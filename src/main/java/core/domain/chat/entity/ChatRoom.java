@@ -34,7 +34,8 @@ public class ChatRoom {
     @Column(name = "category", length = 255)
     private ChatCategory category;
 
-
+    @Column(name = "is_recommendable", nullable = false)
+    private boolean isRecommendable = false;
 
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> participants = new ArrayList<>();
