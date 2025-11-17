@@ -115,6 +115,9 @@ dependencies {
     implementation 'org.htmlunit:htmlunit:3.11.0'
 
     implementation 'org.springframework.security:spring-security-messaging'
+
+    implementation 'org.springframework.retry:spring-retry:2.0.6'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
 }
 
 
