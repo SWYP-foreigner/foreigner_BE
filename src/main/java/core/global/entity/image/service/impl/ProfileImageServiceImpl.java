@@ -321,7 +321,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
     private String saveImageInDB(Long relatedId, ImageType imageType, String finalKey) {
         String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        imageRepository.save(Image.of(ImageType.USER, relatedId, finalUrl, 0));
+        imageRepository.save(Image.of(imageType, relatedId, finalUrl, 0));
         return finalUrl;
     }
 

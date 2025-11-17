@@ -15,10 +15,13 @@ public interface ImageService {
 
     List<PresignedUrlResponse> generatePresignedUrls(PresignedUrlRequest request);
 
+    @Transactional
     void savePostImages(Long postId, List<String> toAdd) throws BusinessException;
 
+    @Transactional
     void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove);
 
+    @Transactional
     void deleteFolder(String fileLocation);
 
     @Transactional
@@ -28,6 +31,7 @@ public interface ImageService {
     String updateUserProfileImage(Long userId, String requestedKeyOrUrl);
 
     /** 현재 프로필 이미지를 삭제(S3 + image 레코드) */
+    @Transactional
     void deleteUserProfileImage(Long userId);
 
     @Transactional

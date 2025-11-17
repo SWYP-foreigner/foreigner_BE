@@ -22,6 +22,7 @@ public class Image {
     @Column(name = "image_id")
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "image_type", nullable = false)
     private ImageType imageType;
 
