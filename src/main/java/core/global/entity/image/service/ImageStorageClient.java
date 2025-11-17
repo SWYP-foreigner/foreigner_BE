@@ -1,0 +1,20 @@
+package core.global.entity.image.service;
+
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+
+import java.util.List;
+
+public interface ImageStorageClient {
+
+    void deleteObjectsBulk(List<String> keys);
+
+    void deleteFolder(String prefix);
+
+    HeadObjectResponse headObject(String key);
+
+    String extOf(String key);
+
+    boolean isDefaultUrlOrKey(String keyOrUrl);
+
+    boolean isStagingKey(String key);
+}

@@ -25,6 +25,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.List;
 
+import static core.domain.bookmark.entity.QBookmark.bookmark;
 import static core.domain.post.entity.QPost.post;
 import static core.global.entity.like.entity.QLike.like;
 
@@ -182,6 +183,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                                 p.createdAt,          // createdAt
                                 p.anonymous,
                                 likedByMe,
+                                bookmarkedByViewerId(userId),
                                 likeCountExpr,        // likeCount (실제)
                                 commentCountExpr,     // commentCount (실제)
                                 p.checkCount,         // viewCount (실제)
@@ -292,5 +294,18 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                 .orderBy(maxScore.desc(), maxCreatedAt.desc())
                 .limit(limit)
                 .fetch();
+    }
+
+
+    private Expression<Boolean> bookmarkedByViewerId(Long viewerId) {
+        if (viewerId == null) return Expressions.FALSE; // 비로그인
+        return JPAExpressions
+                .selectOne()
+                .from(bookmark)
+                .where(
+                        bookmark.user.id.eq(viewerId)
+                )
+
+                .exists();
     }
 }
