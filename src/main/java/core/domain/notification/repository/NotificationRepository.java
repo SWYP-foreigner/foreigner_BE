@@ -44,4 +44,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     void deleteAllByActorId(Long actorId);
 
     Slice<Notification> findByCreatedAtBefore(Instant cutoffDate, Pageable pageable);
+    void deleteByUserAndDeviceToken(User user, String deviceToken);
+
 }
