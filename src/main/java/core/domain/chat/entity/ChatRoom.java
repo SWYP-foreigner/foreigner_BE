@@ -1,6 +1,7 @@
 package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
+import core.global.enums.ChatCategory;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,10 @@ public class ChatRoom {
     private String roomName;
     @Column(name = "description")
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 255)
+    private ChatCategory category;
 
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> participants = new ArrayList<>();
