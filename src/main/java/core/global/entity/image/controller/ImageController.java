@@ -36,17 +36,6 @@ public class ImageController {
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
-    @DeleteMapping("/object")
-    public ResponseEntity<ApiResponse<Void>> deleteObjectByKey(@RequestParam String keyOrUrl) {
-        imageService.deleteObject(keyOrUrl);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @DeleteMapping("/delete-folder")
-    public ResponseEntity<ApiResponse<Void>> deleteFolder(@RequestParam String fileLocation) {
-        imageService.deleteFolder(fileLocation);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
     /**
      * 여러 채팅방 ID에 해당하는 이미지 정보들을 일괄 조회합니다.
      * @param roomIds 이미지 정보를 조회할 채팅방 ID 리스트
@@ -57,21 +46,21 @@ public class ImageController {
         List<ImageDto> images = imageService.findImagesForChatRooms(roomIds);
         return ResponseEntity.ok(images);
     }
-
-    /**
-     * [추가된 메서드]
-     * 채팅방 프로필 이미지를 생성하거나 업데이트(Upsert)합니다.
-     * Chat Service로부터 내부 API 호출을 통해 사용됩니다.
-     * @param request 채팅방 ID와 이미지 URL이 담긴 요청 DTO
-     * @return 성공 응답
-     */
-    @Operation(summary = "채팅방 프로필 이미지 생성/수정", description = "채팅방의 대표 이미지를 설정합니다.")
-    @PostMapping("/chat-rooms")
-    public ResponseEntity<ApiResponse<Void>> upsertChatRoomImage(
-            @Valid @RequestBody UpsertChatRoomImageRequest request
-    ) {
-        imageService.upsertChatRoomProfileImage(request.chatRoomId(), request.imageUrl());
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
+//
+//    /**
+//     * [추가된 메서드]
+//     * 채팅방 프로필 이미지를 생성하거나 업데이트(Upsert)합니다.
+//     * Chat Service로부터 내부 API 호출을 통해 사용됩니다.
+//     * @param request 채팅방 ID와 이미지 URL이 담긴 요청 DTO
+//     * @return 성공 응답
+//     */
+//    @Operation(summary = "채팅방 프로필 이미지 생성/수정", description = "채팅방의 대표 이미지를 설정합니다.")
+//    @PostMapping("/chat-rooms")
+//    public ResponseEntity<ApiResponse<Void>> upsertChatRoomImage(
+//            @Valid @RequestBody UpsertChatRoomImageRequest request
+//    ) {
+//        imageService.upsertChatRoomProfileImage(request.chatRoomId(), request.imageUrl());
+//        return ResponseEntity.ok(ApiResponse.success(null));
+//    }
 
 }

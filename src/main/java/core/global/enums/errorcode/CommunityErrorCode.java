@@ -28,7 +28,10 @@ public enum CommunityErrorCode implements AppError {
     BLOCKED_USER_POST(HttpStatus.FORBIDDEN, "접근할 수 없는 글입니다."),
     NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),
     CRAWLED_DATA_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 크롤링 데이터입니다."),
-    DUPLICATE_CATEGORY(HttpStatus.FORBIDDEN, "중복된 카테고리입니다.");
+    DUPLICATE_CATEGORY(HttpStatus.FORBIDDEN, "중복된 카테고리입니다."),
+    DUPLICATE_POST(HttpStatus.BAD_REQUEST, "동일한 내용을 반복해서 작성할 수 없습니다."),
+    TOO_MANY_POSTS(HttpStatus.TOO_MANY_REQUESTS, "게시글 도배를 방지합니다."),
+    TOO_MANY_COMMENTS(HttpStatus.TOO_MANY_REQUESTS, "댓글 도배를 방지합니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

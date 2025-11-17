@@ -1103,7 +1103,7 @@ public class ChatService {
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
             try {
-                imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
+                imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
             } catch (Exception e) {
                 log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
                 throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);

@@ -19,15 +19,15 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.global.enums.*;
-import core.global.exception.BusinessException;
-import core.global.enums.errorcode.CommonErrorCode;
-import core.global.enums.errorcode.CommunityErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.*;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
 import core.global.pagination.CursorPages;
@@ -44,10 +44,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -58,6 +60,9 @@ import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
 
+    private static final int FLOOD_WINDOW_MINUTES = 5;  // 도배 판단 기준 시간
+    private static final int FLOOD_MAX_POSTS = 3;       // 5분 동안 허용할 최대 게시글 수
+    private static final int DUP_WINDOW_MINUTES = 5;
     private final PostRepository postRepository;
     private final BoardRepository boardRepository;
     private final LikeRepository likeRepository;
@@ -69,9 +74,9 @@ public class PostServiceImpl implements PostService {
     private final BlockPostRepository blockPostRepository;
     private final TranslationService translationService;
     private final UserRoleDetectService userRoleDetectService;
-
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
+
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
@@ -80,7 +85,7 @@ public class PostServiceImpl implements PostService {
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
-            throw new BusinessException(BOARD_NOT_FOUND);
+            throw new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND);
         }
 
         User user = userRepository.findByEmail(email)
@@ -197,7 +202,7 @@ public class PostServiceImpl implements PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
 
-        if(blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
+        if (blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
             throw new BusinessException(CommunityErrorCode.BLOCKED_USER_POST);
         }
 
@@ -222,21 +227,26 @@ public class PostServiceImpl implements PostService {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findById(boardId)
-                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         validateAnonymousPolicy(board.getCategory(), request.isAnonymous());
 
         validatePostForbiddenWord(request.content());
 
+        validateDuplicateContent(email, request.content());
+
+        validatePostFlooding(email);
+
         final Post post = getPost(email, request, board);
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        imageService.savePostImages(post.getId(), request.imageUrls());
         publishFollowerNotification(post);
     }
 
     /**
-     *  [새로 추가된 private 헬퍼 메소드]
+     * [새로 추가된 private 헬퍼 메소드]
      * 게시글 작성자의 팔로워들에게 알림을 발행합니다.
+     *
      * @param post 새로 작성되고 저장된 게시글 엔티티
      */
     private void publishFollowerNotification(Post post) {
@@ -260,21 +270,26 @@ public class PostServiceImpl implements PostService {
             eventPublisher.publishEvent(event);
         }
     }
+
     @Override
     @Transactional
     public void writePostForChat(Long roomId, PostWriteForChatRequest request) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Board board = boardRepository.findByCategory(BoardCategory.ACTIVITY)
-                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         validateChatRoomPolicy(board.getCategory(), request.link());
 
         validatePostForbiddenWord(request.content());
 
+        validateDuplicateContent(email, request.content());
+
+        validatePostFlooding(email);
+
         final Post post = getPost(email, request, board);
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.imageUrls(), null);
+        imageService.savePostImages(post.getId(), request.imageUrls());
     }
 
     private void validatePostForbiddenWord(String content) {
@@ -351,7 +366,7 @@ public class PostServiceImpl implements PostService {
             post.changeContent(request.content());
         }
 
-        imageService.saveOrUpdatePostImages(post.getId(), request.images(), request.removedImages());
+        imageService.updatePostImages(post.getId(), request.images(), request.removedImages());
         eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
 
     }
@@ -394,9 +409,7 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        if(user.getBirthdate()==null||user.getPurpose()==null||user.getIntroduction()==null||user.getLanguage()==null||user.getHobby()==null||user.getSex()==null){
-            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
@@ -532,6 +545,44 @@ public class PostServiceImpl implements PostService {
         blockPostRepository.save(new BlockPost(me, post));
     }
 
+    private void validatePostFlooding(String email) {
+        Instant cutOff = Instant.now().minus(FLOOD_WINDOW_MINUTES, ChronoUnit.MINUTES);
+
+        long recentPostCount =
+                postRepository.countByAuthorEmailAndCreatedAtAfter(email, cutOff);
+
+        if (recentPostCount >= FLOOD_MAX_POSTS) {
+            throw new BusinessException(CommunityErrorCode.TOO_MANY_POSTS);
+        }
+    }
+
+    private void validateDuplicateContent(String email, String rawContent) {
+        // 1) 내용 정규화 (원하는 만큼만)
+        String normalizedContent = normalizeContent(rawContent);
+
+        // 2) 5분 전 시점
+        Instant cutOff = Instant.now().minus(DUP_WINDOW_MINUTES, ChronoUnit.MINUTES);
+
+        // 3) 같은 유저 + 같은 내용 + 5분 이내
+        boolean exists = postRepository
+                .existsByAuthorEmailAndContentAndCreatedAtAfter(email, normalizedContent, cutOff);
+
+        if (exists) {
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_POST);
+        }
+    }
+
+    private String normalizeContent(String content) {
+        if (content == null) {
+            return null;
+        }
+
+        String result = content;
+        result = Normalizer.normalize(result, Normalizer.Form.NFC);
+        result = result.replaceAll("\\s+", " ").trim();
+        result = result.toLowerCase(Locale.ROOT);
+        return result;
+    }
 
     private static final class LatestKey {
         final Instant t;
