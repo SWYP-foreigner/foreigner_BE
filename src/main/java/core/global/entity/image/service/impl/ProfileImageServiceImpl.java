@@ -51,11 +51,10 @@ public class ProfileImageServiceImpl implements ProfileImageService {
      *
      * @param userId
      * @param requestedKeyOrUrl
-     * @return
      */
     @Transactional
     @Override
-    public String saveUserProfileImage(Long userId, String requestedKeyOrUrl) {
+    public void saveUserProfileImage(Long userId, String requestedKeyOrUrl) {
         // 1) 입력 검증
         validateProfileInput(userId, requestedKeyOrUrl);
 
@@ -76,7 +75,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
 
         // 10) 저장
-        return saveImageInDB(userId, ImageType.USER, finalKey);
+        saveImageInDB(userId, ImageType.USER, finalKey);
     }
 
     /**
@@ -154,11 +153,10 @@ public class ProfileImageServiceImpl implements ProfileImageService {
      *
      * @param chatRoomId
      * @param requestedKeyOrUrl
-     * @return
      */
     @Transactional
     @Override
-    public String saveChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
+    public void saveChatRoomProfileImage(Long chatRoomId, String requestedKeyOrUrl) {
         // 1) 입력 검증
         validateProfileInput(chatRoomId, requestedKeyOrUrl);
 
@@ -179,7 +177,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
 
         // 10) 저장 및 종료
-        return saveImageInDB(chatRoomId, ImageType.CHAT_ROOM, finalKey);
+        saveImageInDB(chatRoomId, ImageType.CHAT_ROOM, finalKey);
     }
 
     /**
