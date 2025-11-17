@@ -94,11 +94,16 @@ jobs:
           echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
 
       - name: Sync error codes to Notion
+        if: ${{ secrets.NOTION_TOKEN != '' && secrets.NOTION_DB_ID != '' }}
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
         run: |
-          ./gradlew --no-daemon runNotionSync
+          echo "Running Notion sync (failures will NOT break CI)..."
+          # runNotionSync가 실패하면 여기서만 경고 찍고, 전체 스텝은 성공(exit 0)으로 끝냄
+          ./gradlew --no-daemon runNotionSync || {
+            echo "⚠️ Notion sync failed (ignored for CI). Check logs above.";
+          }
 
   build:
     needs: [ preflight, quality ]
