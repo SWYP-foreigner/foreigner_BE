@@ -22,9 +22,11 @@ import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static core.global.entity.image.utils.UrlUtil.*;
+import static core.global.entity.image.utils.UrlUtil.buildCdnUrlFromKey;
+import static core.global.entity.image.utils.UrlUtil.toKeyFromUrlOrKey;
 
 @Slf4j
 @Service
@@ -281,7 +283,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String reqKey = requestInfo.getReqKey();
 
         if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
-            return buildVersionedProfileKey(userId, reqKey);
+            return buildVersionedProfileKey(userId, ImageType.USER, reqKey);
         }
 
         return reqKey;
@@ -329,7 +331,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String reqKey = requestInfo.getReqKey();
 
         if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
-            return "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, storageClient.extOf(reqKey));
+            return buildVersionedProfileKey(chatRoomId, ImageType.CHAT_ROOM, reqKey);
         }
         // default거나 이미 영구키면 그대로 사용
         return reqKey;
@@ -351,27 +353,16 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         });
     }
 
-    private String buildVersionedProfileKey(Long userId, String reqKey) {
+    private String buildVersionedProfileKey(Long id, ImageType imageType, String reqKey) {
         String ext = storageClient.extOf(reqKey);
-        String etag;
-        String contentType = null;
-        try {
-            var head = storageClient.headObject(reqKey);
-            etag = head.eTag();                    // 예: "d41d8cd98f00b204e9800998ecf8427e"
-            if (etag != null) {
-                etag = etag.replace("\"", "").replace(":", "_");
-            }
-            contentType = head.contentType();      // 필요하다면 이후 사용 가능
-        } catch (SdkException e) {
-            log.warn("[UPI] headObject.failed userId=? key={} err={}", reqKey, e.getMessage());
-            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        if (imageType == ImageType.USER) {
+            return "users/%d/profile.%s.%s".formatted(id, uuid, ext);
+        } else if (imageType == ImageType.CHAT_ROOM) {
+            return "chatRoom/%d/chat_profile_%s.%s".formatted(id, uuid, ext);
         }
 
-        if (etag == null || etag.isBlank()) {
-            etag = String.valueOf(System.currentTimeMillis());
-        }
-
-        return "users/%d/profile.%s.%s".formatted(userId, etag, ext);
+        return null;
     }
 
     private String moveStagingProfileIfNecessary(Long userId, RequestInfo requestInfo, String candidateFinalKey) {
