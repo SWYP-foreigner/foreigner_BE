@@ -31,13 +31,13 @@ public interface ImageService {
     void deleteUserProfileImage(Long userId);
 
     @Transactional
-    void saveChatRoomProfileImage(Long userId, String requestedKeyOrUrl);
+    void saveChatRoomProfileImage(Long roomId, String requestedKeyOrUrl);
 
     @Transactional
-    String updateChatRoomProfileImage(Long userId, String requestedKeyOrUrl);
+    String updateChatRoomProfileImage(Long roomId, String requestedKeyOrUrl);
 
     @Transactional
-    void deleteChatRoomProfileImage(Long userId);
+    void deleteChatRoomProfileImage(Long roomId);
 
     /** 현재 프로필 이미지 key 조회(없으면 null) */
     String getUserProfileKey(Long userId);
