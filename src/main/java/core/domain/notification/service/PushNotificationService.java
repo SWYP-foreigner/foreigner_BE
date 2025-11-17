@@ -3,6 +3,7 @@ package core.domain.notification.service;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationEvent;
@@ -19,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-
 
 @Slf4j
 @Service
@@ -39,6 +39,7 @@ public class PushNotificationService {
      * @param event 알림 이벤트 데이터
      * @param message 사용자에게 보여줄 최종 메시지
      */
+    @Transactional
     public void sendPushNotification(User recipient, NotificationEvent event, String message) {
 
         if (!recipient.isAgreedToPushNotification()) {
@@ -86,13 +87,14 @@ public class PushNotificationService {
                         messageBuilder.putData("commentId", String.valueOf(event.commentId()));
                     }
                     break;
-                case  comment:
+                case comment:
                     messageBuilder
                             .putData("type", "comment")
                             .putData("postId", String.valueOf(event.referenceId()));
                     if (event.commentId() != null) {
                         messageBuilder.putData("commentId", String.valueOf(event.commentId()));
                     }
+                    break;
                 case follow:
                     messageBuilder
                             .putData("type", "follow")
@@ -136,8 +138,12 @@ public class PushNotificationService {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
             } catch (FirebaseMessagingException e) {
-                log.error("푸시 알림 발송 실패: 사용자 ID {}", recipient.getId(), e);
-                // TODO: 만료된 토큰 등 FCM 예외에 대한 후처리 로직 (예: DB에서 토큰 삭제)
+                if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED) {
+                    log.info("사용자 ID {}: 만료된 FCM 토큰 발견 (기기 토큰: ...{}). DB에서 삭제합니다.", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
+                    userDeviceTokenRepository.delete(userDeviceToken);
+                } else {
+                    log.error("푸시 알림 발송 실패: 사용자 ID {}", recipient.getId(), e);
+                }
             }
         }
     }
