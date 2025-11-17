@@ -690,9 +690,7 @@ public class ChatService {
                 .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
                 .collect(Collectors.toList());
 
-        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                ImageType.CHAT_ROOM, chatRoom.getId()
-        ).map(Image::getUrl).orElse(null);
+        String roomImageUrl = imageService.getRoomImageUrl(chatRoomId);
 
         Long ownerId = chatRoom.getOwner().getId();
         String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
