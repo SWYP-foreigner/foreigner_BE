@@ -260,7 +260,6 @@ public class ChatService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         participant.leave();
@@ -284,7 +283,7 @@ public class ChatService {
         if (remainingActiveParticipants == 0) {
             chatMessageRepository.deleteByChatRoomId(roomId);
             chatRoomRepo.delete(room);
-            // todo : 채팅방 내 동영상 사진 삭제 필요
+            imageService.deleteChatRoomProfileImage(roomId);
         }
     }
 
@@ -690,7 +689,9 @@ public class ChatService {
                 .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
                 .collect(Collectors.toList());
 
+        log.info(chatRoomId+"");
         String roomImageUrl = imageService.getRoomImageUrl(chatRoomId);
+        log.info(roomImageUrl);
 
         Long ownerId = chatRoom.getOwner().getId();
         String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
