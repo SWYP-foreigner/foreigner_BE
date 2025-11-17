@@ -112,6 +112,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
 
     implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.htmlunit:htmlunit:3.11.0'
 
     implementation 'org.springframework.security:spring-security-messaging'
 }

@@ -6,6 +6,7 @@ import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
+import core.global.exception.BusinessException;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -438,4 +439,5 @@ public class ChatController {
         ChatNotificationStatusResponse response= chatService.isNotificationsEnabled(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
 }

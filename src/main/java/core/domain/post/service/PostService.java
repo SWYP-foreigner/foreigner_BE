@@ -1,11 +1,17 @@
 package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
+import core.domain.user.entity.User;
+import core.global.enums.BoardCategory;
 import core.domain.post.dto.comunity.*;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.List;
 
 public interface PostService {
 
@@ -32,4 +38,6 @@ public interface PostService {
     void blockUser(@Positive Long postId);
 
     void blockPost(@Positive Long postId);
+
+    void createAdminPost(String content, BoardCategory category, List<MultipartFile> images, User adminUser) throws IOException;
 }

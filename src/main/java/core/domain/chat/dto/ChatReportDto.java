@@ -20,7 +20,7 @@ public record ChatReportDto(
     public static ChatReportDto from(ChatReport report) {
 
         Long reporterId = (report.getReporterUser() != null) ? report.getReporterUser().getId() : null;
-        String reporterName = (report.getReporterUser() != null) ? report.getReporterUser().getName() : "AI SYSTEM";
+        String reporterName = (report.getReporterUser() != null) ? report.getReporterUser().getFirstName() : "AI SYSTEM";
 
         return new ChatReportDto(
                 report.getId(),
@@ -29,7 +29,7 @@ public record ChatReportDto(
                 reporterId,
                 reporterName,
                 report.getReportedUser().getId(),
-                report.getReportedUser().getName(),
+                report.getReportedUser().getFirstName()+" "+report.getReportedUser().getLastName(),
                 report.getMessageContent(),
                 report.getReasonCategory(),
                 report.getReasonDetail(),

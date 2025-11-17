@@ -41,15 +41,17 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.text.Normalizer;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+
+import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
 
 @Slf4j
 @Service
@@ -96,6 +98,7 @@ public class PostServiceImpl implements PostService {
             default -> handleLatest(user.getId(), resolvedBoardId, c, pageSize);
         };
     }
+
 
     // ------- 정렬 핸들러 -------
     private CursorPageResponse<BoardItem> handleLatest(Long userId, Long boardId, Map<String, Object> c, int pageSize) {
@@ -144,6 +147,7 @@ public class PostServiceImpl implements PostService {
                 BoardItem::postId
         );
     }
+
 
     // ------- 커서 파싱 -------
     private LatestKey parseLatest(Map<String, Object> c) {
@@ -403,9 +407,7 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        if (user.getBirthdate() == null || user.getPurpose() == null || user.getIntroduction() == null || user.getLanguage() == null || user.getHobby() == null || user.getSex() == null) {
-            throw new BusinessException(UserErrorCode.PROFILE_SET_NOT_COMPLETED);
-        }
+        userRoleDetectService.isProfileSetUpUser(user);
 
         Optional<Like> existedLike = likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST);
         if (existedLike.isPresent()) {
@@ -597,6 +599,28 @@ public class PostServiceImpl implements PostService {
         PopularKey(Long sc, Long id) {
             this.sc = sc;
             this.id = id;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void createAdminPost(String content,
+                                BoardCategory category,
+                                List<MultipartFile> images, User adminUser) throws IOException {
+
+        Board board = boardRepository.findByCategory(category)
+                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
+
+        Post post = new Post(
+                content,
+                adminUser,
+                board
+        );
+
+        Post savedPost = postRepository.save(post);
+
+        if (images != null && !images.isEmpty()) {
+            imageService.uploadAndSavePostImages(savedPost, images);
         }
     }
 }

@@ -13,6 +13,7 @@ import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.apple.service.AppleAuthService;
+import core.global.service.GeoService;
 import core.global.service.GoogleAuthService;
 import core.global.service.PasswordService;
 import core.global.redis.service.RedisService;
@@ -52,6 +53,7 @@ public class UserController {
     private final GoogleAuthService googleAuthService;
     private final FeatureUsageMetrics featureUsageMetrics;
     private final CookieUtil cookieUtil;
+    private  final GeoService geoService;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -315,12 +317,19 @@ public class UserController {
 
     @PatchMapping("/location")
     @Operation(summary = "사용자 위치 정보 업데이트",
-            description = "사용자의 현재 위도, 경도를 받아 위치를 업데이트합니다. 위도/경도 중 하나라도 null이면 위치 미동의(isInKorea=null)로 처리됩니다.")
-    public ResponseEntity<Void> updateUserLocation(@RequestBody @Valid LocationUpdateRequest LocationDto,@AuthenticationPrincipal CustomUserDetails userDetails) {
-        userService.updateUserLocation(LocationDto,userDetails.getUserId());
+            description = "사용자의 현재 위도, 경도를 받아 위치를 업데이트합니다. 위도/경도 중 하나라도 null이면 위치 미동의null)로 처리됩니다.")
+    public ResponseEntity<Void> updateUserCountry(
+            @RequestBody @Valid LocationUpdateRequest dto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        String country = null;
+        if (dto.getLatitude() != null && dto.getLongitude() != null) {
+            country = geoService.getCountryByLatLng(dto.getLatitude(), dto.getLongitude());
+        }
+        userService.updateUserResidence(userDetails.getUserId(), country);
+
         return ResponseEntity.ok().build();
     }
-
     /**
      * 유저 프로필 완료 여부 API
      */

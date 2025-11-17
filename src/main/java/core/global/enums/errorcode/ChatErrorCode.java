@@ -19,8 +19,10 @@ public enum ChatErrorCode implements AppError {
     CHAT_ROOM_JOIN_FAILED(HttpStatus.BAD_REQUEST, "채팅방에 들어가지 못했습니다."),
     DUPLICATE_REPORT(HttpStatus.CONFLICT, "이미 신고한 메시지입니다."),
     CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "본인의 메시지는 신고할 수 없습니다."),
-    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고 내역입니다.");
-
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고 내역입니다."),
+    ALREADY_RECOMMENDED_TODAY(HttpStatus.BAD_REQUEST, "오늘 이미 추천을 받았습니다."),
+    NO_RECOMMENDABLE_ROOM(HttpStatus.NOT_FOUND, "추천할 수 있는 채팅방이 없습니다."),
+    NO_MORE_RECOMMENDABLE_ROOM(HttpStatus.NOT_FOUND, "더 이상 추천할 채팅방이 없습니다.");
     private final HttpStatus httpStatus;
     private final String message;
 

@@ -1,6 +1,8 @@
 package core.domain.user.repository;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.user.dto.UserSearchRequest;
 import core.domain.user.entity.User;
@@ -54,8 +56,12 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
     }
 
     private BooleanExpression nameContains(String name) {
-        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
+        if (!StringUtils.hasText(name)) return null;
+
+        StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
+        return fullName.containsIgnoreCase(name);
     }
+
 
     private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {

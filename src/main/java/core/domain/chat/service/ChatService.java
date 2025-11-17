@@ -1,4 +1,5 @@
 package core.domain.chat.service;
+
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
@@ -14,14 +15,17 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.global.enums.*;
-import core.global.exception.BusinessException;
-import core.global.enums.errorcode.ChatErrorCode;
-import core.global.enums.errorcode.ImageErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
+import core.global.enums.ChatParticipantStatus;
+import core.global.enums.ImageType;
+import core.global.enums.MessageType;
+import core.global.enums.NotificationType;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
 import core.global.service.PerspectiveService;
 import core.global.service.TranslationService;
@@ -62,9 +66,6 @@ public class ChatService {
     private final ImageRepository imageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final UserRoleDetectService userRoleDetectService;
-
-    private SimpMessagingTemplate messagingTemplate;
-
     private final ImageService imageService;
     private final ApplicationEventPublisher eventPublisher;
     private final BlockRepository blockRepository;
@@ -72,6 +73,11 @@ public class ChatService {
     private final SocialChatMetrics socialChatMetrics;
     private final ChatReportRepository chatReportRepository;
     private final PerspectiveService perspectiveService;
+    private SimpMessagingTemplate messagingTemplate;
+    @Value("${cdn.base-url}")
+    private String cdnBaseUrl;
+    @Value("${ncp.s3.bucket}")
+    private String bucketName;
 
     @Autowired
     @Lazy
@@ -82,12 +88,6 @@ public class ChatService {
     private String countryOf(User u) {
         return Optional.ofNullable(u.getCountry()).orElse(null);
     }
-
-    @Value("${cdn.base-url}")
-    private String cdnBaseUrl;
-
-    @Value("${ncp.s3.bucket}")
-    private String bucketName;
 
     @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
@@ -140,8 +140,10 @@ public class ChatService {
                                 .orElse(null);
 
                         if (opponent != null) {
-                            if (opponent.getLastName() != null && !opponent.getLastName().isEmpty()) roomName += opponent.getLastName();
-                            if (opponent.getFirstName() != null && !opponent.getFirstName().isEmpty()) roomName += opponent.getFirstName();
+                            if (opponent.getLastName() != null && !opponent.getLastName().isEmpty())
+                                roomName += opponent.getLastName();
+                            if (opponent.getFirstName() != null && !opponent.getFirstName().isEmpty())
+                                roomName += opponent.getFirstName();
                             roomImageUrl = imageService.getUserProfileKey(opponent.getId());
                         } else {
                             roomName = "Unknown user";
@@ -381,7 +383,7 @@ public class ChatService {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
-        userRoleDetectService.isProfileSetUpUser(userRepository.findById(userId).orElseThrow(()-> new BusinessException(UserErrorCode.USER_NOT_FOUND)));
+        userRoleDetectService.isProfileSetUpUser(userRepository.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND)));
 
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
@@ -594,6 +596,7 @@ public class ChatService {
         );
 
     }
+
     /**
      * 특정 사용자를 위한 ChatRoomSummaryResponse DTO를 생성합니다.
      * 채팅방 목록 UI에 사용될 데이터를 만듭니다.
@@ -603,7 +606,7 @@ public class ChatService {
      * @return 생성된 ChatRoomSummaryResponse DTO
      */
     private ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
-         ChatRoom room = chatRoomRepository.findById(roomId)
+        ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
@@ -631,7 +634,7 @@ public class ChatService {
                 roomName = "Unknown user";
                 roomImageUrl = null;
             } else {
-                roomName = opponent. getFirstName() + " " + opponent.getLastName();
+                roomName = opponent.getFirstName() + " " + opponent.getLastName();
                 roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
                         .map(Image::getUrl)
                         .orElse(null);
@@ -666,7 +669,7 @@ public class ChatService {
         long readParticipantCount = allParticipants.stream()
                 .filter(participant ->
                         participant.getLastReadMessageId() != null &&
-                                participant.getLastReadMessageId() >= message.getId()
+                        participant.getLastReadMessageId() >= message.getId()
                 )
                 .count();
         return totalParticipantCount - (int) readParticipantCount;
@@ -864,8 +867,10 @@ public class ChatService {
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .filter(participant -> participant.getStatus() != ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방에 참여하지 않았거나 나간 사용자입니다."));
+
         List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
 
+        // 1) 차단 유저 제외
         List<Long> blockedIds = getBlockedUserIds(userId);
         if (!blockedIds.isEmpty()) {
             messages = messages.stream()
@@ -873,11 +878,38 @@ public class ChatService {
                     .toList();
         }
 
-        String senderImageUrl=imageService.getUserProfileKey(userId);
+        // 2) messages 에서 senderId들 뽑아서 distinct
+        List<Long> senderIds = messages.stream()
+                .map(msg -> msg.getSender().getId())
+                .distinct()
+                .toList();
 
+        if (senderIds.isEmpty()) {
+            return List.of();
+        }
+
+        // 3) senderIds 에 대해 프로필 이미지 bulk 조회
+        List<Image> images = imageRepository
+                .findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, senderIds);
+
+        // 4) senderId -> imageUrl 맵으로 변환
+        Map<Long, String> senderImageUrlMap = images.stream()
+                .collect(Collectors.toMap(
+                        Image::getRelatedId,  // key: senderId
+                        Image::getUrl,        // value: imageUrl
+                        (url1, url2) -> url1  // 같은 senderId에 여러 이미지면 첫 번째 것 사용
+                ));
+
+        // 5) 메시지별 senderImageUrl 찾아서 DTO 생성
         return messages.stream()
-                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, senderImageUrl))
+                .map(message -> {
+                    Long senderId = message.getSender().getId();
+                    String senderImageUrl = senderImageUrlMap.get(senderId); // 없으면 null
+
+                    return ChatMessageFirstResponse.fromEntity(message, chatRoom, senderImageUrl);
+                })
                 .collect(Collectors.toList());
+
     }
 
     /**
@@ -1041,7 +1073,8 @@ public class ChatService {
 
     /**
      * 새로운 그룹 채팅방을 생성합니다.
-     * @param userId 생성 요청을 한 사용자(소유자)의 ID
+     *
+     * @param userId  생성 요청을 한 사용자(소유자)의 ID
      * @param request 채팅방 생성에 필요한 정보 DTO
      */
     @Transactional
@@ -1222,12 +1255,6 @@ public class ChatService {
         blockRepository.save(new BlockUser(me, blockedUser));
     }
 
-    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {
-    }
-
-    private record MessagePair(ChatMessage originalMessage, String translatedContent) {
-    }
-
     @Transactional
     public void processAndSendMediaMessage(SendMediaMessageRequest req) {
         ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
@@ -1249,7 +1276,7 @@ public class ChatService {
             User recipient = participant.getUser();
 
             boolean isBlocked = blockRepository.findBlockRelationship(recipient, sender).isPresent() ||
-                    blockRepository.findBlockRelationship(sender, recipient).isPresent();
+                                blockRepository.findBlockRelationship(sender, recipient).isPresent();
             if (isBlocked) {
                 continue;
             }
@@ -1289,14 +1316,11 @@ public class ChatService {
         }
     }
 
-
-
-
-
     /**
      * 채팅 미디어 전용 Presigned URL을 생성합니다. (AWS SDK v2 방식)
+     *
      * @param chatroomId 파일이 속할 채팅방 ID
-     * @param fileName 클라이언트가 전송한 원본 파일 이름
+     * @param fileName   클라이언트가 전송한 원본 파일 이름
      * @return PresignedUrl과 S3에 저장될 최종 파일 키(Key)
      */
     public PresignedUrlResponse generateChatPresignedUrl(Long chatroomId, String fileName) {
@@ -1345,8 +1369,7 @@ public class ChatService {
         if (alreadyReported) {
             if (reporterUserId == null) {
                 return;
-            }
-            else {
+            } else {
                 throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
             }
         }
@@ -1380,10 +1403,16 @@ public class ChatService {
     }
 
     public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
-         ChatParticipant participant =
-                 chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                         .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+        ChatParticipant participant =
+                chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                        .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
 
+    }
+
+    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {
+    }
+
+    private record MessagePair(ChatMessage originalMessage, String translatedContent) {
     }
 }

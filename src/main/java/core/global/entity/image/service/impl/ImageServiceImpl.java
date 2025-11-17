@@ -1,5 +1,10 @@
 package core.global.entity.image.service.impl;
 
+import core.domain.post.entity.Post;
+import core.global.entity.image.S3Props;
+import core.global.enums.ImageType;
+import core.global.exception.BusinessException;
+import core.global.enums.errorcode.ImageErrorCode;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
@@ -16,12 +21,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,11 +44,14 @@ public class ImageServiceImpl implements ImageService {
     private static final long PROFILE_MAX_BYTES = 10L * 1024 * 1024;
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
+    private final S3Props s3Props;
     private final ImageRepository imageRepository;
+
     @Value("${ncp.s3.bucket}")
     private String bucket;
     @Value("${ncp.s3.endpoint}")
     private String endPoint;
+
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
@@ -815,6 +826,7 @@ public class ImageServiceImpl implements ImageService {
         return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, keyOrNull);
     }
 
+
     // 내부 검증/확장자 유틸 (이미 클래스에 없다면 추가)
     private void validateImageHeadOrThrow(String key, long maxBytes) {
         HeadObjectResponse head;
@@ -877,4 +889,47 @@ public class ImageServiceImpl implements ImageService {
     ) {
     }
 
+    @Override
+    @Transactional
+    public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
+
+        if (multipartFiles == null || multipartFiles.isEmpty() || multipartFiles.stream().allMatch(MultipartFile::isEmpty)) {
+            return;
+        }
+
+        List<Image> newImages = new ArrayList<>();
+        int orderIndex = 0;
+
+        for (MultipartFile file : multipartFiles) {
+            if (file.isEmpty()) continue;
+
+            String originalFileName = file.getOriginalFilename();
+            String extension = "";
+            if (originalFileName != null && originalFileName.contains(".")) {
+                extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+            }
+            String uniqueFileName = UUID.randomUUID() + extension;
+            String s3Key = "post-images/" + post.getId() + "/" + uniqueFileName;
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(s3Props.getBucket())
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            String uploadedUrl = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/" + s3Key;
+
+            Image image = Image.of(
+                    ImageType.POST,
+                    post.getId(),
+                    uploadedUrl,
+                    orderIndex++
+            );
+            newImages.add(image);
+        }
+
+        imageRepository.saveAll(newImages);
+    }
 }

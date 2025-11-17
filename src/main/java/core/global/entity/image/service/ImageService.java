@@ -1,11 +1,14 @@
 package core.global.entity.image.service;
 
+import core.domain.post.entity.Post;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
 import core.global.exception.BusinessException;
 import jakarta.transaction.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface ImageService {
@@ -58,4 +61,7 @@ public interface ImageService {
     /** 내부 key → 공개 URL */
     String toPublicUrl(String keyOrNull);
     List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
+
+    @Transactional
+    void uploadAndSavePostImages(Post post, List<MultipartFile> images) throws IOException;
 }

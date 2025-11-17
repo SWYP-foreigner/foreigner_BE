@@ -1,5 +1,7 @@
 package core.domain.post.controller;
 
+
+import core.domain.post.service.*;
 import core.domain.post.service.crawling.KLifeCrawlerService;
 import core.domain.post.service.crawling.KoreaNetCrawlerService;
 import core.domain.post.service.crawling.SeoulGlobalCrawlerService;
@@ -17,6 +19,11 @@ public class CrawlerController {
     private final KoreaNetCrawlerService koreaNetCrawlerService;
     private final KLifeCrawlerService kLifeCrawlerService;
     private final SeoulGlobalCrawlerService seoulGlobalCrawlerService;
+    private final AllkpopCrawlerService allkpopCrawlerService;
+    private final MyDramaListCrawlerService myDramaListCrawlerService;
+    private final SoompiCrawlerService soompiCrawlerService;
+    private final HarpersBazaarCrawlerService harpersBazaarCrawlerService;
+    private final KLifeInformationCrawlerService kLifeInformationCrawlerService;
 
     /**
      * Korea.net 축제 정보 크롤링을 수동으로 실행합니다.
@@ -36,6 +43,12 @@ public class CrawlerController {
         return ResponseEntity.ok("k-life.co community crawling triggered successfully.");
     }
 
+    @GetMapping("/klife/information")
+    public ResponseEntity<String> triggerKLifeInformationCrawl() {
+        kLifeInformationCrawlerService.crawlKLifeInformation();
+        return ResponseEntity.ok("k-life.co information crawling triggered successfully.");
+    }
+
     /**
      * Seoul Global Center 소식 크롤링을 수동으로 실행합니다.
      */
@@ -43,5 +56,41 @@ public class CrawlerController {
     public ResponseEntity<String> triggerSeoulGlobalNewsCrawl() {
         seoulGlobalCrawlerService.crawlSeoulGlobalNews();
         return ResponseEntity.ok("Seoul Global Center news crawling triggered successfully.");
+    }
+
+    /**
+     * allkpop.com 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/allkpop/news")
+    public ResponseEntity<String> triggerAllkpopNewsCrawl() {
+        allkpopCrawlerService.crawlAllkpopNews();
+        return ResponseEntity.ok("Allkpop news crawling triggered successfully.");
+    }
+
+    /**
+     * mydramalist.com 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/mydramalist")
+    public ResponseEntity<String> triggerMyDramaListCrawl() {
+        myDramaListCrawlerService.crawlMyDramaList();
+        return ResponseEntity.ok("MyDramaList crawling triggered successfully.");
+    }
+
+    /**
+     * soompi.com 최신 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/soompi/latest")
+    public ResponseEntity<String> triggerSoompiCrawl() {
+        soompiCrawlerService.crawlSoompiLatest();
+        return ResponseEntity.ok("Soompi latest news crawling triggered successfully.");
+    }
+
+    /**
+     * harpersbazaar.co.kr 패션 뉴스 크롤링을 수동으로 실행합니다.
+     */
+    @GetMapping("/harpersbazaar/news")
+    public ResponseEntity<String> triggerHarpersBazaarCrawl() {
+        harpersBazaarCrawlerService.crawlHarpersBazaar();
+        return ResponseEntity.ok("Harpers Bazaar fashion news crawling triggered successfully.");
     }
 }

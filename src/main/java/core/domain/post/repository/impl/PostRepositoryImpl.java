@@ -417,7 +417,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         List<PostListForAdminResponse> content = query
                 .select(Projections.constructor(PostListForAdminResponse.class,
                         post.id,
-                        user.name,
+                        Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName),
                         user.email,
                         post.content,
                         post.createdAt,
@@ -458,7 +458,10 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private BooleanExpression authorNameContains(String name) {
-        return StringUtils.hasText(name) ? user.name.containsIgnoreCase(name) : null;
+        if (!StringUtils.hasText(name)) return null;
+
+        StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
+        return fullName.containsIgnoreCase(name);
     }
 
     private BooleanExpression contentContains(String content) {
@@ -485,7 +488,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
 
                 switch (order.getProperty()) {
                     case "authorName":
-                        orders.add(new OrderSpecifier<>(direction, user.name));
+                        StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
+                        orders.add(new OrderSpecifier<>(direction, fullName));
                         break;
 
                     case "reportCount":
