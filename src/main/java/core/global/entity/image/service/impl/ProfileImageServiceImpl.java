@@ -76,7 +76,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
 
         // 10) 저장
-        return saveImageInDB(userId, finalKey);
+        return saveImageInDB(userId, ImageType.USER, finalKey);
     }
 
     /**
@@ -123,7 +123,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
 
         // 10) 저장
-        return saveImageInDB(userId, finalKey);
+        return saveImageInDB(userId, ImageType.USER, finalKey);
     }
 
     @Override
@@ -179,7 +179,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
 
         // 10) 저장 및 종료
-        return saveImageInDB(chatRoomId, finalKey);
+        return saveImageInDB(chatRoomId, ImageType.CHAT_ROOM, finalKey);
     }
 
     /**
@@ -224,7 +224,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
 
         // 10) 저장 및 종료
-        return saveImageInDB(chatRoomId, finalKey);
+        return saveImageInDB(chatRoomId, ImageType.CHAT_ROOM, finalKey);
     }
 
     @Transactional
@@ -321,9 +321,9 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         });
     }
 
-    private String saveImageInDB(Long userId, String finalKey) {
+    private String saveImageInDB(Long relatedId, ImageType imageType, String finalKey) {
         String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        imageRepository.save(Image.of(ImageType.USER, userId, finalUrl, 0));
+        imageRepository.save(Image.of(ImageType.USER, relatedId, finalUrl, 0));
         return finalUrl;
     }
 
@@ -395,15 +395,14 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String reqKey = requestInfo.getReqKey();
 
         if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
-            String dstKey = "chatRoom/%d/chat_profile.%s".formatted(chatRoomId, storageClient.extOf(reqKey));
             try {
                 s3Client.copyObject(b -> b
                         .sourceBucket(bucket).sourceKey(reqKey)
-                        .destinationBucket(bucket).destinationKey(dstKey)
+                        .destinationBucket(bucket).destinationKey(candidateFinalKey)
                         .acl(ObjectCannedACL.PUBLIC_READ)
                         .metadataDirective(MetadataDirective.COPY));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
-                return dstKey;
+                return candidateFinalKey;
             } catch (SdkException e) {
                 throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
