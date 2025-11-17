@@ -36,17 +36,6 @@ public class ImageController {
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
-    @DeleteMapping("/object")
-    public ResponseEntity<ApiResponse<Void>> deleteObjectByKey(@RequestParam String keyOrUrl) {
-        imageService.deleteObject(keyOrUrl);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @DeleteMapping("/delete-folder")
-    public ResponseEntity<ApiResponse<Void>> deleteFolder(@RequestParam String fileLocation) {
-        imageService.deleteFolder(fileLocation);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
     /**
      * 여러 채팅방 ID에 해당하는 이미지 정보들을 일괄 조회합니다.
      * @param roomIds 이미지 정보를 조회할 채팅방 ID 리스트
