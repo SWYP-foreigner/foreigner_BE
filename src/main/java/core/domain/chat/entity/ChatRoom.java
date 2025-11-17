@@ -34,6 +34,8 @@ public class ChatRoom {
     @Column(name = "category", length = 255)
     private ChatCategory category;
 
+
+
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatParticipant> participants = new ArrayList<>();
 
