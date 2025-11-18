@@ -685,6 +685,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(bookmark)
                 .where(
                         bookmark.user.id.eq(viewerId)
+                                .and(bookmark.post.id.eq(post.id))
                 )
 
                 .exists();
@@ -697,6 +698,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(bookmark)
                 .where(
                         bookmark.user.email.eq(email)
+                                .and(bookmark.post.id.eq(post.id))
                 )
                 .exists();
     }
