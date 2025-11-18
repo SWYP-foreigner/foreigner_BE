@@ -46,7 +46,8 @@ spring:
           refreshToken: "refreshToken:"
           blacklist: "blacklist:"
           accessToken: "access_token"
-
+      repositories:
+        enabled: false
   jpa:
     hibernate:
       ddl-auto: update
