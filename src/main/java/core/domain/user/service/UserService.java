@@ -225,8 +225,9 @@ public class UserService {
         }
 
         user.updateIsNewUser(false);
-
-        imageService.saveUserProfileImage(user.getId(), dto.imageKey());
+        if (dto.imageKey() != null) {
+            imageService.saveUserProfileImage(user.getId(), dto.imageKey());
+        }
     }
 
     private boolean notBlank(String s) {
