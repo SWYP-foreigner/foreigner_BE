@@ -20,7 +20,7 @@ public class NotionClient {
     private static final Logger log = LoggerFactory.getLogger(NotionClient.class);
 
     private static final String NOTION_API_BASE = "https://api.notion.com/v1";
-    private static final String NOTION_VERSION = "2025-09-03";
+    private static final String NOTION_VERSION = "2022-06-28";
 
     private final String token;
     private final String databaseId;
