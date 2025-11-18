@@ -181,6 +181,7 @@ public class UserService {
     public void setupUserProfile(UserSetupRequest dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
+        log.info("UserSetupRequest dto: {}", dto);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
