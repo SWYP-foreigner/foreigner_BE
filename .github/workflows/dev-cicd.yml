@@ -26,7 +26,7 @@ jobs:
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
-  quality:
+  quality-tests:
     needs: preflight
     runs-on: ubuntu-latest
     services:
@@ -93,6 +93,20 @@ jobs:
           docker ps || true
           echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
 
+  sync-error-codes:
+    needs: [ preflight, quality-tests ]
+    runs-on: ubuntu-latest
+    if: always()    # 테스트 실패해도 Notion 동기 돌리고 싶으면 유지, 성공시에만 돌리고 싶으면 `if: needs.quality-tests.result == 'success'`
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
       - name: Sync error codes to Notion
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
@@ -102,14 +116,14 @@ jobs:
             echo "NOTION_TOKEN or NOTION_DB_ID is empty. Skip Notion sync."
             exit 0
           fi
-          
+
           echo "Running Notion sync (failures will NOT break CI)..."
           ./gradlew --no-daemon runNotionSync || {
             echo "⚠️ Notion sync failed (ignored for CI). Check logs above.";
           }
 
   build:
-    needs: [ preflight, quality ]
+    needs: [ preflight, quality-tests ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
