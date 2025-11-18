@@ -23,21 +23,21 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.enums.errorcode.AuthErrorCode;
-import core.global.security.JwtTokenProvider;
+import core.global.apple.service.AppleWithdrawalService;
 import core.global.dto.*;
-import core.global.enums.ImageType;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
-import core.global.exception.BusinessException;
-import core.global.enums.errorcode.ImageErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.apple.service.AppleWithdrawalService;
+import core.global.enums.ImageType;
+import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
+import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
+import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,6 +149,7 @@ public class UserService {
 
     /**
      * 사용자 정보(이름)를 업데이트합니다.
+     *
      * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
@@ -186,6 +187,11 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
+        if (!user.isNewUser()) {
+            throw new BusinessException(UserErrorCode.INVALID_PROFILE,
+                    "이미 프로필이 설정된 사용자입니다.");
+        }
+
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
@@ -195,81 +201,32 @@ public class UserService {
                 user.updateLastName(dto.lastname().trim());
             }
         }
-        if (dto.gender() != null) {
-            user.updateSex(dto.gender());
-        }
-        if (dto.birthday() != null) {
-            user.updateBirthdate(dto.birthday());
-        }
 
-        if (notBlank(dto.country())) {
-            user.updateCountry(dto.country().trim());
-        }
+        user.updateSex(dto.gender());
+        user.updateBirthdate(dto.birthday());
+        user.updateCountry(dto.country());
 
-        if (notBlank(dto.introduction())) {
-            String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
-        }
-        if (notBlank(dto.purpose())) {
-            user.updatePurpose(dto.purpose());
-        }
-
+        String v = dto.introduction();
+        user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
         if (dto.language() != null && !dto.language().isEmpty()) {
-            List<String> normalizedLanguages = dto.language().stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .map(String::toLowerCase)
-                    .filter(s -> !s.isEmpty())
-                    .distinct()
-                    .toList();
-            String userLanguagesCsv = String.join(",", normalizedLanguages);
+            String userLanguagesCsv = String.join(",", dto.language());
+            user.updateLanguage(userLanguagesCsv);
 
-            if (!userLanguagesCsv.isEmpty()) {
-                user.updateLanguage(userLanguagesCsv);
-            }
-
-            String firstTranslatedLanguage = normalizedLanguages.stream()
-                    .findFirst()
-                    .map(s -> {
-                        Matcher matcher = pattern.matcher(s);
-                        if (matcher.find()) {
-                            return matcher.group(1).trim();
-                        }
-                        return "";
-                    })
-                    .orElse("");
-
-            if (!firstTranslatedLanguage.isEmpty()) {
+            String firstTranslatedLanguage = dto.language().get(0);
+            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
                 user.updateTranslateLanguage(firstTranslatedLanguage);
             }
         }
 
-        if (dto.hobby() != null) {
-            String csv = dto.hobby().stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .distinct()
-                    .collect(Collectors.joining(","));
-            log.debug("취미 변경: {} → {}", user.getHobby(), csv);
-            if (!csv.isEmpty()) user.updateHobby(csv);
+        if (dto.hobby() != null && !dto.hobby().isEmpty()) {
+            String csv = String.join(",", dto.hobby());
+            user.updateHobby(csv);
         }
+
         user.updateIsNewUser(false);
 
-        String finalImageKey = imageService.getUserProfileKey(user.getId());
-        if (notBlank(dto.imageKey())) {
-            imageService.saveUserProfileImage(user.getId(), dto.imageKey());
-        }
-
-        UserSetupRequest result = new UserSetupRequest(
-                user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
-
-        log.info("newUser {}", user.isNewUser());
-        log.info("프로필 업데이트 성공 반환: {}", result);
-        if (user.getUserRole() == Role.VISITOR) {
-            user.changeUserRole(Role.USER);
-        }
+        imageService.saveUserProfileImage(user.getId(), dto.imageKey());
     }
 
     private boolean notBlank(String s) {
@@ -888,14 +845,17 @@ public class UserService {
 
         user.updateCountry(country);
     }
+
     @Transactional
     public void updateUserResidence(Long userId, String residence) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         user.updateResidence(residence);
     }
+
     /**
      * 유저 프로필 완료 여부 확인
+     *
      * @param userId 확인할 유저 ID
      * @return 프로필이 완료되었으면 true, 아니면 false
      */
@@ -903,11 +863,11 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean completed = user.getBirthdate() != null
-                && user.getPurpose() != null
-                && user.getIntroduction() != null
-                && user.getLanguage() != null
-                && user.getHobby() != null
-                && user.getSex() != null;
+                            && user.getPurpose() != null
+                            && user.getIntroduction() != null
+                            && user.getLanguage() != null
+                            && user.getHobby() != null
+                            && user.getSex() != null;
         return new ProfileCompletionResponse(userId, completed);
     }
 
