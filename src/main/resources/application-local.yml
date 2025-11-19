@@ -46,7 +46,8 @@ spring:
           refreshToken: "refreshToken:"
           blacklist: "blacklist:"
           accessToken: "access_token"
-
+      repositories:
+        enabled: false
   jpa:
     hibernate:
       ddl-auto: update
@@ -121,7 +122,9 @@ google:
       api-key: ${GCP_TRANSLATE_API_KEY}
     perspective:
       api-key: ${GCP_PERSPECTIVE_API_KEY}
-
+  maps:
+    api:
+      key: ${GCP_MAP_API_KEY}
   mail:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}

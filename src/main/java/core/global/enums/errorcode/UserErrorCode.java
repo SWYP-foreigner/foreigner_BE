@@ -32,7 +32,8 @@ public enum UserErrorCode implements AppError {
     PROFILE_IMAGE_ONLY_ONE(HttpStatus.BAD_REQUEST, "프로필은 한장만 등록 가능합니다."),
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
     INVALID_USER_UPDATE_REQUEST(HttpStatus.BAD_REQUEST, "프로필 업데이트가 처리되지 않았습니다."),
-    JWT_INVALID_ROLE(HttpStatus.UNAUTHORIZED, "추방된 유저입니다");
+    JWT_INVALID_ROLE(HttpStatus.UNAUTHORIZED, "추방된 유저입니다"),
+    INVALID_PROFILE(HttpStatus.BAD_REQUEST, "이미 셋업한 유저입니다.");
 
     private final HttpStatus httpStatus;
     private final String message;
