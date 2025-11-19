@@ -236,7 +236,7 @@ jobs:
             PINPOINT_AGENT_ID=${{ secrets.PINPOINT_AGENT_ID }}
             
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dpinpoint.logdir=/tmp/pinpoint-logs"
+            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dpinpoint.logdir=/tmp/pinpoint-logs"
             EOF
             
             cat > apple_key.pem <<PEM
