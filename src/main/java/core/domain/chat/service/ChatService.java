@@ -1414,4 +1414,30 @@ public class ChatService {
 
     private record MessagePair(ChatMessage originalMessage, String translatedContent) {
     }
+
+    public ChatRecommendRoomResponse findRandomRecommendableGroupChatRoom(Long userId) {
+        List<Long> recommendableIds = chatRoomRepository.findRecommendableGroupChatRoomIdsNotJoinedByUserId(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+        if (recommendableIds.isEmpty()) {
+            return null;
+        }
+
+        int randomIndex = new Random().nextInt(recommendableIds.size());
+        Long randomRoomId = recommendableIds.get(randomIndex);
+
+        ChatRoom room = chatRoomRepository.findById(randomRoomId)
+                .orElse(null);
+        if (room == null) {
+            throw new BusinessException(ChatErrorCode.NO_MORE_RECOMMENDABLE_ROOM);
+        }
+
+        String imageUrl = imageRepository.findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                        ImageType.CHAT_ROOM, randomRoomId)
+                .map(Image::getUrl)
+                .orElse(null);
+        return ChatRecommendRoomResponse.of(room, imageUrl);
+    }
 }
