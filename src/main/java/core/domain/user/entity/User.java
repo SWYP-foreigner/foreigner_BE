@@ -2,7 +2,7 @@ package core.domain.user.entity;
 
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.notification.entity.Notification;
-import core.global.enums.Role;
+import core.global.enums.user.Role;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;

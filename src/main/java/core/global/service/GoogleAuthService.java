@@ -8,7 +8,7 @@ import core.global.dto.AccessTokenDto;
 import core.global.dto.GoogleProfileDto;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLoggedInEvent;
-import core.global.enums.Ouathplatform;
+import core.global.enums.Oauthplatform;
 import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,9 +50,9 @@ public class GoogleAuthService {
     }
 
     private User findOrCreateUser(GoogleProfileDto profile) {
-        User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
+        User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Oauthplatform.GOOGLE));
         if (user == null) {
-            user = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
+            user = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Oauthplatform.GOOGLE));
         }
         return user;
     }

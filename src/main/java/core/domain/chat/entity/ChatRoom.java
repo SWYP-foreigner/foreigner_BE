@@ -1,7 +1,7 @@
 package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
-import core.global.enums.ChatCategory;
+import core.global.enums.chat.ChatCategory;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

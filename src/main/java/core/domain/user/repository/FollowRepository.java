@@ -3,7 +3,7 @@ package core.domain.user.repository;
 
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
-import core.global.enums.FollowStatus;
+import core.global.enums.user.FollowStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

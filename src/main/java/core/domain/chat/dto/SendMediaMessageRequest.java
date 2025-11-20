@@ -1,6 +1,6 @@
 package core.domain.chat.dto;
 
-import core.global.enums.MessageType;
+import core.global.enums.chat.MessageType;
 
 public record SendMediaMessageRequest(
         Long roomId,

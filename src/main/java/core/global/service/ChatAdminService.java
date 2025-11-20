@@ -7,7 +7,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
-import core.global.enums.ChatReportStatus;
+import core.global.enums.chat.ChatReportStatus;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;

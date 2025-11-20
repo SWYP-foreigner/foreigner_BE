@@ -2,9 +2,9 @@ package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.user.entity.User;
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import core.domain.post.dto.comunity.*;
-import core.global.enums.SortOption;
+import core.global.enums.common.SortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;

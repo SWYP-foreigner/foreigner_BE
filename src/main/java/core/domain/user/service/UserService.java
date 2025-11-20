@@ -29,9 +29,9 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.ImageType;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
+import core.global.enums.common.ImageType;
+import core.global.enums.Oauthplatform;
+import core.global.enums.user.Role;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -192,7 +192,7 @@ public class UserService {
                     "이미 프로필이 설정된 사용자입니다.");
         }
 
-        if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
+        if (!Objects.equals(user.getProvider(), Oauthplatform.APPLE.toString())) {
 
             if (notBlank(dto.firstname())) {
                 user.updateFirstName(dto.firstname().trim());
@@ -281,7 +281,7 @@ public class UserService {
         String rawPw = req.getPassword();
 
         User u = new User();
-        u.updateProvider(Ouathplatform.local.toString());
+        u.updateProvider(Oauthplatform.local.toString());
         u.updateSocialId(buildLocalSocialId(email));
         u.updateEmail(email);
         u.updatePassword(passwordEncoder.encode(rawPw));
@@ -346,7 +346,7 @@ public class UserService {
 
         log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
-        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+        if (!Oauthplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
@@ -382,7 +382,7 @@ public class UserService {
 
         log.debug("[ADMIN LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
-        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+        if (!Oauthplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[ADMIN LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
@@ -690,7 +690,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean isApple = false;
 
-        if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
+        if (Oauthplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
             isApple = true;
         }
@@ -827,7 +827,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        boolean isApple = Ouathplatform.APPLE.toString().equals(user.getProvider());
+        boolean isApple = Oauthplatform.APPLE.toString().equals(user.getProvider());
 
         boolean isRejoiningWithoutFullName = false;
         if (isApple) {

@@ -8,7 +8,7 @@ import core.global.apple.dto.ApplePublicKeyResponse;
 import core.global.apple.dto.AppleRefreshTokenResponse;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.Ouathplatform;
+import core.global.enums.Oauthplatform;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
@@ -95,7 +95,7 @@ public class AppleAuthService {
     public LoginResponseDto login(AppleLoginByCodeRequest req) {
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String appleSocialId = claims.getSubject();
-        String provider = Ouathplatform.APPLE.toString();
+        String provider = Oauthplatform.APPLE.toString();
 
         User user = userService.getUserBySocialIdAndProvider(appleSocialId, provider);
         if (user == null) {
@@ -108,7 +108,7 @@ public class AppleAuthService {
                     appleRefreshToken,
                     req.fullName()
             );
-        } else if (user.isNewUser() && user.getProvider().equals(Ouathplatform.APPLE.toString())) {
+        } else if (user.isNewUser() && user.getProvider().equals(Oauthplatform.APPLE.toString())) {
             AppleLoginByCodeRequest.FullNameDto fullName = req.fullName();
             if (fullName != null) {
                 boolean needsUpdate = false;

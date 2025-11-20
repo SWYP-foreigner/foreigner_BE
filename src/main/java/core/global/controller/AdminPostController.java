@@ -4,7 +4,7 @@ import core.domain.post.service.PostService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -8,8 +8,8 @@
 //import core.domain.post.repository.PostRepository;
 //import core.domain.user.entity.User;
 //import core.domain.user.repository.UserRepository;
-//import core.global.enums.ImageType;
-//import core.global.enums.LikeType;
+//import core.global.enums.common.ImageType;
+//import core.global.enums.common.LikeType;
 //import core.global.exception.BusinessException;
 //import core.global.image.repository.ImageRepository;
 //import core.global.like.repository.LikeRepository;

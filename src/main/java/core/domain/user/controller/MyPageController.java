@@ -9,7 +9,7 @@ import core.domain.user.service.UserService;
 import core.global.dto.ApiResponse;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
-import core.global.enums.FollowStatus;
+import core.global.enums.user.FollowStatus;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.service.TranslationService;
 import io.swagger.v3.oas.annotations.Operation;

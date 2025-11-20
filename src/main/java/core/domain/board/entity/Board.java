@@ -1,6 +1,6 @@
 package core.domain.board.entity;
 
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

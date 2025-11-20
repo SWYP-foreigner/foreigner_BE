@@ -13,7 +13,7 @@ import core.global.config.CustomUserDetails;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.CrawledDataStatus;
-import core.global.enums.ImageType;
+import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;

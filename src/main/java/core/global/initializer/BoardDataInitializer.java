@@ -2,7 +2,7 @@ package core.global.initializer;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

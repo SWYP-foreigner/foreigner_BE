@@ -1,6 +1,6 @@
 package core.global.entity.image.repository;
 
-import core.global.enums.ImageType;
+import core.global.enums.common.ImageType;
 import core.global.entity.image.entity.Image;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

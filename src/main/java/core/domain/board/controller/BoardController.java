@@ -5,7 +5,7 @@ import core.domain.board.dto.CategoryListResponse;
 import core.domain.board.service.BoardService;
 import core.domain.post.dto.comunity.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
-import core.global.enums.SortOption;
+import core.global.enums.common.SortOption;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;

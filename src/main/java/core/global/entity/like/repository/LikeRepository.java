@@ -1,6 +1,6 @@
 package core.global.entity.like.repository;
 
-import core.global.enums.LikeType;
+import core.global.enums.common.LikeType;
 import core.global.entity.like.entity.Like;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

@@ -1,7 +1,7 @@
 package core.domain.user.entity;
 
 
-import core.global.enums.FollowStatus;
+import core.global.enums.user.FollowStatus;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
