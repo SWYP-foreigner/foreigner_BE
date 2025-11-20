@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 
+import static core.global.entity.image.utils.UrlUtil.buildCdnUrlFromKey;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -228,11 +230,12 @@ public class PostImageServiceImpl implements PostImageService {
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
             String uploadedUrl = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/" + s3Key;
+            String candidateFinalUrl = buildCdnUrlFromKey(cdnBaseUrl, uploadedUrl);
 
             Image image = Image.of(
                     ImageType.POST,
                     post.getId(),
-                    uploadedUrl,
+                    candidateFinalUrl,
                     orderIndex++
             );
             newImages.add(image);
