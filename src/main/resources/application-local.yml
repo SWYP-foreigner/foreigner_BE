@@ -162,3 +162,14 @@ app:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
     code-ttl-minutes: 3
+
+iap:
+  android:
+    packageName: your.play.package
+    serviceAccountJsonBase64: ${IAP_ANDROID_SA_B64:}
+  ios:
+    issuerId: ${IAP_IOS_ISSUER_ID:}
+    keyId: ${IAP_IOS_KEY_ID:}
+    privateKeyBase64: ${IAP_IOS_P8_B64:}
+    bundleId: your.ios.bundle
+    environment: Production
