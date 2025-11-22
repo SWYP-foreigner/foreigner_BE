@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,5 +51,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
     @Query("SELECT c.author FROM Comment c WHERE c.id = :commentId")
     Optional<User> findUserByCommentId(Long commentId);
 
+    Long countByAuthorEmailAndCreatedAtAfter(String authorEmail, Instant createdAt);
+
     Page<Comment> findByAuthorId(Long authorId, Pageable pageable);
+
+    boolean existsByAuthorEmailAndContentAndCreatedAtAfter(String email, String normalizedContent, Instant cutOff);
 }

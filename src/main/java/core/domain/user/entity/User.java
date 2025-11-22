@@ -285,10 +285,6 @@ public class User {
     }
 
 
-    /**
-     * (주의) 이 메서드는 ADMIN 등에 의해 강제로 역할을 변경할 때 사용됩니다.
-     * 프로필 기반의 자동 역할 변경(updateRoleBasedOnProfile) 로직을 우회합니다.
-     */
     public void changeUserRole(Role role) {
         this.userRole = role;
     }

@@ -23,21 +23,21 @@ import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.enums.errorcode.AuthErrorCode;
-import core.global.security.JwtTokenProvider;
+import core.global.apple.service.AppleWithdrawalService;
 import core.global.dto.*;
-import core.global.enums.ImageType;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
-import core.global.exception.BusinessException;
-import core.global.enums.errorcode.ImageErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.apple.service.AppleWithdrawalService;
+import core.global.enums.ImageType;
+import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
+import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
+import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,6 +149,7 @@ public class UserService {
 
     /**
      * 사용자 정보(이름)를 업데이트합니다.
+     *
      * @param user     업데이트할 User 엔티티
      * @param fullName Apple 로그인 시 전달받은 이름 정보 DTO
      */
@@ -181,9 +182,15 @@ public class UserService {
     public void setupUserProfile(UserSetupRequest dto) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
+        log.info("UserSetupRequest dto: {}", dto);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (!user.isNewUser()) {
+            throw new BusinessException(UserErrorCode.INVALID_PROFILE,
+                    "이미 프로필이 설정된 사용자입니다.");
+        }
 
         if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
 
@@ -194,80 +201,32 @@ public class UserService {
                 user.updateLastName(dto.lastname().trim());
             }
         }
-        if (dto.gender() != null) {
-            user.updateSex(dto.gender());
-        }
-        if (dto.birthday() != null) {
-            user.updateBirthdate(dto.birthday());
-        }
 
-        if (notBlank(dto.country())) {
-            user.updateCountry(dto.country().trim());
-        }
+        user.updateSex(dto.gender());
+        user.updateBirthdate(dto.birthday());
+        user.updateCountry(dto.country());
 
-        if (notBlank(dto.introduction())) {
-            String v = dto.introduction().trim();
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
-        }
-        if (notBlank(dto.purpose())) {
-            user.updatePurpose(dto.purpose());
-        }
-
+        String v = dto.introduction();
+        user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
         if (dto.language() != null && !dto.language().isEmpty()) {
-            List<String> normalizedLanguages = dto.language().stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .map(String::toLowerCase)
-                    .filter(s -> !s.isEmpty())
-                    .distinct()
-                    .toList();
-            String userLanguagesCsv = String.join(",", normalizedLanguages);
+            String userLanguagesCsv = String.join(",", dto.language());
+            user.updateLanguage(userLanguagesCsv);
 
-            if (!userLanguagesCsv.isEmpty()) {
-                user.updateLanguage(userLanguagesCsv);
-            }
-
-            String firstTranslatedLanguage = normalizedLanguages.stream()
-                    .findFirst()
-                    .map(s -> {
-                        Matcher matcher = pattern.matcher(s);
-                        if (matcher.find()) {
-                            return matcher.group(1).trim();
-                        }
-                        return "";
-                    })
-                    .orElse("");
-
-            if (!firstTranslatedLanguage.isEmpty()) {
+            String firstTranslatedLanguage = dto.language().get(0);
+            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
                 user.updateTranslateLanguage(firstTranslatedLanguage);
             }
         }
 
-        if (dto.hobby() != null) {
-            String csv = dto.hobby().stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .distinct()
-                    .collect(Collectors.joining(","));
-            log.debug("취미 변경: {} → {}", user.getHobby(), csv);
-            if (!csv.isEmpty()) user.updateHobby(csv);
+        if (dto.hobby() != null && !dto.hobby().isEmpty()) {
+            String csv = String.join(",", dto.hobby());
+            user.updateHobby(csv);
         }
+
         user.updateIsNewUser(false);
-
-        String finalImageKey = imageService.getUserProfileKey(user.getId());
-        if (notBlank(dto.imageKey())) {
-            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
-        }
-
-        UserSetupRequest result = new UserSetupRequest(
-                user, stringToList(user.getLanguage()), stringToList(user.getHobby()), finalImageKey);
-
-        log.info("newUser {}", user.isNewUser());
-        log.info("프로필 업데이트 성공 반환: {}", result);
-        if (user.getUserRole() == Role.VISITOR) {
-            user.changeUserRole(Role.USER);
+        if (dto.imageKey() != null) {
+            imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
     }
 
@@ -587,7 +546,7 @@ public class UserService {
 
         String finalImageKey = imageService.getUserProfileKey(user.getId());
         if (notBlank(dto.imageKey())) {
-            finalImageKey = imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            finalImageKey = imageService.updateUserProfileImage(user.getId(), dto.imageKey());
         }
 
         Role newRole = user.getUserRole();
@@ -708,75 +667,12 @@ public class UserService {
         }
 
         if (notBlank(dto.imageKey())) {
-            imageService.upsertUserProfileImage(user.getId(), dto.imageKey().trim());
+            imageService.updateUserProfileImage(user.getId(), dto.imageKey());
         }
         NewUserJoinedEvent event = new NewUserJoinedEvent(user.getId());
         eventPublisher.publishEvent(event);
     }
 
-
-    /**
-     * 두개의 이름 중 하나만 있더라도 바로 검색이 되게 함
-     *
-     * @param firstName
-     * @param lastName
-     * @return
-     */
-//    @Transactional(readOnly = true)
-//    public List<UserSearchDTO> findUserByNameExcludingSelf(String firstName, String lastName)
-//    {
-//
-//        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-//        String userEmail = auth.getName();
-//
-//        User me = userRepository.findByEmail(userEmail)
-//                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-//
-//        if ((firstName == null || firstName.isBlank()) && (lastName == null || lastName.isBlank())) {
-//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-//        }
-//
-//
-//        String fn = firstName == null ? null : firstName.trim();
-//        String ln = lastName == null ? null : lastName.trim();
-//
-//        List<User>users;
-//
-//        if (notBlank(fn) && notBlank(ln)) {
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        } else if (notBlank(fn)) {
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        } else { // notBlank(ln) 보장됨
-//            users = userRepository
-//                    .findAcceptedFriendsByFirstAndLastName(me.getId(),fn, ln);
-//        }
-//
-//        if (users.isEmpty()) {
-//            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-//        }
-//
-//        return users.stream()
-//                .map(this::toSearchDto)
-//                .toList();
-//    }
-
-    /**
-     * 현재 인증 컨텍스트에서 email만 확보 (ID는 repo로 조회)
-     */
-
-
-    private UserSearchDTO toSearchDto(User u) {
-        return UserSearchDTO.builder()
-                .id(u.getId())
-                .firstName(u.getFirstName())
-                .lastName(u.getLastName())
-                .gender(u.getSex())
-                .country(u.getCountry())
-                .imageKey(imageService.getUserProfileKey(u.getId())) // 필요 시 주석 해제
-                .build();
-    }
 
     /**
      * 회원 탈퇴를 처리하는 메서드.
@@ -950,14 +846,17 @@ public class UserService {
 
         user.updateCountry(country);
     }
+
     @Transactional
     public void updateUserResidence(Long userId, String residence) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         user.updateResidence(residence);
     }
+
     /**
      * 유저 프로필 완료 여부 확인
+     *
      * @param userId 확인할 유저 ID
      * @return 프로필이 완료되었으면 true, 아니면 false
      */
@@ -965,11 +864,11 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean completed = user.getBirthdate() != null
-                && user.getPurpose() != null
-                && user.getIntroduction() != null
-                && user.getLanguage() != null
-                && user.getHobby() != null
-                && user.getSex() != null;
+                            && user.getPurpose() != null
+                            && user.getIntroduction() != null
+                            && user.getLanguage() != null
+                            && user.getHobby() != null
+                            && user.getSex() != null;
         return new ProfileCompletionResponse(userId, completed);
     }
 

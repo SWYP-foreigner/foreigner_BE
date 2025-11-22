@@ -1,0 +1,5 @@
+ALTER TABLE chat_room
+    ADD COLUMN category VARCHAR(255);
+
+ALTER TABLE chat_room
+    ADD COLUMN is_recommendable BOOLEAN NOT NULL DEFAULT FALSE;

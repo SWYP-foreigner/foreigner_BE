@@ -6,6 +6,8 @@ import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.exception.BusinessException;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -438,4 +440,28 @@ public class ChatController {
         ChatNotificationStatusResponse response= chatService.isNotificationsEnabled(roomId, userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @Operation(summary = "그룹 채팅방 추천", description = "추천 가능한(isRecommendable=true) 그룹 채팅방 중, 사용자가 속하지 않은 방을 랜덤으로 1개 추천합니다." +
+            "요청은 3시간에 한 번,사용자가 오늘 더 보지 않겠다 할 시24시간 후 요청")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
+                    content = @Content(schema = @Schema(implementation = ChatRecommendRoomResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "더 이상 추천 가능한 채팅방 없음",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "428", description = "프로필 세팅 미완료한 유저",
+                    content = @Content(schema = @Schema(implementation = Object.class))
+            )
+    })
+    @GetMapping("/rooms/recommend")
+    public ResponseEntity<ApiResponse<ChatRecommendRoomResponse>> getRecommendableGroupChatRoom(
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+
+        ChatRecommendRoomResponse response = chatService.findRandomRecommendableGroupChatRoom(principal.getUserId());
+        featureUsageMetrics.recordChatUsage();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
 }

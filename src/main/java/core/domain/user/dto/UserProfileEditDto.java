@@ -24,8 +24,8 @@ public record UserProfileEditDto(
         @Schema(description = "성별", example = "Male")
         @JsonDeserialize(using = EmptyToNullStringDeserializer.class)
         @Pattern(
-                regexp = "^(Male|Female|NoGender)$",
-                message = "gender는 Male|Female|NoGender 중 하나여야 합니다."
+                regexp = "^(Male|Female|NoGender|Prefer not to say)$",
+                message = "gender는 Male|Female|NoGender|Prefer not to say 중 하나여야 합니다."
         )
         String gender,
 

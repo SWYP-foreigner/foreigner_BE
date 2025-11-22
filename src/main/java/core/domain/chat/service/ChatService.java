@@ -260,7 +260,6 @@ public class ChatService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         ChatParticipant participant = participantRepo.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
         participant.leave();
@@ -284,7 +283,7 @@ public class ChatService {
         if (remainingActiveParticipants == 0) {
             chatMessageRepository.deleteByChatRoomId(roomId);
             chatRoomRepo.delete(room);
-            // todo : 채팅방 내 동영상 사진 삭제 필요
+            imageService.deleteChatRoomProfileImage(roomId);
         }
     }
 
@@ -690,9 +689,9 @@ public class ChatService {
                 .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
                 .collect(Collectors.toList());
 
-        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                ImageType.CHAT_ROOM, chatRoom.getId()
-        ).map(Image::getUrl).orElse(null);
+        log.info(chatRoomId+"");
+        String roomImageUrl = imageService.getRoomImageUrl(chatRoomId);
+        log.info(roomImageUrl);
 
         Long ownerId = chatRoom.getOwner().getId();
         String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
@@ -1103,7 +1102,7 @@ public class ChatService {
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
             try {
-                imageService.upsertChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
+                imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
             } catch (Exception e) {
                 log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
                 throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);
@@ -1414,5 +1413,31 @@ public class ChatService {
     }
 
     private record MessagePair(ChatMessage originalMessage, String translatedContent) {
+    }
+
+    public ChatRecommendRoomResponse findRandomRecommendableGroupChatRoom(Long userId) {
+        List<Long> recommendableIds = chatRoomRepository.findRecommendableGroupChatRoomIdsNotJoinedByUserId(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        userRoleDetectService.isProfileSetUpUser(user);
+        if (recommendableIds.isEmpty()) {
+            return null;
+        }
+
+        int randomIndex = new Random().nextInt(recommendableIds.size());
+        Long randomRoomId = recommendableIds.get(randomIndex);
+
+        ChatRoom room = chatRoomRepository.findById(randomRoomId)
+                .orElse(null);
+        if (room == null) {
+            throw new BusinessException(ChatErrorCode.NO_MORE_RECOMMENDABLE_ROOM);
+        }
+
+        String imageUrl = imageRepository.findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                        ImageType.CHAT_ROOM, randomRoomId)
+                .map(Image::getUrl)
+                .orElse(null);
+        return ChatRecommendRoomResponse.of(room, imageUrl);
     }
 }

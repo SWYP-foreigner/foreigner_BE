@@ -7,11 +7,13 @@ import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.AppError;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 public class NotionSyncRunner {
 
     public static void main(String[] args) throws Exception {
@@ -20,7 +22,7 @@ public class NotionSyncRunner {
 
         // 빌드 시 자동 실행할 거라, 설정 없으면 그냥 스킵하도록 처리하는 게 안전합니다.
         if (token == null || dbId == null) {
-            System.out.println("Notion sync skipped: NOTION_TOKEN / NOTION_DB_ID not set.");
+            log.info("Notion sync skipped: NOTION_TOKEN / NOTION_DB_ID not set.");
             return;
         }
 

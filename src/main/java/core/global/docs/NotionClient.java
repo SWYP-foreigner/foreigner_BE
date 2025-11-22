@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,9 +17,10 @@ import java.util.List;
 
 public class NotionClient {
 
+    private static final Logger log = LoggerFactory.getLogger(NotionClient.class);
+
     private static final String NOTION_API_BASE = "https://api.notion.com/v1";
-    // 최신 버전 (2025-11 기준)
-    private static final String NOTION_VERSION = "2025-09-03";
+    private static final String NOTION_VERSION = "2022-06-28";
 
     private final String token;
     private final String databaseId;
@@ -32,30 +35,22 @@ public class NotionClient {
                 .build();
     }
 
-    /**
-     * 지금 예시는 단순히 "새 페이지만 계속 추가"하는 버전입니다.
-     * (upsert 필요하면 나중에 query + update 로 확장 가능)
-     */
     public void syncErrorCodes(List<ErrorCodeDoc> docs) throws Exception {
         for (ErrorCodeDoc doc : docs) {
             String pageId = findPageIdByCode(doc.code());
             if (pageId == null) {
-                // 없으면 새로 생성
                 createPage(doc);
             } else {
-                // 있으면 업데이트
                 updatePage(pageId, doc);
             }
         }
     }
 
-
     private String findPageIdByCode(String code) throws Exception {
         ObjectNode root = objectMapper.createObjectNode();
 
-        // filter: property "code" (Title) equals {code}
         ObjectNode filter = objectMapper.createObjectNode();
-        filter.put("property", "code"); // 노션 DB 속성 이름과 동일해야 함
+        filter.put("property", "code");
 
         ObjectNode title = objectMapper.createObjectNode();
         title.put("equals", code);
@@ -77,9 +72,17 @@ public class NotionClient {
         HttpResponse<String> response =
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            System.err.println("Notion query 실패: " + response.statusCode());
-            System.err.println(response.body());
+        int statusCode = response.statusCode();
+        if (statusCode < 200 || statusCode >= 300) {
+            log.error("Notion query 실패. statusCode={}, body={}", statusCode, response.body());
+
+            // 🔴 400이면 바로 멈추도록 예외 발생
+            if (statusCode == 400) {
+                throw new IllegalStateException(
+                        "Notion query 400 (invalid_request_url). NOTION_DB_ID / URL 설정을 확인하세요."
+                );
+            }
+
             return null;
         }
 
@@ -89,21 +92,19 @@ public class NotionClient {
             return null;
         }
 
-        // 첫 번째 결과의 id만 사용
         return results.get(0).get("id").asText();
     }
 
     private void createPage(ErrorCodeDoc doc) throws Exception {
         ObjectNode root = objectMapper.createObjectNode();
 
-        // parent: 단일 데이터 소스 DB라면 database_id 그대로 사용해도 동작합니다.
         ObjectNode parent = objectMapper.createObjectNode();
         parent.put("database_id", databaseId);
         root.set("parent", parent);
 
         ObjectNode properties = objectMapper.createObjectNode();
 
-        // Name (Title) = code
+        // code (Title)
         ObjectNode nameProp = objectMapper.createObjectNode();
         ArrayNode titleArray = objectMapper.createArrayNode();
         ObjectNode titleText = objectMapper.createObjectNode();
@@ -148,8 +149,13 @@ public class NotionClient {
 
         int statusCode = response.statusCode();
         if (statusCode < 200 || statusCode >= 300) {
-            System.err.println("Notion createPage 실패: " + statusCode);
-            System.err.println(response.body());
+            log.error("Notion createPage 실패. statusCode={}, body={}", statusCode, response.body());
+
+            if (statusCode == 400) {
+                throw new IllegalStateException(
+                        "Notion createPage 400 (invalid_request_url). DB 스키마/속성 이름을 확인하세요."
+                );
+            }
         }
     }
 
@@ -200,9 +206,15 @@ public class NotionClient {
         HttpResponse<String> response =
                 httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            System.err.println("Notion updatePage 실패: " + response.statusCode());
-            System.err.println(response.body());
+        int statusCode = response.statusCode();
+        if (statusCode < 200 || statusCode >= 300) {
+            log.error("Notion updatePage 실패. statusCode={}, body={}", statusCode, response.body());
+
+            if (statusCode == 400) {
+                throw new IllegalStateException(
+                        "Notion updatePage 400 (invalid_request_url). DB 스키마/속성 이름을 확인하세요."
+                );
+            }
         }
     }
 }

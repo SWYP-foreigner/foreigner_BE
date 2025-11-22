@@ -80,6 +80,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     Optional<Image> findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
+    boolean existsByImageTypeAndRelatedId(ImageType imageType, Long relatedId);
 
     @Modifying
     @Query("DELETE FROM Image i WHERE i.imageType = :imageType AND i.relatedId = :relatedId")
@@ -98,4 +99,14 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     void deleteAllByImageTypeAndRelatedIdIn(ImageType type, List<Long> postIds);
 
     List<Image> findByImageTypeAndRelatedIdIn(ImageType imageType, List<Long> relatedIds);
+
+
+    /**
+     * 특정 이미지 타입(ImageType)과 연관 ID(relatedId)를 가진 이미지들 중
+     * orderIndex가 가장 작은(가장 상위에 있는) 하나의 이미지를 조회합니다.
+     * * @param imageType 이미지 타입 (예: CHAT_ROOM)
+     * @param relatedId 연관된 엔티티의 ID (예: 채팅방 ID)
+     * @return 조회된 Image 엔티티 (Optional)
+     */
+    Optional<Image> findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 }

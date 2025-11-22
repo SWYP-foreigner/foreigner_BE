@@ -3,6 +3,7 @@ package core.domain.notification.service;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.MessagingErrorCode;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationEvent;
@@ -19,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-
 
 @Slf4j
 @Service
@@ -39,7 +39,8 @@ public class PushNotificationService {
      * @param event 알림 이벤트 데이터
      * @param message 사용자에게 보여줄 최종 메시지
      */
-    public void sendPushNotification(User recipient, NotificationEvent event, String message) {
+    @Transactional
+    public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
@@ -86,13 +87,14 @@ public class PushNotificationService {
                         messageBuilder.putData("commentId", String.valueOf(event.commentId()));
                     }
                     break;
-                case  comment:
+                case comment:
                     messageBuilder
                             .putData("type", "comment")
                             .putData("postId", String.valueOf(event.referenceId()));
                     if (event.commentId() != null) {
                         messageBuilder.putData("commentId", String.valueOf(event.commentId()));
                     }
+                    break;
                 case follow:
                     messageBuilder
                             .putData("type", "follow")
@@ -136,8 +138,22 @@ public class PushNotificationService {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
             } catch (FirebaseMessagingException e) {
-                log.error("푸시 알림 발송 실패: 사용자 ID {}", recipient.getId(), e);
-                // TODO: 만료된 토큰 등 FCM 예외에 대한 후처리 로직 (예: DB에서 토큰 삭제)
+                MessagingErrorCode code = e.getMessagingErrorCode();
+                String errorMessage = e.getMessage();
+                if (code == MessagingErrorCode.UNREGISTERED ||
+                        (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
+                        code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                    log.info("만료/무효 토큰 삭제: {} (코드: {})", userDeviceToken.getDeviceToken(), code);
+                    userDeviceTokenRepository.delete(userDeviceToken);
+                } else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
+                        code == MessagingErrorCode.UNAVAILABLE ||
+                        code == MessagingErrorCode.INTERNAL) {
+                    log.warn("재시도 필요: {} (코드: {})", errorMessage, code);
+                    throw e;  // 호출자에게 예외를 전파하여 재시도 처리
+                } else {
+                    log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
+                    // 여기에 fallback 로직 추가 가능 (e.g., 이메일 알림)
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,10 +23,13 @@ public interface PostRepository extends JpaRepository<Post, Long> , PostReposito
     @Modifying
     @Query("update Post p set p.checkCount = p.checkCount + 1 where p.id = :postId")
 
-    int incrementViewCount(@Param("postId") Long postId);
+    void incrementViewCount(@Param("postId") Long postId);
 
     Page<Post> findByAuthorId(Long authorId, Pageable pageable);
 
-    boolean existsByBoard(Board board);
+    Long countByAuthorEmailAndCreatedAtAfter(String authorEmail, Instant createdAt);
+
     List<Post> findByBoard(Board board);
+
+    boolean existsByAuthorEmailAndContentAndCreatedAtAfter(String email, String normalizedContent, Instant cutOff);
 }
