@@ -4,6 +4,7 @@ import core.domain.post.entity.CrawledData;
 import core.domain.post.repository.CrawledDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.htmlunit.BrowserVersion;
 import org.htmlunit.WebClient;
 import org.htmlunit.html.HtmlPage;
 import org.jsoup.Jsoup;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 @Slf4j
@@ -34,31 +37,45 @@ public class MyDramaListCrawlerService {
 
     private static final String DETAIL_CONTENT_SELECTOR = "div.show-synopsis > p > span";
 
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     @Scheduled(cron = "0 0 7 * * *")
     @Transactional
     public void crawlMyDramaList() {
-        log.info("Starting mydramalist.com crawling with HtmlUnit (2-Step)...");
+        log.info("Starting mydramalist.com crawling with HtmlUnit...");
 
-        try (final WebClient webClient = new WebClient()) {
+        Logger.getLogger("org.htmlunit").setLevel(Level.OFF);
+        Logger.getLogger("org.htmlunit.javascript").setLevel(Level.OFF);
+        Logger.getLogger("org.htmlunit.css").setLevel(Level.OFF);
+
+        try (final WebClient webClient = new WebClient(BrowserVersion.CHROME)) {
+
             webClient.getOptions().setJavaScriptEnabled(true);
             webClient.getOptions().setCssEnabled(false);
             webClient.getOptions().setThrowExceptionOnScriptError(false);
-            webClient.getOptions().setThrowExceptionOnFailingStatusCode(true);
-            webClient.getOptions().setTimeout(15000);
+            webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
+            webClient.getOptions().setPrintContentOnFailingStatusCode(false);
+            webClient.getOptions().setTimeout(20000);
+
             webClient.addRequestHeader("User-Agent", USER_AGENT);
-            webClient.addRequestHeader("Accept-Language", "ko-KR,ko;q=0.9");
+            webClient.addRequestHeader("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7");
             webClient.addRequestHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+            webClient.addRequestHeader("Referer", "https://www.google.com/");
 
             log.debug("HtmlUnit: Connecting to List Page {}", LIST_URL);
             final HtmlPage listPage = webClient.getPage(LIST_URL);
-            webClient.waitForBackgroundJavaScript(10000);
+
+            webClient.waitForBackgroundJavaScript(15000);
+
             log.info("HtmlUnit: List Page loaded.");
             Document listDoc = Jsoup.parse(listPage.asXml());
 
             Elements articles = listDoc.select(LIST_ARTICLE_SELECTOR);
             log.info("Found {} articles on mydramalist search page.", articles.size());
+
+            if (articles.isEmpty()) {
+                log.warn("⚠️ Articles empty. Server IP might be blocked by Cloudflare challenge.");
+            }
 
             for (Element articleElement : articles) {
 
@@ -66,7 +83,6 @@ public class MyDramaListCrawlerService {
                 Element thumbElement = articleElement.selectFirst(LIST_THUMBNAIL_SELECTOR);
 
                 if (linkElement == null || thumbElement == null) {
-                    log.warn("Skipping article, essential element (link or thumb) not found.");
                     continue;
                 }
 
@@ -95,7 +111,6 @@ public class MyDramaListCrawlerService {
                     } else {
                         Element snippetElement = articleElement.selectFirst("div.content p:not(:has(span.rating))");
                         fullContent = (snippetElement != null) ? snippetElement.text() : title;
-                        log.warn("Could not find full content for [{}], using snippet or title.", title);
                     }
 
                 } catch (Exception e) {
@@ -114,15 +129,10 @@ public class MyDramaListCrawlerService {
                 log.info("Successfully crawled and saved: {}", originalUrl);
 
                 Thread.sleep(3000);
-
             }
 
         } catch (Exception e) {
             log.error("Error occurred during crawling mydramalist.com", e);
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new RuntimeException("MyDramaList 크롤링 실패: " + e.getMessage(), e);
         }
         log.info("Finished mydramalist.com crawling.");
     }
