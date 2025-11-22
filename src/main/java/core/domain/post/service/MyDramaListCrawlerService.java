@@ -5,8 +5,10 @@ import core.domain.post.repository.CrawledDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.htmlunit.BrowserVersion;
+import org.htmlunit.ScriptException;
 import org.htmlunit.WebClient;
 import org.htmlunit.html.HtmlPage;
+import org.htmlunit.javascript.JavaScriptErrorListener;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -15,6 +17,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -44,6 +48,7 @@ public class MyDramaListCrawlerService {
     public void crawlMyDramaList() {
         log.info("Starting mydramalist.com crawling with HtmlUnit...");
 
+        // 1. 기본 로거 끄기 (기존 코드)
         Logger.getLogger("org.htmlunit").setLevel(Level.OFF);
         Logger.getLogger("org.htmlunit.javascript").setLevel(Level.OFF);
         Logger.getLogger("org.htmlunit.css").setLevel(Level.OFF);
@@ -56,6 +61,30 @@ public class MyDramaListCrawlerService {
             webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
             webClient.getOptions().setPrintContentOnFailingStatusCode(false);
             webClient.getOptions().setTimeout(20000);
+
+            webClient.setJavaScriptErrorListener(new JavaScriptErrorListener() {
+                @Override
+                public void scriptException(HtmlPage page, ScriptException scriptException) {}
+                @Override
+                public void timeoutError(HtmlPage page, long allowedTime, long executionTime) {}
+                @Override
+                public void malformedScriptURL(HtmlPage page, String url, MalformedURLException malformedURLException) {}
+                @Override
+                public void loadScriptError(HtmlPage page, URL scriptUrl, Exception exception) {}
+                @Override
+                public void warn(String message, String sourceName, int line, String lineSource, int lineOffset) {}
+            });
+
+            webClient.setCssErrorHandler(new org.htmlunit.cssparser.parser.CSSErrorHandler() {
+                @Override
+                public void error(org.htmlunit.cssparser.parser.CSSParseException exception) {}
+                @Override
+                public void fatalError(org.htmlunit.cssparser.parser.CSSParseException exception) {}
+                @Override
+                public void warning(org.htmlunit.cssparser.parser.CSSParseException exception) {}
+            });
+
+            webClient.setIncorrectnessListener((message, origin) -> {});
 
             webClient.addRequestHeader("User-Agent", USER_AGENT);
             webClient.addRequestHeader("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7");
