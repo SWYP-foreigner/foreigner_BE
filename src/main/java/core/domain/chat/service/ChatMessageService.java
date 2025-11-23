@@ -77,7 +77,7 @@ public class ChatMessageService {
     @Value("${ncp.s3.bucket}")
     private String bucketName;
 
-    private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
+
 
     /**
      * 최적화된 메시지 전송 로직

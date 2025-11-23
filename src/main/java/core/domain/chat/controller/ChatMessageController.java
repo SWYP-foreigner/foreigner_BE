@@ -6,6 +6,7 @@ import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema; // 추가됨
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -26,14 +27,13 @@ public class ChatMessageController {
     private final ChatMessageService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
-    @Operation(summary = "채팅방 메시지 조회 (무한 스크롤 위로 스크롤올릴때 호출하는 api )")
+    // [수정 1] List 반환 명시 (@ArraySchema) 및 설명 문구 수정
+    @Operation(summary = "채팅방 메시지 조회 (과거 내역 무한 스크롤)", description = "채팅방에서 위로 스크롤하여 과거 메시지를 로딩할 때 호출합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
@@ -47,14 +47,13 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
+    // [수정 2] List 반환 명시 (@ArraySchema)
     @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageFirstResponse.class))
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageFirstResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음")
     })
     @GetMapping("/rooms/{roomId}/first_messages")
     public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
@@ -67,17 +66,13 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
+    // [수정 3] List 반환 명시 (@ArraySchema)
     @Operation(summary = "메시지 키워드 검색", description = "메시지 내용을 키워드로 검색합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 유저",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
@@ -91,17 +86,13 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
+    // [수정 4] List 반환 명시 (@ArraySchema)
     @Operation(summary = "특정 메시지 주변의 채팅 내용 조회", description = "검색 등에서 특정 메시지로 바로 이동할 때 사용합니다. 해당 메시지 기준 이전 20개, 이후 20개의 메시지를 반환합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatMessageResponse.class))
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 메세지",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 메시지")
     })
     @GetMapping("/rooms/{roomId}/messages/around")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
@@ -127,6 +118,7 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    // [수정 5] 응답 스키마(PresignedUrlResponse) 명시
     @Operation(summary = "채팅 미디어 Presigned URL 발급",
             description = """
                지정된 채팅방(chatroomId)에 사진이나 동영상을 업로드할 수 있는, 15분간 유효한 일회성 URL을 발급합니다.
@@ -136,7 +128,8 @@ public class ChatMessageController {
                업로드 성공 후에는 응답으로 받은 `fileKey` 값을 사용하여 WebSocket으로 최종 메시지를 전송해야 합니다.
                """)
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Presigned URL 발급 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Presigned URL 발급 성공",
+                    content = @Content(schema = @Schema(implementation = PresignedUrlResponse.class))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 ID일 경우")
     })
     @PostMapping("/presigned-url/chat/{chatroomId}")
