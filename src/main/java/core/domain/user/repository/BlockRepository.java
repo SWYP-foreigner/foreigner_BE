@@ -14,7 +14,9 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface BlockRepository extends JpaRepository<BlockUser, Long> {
-
+    @Query("select count(b) > 0 from BlockUser b " +
+            "where b.user.email = :userEmail and b.blocked.email = :blockedEmail")
+    boolean existsBlockedByEmail(@Param("userEmail") String userEmail, @Param("blockedEmail") String blockedEmail);
     @Query("select b.blocked from BlockUser b " +
            "where b.user.email = :email")
     List<User> getBlockUsersByUserEmail(@Param("email") String email);
