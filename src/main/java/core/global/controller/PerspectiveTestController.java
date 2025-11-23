@@ -1,7 +1,7 @@
 package core.global.controller;
 
 import core.domain.chat.dto.SendMessageRequest;
-import core.domain.chat.service.ChatService;
+import core.domain.chat.service.ChatMessageService;
 import core.global.exception.BusinessException;
 import core.global.service.PerspectiveService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class PerspectiveTestController {
 
     private final PerspectiveService perspectiveService;
-    private final ChatService chatService;
+    private final ChatMessageService chatService;
 
     /**
      * Perspective API 유해성 검사를 테스트합니다.
@@ -49,10 +49,8 @@ public class PerspectiveTestController {
             @RequestBody SendMessageRequest request
     ) {
         try {
-            // 2. ChatService의 메시지 처리 메서드 호출
             chatService.processAndSendChatMessage(request);
 
-            // 3. AI 검사 여부와 관계없이 메시지 전송은 항상 성공 (정책 변경)
             String result = "메시지 전송 성공. (스팸인 경우, /admin/chats/reports 에서 'AI_DETECTED_SPAM' 신고 내역을 확인하세요.)";
             return ResponseEntity.ok(result);
 
