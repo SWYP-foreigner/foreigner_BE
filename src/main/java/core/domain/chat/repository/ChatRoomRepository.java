@@ -69,4 +69,17 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             "AND p2.user.id = :userId2")
     Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 
+
+    /**
+     * 특정 유저가 참여하지 않은, 추천 가능하고 그룹인 채팅방의 ID 목록을 조회합니다.
+     * * @param userId 제외할 유저 ID
+     * @return 추천 가능한 그룹 채팅방 ID 목록
+     */
+    @Query(value = "SELECT c.chatroom_id FROM chat_room c " +
+            "WHERE c.is_recommendable = TRUE " +
+            "AND c.is_group = TRUE " +
+            "AND c.chatroom_id NOT IN (SELECT cp.chatroom_id FROM chat_participant cp WHERE cp.user_id = :userId)",
+            nativeQuery = true)
+    List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
+
 }

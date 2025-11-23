@@ -1,7 +1,7 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.service.ChatService;
+import core.domain.chat.service.ChatMessageService;
 import core.global.config.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Controller;
 @RequiredArgsConstructor
 public class ChatWebSocketController {
 
-    private final ChatService chatService;
+    private final ChatMessageService chatService;
     private final Logger log = LoggerFactory.getLogger(ChatWebSocketController.class);
 
 
