@@ -125,7 +125,6 @@ public class ChatMessageService {
             // 본인은 읽음 처리 후 패스 (혹은 "NONE" 그룹에 포함시켜 나에게도 소켓 오게 할지 결정)
             if (recipient.getId().equals(sender.getId())) {
                 p.setLastReadMessageId(savedMessage.getId());
-                continue; // 보통 본인 메시지는 프론트에서 바로 그리므로 스킵하거나, 포함시켜도 됨
             }
 
             // 번역 설정 확인
@@ -350,17 +349,9 @@ public class ChatMessageService {
             boolean isBlocked = blockRepository.existsBlock(recipient.getId(), sender.getId()) ||
                     blockRepository.existsBlock(sender.getId(), recipient.getId());
             if (isBlocked) continue;
-
-            // 알림(Push Notification) 발송 로직은 그대로 유지 (또는 이것도 이벤트로 분리 가능)
-            if (!recipient.getId().equals(sender.getId())) {
-                // ... (기존 알림 로직 유지) ...
-            }
-
-            // 수신자 리스트에 추가
             recipientIds.add(recipient.getId());
         }
 
-        // 3. 응답 DTO 생성 (동일)
         String fullMediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
         String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
                 .map(Image::getUrl).orElse(null);
