@@ -87,9 +87,9 @@ public class ChatMessageService {
 
     private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
 
-
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
+        // 1. 참여자 검증 (기존 동일)
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
@@ -98,8 +98,10 @@ public class ChatMessageService {
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
 
+        // 2. 메시지 가져오기 (기존 동일)
         List<ChatMessage> messages = getRawMessages(roomId, userId, lastMessageId);
 
+        // 3. 차단된 유저 필터링 (기존 동일)
         List<Long> blockedIds = getBlockedUserIds(userId);
         if (!blockedIds.isEmpty()) {
             messages = messages.stream()
@@ -107,6 +109,29 @@ public class ChatMessageService {
                     .toList();
         }
 
+        // ==========================================
+        // [수정됨] 4. 프로필 이미지 Bulk 조회 (N+1 문제 해결 핵심)
+        // ==========================================
+        List<Long> senderIds = messages.stream()
+                .map(msg -> msg.getSender().getId())
+                .distinct()
+                .toList();
+
+        Map<Long, String> profileMap = new HashMap<>();
+        if (!senderIds.isEmpty()) {
+            // 이미 getFirstMessages에서 사용 중인 메서드를 재활용합니다.
+            List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, senderIds);
+
+            // 가져온 이미지를 Map<User_ID, Image_URL> 형태로 변환하여 빠르게 찾을 수 있게 합니다.
+            profileMap = images.stream()
+                    .collect(Collectors.toMap(
+                            Image::getRelatedId,
+                            Image::getUrl,
+                            (existing, replacement) -> existing // 중복 시 첫 번째 것 사용
+                    ));
+        }
+
+        // 5. 번역 및 응답 변환 (Map을 전달하도록 변경)
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
             List<String> originalContents = messages.stream()
                     .map(ChatMessage::getContent)
@@ -114,20 +139,36 @@ public class ChatMessageService {
             List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
 
             List<ChatMessage> finalMessages = messages;
+            Map<Long, String> finalProfileMap = profileMap;
+
             return IntStream.range(0, messages.size())
                     .mapToObj(i -> {
                         ChatMessage message = finalMessages.get(i);
                         String translatedContent = translatedContents.get(i);
-                        return mapToResponse(message, translatedContent);
+                        // profileMap을 인자로 넘깁니다.
+                        return mapToResponse(message, translatedContent, finalProfileMap);
                     }).collect(Collectors.toList());
         } else {
+            Map<Long, String> finalProfileMap = profileMap;
             return messages.stream()
-                    .map(message -> mapToResponse(message, null))
+                    .map(message -> mapToResponse(message, null, finalProfileMap))
                     .collect(Collectors.toList());
         }
     }
 
+    // [수정됨] 헬퍼 메서드: 매번 DB를 조회하는 대신 미리 가져온 Map에서 꺼내 씁니다.
+    private ChatMessageResponse mapToResponse(ChatMessage message, String translatedContent, Map<Long, String> profileMap) {
+        User sender = message.getSender();
 
+        // DB 조회 코드 삭제됨 -> Map 조회로 변경 (메모리 연산이라 매우 빠름)
+        String senderImg = profileMap.get(sender.getId());
+
+        return new ChatMessageResponse(
+                message.getId(), message.getChatRoom().getId(), sender.getId(),
+                message.getContent(), translatedContent, message.getSentAt(),
+                sender.getFirstName(), sender.getLastName(), senderImg, message.getMessageType()
+        );
+    }
 
     /**
      * AI 스팸 감지 로직 (비동기 실행용)
