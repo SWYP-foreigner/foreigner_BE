@@ -3,7 +3,7 @@ package core.domain.chat.dto;
 import java.time.Instant;
 
 public record ChatRoomSummaryResponse(
-        Long chatRoomId,
+        Long roomId,
         String roomName,
         String lastMessageContent,
         Instant lastMessageTime,
