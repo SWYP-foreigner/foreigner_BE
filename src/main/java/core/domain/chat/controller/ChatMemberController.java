@@ -1,6 +1,7 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
+import core.domain.chat.service.ChatMemberService;
 import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
@@ -27,7 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatMemberController {
 
-    private final ChatService chatService;
+    private final ChatMemberService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
     @Operation(summary = "채팅 참여자 조회")
@@ -70,15 +71,15 @@ public class ChatMemberController {
     })
     @PostMapping("/block/{targetUserId}")
     public ResponseEntity<ApiResponse<?>> blockUser(
-            @PathVariable @Positive Long targetUserId
+            @PathVariable @Positive Long targetUserId,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        chatService.blockChatUser(targetUserId);
+        chatService.blockChatUser(targetUserId, principal.getUserId());
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("차단 성공"));
     }
-
     @Operation(summary = "채팅 내용 신고", description = "채팅방, 사용자, 메시지 내용을 신고합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 접수 성공"),

@@ -2,6 +2,7 @@ package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
+import core.domain.chat.service.ChatRoomService;
 import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
@@ -26,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatRoomController {
 
-    private final ChatService chatService;
+    private final ChatRoomService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
     @Operation(summary = "1:1 새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
