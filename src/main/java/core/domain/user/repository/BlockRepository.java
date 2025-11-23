@@ -25,15 +25,12 @@ public interface BlockRepository extends JpaRepository<BlockUser, Long> {
 
     @Query("SELECT b FROM BlockUser b WHERE b.user = :user AND b.blocked = :blockedUser")
     Optional<BlockUser> findBlockRelationship(@Param("user") User user, @Param("blockedUser") User blockedUser);
-
+    @Query("SELECT b FROM BlockUser b WHERE b.user.id = :userId OR b.blocked.id = :userId")
+    List<BlockUser> findAllRelatedBlocks(@Param("userId") Long userId);
     List<BlockUser> findByUser(User user);
 
     Page<BlockUser> findByUserId(Long userId, Pageable pageable);
 
-    @Query("select count(b) > 0 from BlockUser b " +
-            "where b.user.email = :email and b.blocked.email = :email")
-    boolean existsBlockedByEmail(@Param("email") String  email, @Param("email") String authorEmail);
-    List<BlockUser> findByUserId(Long userId);
 
     @Modifying
     @Query("delete from BlockUser b where b.user = :user or b.blocked = :user")

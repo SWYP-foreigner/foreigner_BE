@@ -33,7 +33,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -44,6 +43,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -56,8 +56,8 @@ public class ChatMessageService {
 
     // Repository
     private final ChatMessageRepository chatMessageRepository;
-    private final ChatParticipantRepository chatParticipantRepository; // participantRepo 통합
-    private final ChatRoomRepository chatRoomRepository; // chatRoomRepo 통합
+    private final ChatParticipantRepository chatParticipantRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
     private final BlockRepository blockRepository;
@@ -65,12 +65,11 @@ public class ChatMessageService {
     // Service
     private final UserRoleDetectService userRoleDetectService;
     private final TranslationService translationService;
-    private final PerspectiveService perspectiveService; // 추가됨
-    private final ChatMemberService chatMemberService; // 신고 기능을 위해 주입 (순환 참조 주의 -> 필요시 Repository 직접 사용)
+    private final PerspectiveService perspectiveService;
+    private final ChatMemberService chatMemberService;
 
-    // Infrastructure
     private final S3Presigner s3Presigner;
-    private final ApplicationEventPublisher eventPublisher; // 추가됨
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
@@ -86,12 +85,10 @@ public class ChatMessageService {
         this.messagingTemplate = messagingTemplate;
     }
 
-    // 내부 레코드 (MessagePair 복원)
     private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
 
-    // --- 메시지 조회 (HTTP) ---
 
-    @Transactional(readOnly = true) // 읽기 전용 트랜잭션 적용
+    @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
@@ -130,91 +127,30 @@ public class ChatMessageService {
         }
     }
 
-    // --- WebSocket 관련 (전송, 읽음처리, 삭제) ---
 
-    @Transactional
-    public void processAndSendChatMessage(SendMessageRequest req) {
-        long startTime = System.currentTimeMillis();
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
-        String originalContent = savedMessage.getContent();
 
-        ChatRoom chatRoom = savedMessage.getChatRoom();
-        List<ChatParticipant> participants = chatRoom.getParticipants();
-        User senderUser = savedMessage.getSender();
+    /**
+     * AI 스팸 감지 로직 (비동기 실행용)
+     */
+    private void checkSpamAndReport(ChatMessage message) {
+        String content = message.getContent();
+        boolean needsAiCheck = (content.contains("http") || content.contains("www.") || content.contains(".com"));
 
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, req.senderId())
-                .map(Image::getUrl).orElse(null);
+        if (!needsAiCheck) return;
 
-        // 보낸 사람 읽음 처리
-        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
-                .ifPresent(participant -> {
-                    participant.setLastReadMessageId(savedMessage.getId());
-                    chatParticipantRepository.save(participant);
-                });
-
-        // AI 스팸 감지
-        boolean needsAiCheck = (originalContent.contains("http") || originalContent.contains("www.") || originalContent.contains(".com"));
-        if (needsAiCheck) {
-            log.debug("URL 감지. Perspective API 검사 시작... (User ID: {})", req.senderId());
-            if (perspectiveService.isHarmful(originalContent)) {
-                log.warn("스팸 메시지 감지(AI): senderId={}, content={}", req.senderId(), originalContent);
-                try {
-                    ChatReportRequest aiReportRequest = new ChatReportRequest(
-                            savedMessage.getId(), "AI_DETECTED_SPAM", "Perspective API가 스팸/유해 콘텐츠로 감지함"
-                    );
-                    // ChatMemberService를 통해 신고 처리 (또는 Repository 직접 사용)
-                    chatMemberService.reportChat(null, aiReportRequest);
-                    log.info("AI 자동 신고 처리 완료 (Message ID: {})", savedMessage.getId());
-                } catch (Exception e) {
-                    log.warn("AI 자동 신고 처리 중 오류: {}", e.getMessage());
-                }
-            }
-        }
-
-        // 수신자별 전송 로직
-        for (ChatParticipant participant : participants) {
-            User recipient = participant.getUser();
-            String targetContent = null;
-
-            boolean isBlockedByRecipient = blockRepository.existsBlock(recipient.getId(), senderUser.getId());
-            boolean isBlockedByMe = blockRepository.existsBlock(senderUser.getId(), recipient.getId());
-
-            if (isBlockedByRecipient || isBlockedByMe) continue;
-
-            // 번역
-            if (participant.isTranslateEnabled()) {
-                String targetLanguage = recipient.getTranslateLanguage();
-                if (targetLanguage != null && !targetLanguage.isEmpty()) {
-                    List<String> translatedList = translationService.translateMessages(List.of(originalContent), targetLanguage);
-                    if (!translatedList.isEmpty()) targetContent = translatedList.get(0);
-                }
-            }
-
-            // 알림 이벤트 발행
-            if (!recipient.getId().equals(req.senderId())) {
-                NotificationEvent event = new NotificationEvent(
-                        recipient.getId(), senderUser.getId(), NotificationType.chat,
-                        chatRoom.getId(), originalContent, chatRoom.getRoomName()
+        try {
+            if (perspectiveService.isHarmful(content)) {
+                log.warn("AI Spam Detected: messageId={}", message.getId());
+                ChatReportRequest reportRequest = new ChatReportRequest(
+                        message.getId(), "AI_DETECTED_SPAM", "Perspective API 감지"
                 );
-                eventPublisher.publishEvent(event);
+                chatMemberService.reportChat(null, reportRequest);
             }
-
-            ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(), chatRoom.getId(), savedMessage.getSender().getId(),
-                    originalContent, targetContent, savedMessage.getSentAt(),
-                    senderUser.getFirstName(), senderUser.getLastName(), userImageUrl, MessageType.TEXT
-            );
-
-            String destination = String.format("/topic/user/%s/%s/messages", recipient.getId(), chatRoom.getId());
-            messagingTemplate.convertAndSend(destination, messageResponse);
-
-            // 채팅방 목록 갱신
-            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), recipient.getId());
-            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/rooms", summary);
+        } catch (Exception e) {
+            log.error("Async AI Check failed", e);
         }
-        long endTime = System.currentTimeMillis();
-        log.info("Processed TEXT message for roomId={} in {}ms", req.roomId(), (endTime - startTime));
     }
+
 
     @Transactional
     public void processMarkAsRead(MarkAsReadRequest req, Long readerId) {
@@ -317,7 +253,7 @@ public class ChatMessageService {
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
         if (lastMessageOpt.isPresent()) {
             MarkAsReadRequest req = new MarkAsReadRequest(roomId, readerId, lastMessageOpt.get().getId());
-            processMarkAsRead(req, readerId); // 기존 로직 재사용
+            processMarkAsRead(req, readerId);
         }
     }
 
@@ -333,14 +269,41 @@ public class ChatMessageService {
 
     @Transactional(readOnly = true)
     public List<ChatMessageFirstResponse> getFirstMessages(Long roomId, Long userId) {
-        // (중복 로직 제거 - Controller에서 Principal로 ID 받음)
+        // 채팅방 존재 확인
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // ... (기존 getFirstMessages 구현 로직 유지)
-        // ... (긴 코드는 생략하고 기존 코드 로직 그대로 사용)
-        // ...
-        return new ArrayList<>(); // (실제 구현 시 기존 코드 복사)
+        // 참여 여부 확인
+        chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .filter(participant -> participant.getStatus() != ChatParticipantStatus.LEFT)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
+
+        // 최근 50개 조회
+        List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
+
+        // 차단 유저 제외
+        List<Long> blockedIds = getBlockedUserIds(userId);
+        if (!blockedIds.isEmpty()) {
+            messages = messages.stream()
+                    .filter(msg -> !blockedIds.contains(msg.getSender().getId()))
+                    .toList();
+        }
+
+        // 이미지 Bulk 조회
+        List<Long> senderIds = messages.stream().map(msg -> msg.getSender().getId()).distinct().toList();
+        Map<Long, String> senderImageUrlMap = new HashMap<>();
+
+        if (!senderIds.isEmpty()) {
+            List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, senderIds);
+            senderImageUrlMap = images.stream().collect(Collectors.toMap(
+                    Image::getRelatedId, Image::getUrl, (url1, url2) -> url1
+            ));
+        }
+
+        Map<Long, String> finalMap = senderImageUrlMap;
+        return messages.stream()
+                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, finalMap.get(message.getSender().getId())))
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -378,15 +341,24 @@ public class ChatMessageService {
 
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
-        ChatMessage target = chatMessageRepository.findById(targetMessageId).orElseThrow();
+        ChatMessage target = chatMessageRepository.findById(targetMessageId).orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
         List<ChatMessage> newer = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
         List<ChatMessage> combined = new ArrayList<>(older);
         combined.add(target);
         combined.addAll(newer);
 
-        // 번역 로직 적용 후 반환 (위 getMessages와 동일한 패턴 사용)
-        // ...
+        boolean needsTranslation = participant.isTranslateEnabled();
+        String targetLanguage = participant.getUser().getTranslateLanguage();
+
+        if (needsTranslation && targetLanguage != null) {
+            List<String> contents = combined.stream().map(ChatMessage::getContent).toList();
+            List<String> translated = translationService.translateMessages(contents, targetLanguage);
+            return IntStream.range(0, combined.size())
+                    .mapToObj(i -> mapToResponse(combined.get(i), translated.get(i)))
+                    .collect(Collectors.toList());
+        }
+
         return combined.stream().map(m -> mapToResponse(m, null)).collect(Collectors.toList());
     }
 
@@ -407,7 +379,7 @@ public class ChatMessageService {
         return chatMessageRepository.save(new ChatMessage(room, sender, content));
     }
 
-    // --- Private Helper Methods (필수 복원) ---
+    // --- Private Helper Methods ---
 
     private List<ChatMessage> getRawMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant p = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId).orElseThrow();

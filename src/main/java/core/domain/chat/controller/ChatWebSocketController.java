@@ -25,17 +25,7 @@ public class ChatWebSocketController {
      *
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
-    @MessageMapping("/chat.sendMessage")
-    public void sendMessage(
-            @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
-    ) {
-        log.info(String.valueOf(principal.getUserId()));
-        try {
-            chatService.processAndSendChatMessage(req);
-        } catch (Exception e) {
-            log.error("메시지 전송 실패", e);
-        }
-    }
+
 
 
     /**
