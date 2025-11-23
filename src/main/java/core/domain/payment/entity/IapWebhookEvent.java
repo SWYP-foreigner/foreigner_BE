@@ -1,5 +1,6 @@
 package core.domain.payment.entity;
 
+import core.global.enums.DeviceType;
 import core.global.enums.Oauthplatform;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -20,7 +21,7 @@ public class IapWebhookEvent {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "platform", nullable = false, length = 16)
-    private Oauthplatform platform;
+    private DeviceType platform;
 
     @Column(name = "event_type", nullable = false, length = 64)
     private String eventType; // ASN/RTDN 타입명 등
@@ -40,4 +41,24 @@ public class IapWebhookEvent {
     @Lob
     @Column(name = "raw_json")
     private String rawJson;
+
+    protected IapWebhookEvent() {}
+
+    // 사용 중인 생성자 시그니처 지원
+    public IapWebhookEvent(DeviceType platform, String dedupKey,
+                           String eventType, String processStatus, String rawJson) {
+        this.platform = platform;
+        this.dedupKey = dedupKey;
+        this.eventType = eventType;
+        this.processStatus = processStatus;
+        this.rawJson = rawJson;
+        this.receivedAt = Instant.now();
+    }
+
+    public void updateProcessStatus(String processStatus) {
+        this.processStatus = processStatus;
+        if ("DONE".equals(processStatus)) {
+            this.processedAt = Instant.now();
+        }
+    }
 }
