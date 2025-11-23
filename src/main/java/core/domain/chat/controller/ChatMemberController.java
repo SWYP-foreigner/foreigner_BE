@@ -2,7 +2,6 @@ package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatMemberService;
-import core.domain.chat.service.ChatService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 import core.global.metrics.FeatureUsageMetrics;

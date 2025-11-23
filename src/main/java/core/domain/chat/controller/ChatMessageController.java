@@ -1,7 +1,7 @@
 package core.domain.chat.controller;
 
 import core.domain.chat.dto.*;
-import core.domain.chat.service.ChatService;
+import core.domain.chat.service.ChatMessageService;
 import core.global.config.CustomUserDetails;
 import core.global.dto.ApiResponse;
 import core.global.metrics.FeatureUsageMetrics;
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatMessageController {
 
-    private final ChatService chatService;
+    private final ChatMessageService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
     @Operation(summary = "채팅방 메시지 조회 (무한 스크롤 위로 스크롤올릴때 호출하는 api )")
