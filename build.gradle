@@ -126,7 +126,9 @@ dependencies {
 
 }
 
-
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 
 dependencyManagement {
 	imports {
