@@ -47,7 +47,7 @@ public class ChatEventListener {
             if (commonSummary != null) {
                 int personalUnreadCount = calculateUnreadCount(message.roomId(), recipientId);
                 ChatRoomSummaryResponse personalSummary = new ChatRoomSummaryResponse(
-                        commonSummary.chatRoomId(),
+                        commonSummary.roomId(),
                         commonSummary.roomName(),
                         commonSummary.lastMessageContent(),
                         commonSummary.lastMessageTime(),
