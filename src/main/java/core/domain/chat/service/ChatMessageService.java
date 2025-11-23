@@ -346,30 +346,59 @@ public class ChatMessageService {
                 .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, finalMap.get(message.getSender().getId())))
                 .collect(Collectors.toList());
     }
-
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
+        // 1. 참여자 검증
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
+
         boolean needsTranslation = participant.isTranslateEnabled();
         String targetLanguage = participant.getUser().getTranslateLanguage();
 
-        if (!needsTranslation || targetLanguage == null) {
-            List<ChatMessage> messages = chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
-            return messages.stream().map(m -> mapToResponse(m, null))
+        // 2. [최적화] 모든 메시지를 가져오는 대신, DB에서 검색 조건에 맞는 메시지만 가져옵니다.
+        //    (findByChatRoomIdAndContentContaining 메서드 활용)
+        List<ChatMessage> messages = chatMessageRepository.findByChatRoomIdAndContentContaining(roomId, keyword);
+
+        // 검색 결과가 없으면 빈 리스트 반환 (불필요한 로직 방지)
+        if (messages.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. [최적화] 검색된 결과의 프로필 이미지 Bulk 조회 (N+1 해결)
+        List<Long> senderIds = messages.stream()
+                .map(msg -> msg.getSender().getId())
+                .distinct()
+                .toList();
+
+        Map<Long, String> profileMap = imageRepository.findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, senderIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Image::getRelatedId,
+                        Image::getUrl,
+                        (existing, replacement) -> existing
+                ));
+
+        // 4. 번역 및 응답 변환 (검색된 소수의 메시지만 번역)
+        if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
+            List<String> originalContents = messages.stream()
+                    .map(ChatMessage::getContent)
+                    .collect(Collectors.toList());
+
+            // 검색된 결과(예: 5개)만 번역하므로 매우 빠르고 비용이 적음
+            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+
+            List<ChatMessage> finalMessages = messages;
+            return IntStream.range(0, messages.size())
+                    .mapToObj(i -> {
+                        ChatMessage message = finalMessages.get(i);
+                        String translatedContent = translatedContents.get(i);
+                        return mapToResponse(message, translatedContent, profileMap); // 1단계의 mapToResponse 재사용
+                    })
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         } else {
-            List<ChatMessage> allMessages = chatMessageRepository.findByChatRoomIdOrderByIdAsc(roomId);
-            if (allMessages.isEmpty()) return new ArrayList<>();
-
-            List<String> originalContents = allMessages.stream().map(ChatMessage::getContent).toList();
-            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
-
-            return IntStream.range(0, allMessages.size())
-                    .mapToObj(i -> new MessagePair(allMessages.get(i), translatedContents.get(i)))
-                    .filter(pair -> pair.translatedContent.toLowerCase().contains(keyword.toLowerCase()))
-                    .map(pair -> mapToResponse(pair.originalMessage, pair.translatedContent))
+            return messages.stream()
+                    .map(m -> mapToResponse(m, null, profileMap)) // 1단계의 mapToResponse 재사용
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
