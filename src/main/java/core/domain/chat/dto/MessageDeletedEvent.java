@@ -1,4 +1,5 @@
 package core.domain.chat.dto;
-
-public class MessageDeletedEvent {
-}
+public record MessageDeletedEvent(
+        Long roomId,
+        Long messageId
+) {}
