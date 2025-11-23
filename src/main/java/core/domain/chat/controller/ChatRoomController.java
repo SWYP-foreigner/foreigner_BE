@@ -158,7 +158,7 @@ public class ChatRoomController {
     @Operation(summary = "인기 그룹 채팅방 10개 조회", description = "참여자가 가장 많은 그룹 채팅방 10개를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = GroupChatSearchResponse.class))
+                    content = @Content(schema = @Schema(implementation = GroupChatMainResponse.class))
             )
     })
     @GetMapping("/group/popular")
