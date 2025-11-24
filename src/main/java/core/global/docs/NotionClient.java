@@ -104,6 +104,14 @@ public class NotionClient {
 
         ObjectNode properties = objectMapper.createObjectNode();
 
+        // ✅ type (Select)
+        ObjectNode typeProp = objectMapper.createObjectNode();
+        ObjectNode typeSelect = objectMapper.createObjectNode();
+        typeSelect.put("name", doc.type()); // 예: "AuthErrorCode"
+        typeProp.set("select", typeSelect);
+        properties.set("type", typeProp);
+
+
         // code (Title)
         ObjectNode nameProp = objectMapper.createObjectNode();
         ArrayNode titleArray = objectMapper.createArrayNode();
@@ -162,6 +170,13 @@ public class NotionClient {
     private void updatePage(String pageId, ErrorCodeDoc doc) throws Exception {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode properties = objectMapper.createObjectNode();
+
+        // ✅ type (Select)
+        ObjectNode typeProp = objectMapper.createObjectNode();
+        ObjectNode typeSelect = objectMapper.createObjectNode();
+        typeSelect.put("name", doc.type());
+        typeProp.set("select", typeSelect);
+        properties.set("type", typeProp);
 
         // code (Title)
         ObjectNode nameProp = objectMapper.createObjectNode();
