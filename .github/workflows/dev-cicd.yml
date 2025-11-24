@@ -234,7 +234,7 @@ jobs:
           
             
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g
+            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
             
             cat > apple_key.pem <<PEM
