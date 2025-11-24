@@ -209,7 +209,7 @@ public class ChatRoomService {
         );
     }
 
-    // --- 입장/퇴장/검색/추천 로직 ---
+
 
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
