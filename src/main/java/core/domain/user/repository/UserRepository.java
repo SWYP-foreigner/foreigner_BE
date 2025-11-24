@@ -86,6 +86,16 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
   """, nativeQuery = true)
     List<Object[]> countInactive30dAndTotal();
 
+    @Query(value = """
+        SELECT 
+            SUM(CASE WHEN last_seen_at < NOW() - INTERVAL '30 day' OR last_seen_at IS NULL THEN 1 ELSE 0 END) as inactive30,
+            COUNT(*) as total,
+            SUM(CASE WHEN last_seen_at < NOW() - INTERVAL '7 day' OR last_seen_at IS NULL THEN 1 ELSE 0 END) as inactive7,
+            SUM(CASE WHEN last_seen_at < NOW() - INTERVAL '3 day' OR last_seen_at IS NULL THEN 1 ELSE 0 END) as inactive3
+        FROM users
+    """, nativeQuery = true)
+    List<Object[]> countInactiveStatsAndTotal();
+
     /**
      * 최근 N주: KST(Asia/Seoul) 기준 "캘린더 주" 단위 VISITOR/전체 집계
      * 반환: [week_kst(yyyy-MM-dd, 주 시작일), total_users, visitors]
