@@ -122,12 +122,21 @@ public class ChatMessageService {
             // 차단된 유저 패스
             if (blockedUserIds.contains(recipient.getId())) continue;
 
-            // 본인은 읽음 처리 후 패스 (혹은 "NONE" 그룹에 포함시켜 나에게도 소켓 오게 할지 결정)
+            // -----------------------------------------------------------
+            // [수정된 부분] 보낸 사람(Sender) 처리 로직
+            // -----------------------------------------------------------
             if (recipient.getId().equals(sender.getId())) {
+                // 1. 읽음 처리 (기존 동일)
                 p.setLastReadMessageId(savedMessage.getId());
+
+                // 2. [추가] 보낸 사람은 무조건 "NONE"(번역 안 함) 그룹에 추가
+                recipientsByLang.computeIfAbsent("NONE", k -> new ArrayList<>()).add(recipient.getId());
+
+                // 3. [중요] 아래 번역 로직을 타지 않도록 여기서 루프 건너뛰기
+                continue;
             }
 
-            // 번역 설정 확인
+            // 번역 설정 확인 (보낸 사람이 아닐 때만 실행됨)
             String lang = (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null)
                     ? p.getUser().getTranslateLanguage()
                     : "NONE";
@@ -165,7 +174,7 @@ public class ChatMessageService {
         }
 
         long endTime = System.currentTimeMillis();
-        log.info("Processed message for room {} in {}ms (Recipients: {})",
+        log.debug("Processed message for room {} in {}ms (Recipients: {})",
                 req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
     }
 
