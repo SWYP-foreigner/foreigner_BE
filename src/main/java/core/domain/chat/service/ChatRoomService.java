@@ -114,7 +114,7 @@ public class ChatRoomService {
 
         return rooms.stream()
                 .filter(room -> {
-                    if (room.getGroup()) {
+                    if (room.getIsGroup()) {
                         return true;
                     }
                     Optional<User> opponentOpt = room.getParticipants().stream()
@@ -144,7 +144,7 @@ public class ChatRoomService {
                     String roomName = "";
                     String roomImageUrl;
 
-                    if (!room.getGroup()) {
+                    if (!room.getIsGroup()) {
                         User opponent = room.getParticipants().stream()
                                 .map(ChatParticipant::getUser)
                                 .filter(u -> !u.getId().equals(userId))
@@ -220,7 +220,7 @@ public class ChatRoomService {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             throw new BusinessException(ChatErrorCode.CHAT_NOT_GROUP);
         }
 
@@ -257,7 +257,7 @@ public class ChatRoomService {
     @Transactional(readOnly = true)
     public boolean isChatRoomGroup(Long roomId) {
         return chatRoomRepository.findById(roomId)
-                .map(ChatRoom::getGroup)
+                .map(ChatRoom::getIsGroup)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
@@ -307,16 +307,16 @@ public class ChatRoomService {
     public List<GroupChatMainResponse> getLatestGroupChats(Long lastChatRoomId) {
         List<ChatRoom> latestRooms;
         if (lastChatRoomId == null) {
-            latestRooms = chatRoomRepository.findTop10ByGroupTrueOrderByCreatedAtDesc();
+            latestRooms = chatRoomRepository.findTop10ByIsGroupTrueOrderByCreatedAtDesc();
         } else {
-            latestRooms = chatRoomRepository.findTop10ByGroupTrueAndIdLessThanOrderByCreatedAtDesc(lastChatRoomId);
+            latestRooms = chatRoomRepository.findTop10ByIsGroupTrueAndIdLessThanOrderByCreatedAtDesc(lastChatRoomId);
         }
         return latestRooms.stream().map(this::toGroupChatMainResponse).collect(Collectors.toList());
     }
 
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
-        List<ChatRoom> popularRooms = chatRoomRepository.findTopByGroupTrueOrderByParticipantCountDesc(limit);
+        List<ChatRoom> popularRooms = chatRoomRepository.findTopByIsGroupTrueOrderByParticipantCountDesc(limit);
         return popularRooms.stream().map(this::toGroupChatSearchResponse).collect(Collectors.toList());
     }
 
@@ -404,7 +404,7 @@ public class ChatRoomService {
         List<ChatParticipant> participants = room.getParticipants();
         int participantCount = participants.size();
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             User opponent = participants.stream()
                     .map(ChatParticipant::getUser)
                     .filter(user -> !user.getId().equals(forUserId))

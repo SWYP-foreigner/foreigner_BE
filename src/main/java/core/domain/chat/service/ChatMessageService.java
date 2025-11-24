@@ -530,7 +530,7 @@ public class ChatMessageService {
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
                 .ifPresent(p -> { if (p.getStatus() == ChatParticipantStatus.LEFT) p.reJoin(); });
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             chatParticipantRepository.findByChatRoomId(roomId).stream()
                     .filter(p -> !p.getUser().getId().equals(senderId) && p.getStatus() == ChatParticipantStatus.LEFT)
                     .forEach(ChatParticipant::reJoin);
@@ -594,7 +594,7 @@ public class ChatMessageService {
         String name = room.getRoomName();
         String img = null;
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             User opponent = room.getParticipants().stream()
                     .map(ChatParticipant::getUser).filter(u -> !u.getId().equals(forUserId)).findFirst().orElse(null);
             if (opponent != null) {

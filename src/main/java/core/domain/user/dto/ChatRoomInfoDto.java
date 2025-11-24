@@ -14,7 +14,7 @@ public record ChatRoomInfoDto(
         return new ChatRoomInfoDto(
                 chatRoom.getId(),
                 chatRoom.getRoomName(),
-                chatRoom.getGroup(),
+                chatRoom.getIsGroup(),
                 chatRoom.getParticipants().size()
         );
     }

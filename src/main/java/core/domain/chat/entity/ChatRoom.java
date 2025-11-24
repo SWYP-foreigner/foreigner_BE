@@ -21,7 +21,7 @@ public class ChatRoom {
     private Long id;
 
     @Column(name = "is_group", nullable = false)
-    private Boolean group;
+    private Boolean isGroup;
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
@@ -50,7 +50,7 @@ public class ChatRoom {
         테스트 데이터 생성용 생성자
      */
     public ChatRoom(Boolean group, Instant createdAt) {
-        this.group = group;
+        this.isGroup = group;
         this.createdAt = createdAt;
     }
 
@@ -63,7 +63,7 @@ public class ChatRoom {
      * @param roomName  채팅방 이름
      */
     public ChatRoom(Boolean group, Instant createdAt, String roomName) {
-        this.group = group;
+        this.isGroup = group;
         this.createdAt = createdAt;
         this.roomName = roomName;
     }
@@ -79,7 +79,7 @@ public class ChatRoom {
      * @param owner       채팅방 소유자 (생성한 유저)
      */
     public ChatRoom(Boolean group, Instant createdAt, String roomName, String description, User owner) {
-        this.group = group;
+        this.isGroup = group;
         this.createdAt = createdAt;
         this.roomName = roomName;
         this.description = description;
