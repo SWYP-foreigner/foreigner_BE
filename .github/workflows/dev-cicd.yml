@@ -231,12 +231,10 @@ jobs:
             APP_NAME=${{ secrets.APP_NAME }}
             GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
             BASE_URL=${{ secrets.BASE_URL }}
-            
-            PINPOINT_APP_NAME=${{ secrets.PINPOINT_APP_NAME }}
-            PINPOINT_AGENT_ID=${{ secrets.PINPOINT_AGENT_ID }}
+          
             
             SPRING_PROFILES_ACTIVE=dev
-            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar -Dpinpoint.applicationName=${PINPOINT_APP_NAME} -Dpinpoint.agentId=${PINPOINT_AGENT_ID} -Dpinpoint.config=/pinpoint-agent/pinpoint-root.config -Dpinpoint.logdir=/tmp/pinpoint-logs"
+            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
             
             cat > apple_key.pem <<PEM

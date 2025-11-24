@@ -18,7 +18,7 @@ public record ChatRoomResponse(
 
         return new ChatRoomResponse(
                 room.getId(),
-                room.getGroup(),
+                room.getIsGroup(),
                 room.getCreatedAt(),
                 participantResponses
         );

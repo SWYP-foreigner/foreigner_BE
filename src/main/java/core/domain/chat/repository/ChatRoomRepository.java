@@ -15,14 +15,16 @@ import java.util.Optional;
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatRoomRepositoryCustom {
 
-    @Query("SELECT cr FROM ChatRoom cr WHERE cr.group = true AND LOWER(cr.roomName) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.isGroup = true AND LOWER(cr.roomName) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<ChatRoom> findGroupChatRoomsByKeyword(@Param("keyword") String keyword);
-    List<ChatRoom> findTop10ByGroupTrueOrderByCreatedAtDesc();
+
+    List<ChatRoom> findTop10ByIsGroupTrueOrderByCreatedAtDesc();
+
     @Query("SELECT cr FROM ChatRoom cr " +
-            "WHERE cr.group = true " +
+            "WHERE cr.isGroup = true " +
             "ORDER BY SIZE(cr.participants) DESC")
-    List<ChatRoom> findTopByGroupTrueOrderByParticipantCountDesc(int limit);
-    List<ChatRoom> findTop10ByGroupTrueAndIdLessThanOrderByCreatedAtDesc(Long id);
+    List<ChatRoom> findTopByIsGroupTrueOrderByParticipantCountDesc(int limit);
+    List<ChatRoom> findTop10ByIsGroupTrueAndIdLessThanOrderByCreatedAtDesc(Long id);
     /**
      * 특정 사용자가 ACTIVE 상태로 참여하고 있는 채팅방 목록을 조회합니다.
      *
@@ -46,7 +48,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     @Query("""
         select cr
         from ChatRoom cr
-        where cr.group = false
+        where cr.isGroup = false
           and (
             select count(distinct cpA.user.id)
             from ChatParticipant cpA
@@ -65,22 +67,29 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     @Query("SELECT cr FROM ChatRoom cr " +
             "JOIN cr.participants p1 " +
             "JOIN cr.participants p2 " +
-            "WHERE cr.group = false " +
+            "WHERE cr.isGroup = false " +
             "AND p1.user.id = :userId1 " +
             "AND p2.user.id = :userId2")
     Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 
 
+
+
     /**
-     * 특정 유저가 참여하지 않은, 추천 가능하고 그룹인 채팅방의 ID 목록을 조회합니다.
-     * * @param userId 제외할 유저 ID
-     * @return 추천 가능한 그룹 채팅방 ID 목록
+     * 추천 가능한 그룹 채팅방 ID 조회
+     * - 그룹 채팅방 (isGroup = true)
+     * - 추천 가능 (isRecommendable = true)
+     * - 내가 'ACTIVE' 상태로 참여 중인 방은 제외 (LEFT인 방은 추천됨)
      */
-    @Query(value = "SELECT c.chatroom_id FROM chat_room c " +
-            "WHERE c.is_recommendable = TRUE " +
-            "AND c.is_group = TRUE " +
-            "AND c.chatroom_id NOT IN (SELECT cp.chatroom_id FROM chat_participant cp WHERE cp.user_id = :userId)",
-            nativeQuery = true)
+    @Query("SELECT r.id FROM ChatRoom r " +
+            "WHERE r.isGroup= true " +
+            "AND r.isRecommendable = true " +
+            "AND r.id NOT IN (" +
+            "    SELECT p.chatRoom.id " +
+            "    FROM ChatParticipant p " +
+            "    WHERE p.user.id = :userId " +
+            "    AND p.status = core.global.enums.ChatParticipantStatus.ACTIVE" +
+            ")")
     List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
 
 }

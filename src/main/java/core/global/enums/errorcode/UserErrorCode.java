@@ -19,6 +19,7 @@ public enum UserErrorCode implements AppError {
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
     CANNOT_FOLLOW_YOURSELF(HttpStatus.BAD_REQUEST, "자기자신은  팔로우가 불가능합니다."),
 
+    ALREADY_BLOCKED (HttpStatus.CONFLICT, "이미 차단한 유저입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 유저를 팔로우하고 있습니다."),
     PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "Your profile is incomplete. Please complete your profile setup"),
