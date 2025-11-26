@@ -44,7 +44,7 @@ public class CrawledDataAdminService {
     }
 
     @Transactional
-    public void approveAndPost(Long crawledDataId, Long boardId, String content) {
+    public void approveAndPost(Long crawledDataId, Long boardId, String content, List<String> selectedImageUrls) {
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
 
@@ -52,23 +52,27 @@ public class CrawledDataAdminService {
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
 
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
         Long adminUserId = principal.getUserId();
 
         User adminUser = userRepository.findById(adminUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
+        String mergedContent = "# " + crawledData.getTitle() + "\n\n" + content;
+
         Post newPost = new Post(
-                crawledData.getTitle() + "\n\n" + content,
+                mergedContent,
                 adminUser,
                 targetBoard
         );
         Post savedPost = postRepository.save(newPost);
 
-        List<String> imageUrls = crawledData.getImageUrls();
-        if (imageUrls != null && !imageUrls.isEmpty()) {
-            IntStream.range(0, imageUrls.size())
-                    .mapToObj(i -> Image.of(ImageType.POST, savedPost.getId(), imageUrls.get(i), i))
+        if (selectedImageUrls != null && !selectedImageUrls.isEmpty()) {
+            List<String> finalImages = selectedImageUrls.size() > 5
+                    ? selectedImageUrls.subList(0, 5)
+                    : selectedImageUrls;
+
+            IntStream.range(0, finalImages.size())
+                    .mapToObj(i -> Image.of(ImageType.POST, savedPost.getId(), finalImages.get(i), i))
                     .forEach(imageRepository::save);
         }
 

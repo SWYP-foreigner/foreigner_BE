@@ -36,9 +36,6 @@ public class AllkpopCrawlerService {
     private static final String DETAIL_IMAGE_SELECTOR = "div.entry_content img";
 
 
-    /**
-     * 매일 새벽 6시 30분에 실행
-     */
     @Scheduled(cron = "0 30 6 * * *")
     @Transactional
     public void crawlAllkpopNews() {
@@ -61,9 +58,16 @@ public class AllkpopCrawlerService {
                 }
 
                 Set<String> imageUrlSet = new HashSet<>();
+
                 Element thumbnailElement = articleElement.selectFirst(THUMBNAIL_SELECTOR);
                 if (thumbnailElement != null) {
-                    imageUrlSet.add(thumbnailElement.absUrl("data-src"));
+                    String rawUrl = thumbnailElement.absUrl("data-src");
+                    if (rawUrl.contains("?")) {
+                        rawUrl = rawUrl.substring(0, rawUrl.indexOf("?"));
+                    }
+                    rawUrl = rawUrl.replace("/thumb", "");
+
+                    imageUrlSet.add(rawUrl);
                 }
 
                 String fullContent = "";
@@ -88,7 +92,14 @@ public class AllkpopCrawlerService {
                         fullContent = contentBuilder.toString().trim();
 
                         Elements contentImages = contentElement.select("figure > img");
-                        contentImages.forEach(img -> imageUrlSet.add(img.absUrl("src")));
+                        contentImages.forEach(img -> {
+                            String rawUrl = img.absUrl("src");
+                            if (rawUrl.contains("?")) {
+                                rawUrl = rawUrl.substring(0, rawUrl.indexOf("?"));
+                            }
+                            rawUrl = rawUrl.replace("/thumb", "");
+                            imageUrlSet.add(rawUrl);
+                        });
                     }
 
                     if (fullContent.isEmpty()) {

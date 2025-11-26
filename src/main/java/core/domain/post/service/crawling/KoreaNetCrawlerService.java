@@ -69,10 +69,21 @@ public class KoreaNetCrawlerService {
                     String fullContent = (contentDiv != null) ? contentDiv.text() : description;
 
                     Set<String> imageUrlSet = new HashSet<>();
+
                     Element mainImage = detailDoc.selectFirst("div.post-img img");
-                    if (mainImage != null) imageUrlSet.add(mainImage.absUrl("src"));
+                    if (mainImage != null) {
+                        String rawUrl = mainImage.absUrl("src");
+                        if (rawUrl.contains("?")) rawUrl = rawUrl.substring(0, rawUrl.indexOf("?"));
+                        imageUrlSet.add(rawUrl);
+                    }
+
                     Elements contentImages = detailDoc.select("div.post-txt img");
-                    contentImages.forEach(img -> imageUrlSet.add(img.absUrl("src")));
+                    contentImages.forEach(img -> {
+                        String rawUrl = img.absUrl("src");
+                        if (rawUrl.contains("?")) rawUrl = rawUrl.substring(0, rawUrl.indexOf("?"));
+                        imageUrlSet.add(rawUrl);
+                    });
+
                     List<String> imageUrls = new ArrayList<>(imageUrlSet);
 
                     CrawledData crawledData = new CrawledData(title, fullContent, originalUrl, SOURCE_SITE, imageUrls);

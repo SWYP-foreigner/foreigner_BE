@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -37,7 +39,6 @@ public class HarpersBazaarCrawlerService {
     private static final String LIST_TITLE_SELECTOR = "p.tit";
 
     private static final String DETAIL_CONTENT_SELECTOR = "div.atc_body_cont > div:not(.atc_mask_login)";
-    private static final String DETAIL_IMAGE_SELECTOR = "div.atc_body_cont img";
 
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 
@@ -47,7 +48,6 @@ public class HarpersBazaarCrawlerService {
         log.info("Starting harpersbazaar.co.kr crawling (AJAX)...");
         try {
 
-            // 1단계: Jsoup.post()로 AJAX 요청
             Document listDoc = Jsoup.connect(AJAX_URL)
                     .userAgent(USER_AGENT)
                     .header("Referer", BASE_URL + "/fashion/news")
@@ -73,7 +73,6 @@ public class HarpersBazaarCrawlerService {
                 Element titleElement = articleElement.selectFirst(LIST_TITLE_SELECTOR);
 
                 if (linkElement == null || thumbElement == null || titleElement == null) {
-                    log.warn("Skipping article, essential element (link, thumb, or title) not found.");
                     continue;
                 }
 
@@ -81,7 +80,11 @@ public class HarpersBazaarCrawlerService {
                 String title = titleElement.text();
 
                 imageUrlSet.clear();
-                imageUrlSet.add(thumbElement.absUrl("data-src"));
+
+                String thumbUrl = thumbElement.hasAttr("data-src") ? thumbElement.absUrl("data-src") : thumbElement.absUrl("src");
+                if (!thumbUrl.isEmpty()) {
+                    imageUrlSet.add(getHighQualityUrl(thumbUrl));
+                }
 
                 if (crawledDataRepository.existsByOriginalUrl(originalUrl)) {
                     log.debug("Skipping already crawled article: {}", originalUrl);
@@ -105,12 +108,16 @@ public class HarpersBazaarCrawlerService {
                         koreanContent = contentWrapper.text().replace("&nbsp;", " ");
 
                         Elements contentImages = contentWrapper.select("img");
-                        contentImages.forEach(img -> imageUrlSet.add(img.absUrl("src")));
+                        contentImages.forEach(img -> {
+                            String imgUrl = img.hasAttr("data-src") ? img.absUrl("data-src") : img.absUrl("src");
+                            if (!imgUrl.isEmpty()) {
+                                imageUrlSet.add(getHighQualityUrl(imgUrl));
+                            }
+                        });
                     }
 
                     if(koreanContent.isEmpty()) {
                         koreanContent = title;
-                        log.warn("Could not find detail content selector [{}], using title instead.", DETAIL_CONTENT_SELECTOR);
                     }
                 } catch (IOException e) {
                     log.error("Failed to crawl detail page: {}. Skipping.", originalUrl, e);
@@ -141,5 +148,45 @@ public class HarpersBazaarCrawlerService {
             throw new RuntimeException("HarpersBazaar 크롤링 실패: " + e.getMessage(), e);
         }
         log.info("Finished harpersbazaar.co.kr crawling.");
+    }
+
+    private String getHighQualityUrl(String originalUrl) {
+        if (originalUrl == null || originalUrl.isBlank()) return "";
+
+        String cleanUrl = originalUrl;
+        if (cleanUrl.contains("?")) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.indexOf("?"));
+        }
+
+        String highQualityUrl = cleanUrl;
+        if (cleanUrl.contains("harpersbazaar.co.kr") && cleanUrl.contains("/thumbnail/")) {
+            highQualityUrl = cleanUrl.replaceAll("/thumbnail/[a-z]+/", "/online_image/");
+        }
+
+        if (highQualityUrl.equals(originalUrl)) {
+            return originalUrl;
+        }
+
+        if (isValidUrl(highQualityUrl)) {
+            return highQualityUrl;
+        } else {
+            log.warn("High quality image check failed (404). Using original. URL: {}", highQualityUrl);
+            return originalUrl;
+        }
+    }
+
+    private boolean isValidUrl(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection huc = (HttpURLConnection) url.openConnection();
+            huc.setRequestMethod("HEAD");
+            huc.setRequestProperty("User-Agent", USER_AGENT);
+            huc.setConnectTimeout(2000);
+            huc.setReadTimeout(2000);
+            int responseCode = huc.getResponseCode();
+            return responseCode == HttpURLConnection.HTTP_OK;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

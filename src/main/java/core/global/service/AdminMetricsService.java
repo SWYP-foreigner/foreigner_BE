@@ -22,7 +22,6 @@ public class AdminMetricsService {
 
     @Transactional(readOnly = true)
     public AdminMetricsDto getDashboardMetrics() {
-        // 각 통계 조회 메서드 호출
         InactiveUserStatsDto userStats = fetchInactiveUserStats();
         UserActivityBucketsDto activityBuckets = fetchUserActivityBuckets();
         List<WeeklyCohortDto> weeklyCohorts = fetchWeeklyCohorts();
@@ -30,18 +29,20 @@ public class AdminMetricsService {
         return new AdminMetricsDto(userStats, activityBuckets, weeklyCohorts);
     }
 
-    // 네이티브 쿼리 결과를 DTO로 파싱하는 private 메서드들
     private InactiveUserStatsDto fetchInactiveUserStats() {
-        List<Object[]> results = userRepository.countInactive30dAndTotal();
+        List<Object[]> results = userRepository.countInactiveStatsAndTotal();
+
         if (results.isEmpty() || results.get(0) == null) {
-            return new InactiveUserStatsDto(0, 0);
+            return new InactiveUserStatsDto(0, 0, 0, 0);
         }
         Object[] result = results.get(0);
 
-        long inactive = safeToLong(result[0]);
+        long inactive30 = safeToLong(result[0]);
         long total = safeToLong(result[1]);
+        long inactive7 = safeToLong(result[2]);
+        long inactive3 = safeToLong(result[3]);
 
-        return new InactiveUserStatsDto(total, inactive);
+        return new InactiveUserStatsDto(total, inactive30, inactive7, inactive3);
     }
 
     private UserActivityBucketsDto fetchUserActivityBuckets() {

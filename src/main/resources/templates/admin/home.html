@@ -7,13 +7,14 @@
         body { font-family: sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; }
         .menu-container { text-align: center; }
         h1 { color: #333; margin-bottom: 40px; }
-        /* --- 🔽 grid-template-columns를 4칸으로 변경 🔽 --- */
+
         .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
 
         .menu-item {
             background-color: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             padding: 40px 20px; text-decoration: none; color: #333; transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
+            display: block;
         }
         .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
         .menu-item .icon { font-size: 48px; margin-bottom: 15px; }
@@ -42,12 +43,32 @@
         .menu-item:hover .dropdown-content {
             display: block;
         }
+
+        .admin-actions {
+            margin-top: 40px;
+        }
+        .btn-create {
+            display: inline-block;
+            padding: 15px 30px;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn-create:hover {
+            background-color: #138496 !important;
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
 
 <div class="menu-container">
     <h1>관리자 페이지</h1>
+
     <div class="menu-grid">
         <a th:href="@{/admin/users}" class="menu-item">
             <div class="icon">👥</div>
@@ -82,6 +103,12 @@
         <a th:href="@{/admin/crawled-data}" class="menu-item">
             <div class="icon">🕸️</div>
             <div class="title">크롤링 관리</div>
+        </a>
+    </div>
+
+    <div class="admin-actions">
+        <a th:href="@{/admin/monitoring}" class="btn-create" style="background-color: #17a2b8;">
+            🖥️ 시스템 모니터링 (Grafana)
         </a>
     </div>
 </div>

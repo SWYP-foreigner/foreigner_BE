@@ -34,7 +34,10 @@
         <div class="card" th:object="${metrics.userStats}">
             <h2>사용자 현황</h2>
             <p><strong>총 사용자:</strong> <span class="data" th:text="*{totalUsers}"></span>명</p>
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
             <p><strong>비활성(30일):</strong> <span th:text="*{inactiveLast30Days}"></span>명</p>
+            <p><strong>비활성(7일):</strong> <span th:text="*{inactiveLast7Days}"></span>명</p>
+            <p><strong>비활성(3일):</strong> <span th:text="*{inactiveLast3Days}"></span>명</p>
         </div>
 
         <div class="card" th:object="${metrics.activityBuckets}">

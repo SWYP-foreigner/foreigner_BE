@@ -55,10 +55,11 @@ public class CrawledDataAdminController {
             @PathVariable Long id,
             @RequestParam Long boardId,
             @RequestParam String content,
+            @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, boardId, content);
+            crawledDataAdminService.approveAndPost(id, boardId, content, selectedImageUrls);
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 게시물로 성공적으로 발행되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
