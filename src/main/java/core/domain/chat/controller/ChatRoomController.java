@@ -30,7 +30,6 @@ public class ChatRoomController {
     private final ChatRoomService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
-    // [수정 1] URL 오타 수정: oneTone -> oneToOne
     @Operation(summary = "1:1 새로운 채팅방 생성", description = "1:1 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
@@ -49,7 +48,17 @@ public class ChatRoomController {
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-
+    @PostMapping("/rooms/oneTone")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createOneRoom(
+            @RequestBody CreateRoomRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long userId = principal.getUserId();
+        ChatRoom room = chatService.createRoom(userId, request.otherUserId());
+        ChatRoomResponse response = ChatRoomResponse.from(room);
+        featureUsageMetrics.recordChatUsage();
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
     @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "채팅방 생성 성공"),

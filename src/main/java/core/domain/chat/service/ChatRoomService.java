@@ -291,13 +291,13 @@ public class ChatRoomService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         if (recommendableIds.isEmpty()) return null;
-
+        log.info("후보 ID 목록: {}", recommendableIds);
         int randomIndex = new Random().nextInt(recommendableIds.size());
+        log.info("선택된 인덱스: {}, 선택된 ID: {}", randomIndex, recommendableIds.get(randomIndex));
         Long randomRoomId = recommendableIds.get(randomIndex);
 
         ChatRoom room = chatRoomRepository.findById(randomRoomId).orElse(null);
         if (room == null) throw new BusinessException(ChatErrorCode.NO_MORE_RECOMMENDABLE_ROOM);
-
         String imageUrl = imageRepository.findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, randomRoomId)
                 .map(Image::getUrl).orElse(null);
         return ChatRecommendRoomResponse.of(room, imageUrl);
