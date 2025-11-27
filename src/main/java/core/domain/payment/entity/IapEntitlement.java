@@ -2,16 +2,17 @@ package core.domain.payment.entity;
 
 import core.global.enums.DeviceType;
 import core.global.enums.payment.EntitlementStatus;
-import core.global.enums.payment.EntitlementStatus.*;
 import core.global.enums.payment.PurchaseStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
 
 
 @Getter
+@NoArgsConstructor
 @Entity
 @Table(name = "iap_entitlement",
         indexes = @Index(name = "ix_iap_entitlement_user", columnList = "user_id")
@@ -58,10 +59,6 @@ public class IapEntitlement {
         this.userId = userId;
         this.active = active;
         this.status = entitlementStatus;
-    }
-
-    public IapEntitlement() {
-
     }
 
     private IapEntitlement(IapPurchase p) {

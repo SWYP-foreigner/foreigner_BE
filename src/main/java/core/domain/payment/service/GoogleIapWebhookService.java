@@ -6,6 +6,8 @@ import core.domain.payment.dto.VerifyRequest;
 import core.domain.payment.entity.IapWebhookEvent;
 import core.domain.payment.repository.IapWebhookEventRepository;
 import core.global.enums.DeviceType;
+import core.global.enums.errorcode.PaymentErrorCode;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,7 +68,7 @@ public class GoogleIapWebhookService {
             event.updateProcessStatus("DONE");
         } catch (Exception ex) {
             event.updateProcessStatus("FAILED");
-            throw new RuntimeException(ex);
+            throw new BusinessException(PaymentErrorCode.GOOGLE_WEBHOOK_FAILED, ex);
         }
     }
 }

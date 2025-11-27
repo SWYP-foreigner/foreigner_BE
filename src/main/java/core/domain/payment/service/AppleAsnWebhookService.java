@@ -6,6 +6,8 @@ import core.domain.payment.dto.VerifyRequest;
 import core.domain.payment.entity.IapWebhookEvent;
 import core.domain.payment.repository.IapWebhookEventRepository;
 import core.global.enums.DeviceType;
+import core.global.enums.errorcode.PaymentErrorCode;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +38,7 @@ public class AppleAsnWebhookService {
             // 파싱 실패도 이벤트 저장
             IapWebhookEvent e0 = new IapWebhookEvent(DeviceType.IOS, "UNKNOWN", "ASN_V2", "FAILED", payload);
             iapWebhookEventRepository.save(e0);
-            throw new RuntimeException(e);
+            throw new BusinessException(PaymentErrorCode.APPLE_WEBHOOK_FAILED, e);
         }
 
         String notificationUUID = root.path("notificationUUID").asText(null);
@@ -83,7 +85,7 @@ public class AppleAsnWebhookService {
         } catch (Exception ex) {
             event.updateProcessStatus("FAILED");
             iapWebhookEventRepository.save(event);
-            throw new RuntimeException(ex);
+            throw new BusinessException(PaymentErrorCode.APPLE_WEBHOOK_FAILED, ex);
         }
     }
 }

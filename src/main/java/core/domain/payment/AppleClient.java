@@ -13,7 +13,9 @@ import com.nimbusds.jose.jwk.source.RemoteJWKSet;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.SignedJWT;
 import core.domain.payment.dto.AppleTransactionInfo;
+import core.global.enums.errorcode.PaymentErrorCode;
 import core.global.enums.payment.PurchaseStatus;
+import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -63,13 +65,13 @@ public class AppleClient {
             HttpClient client = HttpClient.newHttpClient();
             HttpResponse<String> resp = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() / 100 != 2) {
-                throw new RuntimeException("Apple getTransaction non-2xx: " + resp.statusCode() + " " + resp.body());
+                throw new BusinessException(PaymentErrorCode.APPLE_TRANSACTION_FAILED);
             }
 
             Map<String, Object> json = objectMapper.readValue(resp.body(), Map.class);
             String signedTransactionInfo = Objects.toString(json.get("signedTransactionInfo"), null);
             if (signedTransactionInfo == null) {
-                throw new RuntimeException("signedTransactionInfo missing");
+                throw new BusinessException(PaymentErrorCode.APPLE_SIGNED_TRANSACTIONINFO_MISSING);
             }
 
             // 서명 검증 + 페이로드 파싱
@@ -93,8 +95,10 @@ public class AppleClient {
             return new AppleTransactionInfo(
                     txId, originalTxId, productId, purchaseDate, expiresDate, status, payloadJson
             );
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new BusinessException(PaymentErrorCode.APPLE_TRANSACTION_FAILED, e);
         }
     }
 

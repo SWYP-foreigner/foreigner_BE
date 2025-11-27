@@ -4,16 +4,18 @@ import core.global.enums.DeviceType;
 import core.global.enums.payment.PaymentProductType;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
 
-@Getter
 @Entity
 @Table(name = "iap_product",
         uniqueConstraints = @UniqueConstraint(name = "ux_iap_product_store", columnNames = {"platform", "store_product_id"})
 )
+@Getter
+@NoArgsConstructor
 public class IapProduct {
 
     @Id

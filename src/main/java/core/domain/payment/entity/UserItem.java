@@ -2,15 +2,17 @@ package core.domain.payment.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.Instant;
 
-@Getter
 @Entity
 @Table(name = "user_item",
         uniqueConstraints = @UniqueConstraint(name = "ux_user_item", columnNames = {"user_id", "item_code"})
 )
+@Getter
+@NoArgsConstructor
 public class UserItem {
 
     @Id
@@ -24,7 +26,7 @@ public class UserItem {
     @Column(name = "item_code", nullable = false, length = 64)
     private String itemCode; // 'boost', 'frame', ...
 
-    @Column(name = "item_code")
+    @Column(name = "quantity", nullable = false)
     private Integer quantity = 0;
 
     @LastModifiedDate
@@ -39,9 +41,5 @@ public class UserItem {
 
     public void updateQuantity(int quantity) {
         this.quantity = quantity;
-    }
-
-    public void minusQuantity(int quantity) {
-        this.quantity -= quantity;
     }
 }

@@ -1,17 +1,18 @@
 package core.domain.payment.entity;
 
 import core.global.enums.DeviceType;
-import core.global.enums.Oauthplatform;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-@Getter
 @Entity
 @Table(name = "iap_webhook_event",
         uniqueConstraints = @UniqueConstraint(name="ux_iap_webhook_dedup", columnNames={"platform","dedup_key"})
 )
+@Getter
+@NoArgsConstructor
 public class IapWebhookEvent {
 
     @Id
@@ -41,8 +42,6 @@ public class IapWebhookEvent {
     @Lob
     @Column(name = "raw_json")
     private String rawJson;
-
-    protected IapWebhookEvent() {}
 
     // 사용 중인 생성자 시그니처 지원
     public IapWebhookEvent(DeviceType platform, String dedupKey,

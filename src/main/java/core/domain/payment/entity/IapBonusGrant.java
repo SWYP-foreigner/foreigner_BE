@@ -1,6 +1,8 @@
 package core.domain.payment.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.Instant;
@@ -9,6 +11,8 @@ import java.time.Instant;
 @Table(name = "iap_bonus_grant",
         uniqueConstraints = @UniqueConstraint(name = "ux_iap_bonus_user_bonus", columnNames = {"user_id", "bonus_code"})
 )
+@Getter
+@NoArgsConstructor
 public class IapBonusGrant {
 
     @Id

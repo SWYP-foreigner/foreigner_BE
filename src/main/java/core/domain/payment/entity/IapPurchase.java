@@ -6,15 +6,17 @@ import core.global.enums.DeviceType;
 import core.global.enums.payment.PurchaseStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-@Getter
 @Entity
 @Table(name = "iap_purchase",
         uniqueConstraints = @UniqueConstraint(name="ux_iap_purchase_dedup", columnNames={"platform","store_tx_id"}),
         indexes = @Index(name="ix_iap_purchase_user", columnList = "user_id")
 )
+@Getter
+@NoArgsConstructor
 public class IapPurchase {
 
     @Id
@@ -80,9 +82,5 @@ public class IapPurchase {
         this.purchasedAt = gp.purchaseTime();
         this.expiresAt = gp.expiresTime();
         this.rawJson = gp.raw();
-    }
-
-    public IapPurchase(IapPurchase p) {
-
     }
 }
