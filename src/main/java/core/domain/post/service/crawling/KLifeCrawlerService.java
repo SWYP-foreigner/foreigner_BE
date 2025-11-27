@@ -62,7 +62,15 @@ public class KLifeCrawlerService {
                 }
 
                 String fullContent = "";
-                List<String> imageUrls = new ArrayList<>();
+                Set<String> imageUrlSet = new HashSet<>();
+
+                Element thumbElement = articleElement.selectFirst(THUMBNAIL_SELECTOR);
+                if (thumbElement != null) {
+                    String thumbUrl = thumbElement.absUrl("src");
+                    if (!thumbUrl.contains("no-image.png")) {
+                        imageUrlSet.add(thumbUrl);
+                    }
+                }
 
                 try {
                     log.info("Crawling detail page: {}", originalUrl);
@@ -71,17 +79,17 @@ public class KLifeCrawlerService {
                     Element contentElement = detailDoc.selectFirst(DETAIL_CONTENT_SELECTOR);
                     fullContent = (contentElement != null) ? contentElement.text() : description;
 
-                    Set<String> imageUrlSet = new HashSet<>();
                     if (contentElement != null) {
                         Elements contentImages = contentElement.select(DETAIL_IMAGE_SELECTOR);
                         contentImages.forEach(img -> imageUrlSet.add(img.absUrl("src")));
                     }
-                    imageUrls = new ArrayList<>(imageUrlSet);
 
                 } catch (IOException e) {
                     log.error("Failed to crawl detail page: {}", originalUrl, e);
                     continue;
                 }
+
+                List<String> imageUrls = new ArrayList<>(imageUrlSet);
 
                 CrawledData crawledData = new CrawledData(
                         title,
@@ -94,7 +102,6 @@ public class KLifeCrawlerService {
                 log.info("Successfully crawled and saved: {}", originalUrl);
 
                 Thread.sleep(3000);
-
             }
 
         } catch (IOException | InterruptedException e) {

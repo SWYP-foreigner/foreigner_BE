@@ -3,7 +3,7 @@ package core.domain.chat.dto;
 import core.domain.chat.entity.ChatRoom;
 
 public record GroupChatSearchResponse(
-        Long roomId,
+        Long chatRoomId,
         String roomName,
         String description,
         String roomImageUrl,

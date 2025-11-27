@@ -36,7 +36,7 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .select(Projections.constructor(ChatRoomListResponse.class,
                         chatRoom.id,
                         chatRoom.roomName,
-                        chatRoom.group,
+                        chatRoom.isGroup,
                         participantCountSubQuery,
                         chatRoom.createdAt
                 ))

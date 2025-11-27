@@ -72,7 +72,7 @@ public class ChatMessageService {
     @Value("${ncp.s3.bucket}")
     private String bucketName;
 
-    private record MessagePair(ChatMessage originalMessage, String translatedContent) {}
+
 
     /**
      * 최적화된 메시지 전송 로직
@@ -108,21 +108,24 @@ public class ChatMessageService {
                 .collect(Collectors.toSet());
 
         // 4. [핵심 최적화] 참여자를 '번역 언어별'로 그룹핑
-        // Map<언어코드, 수신자ID목록> (번역 안 하는 사람은 Key를 "NONE"으로)
         Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
         for (ChatParticipant p : chatRoom.getParticipants()) {
             User recipient = p.getUser();
-
-            // 차단된 유저 패스
             if (blockedUserIds.contains(recipient.getId())) continue;
 
-            // 본인은 읽음 처리 후 패스 (혹은 "NONE" 그룹에 포함시켜 나에게도 소켓 오게 할지 결정)
+            // =========================================================
+            // [수정 1] 보낸 사람(Sender)은 "NONE"이 아니라 "SELF" 그룹으로 분리
+            // =========================================================
             if (recipient.getId().equals(sender.getId())) {
                 p.setLastReadMessageId(savedMessage.getId());
+
+                // "NONE" 대신 "SELF"라는 별도 키를 사용
+                recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
+                continue;
             }
 
-            // 번역 설정 확인
+            // (나머지 참가자 로직 동일)
             String lang = (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null)
                     ? p.getUser().getTranslateLanguage()
                     : "NONE";
@@ -131,16 +134,23 @@ public class ChatMessageService {
         }
 
         // 5. 언어 그룹별로 메시지 생성 및 이벤트 발행
-        // (기존 루프 100번 -> 언어 개수만큼만 실행)
         for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
             String targetLang = entry.getKey();
             List<Long> recipientIds = entry.getValue();
-
             if (recipientIds.isEmpty()) continue;
 
             String translatedContent = null;
 
-            if (!"NONE".equals(targetLang)) {
+            // =========================================================
+            // [수정 2] "SELF" 그룹이면 원문을 번역본 필드에 채워넣기
+            // =========================================================
+            if ("SELF".equals(targetLang)) {
+                // 내가 보낸 메시지는 번역 API를 안 쓰지만,
+                // 내 앱이 번역모드일 때 빈 화면이 뜨지 않도록 '원문'을 '번역필드'에 넣어줌
+                translatedContent = originalContent;
+
+            } else if (!"NONE".equals(targetLang)) {
+                // "NONE"이 아닐 때만 진짜 번역 API 호출
                 try {
                     List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
                     if (!results.isEmpty()) translatedContent = results.get(0);
@@ -148,9 +158,12 @@ public class ChatMessageService {
                     log.error("Batch translation failed for lang={}", targetLang, e);
                 }
             }
+
             ChatMessageResponse messageResponse = new ChatMessageResponse(
                     savedMessage.getId(), chatRoom.getId(), sender.getId(),
-                    originalContent, translatedContent, savedMessage.getSentAt(),
+                    originalContent,
+                    translatedContent, // "SELF"일 경우 원문이 들어감 -> 빈 메시지 해결!
+                    savedMessage.getSentAt(),
                     sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
             );
 
@@ -160,7 +173,7 @@ public class ChatMessageService {
         }
 
         long endTime = System.currentTimeMillis();
-        log.info("Processed message for room {} in {}ms (Recipients: {})",
+        log.debug("Processed message for room {} in {}ms (Recipients: {})",
                 req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
     }
 
@@ -516,7 +529,7 @@ public class ChatMessageService {
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
                 .ifPresent(p -> { if (p.getStatus() == ChatParticipantStatus.LEFT) p.reJoin(); });
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             chatParticipantRepository.findByChatRoomId(roomId).stream()
                     .filter(p -> !p.getUser().getId().equals(senderId) && p.getStatus() == ChatParticipantStatus.LEFT)
                     .forEach(ChatParticipant::reJoin);
@@ -580,7 +593,7 @@ public class ChatMessageService {
         String name = room.getRoomName();
         String img = null;
 
-        if (!room.getGroup()) {
+        if (!room.getIsGroup()) {
             User opponent = room.getParticipants().stream()
                     .map(ChatParticipant::getUser).filter(u -> !u.getId().equals(forUserId)).findFirst().orElse(null);
             if (opponent != null) {

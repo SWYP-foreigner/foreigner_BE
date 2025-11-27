@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>시스템 모니터링 통합 대시보드</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Noto Sans KR', sans-serif; background-color: #f4f6f8; }
+
+        .top-bar {
+            position: sticky;
+            top: 0;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+            padding: 15px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .home-btn {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-right: 20px;
+        }
+
+        .nav-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 8px 12px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .nav-btn:hover { background-color: #0056b3; }
+
+        .container { padding: 20px; max-width: 100%; }
+
+        .dashboard-section {
+            background-color: white;
+            margin-bottom: 40px;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .section-title {
+            border-left: 5px solid #007bff;
+            padding-left: 10px;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .grafana-frame {
+            width: 100%;
+            height: 800px; 
+            border: none;
+            border-radius: 4px;
+            background-color: #181b1f;
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a th:href="@{/admin/users/home}" class="home-btn">← 어드민 홈</a>
+
+    <a href="#cpu-system" class="nav-btn">1. CPU / 시스템</a>
+    <a href="#inactivity" class="nav-btn">2. 비활성 사용자 분포</a>
+    <a href="#user-metrics" class="nav-btn">3. 사용자 지표 (Rolling)</a>
+    <a href="#realtime" class="nav-btn">4. 실시간 실행기 & 접속</a>
+    <a href="#feature-agg" class="nav-btn">5. 기능 사용량 (집계)</a>
+    <a href="#feature-interest" class="nav-btn">6. 기능 + 관심도</a>
+</div>
+
+<div class="container">
+
+    <div id="cpu-system" class="dashboard-section">
+        <h2 class="section-title">🖥️ CPU / 시스템 리소스 모니터링</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/adszqwk/cpu-eb93b1?orgId=1&from=now-6h&to=now&timezone=browser&var-instance=$__all&var-pod=$__all&var-bb=&refresh=10s&kiosk">
+        </iframe>
+    </div>
+
+    <div id="inactivity" class="dashboard-section">
+        <h2 class="section-title">📉 User Inactivity Buckets (사용자 비활성 기간 분포)</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/cd8ff1d9-1db7-4afe-80f4-6caa8abf3719/user-inactivity-buckets?orgId=1&from=now-7d&to=now&timezone=browser&var-job=$__all&var-instance=$__all&kiosk">
+        </iframe>
+    </div>
+
+    <div id="user-metrics" class="dashboard-section">
+        <h2 class="section-title">📊 User Metrics (Rolling) - 사용자 지표 추이</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/8ad88162-e38c-4eea-b3c1-4f2b5fc12d0b/user-metrics-rolling?orgId=1&from=now-7d&to=now&timezone=browser&var-DS_PROMETHEUS=prometheus&var-job=app&var-instance=$__all&refresh=30s&kiosk">
+        </iframe>
+    </div>
+
+    <div id="realtime" class="dashboard-section">
+        <h2 class="section-title">⚡ 실시간 실행기 & 접속 현황 (최근 1시간)</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/realtime-exec-presence-v1/bc06c84?orgId=1&from=now-1h&to=now&timezone=browser&var-DS_PROMETHEUS=prometheus&refresh=10s&kiosk">
+        </iframe>
+    </div>
+
+    <div id="feature-agg" class="dashboard-section">
+        <h2 class="section-title">🧩 특정 기능 사용량 (집계)</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/agg-feature-interest-v1/4571c1d?orgId=1&from=now-7d&to=now&timezone=browser&var-DS_PROMETHEUS=prometheus&var-feature=$__all&var-interest_type=$__all&var-src_country=$__all&refresh=10s&kiosk">
+        </iframe>
+    </div>
+
+    <div id="feature-interest" class="dashboard-section">
+        <h2 class="section-title">🔥 특정 기능 사용량 + 관심도 분석</h2>
+        <iframe class="grafana-frame" loading="lazy"
+                src="http://localhost:3000/d/72635b9b-dbad-4727-a9bf-92c7de9ac91b/92ede9f?orgId=1&from=now-7d&to=now&timezone=browser&var-DS_PROMETHEUS=prometheus&var-feature=$__all&var-interest_type=$__all&var-src_country=$__all&refresh=10s&kiosk">
+        </iframe>
+    </div>
+
+</div>
+
+</body>
+</html>

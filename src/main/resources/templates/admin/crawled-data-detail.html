@@ -12,17 +12,93 @@
         .content-editor textarea { width: 100%; height: 300px; line-height: 1.6; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
 
         .image-gallery { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
-        .image-gallery img { max-width: 100%; height: auto; margin-bottom: 15px; border: 1px solid #ddd; display: block; }
+        .image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .image-item {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .image-checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 24px;
+            height: 24px;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            cursor: zoom-in;
+            transition: opacity 0.2s;
+        }
+
+        .image-item.selected {
+            border: 3px solid #007bff;
+        }
+        .image-item.selected .image-preview {
+            opacity: 1;
+        }
+        .image-item:not(.selected) .image-preview {
+            opacity: 0.7;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            padding-top: 50px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 90%;
+        }
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
 
         .action-buttons { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f0f0; }
         .action-buttons form { margin: 0; }
         .approval-form-controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-top: 15px; }
         .reject-form { margin-top: 15px; border-top: 1px dashed #aaa; padding-top: 15px; }
         .btn-list { display: inline-block; margin-top: 20px; color: #007bff; text-decoration: none; }
-         /* 메시지 스타일 */
         .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .img-count-info { margin-bottom: 10px; font-weight: bold; color: #333; }
+        .img-count-info.warning { color: red; }
     </style>
 </head>
 <body>
@@ -40,16 +116,9 @@
         <p><strong>현재 상태:</strong> <span th:text="*{status}"></span></p>
     </div>
 
-    <div class="image-gallery" th:if="${!#lists.isEmpty(crawledData.imageUrls)}">
-        <h2>수집된 이미지 미리보기</h2>
-        <div th:each="imgUrl : *{imageUrls}">
-            <img th:src="${imgUrl}" alt="Crawled Image"><br/>
-        </div>
-    </div>
-
     <div class="action-buttons" th:if="*{status == T(core.global.enums.CrawledDataStatus).PENDING}">
 
-        <form th:action="@{/admin/crawled-data/{id}/approve(id=*{id})}" method="post">
+        <form th:action="@{/admin/crawled-data/{id}/approve(id=*{id})}" method="post" onsubmit="return validateForm()">
 
             <h2>내용 수정 및 승인</h2>
             <div class="content-editor">
@@ -58,13 +127,36 @@
                           placeholder="게시할 내용을 수정하세요..."></textarea>
             </div>
 
+            <div class="image-gallery" th:if="${!#lists.isEmpty(crawledData.imageUrls)}">
+                <h3>이미지 선택 (최대 5개)</h3>
+                <p style="font-size: 0.9em; color: #666;">* 이미지를 클릭하면 크게 볼 수 있습니다. 체크박스로 선택하세요.</p>
+                <div class="img-count-info" id="imgCountDisplay">선택된 이미지: 0 / 5</div>
+
+                <div class="image-grid">
+                    <div th:each="imgUrl, iterStat : *{imageUrls}" class="image-item" th:classappend="${iterStat.index < 5} ? 'selected'">
+                        <input type="checkbox" name="selectedImageUrls" class="image-checkbox"
+                               th:value="${imgUrl}"
+                               th:checked="${iterStat.index < 5}"
+                               onclick="handleCheckboxClick(this)">
+
+                        <img th:src="${imgUrl}" class="image-preview" alt="Crawled Image"
+                             onclick="openModal(this.src)">
+                    </div>
+                </div>
+            </div>
+            <div class="image-gallery" th:if="${#lists.isEmpty(crawledData.imageUrls)}">
+                <p>이미지가 없는 게시글입니다.</p>
+            </div>
+
             <div class="approval-form-controls">
                 <label for="boardSelect">게시할 게시판:</label>
                 <select id="boardSelect" name="boardId" required>
                     <option value="">게시판 선택</option>
-                    <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.name()}"></option>
+                    <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.displayName}"></option>
                 </select>
-                <button type="submit">승인 및 게시</button>
+                <button type="submit" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    승인 및 게시
+                </button>
             </div>
         </form>
 
@@ -75,10 +167,85 @@
 
     <div class="action-buttons" th:unless="*{status == T(core.global.enums.CrawledDataStatus).PENDING}">
         <p>이 항목은 이미 처리되었습니다. (상태: <span th:text="*{status}"></span>)</p>
+
+        <div class="image-gallery" th:if="${!#lists.isEmpty(crawledData.imageUrls)}">
+            <h3>저장된 원본 이미지 목록</h3>
+            <div class="image-grid">
+                <div th:each="imgUrl : *{imageUrls}" class="image-item">
+                    <img th:src="${imgUrl}" class="image-preview" alt="Crawled Image" style="opacity: 1; cursor: default;" onclick="openModal(this.src)">
+                </div>
+            </div>
+        </div>
     </div>
 
     <a th:href="@{/admin/crawled-data}" class="btn-list">← 목록으로 돌아가기</a>
 
 </div>
+
+<div id="imageModal" class="modal">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img class="modal-content" id="modalImage">
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        updateCount();
+    });
+
+    function handleCheckboxClick(checkbox) {
+        const checkboxes = document.querySelectorAll('input[name="selectedImageUrls"]:checked');
+        if (checkboxes.length > 5) {
+            alert("이미지는 최대 5개까지만 선택할 수 있습니다.");
+            checkbox.checked = false;
+            return;
+        }
+
+        const container = checkbox.closest('.image-item');
+        if (checkbox.checked) {
+            container.classList.add('selected');
+        } else {
+            container.classList.remove('selected');
+        }
+
+        updateCount();
+    }
+
+    function updateCount() {
+        const checkboxes = document.querySelectorAll('input[name="selectedImageUrls"]:checked');
+        const count = checkboxes ? checkboxes.length : 0;
+        const display = document.getElementById('imgCountDisplay');
+
+        if (display) {
+            display.innerText = `선택된 이미지: ${count} / 5`;
+            if (count === 5) {
+                display.classList.add('warning');
+            } else {
+                display.classList.remove('warning');
+            }
+        }
+    }
+
+    function openModal(src) {
+        const modal = document.getElementById("imageModal");
+        const modalImg = document.getElementById("modalImage");
+        modal.style.display = "block";
+        modalImg.src = src;
+    }
+
+    function closeModal() {
+        document.getElementById("imageModal").style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById("imageModal");
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    function validateForm() {
+        return confirm("선택한 내용으로 게시글을 생성하시겠습니까?");
+    }
+</script>
 </body>
 </html>

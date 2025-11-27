@@ -81,7 +81,7 @@ public class KLifeInformationCrawlerService {
                 if (thumbElement != null) {
                     String thumbUrl = thumbElement.absUrl("src");
                     if (thumbUrl != null && !thumbUrl.contains("no-image.png")) {
-                        imageUrlSet.add(thumbUrl);
+                        imageUrlSet.add(getHighQualityUrl(thumbUrl));
                     }
                 }
 
@@ -96,7 +96,13 @@ public class KLifeInformationCrawlerService {
                     if (contentElement != null) {
                         fullContentKOR = contentElement.text();
                         Elements contentImages = contentElement.select(DETAIL_IMAGE_SELECTOR);
-                        contentImages.forEach(img -> imageUrlSet.add(img.absUrl("src")));
+
+                        contentImages.forEach(img -> {
+                            String imgUrl = img.absUrl("src");
+                            if (imgUrl != null && !imgUrl.isEmpty()) {
+                                imageUrlSet.add(getHighQualityUrl(imgUrl));
+                            }
+                        });
                     } else {
                         fullContentKOR = descriptionKOR;
                     }
@@ -132,5 +138,13 @@ public class KLifeInformationCrawlerService {
             }
         }
         log.info("Finished k-life.co /information crawling.");
+    }
+
+    private String getHighQualityUrl(String url) {
+        if (url == null) return "";
+        if (url.contains("?")) {
+            return url.substring(0, url.indexOf("?"));
+        }
+        return url;
     }
 }

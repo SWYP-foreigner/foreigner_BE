@@ -7,6 +7,7 @@ import core.global.dto.ApiResponse;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema; // 추가됨
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -30,14 +31,13 @@ public class ChatMemberController {
     private final ChatMemberService chatService;
     private final FeatureUsageMetrics featureUsageMetrics;
 
+    // [수정 1] List 반환 명시 (@ArraySchema)
     @Operation(summary = "채팅 참여자 조회")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatRoomParticipantsResponse.class))
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatRoomParticipantsResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방")
     })
     @GetMapping("/rooms/{roomId}/participants")
     public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId){
@@ -51,9 +51,7 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatUserProfileResponse.class))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 유저",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 유저")
     })
     @GetMapping("/users/{userId}/profile")
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
@@ -62,6 +60,7 @@ public class ChatMemberController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    // [수정 2] 리턴 타입 명확화 (<?> -> <String>)
     @Operation(summary = "특정 사용자 차단", description = "대화 상대를 차단합니다. 이미 차단되어 있거나 자기 자신은 차단할 수 없습니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "차단 성공"),
@@ -69,7 +68,7 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 사용자를 찾을 수 없음")
     })
     @PostMapping("/block/{targetUserId}")
-    public ResponseEntity<ApiResponse<?>> blockUser(
+    public ResponseEntity<ApiResponse<String>> blockUser(
             @PathVariable @Positive Long targetUserId,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
@@ -79,6 +78,7 @@ public class ChatMemberController {
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("차단 성공"));
     }
+
     @Operation(summary = "채팅 내용 신고", description = "채팅방, 사용자, 메시지 내용을 신고합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 접수 성공"),
@@ -134,9 +134,7 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatNotificationStatusResponse.class))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 참여자가 아님",
-                    content = @Content(schema = @Schema(implementation = Object.class))
-            )
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 참여자가 아님")
     })
     @GetMapping("/rooms/{roomId}/notification-status")
     public ResponseEntity<ApiResponse<ChatNotificationStatusResponse>> getNotificationStatus(

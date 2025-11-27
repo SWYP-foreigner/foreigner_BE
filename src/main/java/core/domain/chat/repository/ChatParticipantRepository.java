@@ -33,9 +33,9 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
         "SELECT cr FROM ChatRoom cr " +
                 "WHERE cr.id IN (SELECT cp.chatRoom.id FROM ChatParticipant cp WHERE cp.user.id = :userId) " +
                 "AND (" +
-                "   (cr.group = true AND cr.roomName LIKE %:keyword%) " +
+                "   (cr.isGroup = true AND cr.roomName LIKE %:keyword%) " +
                 "   OR " +
-                "   (cr.group = false AND EXISTS (" +
+                "   (cr.isGroup = false AND EXISTS (" +
                 "       SELECT 1 FROM ChatParticipant cp2 " +
                 "       JOIN cp2.user u " +
                 "       WHERE cp2.chatRoom = cr AND cp2.user.id != :userId " +

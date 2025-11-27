@@ -91,9 +91,10 @@ public class SeoulGlobalCrawlerService {
 
                         contentImages.forEach(img -> {
                             String imageUrl = img.absUrl("src");
-                            if (imageUrl != null && !imageUrl.isBlank()) {
-                                imageUrlSet.add(imageUrl);
+                            if (imageUrl.contains("?")) {
+                                imageUrl = imageUrl.substring(0, imageUrl.indexOf("?"));
                             }
+                            imageUrlSet.add(imageUrl);
                         });
                         imageUrls = new ArrayList<>(imageUrlSet);
                     } else {
