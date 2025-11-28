@@ -37,7 +37,6 @@ public class SoompiCrawlerService {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 
     @Scheduled(cron = "0 45 6 * * *")
-    @Transactional
     public void crawlSoompiLatest() {
         log.info("Starting soompi.com latest news crawling (RSS Feed)...");
         try {
@@ -123,12 +122,7 @@ public class SoompiCrawlerService {
                         imageUrls
                 );
 
-                try {
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
-                }
+                saveCrawledData(crawledData);
 
                 Thread.sleep(3000);
             }
@@ -140,5 +134,15 @@ public class SoompiCrawlerService {
             }
         }
         log.info("Finished soompi.com crawling.");
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
+        }
     }
 }

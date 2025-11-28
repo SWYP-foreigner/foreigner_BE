@@ -45,7 +45,6 @@ public class MyDramaListCrawlerService {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     @Scheduled(cron = "0 0 7 * * *")
-    @Transactional
     public void crawlMyDramaList() {
         log.info("Starting mydramalist.com crawling with HtmlUnit...");
 
@@ -155,12 +154,7 @@ public class MyDramaListCrawlerService {
                         List.of(imageUrl)
                 );
 
-                try {
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
-                }
+                saveCrawledData(crawledData);
 
                 Thread.sleep(3000);
             }
@@ -169,5 +163,15 @@ public class MyDramaListCrawlerService {
             log.error("Error occurred during crawling mydramalist.com", e);
         }
         log.info("Finished mydramalist.com crawling.");
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
+        }
     }
 }

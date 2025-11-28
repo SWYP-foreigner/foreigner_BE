@@ -34,11 +34,8 @@ public class AllkpopCrawlerService {
     private static final String LINK_SELECTOR = "div.text div.title a";
     private static final String THUMBNAIL_SELECTOR = "div.image img.b-lazy";
     private static final String DETAIL_CONTENT_SELECTOR = "div.entry_content";
-    private static final String DETAIL_IMAGE_SELECTOR = "div.entry_content img";
-
 
     @Scheduled(cron = "0 30 6 * * *")
-    @Transactional
     public void crawlAllkpopNews() {
         log.info("Starting allkpop.com news crawling...");
         try {
@@ -122,12 +119,7 @@ public class AllkpopCrawlerService {
                         imageUrls
                 );
 
-                try {
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
-                }
+                saveCrawledData(crawledData);
 
                 Thread.sleep(3000);
             }
@@ -137,5 +129,15 @@ public class AllkpopCrawlerService {
             Thread.currentThread().interrupt();
         }
         log.info("Finished allkpop.com community crawling.");
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
+        }
     }
 }
