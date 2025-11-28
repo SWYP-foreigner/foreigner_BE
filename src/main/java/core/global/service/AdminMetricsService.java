@@ -1,10 +1,8 @@
 package core.global.service;
 
+import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.dto.AdminMetricsDto;
-import core.global.dto.InactiveUserStatsDto;
-import core.global.dto.UserActivityBucketsDto;
-import core.global.dto.WeeklyCohortDto;
+import core.global.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +17,48 @@ import java.util.stream.Collectors;
 public class AdminMetricsService {
 
     private final UserRepository userRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     @Transactional(readOnly = true)
-    public AdminMetricsDto getDashboardMetrics() {
+    public AdminMetricsDto getDashboardMetrics(int signupDays, int validJoinDays, int validActiveDays) {
+
         InactiveUserStatsDto userStats = fetchInactiveUserStats();
         UserActivityBucketsDto activityBuckets = fetchUserActivityBuckets();
         List<WeeklyCohortDto> weeklyCohorts = fetchWeeklyCohorts();
 
-        return new AdminMetricsDto(userStats, activityBuckets, weeklyCohorts);
+        AdvancedMetricsDto advancedMetrics = fetchAdvancedMetrics(signupDays, validJoinDays, validActiveDays);
+
+        return new AdminMetricsDto(userStats, activityBuckets, weeklyCohorts, advancedMetrics);
+    }
+
+    private AdvancedMetricsDto fetchAdvancedMetrics(int signupDays, int validJoinDays, int validActiveDays) {
+        long recentSignups = userRepository.countRecentSignups(signupDays);
+
+        long effectiveActive = userRepository.countEffectiveActiveUsers(validJoinDays, validActiveDays);
+
+        long recentActiveExisting = userRepository.countRecentActiveExistingUsers(validJoinDays);
+
+        long joined7DaysAgo = userRepository.countUsersJoined7DaysAgo();
+        long retained7Days = userRepository.countUsersJoined7DaysAgoAndActiveToday();
+        double d7Retention = (joined7DaysAgo == 0) ? 0.0 : ((double) retained7Days / joined7DaysAgo) * 100.0;
+
+        long msgCount7Days = chatMessageRepository.countMessagesLast7Days();
+        long activeUsers7Days = userRepository.countActiveUsersLast7Days();
+        double avgMsg = (activeUsers7Days == 0) ? 0.0 : (double) msgCount7Days / activeUsers7Days;
+
+        // todo: 인기 기능 (로그 테이블이 없으므로 예시 로직 or 더미 데이터)
+        String topFeatureName = "실시간 번역";
+        double topFeatureUsageRate = 34.1;
+
+        return new AdvancedMetricsDto(
+                recentSignups,
+                effectiveActive,
+                recentActiveExisting,
+                Math.round(d7Retention * 10) / 10.0,
+                Math.round(avgMsg * 10) / 10.0,
+                topFeatureName,
+                topFeatureUsageRate
+        );
     }
 
     private InactiveUserStatsDto fetchInactiveUserStats() {

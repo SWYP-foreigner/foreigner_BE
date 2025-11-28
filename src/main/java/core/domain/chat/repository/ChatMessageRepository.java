@@ -103,4 +103,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     Page<ChatMessage> findBySenderId(Long senderId, Pageable pageable);
 
     void deleteAllByChatRoomId(Long chatRoomId);
+
+    @Query(value = "SELECT COUNT(*) FROM chat_message WHERE sent_at >= NOW() - INTERVAL '7 days'", nativeQuery = true)
+    long countMessagesLast7Days();
 }
