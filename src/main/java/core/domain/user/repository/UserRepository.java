@@ -136,4 +136,37 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     @Query("SELECT u FROM User u")
     Stream<User> findAllAsStream();
+
+    @Query(value = "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - (INTERVAL '1 day' * :days)", nativeQuery = true)
+    long countRecentSignups(@Param("days") int days);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at <= NOW() - (INTERVAL '1 day' * :joinDays)
+          AND last_seen_at >= NOW() - (INTERVAL '1 day' * :activeDays)
+    """, nativeQuery = true)
+    long countEffectiveActiveUsers(@Param("joinDays") int joinDays, @Param("activeDays") int activeDays);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at <= NOW() - (INTERVAL '1 day' * :joinDays)
+          AND last_seen_at >= NOW() - INTERVAL '24 hours'
+    """, nativeQuery = true)
+    long countRecentActiveExistingUsers(@Param("joinDays") int joinDays);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at BETWEEN (NOW() - INTERVAL '8 days') AND (NOW() - INTERVAL '7 days')
+    """, nativeQuery = true)
+    long countUsersJoined7DaysAgo();
+
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at BETWEEN (NOW() - INTERVAL '8 days') AND (NOW() - INTERVAL '7 days')
+          AND last_seen_at >= NOW() - INTERVAL '24 hours'
+    """, nativeQuery = true)
+    long countUsersJoined7DaysAgoAndActiveToday();
+
+    @Query(value = "SELECT COUNT(*) FROM users WHERE last_seen_at >= NOW() - INTERVAL '7 days'", nativeQuery = true)
+    long countActiveUsersLast7Days();
 }
