@@ -44,7 +44,6 @@ public class HarpersBazaarCrawlerService {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 
     @Scheduled(cron = "0 0 9 * * *")
-    @Transactional
     public void crawlHarpersBazaar() {
         log.info("Starting harpersbazaar.co.kr crawling (AJAX)...");
         try {
@@ -136,12 +135,7 @@ public class HarpersBazaarCrawlerService {
                         imageUrls
                 );
 
-                try {
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
-                }
+                saveCrawledData(crawledData);
 
                 Thread.sleep(3000);
             }
@@ -193,6 +187,16 @@ public class HarpersBazaarCrawlerService {
             return responseCode == HttpURLConnection.HTTP_OK;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
         }
     }
 }

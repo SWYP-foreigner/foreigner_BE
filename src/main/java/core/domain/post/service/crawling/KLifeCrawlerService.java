@@ -37,7 +37,6 @@ public class KLifeCrawlerService {
     private static final String DETAIL_IMAGE_SELECTOR = "div.rhymix_content.xe_content img";
 
     @Scheduled(cron = "0 30 5 * * *")
-    @Transactional
     public void crawlKLifeCommunity() {
         log.info("Starting k-life.co community crawling...");
         try {
@@ -99,12 +98,8 @@ public class KLifeCrawlerService {
                         SOURCE_SITE,
                         imageUrls
                 );
-                try {
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
-                }
+
+                saveCrawledData(crawledData);
 
                 Thread.sleep(3000);
             }
@@ -114,5 +109,15 @@ public class KLifeCrawlerService {
             Thread.currentThread().interrupt();
         }
         log.info("Finished k-life.co community crawling.");
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
+        }
     }
 }
