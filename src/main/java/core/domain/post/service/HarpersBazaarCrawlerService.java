@@ -9,6 +9,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -134,8 +135,13 @@ public class HarpersBazaarCrawlerService {
                         SOURCE_SITE,
                         imageUrls
                 );
-                crawledDataRepository.save(crawledData);
-                log.info("Successfully crawled and saved: {}", originalUrl);
+
+                try {
+                    crawledDataRepository.save(crawledData);
+                    log.info("Successfully crawled and saved: {}", originalUrl);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
+                }
 
                 Thread.sleep(3000);
             }

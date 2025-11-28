@@ -13,6 +13,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +49,6 @@ public class MyDramaListCrawlerService {
     public void crawlMyDramaList() {
         log.info("Starting mydramalist.com crawling with HtmlUnit...");
 
-        // 1. 기본 로거 끄기 (기존 코드)
         Logger.getLogger("org.htmlunit").setLevel(Level.OFF);
         Logger.getLogger("org.htmlunit.javascript").setLevel(Level.OFF);
         Logger.getLogger("org.htmlunit.css").setLevel(Level.OFF);
@@ -154,8 +154,13 @@ public class MyDramaListCrawlerService {
                         SOURCE_SITE,
                         List.of(imageUrl)
                 );
-                crawledDataRepository.save(crawledData);
-                log.info("Successfully crawled and saved: {}", originalUrl);
+
+                try {
+                    crawledDataRepository.save(crawledData);
+                    log.info("Successfully crawled and saved: {}", originalUrl);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
+                }
 
                 Thread.sleep(3000);
             }

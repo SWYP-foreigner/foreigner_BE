@@ -9,6 +9,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,7 +62,6 @@ public class SoompiCrawlerService {
                 Element titleElement = articleElement.selectFirst(RSS_TITLE_SELECTOR);
 
                 if (linkElement == null || titleElement == null) {
-                    log.warn("Skipping RSS item, <link> or <title> tag not found.");
                     continue;
                 }
 
@@ -97,7 +97,6 @@ public class SoompiCrawlerService {
                             if (!text.startsWith("Source (") &&
                                     !text.startsWith("In the meantime, watch") &&
                                     !p.hasClass("has-text-align-center")) {
-
                                 contentBuilder.append(text).append("\n\n");
                             }
                         }
@@ -109,7 +108,6 @@ public class SoompiCrawlerService {
 
                     if(fullContent.isEmpty()) {
                         fullContent = title;
-                        log.warn("Could not find detail content selector [{}], using title instead.", DETAIL_CONTENT_WRAPPER);
                     }
                 } catch (IOException e) {
                     log.error("Failed to crawl detail page: {}. Skipping.", originalUrl, e);
@@ -124,8 +122,13 @@ public class SoompiCrawlerService {
                         SOURCE_SITE,
                         imageUrls
                 );
-                crawledDataRepository.save(crawledData);
-                log.info("Successfully crawled and saved: {}", originalUrl);
+
+                try {
+                    crawledDataRepository.save(crawledData);
+                    log.info("Successfully crawled and saved: {}", originalUrl);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("Duplicate entry found for URL: {}. Skipping.", originalUrl);
+                }
 
                 Thread.sleep(3000);
             }
@@ -135,7 +138,6 @@ public class SoompiCrawlerService {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new RuntimeException("Soompi 크롤링 실패: " + e.getMessage(), e);
         }
         log.info("Finished soompi.com crawling.");
     }
