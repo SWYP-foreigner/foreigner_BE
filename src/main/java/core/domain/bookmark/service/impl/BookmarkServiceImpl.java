@@ -136,6 +136,10 @@ public class BookmarkServiceImpl implements BookmarkService {
                 ? "Anonymity"
                 : (p.getAuthor() != null ? p.getAuthor().getFirstName() +" "+ p.getAuthor().getLastName() : null);
 
+        Long authorId = Boolean.TRUE.equals(p.getAnonymous())
+                ? null
+                : (p.getAuthor() != null ? p.getAuthor().getId() : null);
+
         Long postId = p.getId();
         Instant time = p.getCreatedAt();
         Boolean anonymous = p.getAnonymous();
@@ -153,6 +157,7 @@ public class BookmarkServiceImpl implements BookmarkService {
         return new BookmarkItem(
                 b.getId(),
                 postId,
+                authorId,
                 authorName,
                 safeTrim(p.getContent()),
                 time,
