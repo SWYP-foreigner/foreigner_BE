@@ -1,6 +1,7 @@
 package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
+import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.user.entity.User;
 import core.global.enums.BoardCategory;
 import core.domain.post.dto.comunity.*;
@@ -40,4 +41,7 @@ public interface PostService {
     void blockPost(@Positive Long postId);
 
     void createAdminPost(String content, BoardCategory category, List<MultipartFile> images, User adminUser) throws IOException;
+
+    void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
+
 }
