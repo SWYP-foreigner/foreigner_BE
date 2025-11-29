@@ -33,7 +33,8 @@ public enum CommunityErrorCode implements AppError {
     TOO_MANY_POSTS(HttpStatus.TOO_MANY_REQUESTS, "게시글 도배를 방지합니다."),
     TOO_MANY_COMMENTS(HttpStatus.TOO_MANY_REQUESTS, "댓글 도배를 방지합니다."),
     DUPLICATE_REPORT(HttpStatus.CONFLICT, "이미 신고한 게시물입니다."),
-    CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "본인의 게시물은 신고할 수 없습니다.");
+    CANNOT_REPORT_SELF(HttpStatus.BAD_REQUEST, "본인의 게시물은 신고할 수 없습니다."),
+    REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고 내역입니다.");
 
     private final HttpStatus httpStatus;
     private final String message;
