@@ -13,6 +13,9 @@ public record BookmarkItem(
         @Schema(description = "게시물 ID", example = "100")
         Long postId,
 
+        @Schema(description = "작성자 ID", example = "100")
+        Long authorId,
+
         @Schema(description = "작성자 이름", example = "alice")
         String authorName,
 
@@ -38,7 +41,7 @@ public record BookmarkItem(
         Long checkCount,
 
         @Schema(description = "현재 사용자가 북마크 여부", example = "true")
-        Boolean isMarked,
+        Boolean isBookmarked,
 
         @Schema(description = "작성자 프로필 이미지 URL", example = "https://cdn.example.com/u/alice.png")
         String userImage,
