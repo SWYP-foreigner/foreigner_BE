@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>게시글 신고 관리</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        td a { text-decoration: none; color: #007bff; }
+        td a:hover { text-decoration: underline; }
+        td form { display: inline; }
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+        .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .btn-home {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+<h1>게시글 신고 대기 목록</h1>
+
+<div th:if="${successMessage}" class="message success" th:text="${successMessage}"></div>
+<div th:if="${errorMessage}" class="message error" th:text="${errorMessage}"></div>
+
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+
+<table>
+    <thead>
+    <tr>
+        <th>신고ID</th>
+        <th>신고자</th>
+        <th>피신고자</th>
+        <th>게시글ID</th>
+        <th>글 제목 (스냅샷)</th>
+        <th>신고 사유</th>
+        <th>상세 사유</th>
+        <th>신고 시각</th>
+        <th>관리</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="report : ${reportPage.content}">
+        <td th:text="${report.reportId}"></td>
+        <td><a th:href="@{/admin/users/{id}(id=${report.reporterId})}" th:text="${report.reporterName}"></a></td>
+        <td><a th:href="@{/admin/users/{id}(id=${report.reportedId})}" th:text="${report.reportedName}"></a></td>
+        <td><a th:href="@{/admin/posts(content=${report.postTitleSnapshot})}" th:text="${report.postId}"></a></td>
+        <td th:text="${report.postTitleSnapshot}"></td>
+        <td th:text="${report.reasonCategory}"></td>
+        <td th:text="${report.reasonDetail}"></td>
+        <td th:text="${#temporals.format(report.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td>
+            <form th:action="@{/admin/posts/reports/{id}/process(id=${report.reportId})}" method="post" onsubmit="return confirm('이 신고를 처리 완료 상태로 변경하시겠습니까?');">
+                <button type="submit">처리 완료</button>
+            </form>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pagination" th:if="${reportPage.totalPages > 1}">
+    <a th:if="${reportPage.hasPrevious()}"
+       th:href="@{/admin/posts/reports(page=${reportPage.number - 1}, sort=${param.sort})}">이전</a>
+    <span th:each="pageNumber : ${#numbers.sequence(0, reportPage.totalPages - 1)}">
+            <a th:href="@{/admin/posts/reports(page=${pageNumber}, sort=${param.sort})}"
+               th:text="${pageNumber + 1}"
+               th:classappend="${pageNumber == reportPage.number} ? 'active'"></a>
+        </span>
+    <a th:if="${reportPage.hasNext()}"
+       th:href="@{/admin/posts/reports(page=${reportPage.number + 1}, sort=${param.sort})}">다음</a>
+</div>
+
+</body>
+</html>
