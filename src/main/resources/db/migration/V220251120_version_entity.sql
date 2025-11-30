@@ -27,13 +27,11 @@ VALUES (
            NOW()
        );
 
--- iOS (Apple ID: 6752611613 적용 완료)
 INSERT INTO app_version (platform, minimum_version, latest_version, store_url, message, created_at, updated_at)
 VALUES (
            'IOS',
            '1.2.4',
-           '1.2.4',
-           'itms-apps://itunes.apple.com/app/id6752611613',
+           '1.2.4','https://apps.apple.com/app/id6752611613',
            'Please update to the latest version for more stable service.',
            NOW(),
            NOW()
