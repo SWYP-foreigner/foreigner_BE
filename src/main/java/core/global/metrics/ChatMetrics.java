@@ -2,6 +2,7 @@ package core.global.metrics;
 
 import core.domain.chat.repository.ChatMessageRepository;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,10 @@ public class ChatMetrics {
                 .publishPercentileHistogram()
                 .register(registry);
         this.chatMessageRepository = chatMessageRepository;
+
+        Gauge.builder("chat_active_senders_1d", this, self -> self.countActiveSenders())
+               .description("최근 1일 내 채팅을 보낸 유저 수")
+               .register(registry);
     }
 
     public void onMessageSent(String kind, boolean success) {
