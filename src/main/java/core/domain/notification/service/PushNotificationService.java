@@ -44,7 +44,6 @@ public class PushNotificationService {
     @Transactional
     public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
 
-        long start = System.currentTimeMillis();
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
@@ -74,6 +73,8 @@ public class PushNotificationService {
 
         List<UserDeviceToken> deviceTokens = userDeviceTokenRepository.findAllByUser(recipient);
         for (UserDeviceToken userDeviceToken : deviceTokens) {
+            long start = System.currentTimeMillis();
+
             Message.Builder messageBuilder = Message.builder()
                     .setToken(userDeviceToken.getDeviceToken())
                     .setNotification(com.google.firebase.messaging.Notification.builder()
