@@ -106,4 +106,14 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
 
     @Query(value = "SELECT COUNT(*) FROM chat_message WHERE sent_at >= NOW() - INTERVAL '7 days'", nativeQuery = true)
     long countMessagesLast7Days();
+
+    @Query(
+            value = """
+            SELECT COUNT(DISTINCT sender_id)
+            FROM chat_message
+            WHERE sent_at >= NOW() - INTERVAL '1 day'
+            """,
+            nativeQuery = true
+    )
+    Long countSendMessageUsersLast1Day();
 }
