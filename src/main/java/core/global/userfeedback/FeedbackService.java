@@ -1,6 +1,10 @@
 package core.global.userfeedback;
+
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.errorcode.FeedbackErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.userfeedback.dto.FeedbackRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +34,10 @@ public class FeedbackService {
     public void createFeedback(Long userId, FeedbackRequest request) {
         User user = getUserOrThrow(userId);
 
+        if (feedbackRepository.existsByUser(user)) {
+            throw new BusinessException(FeedbackErrorCode.ALREADY_SUBMITTED);
+        }
+
         UserFeedback feedback = UserFeedback.builder()
                 .user(user)
                 .content(request.content())
@@ -41,6 +49,6 @@ public class FeedbackService {
 
     private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 }
