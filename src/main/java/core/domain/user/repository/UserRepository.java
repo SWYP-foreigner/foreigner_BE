@@ -177,4 +177,12 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     // 최근 30일 활동 유저 수 (MAU)
     @Query(value = "SELECT COUNT(*) FROM users WHERE last_seen_at >= NOW() - INTERVAL '30 days'", nativeQuery = true)
     long countActiveUsersLast30Days();
+
+    @Query(value = """
+    SELECT
+      COUNT(*) AS total_users,
+      SUM(CASE WHEN user_role = 'USER' THEN 1 ELSE 0 END) AS users
+    FROM users
+    """, nativeQuery = true)
+    Object[] visitorShareOverall();
 }

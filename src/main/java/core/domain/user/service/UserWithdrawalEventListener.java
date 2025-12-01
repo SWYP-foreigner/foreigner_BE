@@ -22,7 +22,6 @@ public class UserWithdrawalEventListener {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @Async("dispatchExecutor")
     @TransactionalEventListener
     public void handleUserWithdrawal(UserWithdrawalEvent event) {
         try {
