@@ -17,6 +17,7 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.image.dto.NotificationSliceResponseDto;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.metrics.NotificationMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,6 +42,8 @@ public class UserNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final NotificationRepository notificationRepository;
     private final ImageRepository imageRepository;
+    private final NotificationMetrics notificationMetrics;
+
     /**
      * FCM 기기 토큰을 등록하거나 갱신합니다. (람다 제거 버전)
      */
@@ -159,6 +162,8 @@ public class UserNotificationService {
                 .build();
 
         notificationRepository.save(notification);
+
+        notificationMetrics.mark("inapp", "created", "ok");
     }
     /**
      * 특정 알림을 읽음 상태로 변경합니다.
@@ -174,7 +179,7 @@ public class UserNotificationService {
         }
 
         notification.markAsRead();
-
+        notificationMetrics.mark("inapp", "created", "ok");
     }
 
     public NotificationSliceResponseDto getNotifications(Long userId, NotificationType type, Pageable pageable) {

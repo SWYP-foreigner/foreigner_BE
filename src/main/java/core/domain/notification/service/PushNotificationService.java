@@ -13,6 +13,7 @@ import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.enums.NotificationType;
+import core.global.metrics.NotificationMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class PushNotificationService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
+    private final NotificationMetrics notificationMetrics;
 
     /**
      * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
@@ -41,6 +43,8 @@ public class PushNotificationService {
      */
     @Transactional
     public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
+
+        long start = System.currentTimeMillis();
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
@@ -137,18 +141,34 @@ public class PushNotificationService {
             try {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
+
+                notificationMetrics.mark("push", "sent", "ok");
+                notificationMetrics.recordSend("push", "firebase", start);
             } catch (FirebaseMessagingException e) {
                 MessagingErrorCode code = e.getMessagingErrorCode();
                 String errorMessage = e.getMessage();
+
+                String reason = "unknown";
+
+
+
                 if (code == MessagingErrorCode.UNREGISTERED ||
                         (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
                         code == MessagingErrorCode.SENDER_ID_MISMATCH) {
                     log.info("만료/무효 토큰 삭제: {} (코드: {})", userDeviceToken.getDeviceToken(), code);
                     userDeviceTokenRepository.delete(userDeviceToken);
+                    reason = "invalid_token";
+
+                    notificationMetrics.mark("push", "failed", reason);
+                    notificationMetrics.recordSend("push", "firebase", start);
                 } else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
                         code == MessagingErrorCode.UNAVAILABLE ||
                         code == MessagingErrorCode.INTERNAL) {
                     log.warn("재시도 필요: {} (코드: {})", errorMessage, code);
+                    reason = "retryable";
+
+                    notificationMetrics.mark("push", "failed", reason);
+                    notificationMetrics.recordSend("push", "firebase", start);
                     throw e;  // 호출자에게 예외를 전파하여 재시도 처리
                 } else {
                     log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
