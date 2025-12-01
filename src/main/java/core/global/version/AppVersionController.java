@@ -3,12 +3,14 @@ package core.global.version;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,13 +43,59 @@ public class AppVersionController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "잘못된 플랫폼 정보 (ANDROID, IOS 외의 값 전송)",
-                    content = @Content(schema = @Schema(hidden = true))
+                    description = "잘못된 요청 (지원하지 않는 플랫폼 파라미터)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(
+                                    name = "INVALID_PLATFORM",
+                                    summary = "잘못된 플랫폼 값 입력 시",
+                                    value = """
+                                    {
+                                        "code": "INVALID_PLATFORM",
+                                        "message": "지원하지 않는 플랫폼입니다. (허용: ANDROID, IOS)",
+                                        "status": 400
+                                    }
+                                    """
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "버전 정보 없음 (DB 데이터 누락)",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(
+                                    name = "VERSION_INFO_NOT_FOUND",
+                                    summary = "해당 플랫폼 데이터가 없을 시",
+                                    value = """
+                                    {
+                                        "code": "VERSION_INFO_NOT_FOUND",
+                                        "message": "해당 플랫폼의 버전 정보를 찾을 수 없습니다.",
+                                        "status": 404
+                                    }
+                                    """
+                            )
+                    )
             ),
             @ApiResponse(
                     responseCode = "500",
-                    description = "서버 에러 (DB에 해당 플랫폼 버전 정보가 없을 경우)",
-                    content = @Content(schema = @Schema(hidden = true))
+                    description = "서버 내부 에러",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(
+                                    name = "INTERNAL_SERVER_ERROR",
+                                    value = """
+                                    {
+                                        "code": "INTERNAL_SERVER_ERROR",
+                                        "message": "서버 내부 오류가 발생했습니다.",
+                                        "status": 500
+                                    }
+                                    """
+                            )
+                    )
             )
     })
     @GetMapping("/version")
