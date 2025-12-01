@@ -28,9 +28,6 @@ public class ChatRoomDwellRecorder {
         this.redis = redis;
         this.dwellSeconds = DistributionSummary.builder("chat_room_dwell_seconds")
                 .description("채팅방 체류 시간(초) 분포 (전체 chat)")
-                .serviceLevelObjectives(1, 3, 5, 10, 15, 30, 60, 120, 180, 300, 600)
-                .maximumExpectedValue(3600.0)
-                .publishPercentileHistogram()
                 .register(registry);
     }
 
