@@ -173,12 +173,15 @@ public class ChatMessageService {
                 ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
                 eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
 
+                chatMetrics.onMessageSent("text", true);
+                chatMetrics.recordDelivery(startTime);
+
                 long endTime = System.currentTimeMillis();
                 log.debug("Processed message for room {} in {}ms (Recipients: {})",
                         req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
             }
         } catch (Exception e) {
-            chatMetrics.onMessageSent("text", true);
+            chatMetrics.onMessageSent("text", false);
             chatMetrics.recordDelivery(startTime);
 
             throw e;

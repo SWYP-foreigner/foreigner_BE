@@ -150,30 +150,26 @@ public class PushNotificationService {
 
                 String reason = "unknown";
 
-
-
                 if (code == MessagingErrorCode.UNREGISTERED ||
-                        (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
-                        code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                    (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
+                    code == MessagingErrorCode.SENDER_ID_MISMATCH) {
                     log.info("만료/무효 토큰 삭제: {} (코드: {})", userDeviceToken.getDeviceToken(), code);
                     userDeviceTokenRepository.delete(userDeviceToken);
                     reason = "invalid_token";
-
-                    notificationMetrics.mark("push", "failed", reason);
-                    notificationMetrics.recordSend("push", "firebase", start);
                 } else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
-                        code == MessagingErrorCode.UNAVAILABLE ||
-                        code == MessagingErrorCode.INTERNAL) {
+                           code == MessagingErrorCode.UNAVAILABLE ||
+                           code == MessagingErrorCode.INTERNAL) {
                     log.warn("재시도 필요: {} (코드: {})", errorMessage, code);
                     reason = "retryable";
-
-                    notificationMetrics.mark("push", "failed", reason);
-                    notificationMetrics.recordSend("push", "firebase", start);
-                    throw e;  // 호출자에게 예외를 전파하여 재시도 처리
                 } else {
                     log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
                     // 여기에 fallback 로직 추가 가능 (e.g., 이메일 알림)
                 }
+
+                notificationMetrics.mark("push", "failed", reason);
+                notificationMetrics.recordSend("push", "firebase", start);
+
+                throw e;
             }
         }
     }
