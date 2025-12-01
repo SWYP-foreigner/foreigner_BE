@@ -1,7 +1,9 @@
 package core.domain.post.controller;
 
+import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.service.PostService;
+import core.global.config.CustomUserDetails;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +18,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -241,22 +244,25 @@ public class PostController {
 
     @Operation(summary = "게시글 차단(신고)", description = "게시글을 차단합니다. 해당 게시물에만 유저에게 보이지 않습니다.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 접수 성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 (본인 신고 등)", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 또는 유저 없음", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 신고한 게시글", content = @Content)
     })
     @PostMapping("/posts/{postId}/declaration")
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockPost(
-            @PathVariable @Positive Long postId
+            @PathVariable @Positive Long postId,
+            @Valid @RequestBody PostReportRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        postService.blockPost(postId);
+        Long reporterUserId = principal.getUserId();
+        postService.reportPost(reporterUserId, postId, request);
         featureUsageMetrics.recordCommunityUsage();
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(core.global.dto.ApiResponse.success("차단 성공"));
+                .body(core.global.dto.ApiResponse.success("신고 접수 성공"));
     }
 
 

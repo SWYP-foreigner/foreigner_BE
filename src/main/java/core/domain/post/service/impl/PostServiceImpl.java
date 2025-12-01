@@ -4,12 +4,15 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
+import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.BlockUser;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
+import static core.global.enums.errorcode.CommunityErrorCode.POST_NOT_FOUND;
 
 @Slf4j
 @Service
@@ -76,6 +80,7 @@ public class PostServiceImpl implements PostService {
     private final UserRoleDetectService userRoleDetectService;
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PostReportRepository postReportRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -200,7 +205,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
             throw new BusinessException(CommunityErrorCode.BLOCKED_USER_POST);
@@ -356,7 +361,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (!email.equals(post.getAuthor().getEmail())) {
             throw new BusinessException(CommunityErrorCode.POST_EDIT_FORBIDDEN);
@@ -383,7 +388,7 @@ public class PostServiceImpl implements PostService {
 
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
@@ -484,7 +489,7 @@ public class PostServiceImpl implements PostService {
     @Override
     public CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(Long postId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
     }
@@ -529,7 +534,7 @@ public class PostServiceImpl implements PostService {
 
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
@@ -624,5 +629,33 @@ public class PostServiceImpl implements PostService {
         if (images != null && !images.isEmpty()) {
             imageService.uploadAndSavePostImages(savedPost, images);
         }
+    }
+
+    @Override
+    @Transactional
+    public void reportPost(Long reporterUserId, Long postId, PostReportRequest request) {
+        User reporter = userRepository.findById(reporterUserId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Post reportedPost = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+
+        if (postReportRepository.existsByReporterAndPost(reporter, reportedPost)) {
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_REPORT);
+        }
+
+        if (reportedPost.getAuthor().getId().equals(reporterUserId)) {
+            throw new BusinessException(CommunityErrorCode.CANNOT_REPORT_SELF);
+        }
+
+        PostReport postReport = new PostReport(
+                reporter,
+                reportedPost.getAuthor(),
+                reportedPost,
+                request.reasonCategory(),
+                request.reasonDetail()
+        );
+
+        postReportRepository.save(postReport);
     }
 }
