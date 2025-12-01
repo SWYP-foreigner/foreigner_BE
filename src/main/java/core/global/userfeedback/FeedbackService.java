@@ -2,6 +2,7 @@ package core.global.userfeedback;
 
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.FeedbackSource;
 import core.global.enums.errorcode.FeedbackErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -41,7 +42,7 @@ public class FeedbackService {
         UserFeedback feedback = UserFeedback.builder()
                 .user(user)
                 .content(request.content())
-                .source(request.source())
+                .source(FeedbackSource.valueOf(request.source()))
                 .build();
 
         feedbackRepository.save(feedback);
