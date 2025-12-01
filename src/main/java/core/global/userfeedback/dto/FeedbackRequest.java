@@ -1,13 +1,15 @@
 package core.global.userfeedback.dto;
-
-import core.global.enums.FeedbackSource;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public record FeedbackRequest(
-        @NotBlank(message = "내용을 입력해주세요.")
-        @Size(max = 2000, message = "2000자 이내로 입력해주세요.")
+
+        @Schema(description = "피드백 내용", example = "앱이 너무 사용하기 편해요!")
+        @NotBlank(message = "내용은 필수입니다.")
+        @Size(max = 1000, message = "내용은 1000자 이내여야 합니다.")
         String content,
 
-        FeedbackSource source // 프론트에서 보내줌 (CHAT, COMMUNITY...)
+        @Schema(description = "유입 경로", example = "HOME_BANNER")
+        String source
 ) {}
