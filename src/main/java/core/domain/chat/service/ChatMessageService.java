@@ -7,7 +7,6 @@ import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
-import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -18,21 +17,18 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ImageType;
 import core.global.enums.MessageType;
-import core.global.enums.NotificationType;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
+import core.global.metrics.ChatMetrics;
 import core.global.service.PerspectiveService;
 import core.global.service.TranslationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -70,13 +66,13 @@ public class ChatMessageService {
 
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
+    private final ChatMetrics chatMetrics;
 
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
     @Value("${ncp.s3.bucket}")
     private String bucketName;
-
 
 
     /**
@@ -92,94 +88,106 @@ public class ChatMessageService {
     public void processAndSendChatMessage(SendMessageRequest req) {
         long startTime = System.currentTimeMillis();
 
-        // 1. 메시지 저장
-        ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
-        ChatRoom chatRoom = savedMessage.getChatRoom();
-        User sender = savedMessage.getSender();
-        String originalContent = savedMessage.getContent();
+        try {
 
-        // 2. [최적화] AI 스팸 감지 (별도 서비스의 @Async 메서드 호출로 변경 권장)
-        // spamDetectionService.checkSpamAndReport(savedMessage.getId(), originalContent);
-        CompletableFuture.runAsync(() -> checkSpamAndReport(savedMessage));
+            // 1. 메시지 저장
+            ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+            ChatRoom chatRoom = savedMessage.getChatRoom();
+            User sender = savedMessage.getSender();
+            String originalContent = savedMessage.getContent();
 
-        // 3. [최적화] 필요한 데이터 Bulk 조회 (N+1 방지)
-        String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                .map(Image::getUrl).orElse(null);
+            // 2. [최적화] AI 스팸 감지 (별도 서비스의 @Async 메서드 호출로 변경 권장)
+            // spamDetectionService.checkSpamAndReport(savedMessage.getId(), originalContent);
+            CompletableFuture.runAsync(() -> checkSpamAndReport(savedMessage));
 
-        // 차단 목록 조회
-        List<BlockUser> relatedBlocks = blockRepository.findAllRelatedBlocks(sender.getId());
-        Set<Long> blockedUserIds = relatedBlocks.stream()
-                .map(b -> b.getUser().getId().equals(sender.getId()) ? b.getBlocked().getId() : b.getUser().getId())
-                .collect(Collectors.toSet());
+            // 3. [최적화] 필요한 데이터 Bulk 조회 (N+1 방지)
+            String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                    .map(Image::getUrl).orElse(null);
 
-        // 4. [핵심 최적화] 참여자를 '번역 언어별'로 그룹핑
-        Map<String, List<Long>> recipientsByLang = new HashMap<>();
+            // 차단 목록 조회
+            List<BlockUser> relatedBlocks = blockRepository.findAllRelatedBlocks(sender.getId());
+            Set<Long> blockedUserIds = relatedBlocks.stream()
+                    .map(b -> b.getUser().getId().equals(sender.getId()) ? b.getBlocked().getId() : b.getUser().getId())
+                    .collect(Collectors.toSet());
 
-        for (ChatParticipant p : chatRoom.getParticipants()) {
-            User recipient = p.getUser();
-            if (blockedUserIds.contains(recipient.getId())) continue;
+            // 4. [핵심 최적화] 참여자를 '번역 언어별'로 그룹핑
+            Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
-            // =========================================================
-            // [수정 1] 보낸 사람(Sender)은 "NONE"이 아니라 "SELF" 그룹으로 분리
-            // =========================================================
-            if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(savedMessage.getId());
+            for (ChatParticipant p : chatRoom.getParticipants()) {
+                User recipient = p.getUser();
+                if (blockedUserIds.contains(recipient.getId())) continue;
 
-                // "NONE" 대신 "SELF"라는 별도 키를 사용
-                recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
-                continue;
-            }
+                // =========================================================
+                // [수정 1] 보낸 사람(Sender)은 "NONE"이 아니라 "SELF" 그룹으로 분리
+                // =========================================================
+                if (recipient.getId().equals(sender.getId())) {
+                    p.setLastReadMessageId(savedMessage.getId());
 
-            // (나머지 참가자 로직 동일)
-            String lang = (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null)
-                    ? p.getUser().getTranslateLanguage()
-                    : "NONE";
-
-            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
-        }
-
-        // 5. 언어 그룹별로 메시지 생성 및 이벤트 발행
-        for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
-            String targetLang = entry.getKey();
-            List<Long> recipientIds = entry.getValue();
-            if (recipientIds.isEmpty()) continue;
-
-            String translatedContent = null;
-
-            // =========================================================
-            // [수정 2] "SELF" 그룹이면 원문을 번역본 필드에 채워넣기
-            // =========================================================
-            if ("SELF".equals(targetLang)) {
-                // 내가 보낸 메시지는 번역 API를 안 쓰지만,
-                // 내 앱이 번역모드일 때 빈 화면이 뜨지 않도록 '원문'을 '번역필드'에 넣어줌
-                translatedContent = originalContent;
-
-            } else if (!"NONE".equals(targetLang)) {
-                // "NONE"이 아닐 때만 진짜 번역 API 호출
-                try {
-                    List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
-                    if (!results.isEmpty()) translatedContent = results.get(0);
-                } catch (Exception e) {
-                    log.error("Batch translation failed for lang={}", targetLang, e);
+                    // "NONE" 대신 "SELF"라는 별도 키를 사용
+                    recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
+                    continue;
                 }
+
+                // (나머지 참가자 로직 동일)
+                String lang = (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null)
+                        ? p.getUser().getTranslateLanguage()
+                        : "NONE";
+
+                recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
             }
 
-            ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(), chatRoom.getId(), sender.getId(),
-                    originalContent,
-                    translatedContent, // "SELF"일 경우 원문이 들어감 -> 빈 메시지 해결!
-                    savedMessage.getSentAt(),
-                    sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
-            );
+            // 5. 언어 그룹별로 메시지 생성 및 이벤트 발행
+            for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
+                String targetLang = entry.getKey();
+                List<Long> recipientIds = entry.getValue();
+                if (recipientIds.isEmpty()) continue;
 
-            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-            eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+                String translatedContent = null;
 
+                // =========================================================
+                // [수정 2] "SELF" 그룹이면 원문을 번역본 필드에 채워넣기
+                // =========================================================
+                if ("SELF".equals(targetLang)) {
+                    // 내가 보낸 메시지는 번역 API를 안 쓰지만,
+                    // 내 앱이 번역모드일 때 빈 화면이 뜨지 않도록 '원문'을 '번역필드'에 넣어줌
+                    translatedContent = originalContent;
+
+                } else if (!"NONE".equals(targetLang)) {
+                    // "NONE"이 아닐 때만 진짜 번역 API 호출
+                    try {
+                        List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
+                        if (!results.isEmpty()) translatedContent = results.get(0);
+                    } catch (Exception e) {
+                        log.error("Batch translation failed for lang={}", targetLang, e);
+                    }
+                }
+
+                ChatMessageResponse messageResponse = new ChatMessageResponse(
+                        savedMessage.getId(), chatRoom.getId(), sender.getId(),
+                        originalContent,
+                        translatedContent, // "SELF"일 경우 원문이 들어감 -> 빈 메시지 해결!
+                        savedMessage.getSentAt(),
+                        sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
+                );
+
+                ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
+                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+
+                chatMetrics.onMessageSent("text", true);
+                chatMetrics.recordDelivery(startTime);
+
+                long endTime = System.currentTimeMillis();
+                log.debug("Processed message for room {} in {}ms (Recipients: {})",
+                        req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
+            }
+        } catch (Exception e) {
+            chatMetrics.onMessageSent("text", false);
+            chatMetrics.recordDelivery(startTime);
+
+            throw e;
         }
 
-        long endTime = System.currentTimeMillis();
-        log.debug("Processed message for room {} in {}ms (Recipients: {})",
-                req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
+
     }
 
 
@@ -339,46 +347,58 @@ public class ChatMessageService {
 
     @Transactional
     public void processAndSendMediaMessage(SendMediaMessageRequest req) {
-        ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
-        User sender = userRepository.findById(req.senderId())
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        long startTime = System.currentTimeMillis();
 
-        // 1. 메시지 저장 (동일)
-        ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
-        chatMessageRepository.save(savedMessage);
+        try {
+            ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
+                    .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
+            User sender = userRepository.findById(req.senderId())
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
-                .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
+            // 1. 메시지 저장 (동일)
+            ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
+            chatMessageRepository.save(savedMessage);
 
-        // 2. 수신자 목록 계산 (리팩토링)
-        // 기존의 반복문 안에서 바로 보내던 로직을 -> 받을 사람 ID만 수집하는 것으로 변경
-        List<Long> recipientIds = new ArrayList<>();
+            chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+                    .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
 
-        for (ChatParticipant participant : chatRoom.getParticipants()) {
-            User recipient = participant.getUser();
+            // 2. 수신자 목록 계산 (리팩토링)
+            // 기존의 반복문 안에서 바로 보내던 로직을 -> 받을 사람 ID만 수집하는 것으로 변경
+            List<Long> recipientIds = new ArrayList<>();
 
-            // 차단 체크
-            boolean isBlocked = blockRepository.existsBlock(recipient.getId(), sender.getId()) ||
-                    blockRepository.existsBlock(sender.getId(), recipient.getId());
-            if (isBlocked) continue;
-            recipientIds.add(recipient.getId());
+            for (ChatParticipant participant : chatRoom.getParticipants()) {
+                User recipient = participant.getUser();
+
+                // 차단 체크
+                boolean isBlocked = blockRepository.existsBlock(recipient.getId(), sender.getId()) ||
+                                    blockRepository.existsBlock(sender.getId(), recipient.getId());
+                if (isBlocked) continue;
+                recipientIds.add(recipient.getId());
+            }
+
+            String fullMediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
+            String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                    .map(Image::getUrl).orElse(null);
+
+            ChatMessageResponse messageResponse = new ChatMessageResponse(
+                    savedMessage.getId(), chatRoom.getId(), sender.getId(), fullMediaUrl, null,
+                    savedMessage.getSentAt(), sender.getFirstName(), sender.getLastName(), senderImageUrl, savedMessage.getMessageType()
+            );
+
+            // 채팅방 목록 갱신용 DTO (보내는 사람 기준으로 만들거나, 수신자별로 다르다면 null로 보내고 리스너에서 처리할 수도 있음. 여기선 단순화)
+            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
+
+            // 4. [핵심 변경] 직접 전송하지 않고 이벤트만 던집니다.
+            eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+
+            chatMetrics.onMessageSent("media", true);
+            chatMetrics.recordDelivery(startTime);
+        } catch (Exception e) {
+            chatMetrics.onMessageSent("media", false);
+            chatMetrics.recordDelivery(startTime);
+
+            throw e;
         }
-
-        String fullMediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
-        String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                .map(Image::getUrl).orElse(null);
-
-        ChatMessageResponse messageResponse = new ChatMessageResponse(
-                savedMessage.getId(), chatRoom.getId(), sender.getId(), fullMediaUrl, null,
-                savedMessage.getSentAt(), sender.getFirstName(), sender.getLastName(), senderImageUrl, savedMessage.getMessageType()
-        );
-
-        // 채팅방 목록 갱신용 DTO (보내는 사람 기준으로 만들거나, 수신자별로 다르다면 null로 보내고 리스너에서 처리할 수도 있음. 여기선 단순화)
-        ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-
-        // 4. [핵심 변경] 직접 전송하지 않고 이벤트만 던집니다.
-        eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
     }
     // --- 유틸리티 및 조회 ---
 
@@ -439,6 +459,7 @@ public class ChatMessageService {
                 .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, finalMap.get(message.getSender().getId())))
                 .collect(Collectors.toList());
     }
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
         // 1. 참여자 검증
@@ -532,7 +553,9 @@ public class ChatMessageService {
 
         // 나간 유저 재입장 처리
         chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
-                .ifPresent(p -> { if (p.getStatus() == ChatParticipantStatus.LEFT) p.reJoin(); });
+                .ifPresent(p -> {
+                    if (p.getStatus() == ChatParticipantStatus.LEFT) p.reJoin();
+                });
 
         if (!room.getIsGroup()) {
             chatParticipantRepository.findByChatRoomId(roomId).stream()

@@ -3,6 +3,7 @@ package core.global.websocket.config;
 import core.domain.user.service.UserActivityService;
 import core.global.config.CustomUserDetails;
 import core.global.enums.errorcode.AuthErrorCode;
+import core.global.metrics.ChatMetrics;
 import core.global.security.JwtTokenProvider;
 import core.global.metrics.ChatRoomDwellRecorder;
 import core.global.redis.service.RedisService;
@@ -30,6 +31,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final RedisService redisService;
     private final UserActivityService userActivityService;
     private final ChatRoomDwellRecorder dwell;
+    private final ChatMetrics chatMetrics;
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
@@ -72,8 +74,13 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 accessor.setUser(auth);
                 log.info("STOMP JWT 인증 완료: WebSocket 세션에 사용자 정보 등록 (userId: {})", userId);
 
+                chatMetrics.onWsConnect("normal");
+
             } catch (Exception e) {
                 log.error("STOMP JWT 처리 중 예외 발생: {}", e.getMessage(), e);
+
+                chatMetrics.onWsConnect("auth_error");
+
                 throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
 
@@ -98,6 +105,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                     dwell.onLeave(accessor.getSessionId());
                 }
             }
+            chatMetrics.onWsDisconnect("normal");
         } else if (StompCommand.UNSUBSCRIBE.equals(accessor.getCommand())) {
             dwell.onLeave(accessor.getSessionId());
         }

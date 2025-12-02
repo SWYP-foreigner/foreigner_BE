@@ -580,9 +580,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private Expression<Long> authorIdExpr() {
-        return new CaseBuilder()
-                .when(post.anonymous.isTrue()).then(Expressions.nullExpression(Long.class))
-                .otherwise(user.id);
+        return user.id;
     }
 
     private StringExpression getAuthorName() {

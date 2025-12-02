@@ -6,6 +6,8 @@ import core.domain.user.dto.UserProfileEditDto;
 import core.domain.user.dto.UserUpdateDto;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.appsetting.AppSettingService;
+import core.global.appsetting.SupportLinksResponse;
 import core.global.dto.ApiResponse;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
@@ -165,8 +167,17 @@ public class MyPageController {
 
         return ResponseEntity.ok().build();
     }
+    private final AppSettingService appSettingService;
 
-
+    @Operation(
+            summary = "고객 지원 링크 조회 (버그 제보/피드백)",
+            description = "서버에서 관리하는 구글 폼 링크(피드백, 버그 제보)를 반환합니다."
+    )
+    @GetMapping("/support-links")
+    public ResponseEntity<SupportLinksResponse> getSupportLinks() {
+        SupportLinksResponse response = appSettingService.getSupportLinks();
+        return ResponseEntity.ok(response);
+    }
 
 }
 

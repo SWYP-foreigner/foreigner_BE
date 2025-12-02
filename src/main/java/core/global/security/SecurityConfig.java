@@ -1,7 +1,6 @@
 package core.global.security;
 
-import core.global.constants.*;
-import core.global.metrics.ActiveUserRecordFilter;
+import core.global.constants.AIOnlyPaths;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +29,6 @@ public class SecurityConfig {
 
     private final JwtTokenFilter jwtTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-    private final ActiveUserRecordFilter activeUserRecordFilter;
     private final PresenceActivityFilter presenceActivityFilter;
 
     @Bean
@@ -68,7 +66,6 @@ public class SecurityConfig {
                 );
 
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
-        http.addFilterAfter(activeUserRecordFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
