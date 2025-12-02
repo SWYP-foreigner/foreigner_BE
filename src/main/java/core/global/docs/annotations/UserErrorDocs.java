@@ -1,6 +1,6 @@
-package core.global.docs;
+package core.global.docs.annotations;
 
-import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface CommonErrorCodeDocs {
-    CommonErrorCode[] value();
+public @interface UserErrorDocs {
+    UserErrorCode[] value();
 }

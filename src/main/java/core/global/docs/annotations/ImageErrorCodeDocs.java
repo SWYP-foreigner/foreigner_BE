@@ -1,6 +1,6 @@
-package core.global.docs;
+package core.global.docs.annotations;
 
-import core.global.enums.errorcode.UserErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface UserErrorDocs {
-    UserErrorCode[] value();
+public @interface ImageErrorCodeDocs {
+    ImageErrorCode[] value();
 }

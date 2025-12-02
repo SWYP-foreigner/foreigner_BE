@@ -1,6 +1,6 @@
-package core.global.docs;
+package core.global.docs.annotations;
 
-import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.AuthErrorCode;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ImageErrorCodeDocs {
-    ImageErrorCode[] value();
+public @interface AuthErrorDocs {
+    AuthErrorCode[] value();
 }
