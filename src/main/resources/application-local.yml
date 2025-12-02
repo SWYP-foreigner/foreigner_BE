@@ -162,3 +162,7 @@ app:
     from: ${NAVER_HOST}
     brand: ${APP_NAME}
     code-ttl-minutes: 3
+
+sightengine:
+  api-user: ${SIGHTENGINE_API_USER}
+  api-secret: ${SIGHTENGINE_API_SECRET}
