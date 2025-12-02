@@ -1,9 +1,9 @@
 package core.domain.chat.service;
 
 import core.domain.chat.dto.*;
+import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
@@ -18,7 +18,6 @@ import core.global.entity.image.service.ImageService;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ChatErrorCode;
-import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
@@ -46,9 +45,6 @@ public class ChatRoomService {
     private final BlockRepository blockRepository;
     private final UserRoleDetectService userRoleDetectService;
     private final SocialChatMetrics socialChatMetrics;
-
-    // 내부 DTO (Record)
-    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
 
     // --- 1:1 및 그룹 채팅방 생성 ---
     @Transactional
@@ -95,12 +91,7 @@ public class ChatRoomService {
         chatParticipantRepository.save(ownerParticipant);
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
-            try {
-                imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
-            } catch (Exception e) {
-                log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
-                throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);
-            }
+            imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
         }
     }
 
@@ -208,8 +199,6 @@ public class ChatRoomService {
                 ownerImageUrl
         );
     }
-
-
 
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
@@ -320,8 +309,6 @@ public class ChatRoomService {
         return popularRooms.stream().map(this::toGroupChatSearchResponse).collect(Collectors.toList());
     }
 
-    // --- Private Helpers (내부 로직) ---
-
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
         Optional<ChatParticipant> currentParticipant = room.getParticipants().stream()
                 .filter(p -> p.getUser().getId().equals(currentUserId))
@@ -331,6 +318,8 @@ public class ChatRoomService {
         }
         return room;
     }
+
+    // --- Private Helpers (내부 로직) ---
 
     private ChatRoom createNewOneToOneChatRoom(Long userId1, Long userId2) {
         User currentUser = userRepository.findById(userId1)
@@ -435,5 +424,9 @@ public class ChatRoomService {
 
     private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
         return toGroupChatMainResponse(chatRoom); // 로직이 동일하여 재사용
+    }
+
+    // 내부 DTO (Record)
+    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {
     }
 }

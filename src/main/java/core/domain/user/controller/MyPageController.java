@@ -8,10 +8,16 @@ import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.appsetting.AppSettingService;
 import core.global.appsetting.SupportLinksResponse;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.ImageErrorCodeDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.service.TranslationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,9 +65,9 @@ public class MyPageController {
 
     @Operation(summary = "Received/Sent 수 조회", description = "PENDING 상태의 보낸/받은 팔로우 요청 수를 조회합니다.")
     @GetMapping("/follows/pending/count")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<Map<String, Long>> getPendingFollowsCount(Authentication authentication) {
-        Map<String, Long> counts = followService.getPendingFollowCounts(authentication);
-        return ResponseEntity.ok(counts);
+        return ResponseEntity.ok(followService.getPendingFollowCounts(authentication));
     }
 
 
@@ -70,17 +76,18 @@ public class MyPageController {
             description = "ACCEPTED 상태의 팔로우 관계만 가져옵니다."
     )
     @GetMapping("/follows/accepted")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<List<FollowDTO>> getAcceptedFollows(
             Authentication authentication
     ) {
-        List<FollowDTO> list = followService.getMyAcceptedFollows(authentication);
         featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(list);
+        return ResponseEntity.ok(followService.getMyAcceptedFollows(authentication));
     }
 
 
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
     @PatchMapping("/accept-follow/{fromUserId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND,UserErrorCode.FOLLOWER_NOT_FOUND})
     public ResponseEntity<Void> acceptFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID") @PathVariable Long fromUserId) {
@@ -93,6 +100,7 @@ public class MyPageController {
 
     @Operation(summary = "팔로우 요청 거절 (decline) ", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND,UserErrorCode.FOLLOWER_NOT_FOUND})
     public ResponseEntity<Void> declineFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID")
@@ -107,6 +115,7 @@ public class MyPageController {
     @Operation(summary = "친구가 되기 전에 PENDING 상태 팔로우 요청 취소",
             description = "팔로우 요청을 취소합니다.")
     @DeleteMapping("/users/follow/{friendId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.FOLLOWER_NOT_FOUND})
     public ResponseEntity<Void> unfollowPending(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
@@ -120,6 +129,7 @@ public class MyPageController {
     @Operation(summary = "친구가 된 후 ACCEPTED 상태 친구 관계 해제",
             description = "친구 관계를 해제합니다.")
     @DeleteMapping("/users/follow/accepted/{friendId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.FOLLOW_NOT_FOUND})
     public ResponseEntity<Void> unfollowAccepted(
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
@@ -136,6 +146,8 @@ public class MyPageController {
             description = "로그인 후 사용자가 하는 첫 프로필 셋업.사용자가 데이터를 다 넣는다면 USER로 ROLE을 가지고" +
                     "한개라도 스킵을한다면 ROLE이 VISITOR가 됩니다."
     )
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,  })
     public ResponseEntity<ApiResponse<LoginResponseDto>> skipSetUpProfile(
             @Valid @RequestBody UserUpdateDto dto
     ) {
@@ -148,6 +160,8 @@ public class MyPageController {
             description = "기존사용자(USER)와 스킵한 사용자(VISITOR)모두 수정에 사용합니다. 스킵한 VISITOR 유저가 완료할 시에는" +
                     " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다." // (설명 수정)
     )
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,  })
     public ResponseEntity<ProfileEditResponseDto> editProfile( // 1. 반환 타입 변경
                                                                @Valid @RequestBody UserProfileEditDto dto
     ) {
@@ -158,6 +172,7 @@ public class MyPageController {
 
     @PutMapping("/user/language")
     @Operation(summary = "사용자 언어 설정", description = "인증된 사용자의 기본 채팅 언어를 저장합니다.")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<Void> updateUserLanguage(
             Authentication auth,
             @RequestBody UserLanguageDTO dto) {

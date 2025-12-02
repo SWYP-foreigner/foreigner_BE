@@ -29,7 +29,7 @@ public enum CommunityErrorCode implements AppError {
     NOT_AVAILABLE_LINK(HttpStatus.BAD_REQUEST, "링크가 불가능한 카테고리입니다."),
     CRAWLED_DATA_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 크롤링 데이터입니다."),
     DUPLICATE_CATEGORY(HttpStatus.FORBIDDEN, "중복된 카테고리입니다."),
-    DUPLICATE_POST(HttpStatus.BAD_REQUEST, "동일한 내용을 반복해서 작성할 수 없습니다."),
+    DUPLICATE_CONTENT(HttpStatus.BAD_REQUEST, "동일한 내용을 반복해서 작성할 수 없습니다."),
     TOO_MANY_POSTS(HttpStatus.TOO_MANY_REQUESTS, "게시글 도배를 방지합니다."),
     TOO_MANY_COMMENTS(HttpStatus.TOO_MANY_REQUESTS, "댓글 도배를 방지합니다."),
     DUPLICATE_REPORT(HttpStatus.CONFLICT, "이미 신고한 게시물입니다."),

@@ -4,6 +4,8 @@ package core.domain.user.controller;
 import core.domain.user.dto.CommendUsersProfileResponse;
 import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.service.RecommenderService;
+import core.global.docs.annotations.UserErrorDocs;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +32,7 @@ public class FriendCommendController {
 
     @GetMapping("/content-based")
     @Operation(summary = "친구 추천 기능", description = "콘텐츠 기반 필터링으로 친구를 추천합니다.")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<List<CommendUsersProfileResponse>> recommend(
             @RequestParam(defaultValue = "50") int limit
     ) {
