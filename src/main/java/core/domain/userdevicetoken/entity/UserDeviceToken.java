@@ -15,7 +15,7 @@ import java.time.Instant;
 public class UserDeviceToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "UserDeviceToken_id")
+    @Column(name = "user_device_token_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
