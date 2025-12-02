@@ -1,9 +1,9 @@
 package core.domain.post.repository;
 
 import core.domain.board.dto.BoardItem;
-import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.admin.PostListForAdminResponse;
 import core.domain.post.dto.admin.PostSearchForAdminRequest;
+import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.comunity.UserPostItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

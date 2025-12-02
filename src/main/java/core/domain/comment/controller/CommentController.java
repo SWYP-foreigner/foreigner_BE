@@ -5,13 +5,18 @@ import core.domain.comment.dto.CommentUpdateRequest;
 import core.domain.comment.dto.CommentWriteRequest;
 import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.service.CommentService;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.SortOption;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -38,16 +43,16 @@ public class CommentController {
     @Operation(
             summary = "댓글 목록 조회",
             description = """
-            - 커서 기반 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달하세요.
-            - 정렬: LATEST(기본) | POPULAR
-            """
+                    - 커서 기반 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달하세요.
+                    - 정렬: LATEST(기본) | POPULAR
+                    """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "성공"),
-            @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
+            @ApiResponse(responseCode = "200", description = "성공")
     })
     @GetMapping("/posts/{postId}/comments")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<CommentItem>>> getCommentList(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
@@ -68,10 +73,11 @@ public class CommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content)
     })
     @PostMapping("/posts/{postId}/comments")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommunityErrorDocs({CommunityErrorCode.DUPLICATE_CONTENT, CommunityErrorCode.TOO_MANY_COMMENTS, CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.COMMENT_NOT_FOUND, CommunityErrorCode.INVALID_PARENT_COMMENT, CommunityErrorCode.NOT_AVAILABLE_ANONYMOUS, CommunityErrorCode.INVALID_COMMENT_INPUT})
+    @CommonErrorCodeDocs({CommonErrorCode.FORBIDDEN_WORD_DETECTED})
     public ResponseEntity<core.global.dto.ApiResponse<?>> writeComment(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
             @Valid @RequestBody CommentWriteRequest request
@@ -86,12 +92,11 @@ public class CommentController {
     @Operation(summary = "댓글 수정", description = "본인이 작성한 댓글을 수정합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "수정 성공(본문 없음)", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효성 오류", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @PatchMapping("/comments/{commentId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommunityErrorDocs({CommunityErrorCode.DUPLICATE_CONTENT, CommunityErrorCode.TOO_MANY_COMMENTS, CommunityErrorCode.COMMENT_NOT_FOUND, CommunityErrorCode.COMMENT_EDIT_FORBIDDEN})
+    @CommonErrorCodeDocs({CommonErrorCode.FORBIDDEN_WORD_DETECTED})
     public ResponseEntity<core.global.dto.ApiResponse<?>> updateComment(
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId,
             @Valid @RequestBody CommentUpdateRequest request
@@ -107,15 +112,14 @@ public class CommentController {
     @Operation(summary = "댓글 삭제", description = "본인이 작성한 댓글을 삭제합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @DeleteMapping("/comments/{commentId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommunityErrorDocs({CommunityErrorCode.COMMENT_DELETE_FORBIDDEN, CommunityErrorCode.COMMENT_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<?>> deleteComment(
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
-        commentService.deleteComment( commentId);
+        commentService.deleteComment(commentId);
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
@@ -125,15 +129,14 @@ public class CommentController {
     @Operation(summary = "좋아요 추가", description = "댓글 좋아요합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "추가 성공(본문 없음)", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @PutMapping("/comments/{commentId}/likes/me")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommunityErrorDocs({CommunityErrorCode.LIKE_ALREADY_EXIST})
     public ResponseEntity<core.global.dto.ApiResponse<?>> addLike(
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
-        commentService.addLike( commentId);
+        commentService.addLike(commentId);
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
@@ -143,15 +146,13 @@ public class CommentController {
     @Operation(summary = "좋아요 삭제", description = "댓글의 좋아요를 삭제합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 필요", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "댓글 없음", content = @Content)
     })
     @DeleteMapping("/comments/{commentId}/likes/me")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     public ResponseEntity<core.global.dto.ApiResponse<?>> deleteLike(
             @Parameter(description = "댓글 ID", example = "98765") @PathVariable("commentId") Long commentId
     ) {
-        commentService.deleteLike( commentId);
+        commentService.deleteLike(commentId);
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.NO_CONTENT)
@@ -162,21 +163,20 @@ public class CommentController {
     @Operation(
             summary = "나의 댓글 목록 조회",
             description = """
-          - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
-          
-          요청 예시
-          첫 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20
-          다음 페이지:
-            GET /api/v1/boards/posts/123/comments?size=20&cursor=eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9
-        """
+                      - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
+                    
+                      요청 예시
+                      첫 페이지:
+                        GET /api/v1/boards/posts/123/comments?size=20
+                      다음 페이지:
+                        GET /api/v1/boards/posts/123/comments?size=20&cursor=eyJ0IjoiMjAyNS0wOC0wMVQxMjozNDo1NloiLCJpZCI6OTg3NjV9
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "성공"),
-            @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @ApiResponse(responseCode = "403", description = "권한 없음", content = @Content)
     })
     @GetMapping("/my/comments")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<UserCommentItem>>> getMyCommentList(
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)",
@@ -196,11 +196,9 @@ public class CommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "성공",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음", content = @Content),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "게시글 없음", content = @Content)
     })
     @PostMapping("/comments/{commentId}/block")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED, UserErrorCode.CANNOT_BLOCK})
     public ResponseEntity<core.global.dto.ApiResponse<?>> blockUser(
             @PathVariable @Positive Long commentId
     ) {

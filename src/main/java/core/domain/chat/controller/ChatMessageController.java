@@ -3,7 +3,13 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatMessageService;
 import core.global.config.CustomUserDetails;
+import core.global.docs.annotations.ChatErrorDocs;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema; // 추가됨
@@ -33,9 +39,11 @@ public class ChatMessageController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @GetMapping("/rooms/{roomId}/messages")
+    @UserErrorDocs({UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @PathVariable Long roomId,
             @RequestParam(required = false) Long lastMessageId,
@@ -53,9 +61,10 @@ public class ChatMessageController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageFirstResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 유저를 찾을 수 없음")
     })
     @GetMapping("/rooms/{roomId}/first_messages")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT, ChatErrorCode.CHAT_ROOM_NOT_FOUND})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
             @PathVariable Long roomId,
             @AuthenticationPrincipal CustomUserDetails principal
@@ -72,9 +81,10 @@ public class ChatMessageController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @GetMapping("/search")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> searchMessages(
             @RequestParam Long roomId,
             @RequestParam String keyword,
@@ -92,9 +102,10 @@ public class ChatMessageController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 메시지")
     })
     @GetMapping("/rooms/{roomId}/messages/around")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessagesAround(
             @PathVariable Long roomId,
             @RequestParam Long messageId,
@@ -108,9 +119,9 @@ public class ChatMessageController {
     @Operation(summary = "채팅방의 모든 메시지를 읽음 처리", description = "해당 채팅방(roomId)의 모든 메시지를 현재 사용자 기준으로 읽음 처리합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 완료"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
     })
     @PostMapping("/rooms/{roomId}/read-all")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable Long roomId,
                                                            @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
@@ -130,9 +141,9 @@ public class ChatMessageController {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Presigned URL 발급 성공",
                     content = @Content(schema = @Schema(implementation = PresignedUrlResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 ID일 경우")
     })
     @PostMapping("/presigned-url/chat/{chatroomId}")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getChatPresignedUrl(
             @PathVariable Long chatroomId,
             @RequestBody PresignedUrlRequest request) {

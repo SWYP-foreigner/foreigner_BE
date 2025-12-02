@@ -3,6 +3,12 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatMessageService;
 import core.global.config.CustomUserDetails;
+import core.global.docs.annotations.ChatErrorDocs;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.UserErrorDocs;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +32,9 @@ public class ChatWebSocketController {
      * @param req 전송 메시지 요청 (roomId, senderId, content, targetLanguage, translate)
      */
     @MessageMapping("/chat.sendMessage")
+    @ChatErrorDocs({ChatErrorCode.DUPLICATE_REPORT, ChatErrorCode.MESSAGE_NOT_FOUND, ChatErrorCode.CANNOT_REPORT_SELF })
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public void sendMessage(
             @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
     ) {
@@ -46,6 +55,7 @@ public class ChatWebSocketController {
      */
 
     @MessageMapping("/chat.markAsRead")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
         try {
             chatService.processMarkAsRead(req, req.userId());
@@ -59,6 +69,7 @@ public class ChatWebSocketController {
      * @param req 삭제 요청 정보 (messageId, userId)
      */
     @MessageMapping("/chat.deleteMessage")
+    @ChatErrorDocs({ChatErrorCode.MESSAGE_NOT_FOUND, ChatErrorCode.FORBIDDEN_MESSAGE_DELETE})
     public void deleteMessage(@Payload DeleteMessageRequest req) {
         try {
             chatService.deleteMessageAndBroadcast(req.messageId(), req.senderId());
@@ -68,6 +79,8 @@ public class ChatWebSocketController {
         }
     }
     @MessageMapping("/chat.sendMedia")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public void sendMediaMessage(SendMediaMessageRequest req) {
         chatService.processAndSendMediaMessage(req);
     }

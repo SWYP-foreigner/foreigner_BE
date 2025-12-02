@@ -275,11 +275,6 @@ public class FollowService {
     }
 
     /**
-     *  RECEIVED/SENT 조회수 서비스
-     */
-
-
-    /**
      * 현재 로그인 사용자가 targetUserId 언팔
      */
     @Transactional
