@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,12 +37,10 @@ public class ContentModerationService {
 
     private static final String MODELS = "nudity,wad,offensive,gore";
     private static final String API_URL = "https://api.sightengine.com/1.0/check.json";
-
-    // 차단 기준값 (Standard 모드 기준)
     private static final double THRESHOLD = 0.85;
     private static final double NUDITY_THRESHOLD = 0.1;
 
-    public void inspectImage(MultipartFile file) {
+    public ModerationResult inspectImage(MultipartFile file) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("models", MODELS);
@@ -49,9 +48,7 @@ public class ContentModerationService {
             body.add("api_secret", apiSecret);
             body.add("media", new ByteArrayResource(file.getBytes()) {
                 @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
+                public String getFilename() { return file.getOriginalFilename(); }
             });
 
             HttpHeaders headers = new HttpHeaders();
@@ -60,59 +57,82 @@ public class ContentModerationService {
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
             String response = restTemplate.postForObject(API_URL, requestEntity, String.class);
 
-            analyzeResponse(response);
+            return analyzeResponse(response);
 
-        } catch (IOException e) {
-            log.error("이미지 검사 중 파일 읽기 오류", e);
-            // [수정] ImageErrorCode 사용 (이미지 처리 중 오류)
-            throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);
-        } catch (BusinessException e) {
-            throw e; // 이미 발생한 비즈니스 예외는 그대로 던짐
         } catch (Exception e) {
-            log.error("Sightengine API 호출 실패", e);
-            // API 장애 시 로그만 남기고 통과시킴 (서비스 중단 방지)
+            log.error("Sightengine API 호출 실패 (안전으로 간주)", e);
+            return new ModerationResult(false, "API Error");
         }
     }
 
-    private void analyzeResponse(String jsonResponse) throws Exception {
+    private ModerationResult analyzeResponse(String jsonResponse) throws Exception {
         JsonNode root = objectMapper.readTree(jsonResponse);
         String status = root.path("status").asText();
 
-        if (!"success".equals(status)) {
-            log.warn("Content moderation API error: {}", jsonResponse);
-            return;
-        }
+        if (!"success".equals(status)) return new ModerationResult(false, "API Error");
 
-        // 1. 누드 체크
         double nudityRaw = root.path("nudity").path("raw").asDouble(0.0);
+        double nudityPartial = root.path("nudity").path("partial").asDouble(0.0);
         double nuditySafe = root.path("nudity").path("safe").asDouble(1.0);
 
-        // [수정] CommunityErrorCode 사용 (정책 위반)
-        if (nudityRaw > THRESHOLD || nuditySafe < NUDITY_THRESHOLD) {
-            throw new BusinessException(CommunityErrorCode.INAPPROPRIATE_CONTENT);
-        }
-
-        // 2. 무기/폭력/마약
         double weapon = root.path("weapon").asDouble(0.0);
         double alcohol = root.path("alcohol").asDouble(0.0);
         double drugs = root.path("drugs").asDouble(0.0);
-
-        if (weapon > THRESHOLD || alcohol > THRESHOLD || drugs > THRESHOLD) {
-            throw new BusinessException(CommunityErrorCode.INAPPROPRIATE_CONTENT);
-        }
-
-        // 3. 혐오/모욕
         double offensive = root.path("offensive").path("prob").asDouble(0.0);
-        if (offensive > THRESHOLD) {
-            throw new BusinessException(CommunityErrorCode.INAPPROPRIATE_CONTENT);
-        }
-
-        // 4. 고어
         double gore = root.path("gore").path("prob").asDouble(0.0);
-        if (gore > THRESHOLD) {
-            throw new BusinessException(CommunityErrorCode.INAPPROPRIATE_CONTENT);
+
+        boolean isHarmful = false;
+        StringBuilder reason = new StringBuilder();
+
+        if (nudityRaw > THRESHOLD || nudityPartial > THRESHOLD || nuditySafe < NUDITY_THRESHOLD) {
+            isHarmful = true;
+            double maxNudity = Math.max(nudityRaw, nudityPartial);
+            reason.append(String.format("[Nudity: %.2f(Raw:%.2f/Part:%.2f)] ", maxNudity, nudityRaw, nudityPartial));
         }
 
-        log.info("Image moderation passed. (Safe Score: {})", nuditySafe);
+        if (weapon > THRESHOLD) {
+            isHarmful = true;
+            reason.append(String.format("[Weapon: %.2f] ", weapon));
+        }
+        if (alcohol > THRESHOLD) {
+            isHarmful = true;
+            reason.append(String.format("[Alcohol: %.2f] ", alcohol));
+        }
+        if (drugs > THRESHOLD) {
+            isHarmful = true;
+            reason.append(String.format("[Drugs: %.2f] ", drugs));
+        }
+
+        if (offensive > THRESHOLD) {
+            isHarmful = true;
+            reason.append(String.format("[Offensive: %.2f] ", offensive));
+        }
+        if (gore > THRESHOLD) {
+            isHarmful = true;
+            reason.append(String.format("[Gore: %.2f] ", gore));
+        }
+
+        if (isHarmful) {
+            log.warn("🚨 유해 이미지 감지됨: {}", reason);
+            return new ModerationResult(true, reason.toString().trim());
+        }
+
+        log.info("✅ 이미지 검사 통과 [Safe: {}, Raw: {}, Partial: {}]",
+                String.format("%.2f", nuditySafe),
+                String.format("%.2f", nudityRaw),
+                String.format("%.2f", nudityPartial));
+
+        return new ModerationResult(false, null);
+    }
+
+    @Getter
+    public static class ModerationResult {
+        private final boolean harmful;
+        private final String reason;
+
+        public ModerationResult(boolean harmful, String reason) {
+            this.harmful = harmful;
+            this.reason = reason;
+        }
     }
 }

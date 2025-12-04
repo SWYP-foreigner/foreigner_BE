@@ -9,9 +9,11 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.PostImageService;
 import core.global.entity.image.utils.UrlUtil;
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
+import core.global.service.ContentModerationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +47,7 @@ public class PostImageServiceImpl implements PostImageService {
     private final ImageStorageClient storageClient;
     private final S3Presigner s3Presigner;
     private final S3Props s3Props;
+    private final ContentModerationService contentModerationService;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -203,15 +206,17 @@ public class PostImageServiceImpl implements PostImageService {
     @Transactional
     public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
 
-        if (multipartFiles == null || multipartFiles.isEmpty() || multipartFiles.stream().allMatch(MultipartFile::isEmpty)) {
-            return;
-        }
+        if (multipartFiles == null || multipartFiles.isEmpty()) return;
 
         List<Image> newImages = new ArrayList<>();
         int orderIndex = 0;
 
         for (MultipartFile file : multipartFiles) {
             if (file.isEmpty()) continue;
+
+            ContentModerationService.ModerationResult result = contentModerationService.inspectImage(file);
+            ImageModerationStatus status = result.isHarmful() ? ImageModerationStatus.SUSPICIOUS : ImageModerationStatus.CLEAN;
+            String reason = result.getReason();
 
             String originalFileName = file.getOriginalFilename();
             String extension = "";
@@ -225,18 +230,24 @@ public class PostImageServiceImpl implements PostImageService {
                     .bucket(s3Props.getBucket())
                     .key(s3Key)
                     .contentType(file.getContentType())
+                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
-            String uploadedUrl = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/" + s3Key;
-            String candidateFinalUrl = buildCdnUrlFromKey(cdnBaseUrl, uploadedUrl);
+            String candidateFinalUrl = UrlUtil.buildPublicUrlFromKey(
+                    s3Props.getEndPoint(),
+                    s3Props.getBucket(),
+                    s3Key
+            );
 
             Image image = Image.of(
                     ImageType.POST,
                     post.getId(),
                     candidateFinalUrl,
-                    orderIndex++
+                    orderIndex++,
+                    status,
+                    reason
             );
             newImages.add(image);
         }
