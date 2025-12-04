@@ -1,10 +1,12 @@
 package core.global.entity.image.service.impl;
 
 import core.global.entity.image.dto.ImageDto;
+import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.ProfileImageService;
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
@@ -12,6 +14,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -38,6 +41,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
     private final S3Client s3Client;
     private final ImageRepository imageRepository;
     private final ImageStorageClient storageClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -321,7 +325,14 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
     private String saveImageInDB(Long relatedId, ImageType imageType, String finalKey) {
         String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
-        imageRepository.save(Image.of(imageType, relatedId, finalUrl, 0));
+
+        Image image = Image.of(imageType, relatedId, finalUrl, 0, ImageModerationStatus.CLEAN, null);
+        Image savedImage = imageRepository.save(image);
+        if (!storageClient.isDefaultUrlOrKey(finalKey)) {
+            log.info("[ProfileImage] 비동기 유해성 검사 요청 발행: ID={}, Key={}", savedImage.getId(), finalKey);
+            eventPublisher.publishEvent(new ImageModerationEvent(savedImage.getId(), finalKey));
+        }
+
         return finalUrl;
     }
 
