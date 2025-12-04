@@ -83,4 +83,9 @@ public class Image {
     public void changePosition(int position) {
         this.orderIndex = position;
     }
+
+    public void updateModerationStatus(ImageModerationStatus status, String reason) {
+        this.moderationStatus = status;
+        this.moderationReason = reason;
+    }
 }

@@ -65,6 +65,34 @@ public class ContentModerationService {
         }
     }
 
+    public ModerationResult inspectImage(byte[] imageBytes, String filename) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("models", MODELS);
+            body.add("api_user", apiUser);
+            body.add("api_secret", apiSecret);
+
+            body.add("media", new ByteArrayResource(imageBytes) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            });
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            String response = restTemplate.postForObject(API_URL, requestEntity, String.class);
+
+            return analyzeResponse(response);
+
+        } catch (Exception e) {
+            log.error("Sightengine API 호출 실패 (안전으로 간주) - filename: {}", filename, e);
+            return new ModerationResult(false, "API Error");
+        }
+    }
+
     private ModerationResult analyzeResponse(String jsonResponse) throws Exception {
         JsonNode root = objectMapper.readTree(jsonResponse);
         String status = root.path("status").asText();

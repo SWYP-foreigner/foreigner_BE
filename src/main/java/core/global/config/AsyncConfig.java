@@ -2,6 +2,7 @@ package core.global.config;
 
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -30,5 +31,16 @@ public class AsyncConfig implements AsyncConfigurer {
         return (ex, method, params) -> {
             // log.warn("Async error in {}: {}", method, ex.getMessage(), ex);
         };
+    }
+
+    @Bean(name = "moderationExecutor")
+    public Executor moderationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(20);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("Moderation-");
+        executor.initialize();
+        return executor;
     }
 }

@@ -2,6 +2,7 @@ package core.global.entity.image.service.impl;
 
 import core.domain.post.entity.Post;
 import core.global.entity.image.S3Props;
+import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
 import core.global.entity.image.entity.Image;
@@ -18,6 +19,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,6 +50,7 @@ public class PostImageServiceImpl implements PostImageService {
     private final S3Presigner s3Presigner;
     private final S3Props s3Props;
     private final ContentModerationService contentModerationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -153,7 +156,9 @@ public class PostImageServiceImpl implements PostImageService {
 
         // 4) DB 저장
         if (!copyResult.toSave().isEmpty()) {
-            imageRepository.saveAll(copyResult.toSave());
+            List<Image> savedImages = imageRepository.saveAll(copyResult.toSave());
+
+            publishModerationEvents(savedImages);
         }
 
         // 스테이징 원본 삭제
@@ -194,7 +199,9 @@ public class PostImageServiceImpl implements PostImageService {
 
         // 4) DB 저장
         if (!copyResult.toSave().isEmpty()) {
-            imageRepository.saveAll(copyResult.toSave());
+            List<Image> savedImages = imageRepository.saveAll(copyResult.toSave());
+
+            publishModerationEvents(savedImages);
         }
 
         // 5) S3 삭제(사용자 제거 + 스테이징 원본)
@@ -214,9 +221,8 @@ public class PostImageServiceImpl implements PostImageService {
         for (MultipartFile file : multipartFiles) {
             if (file.isEmpty()) continue;
 
-            ContentModerationService.ModerationResult result = contentModerationService.inspectImage(file);
-            ImageModerationStatus status = result.isHarmful() ? ImageModerationStatus.SUSPICIOUS : ImageModerationStatus.CLEAN;
-            String reason = result.getReason();
+            ImageModerationStatus status = ImageModerationStatus.CLEAN;
+            String reason = null;
 
             String originalFileName = file.getOriginalFilename();
             String extension = "";
@@ -235,11 +241,7 @@ public class PostImageServiceImpl implements PostImageService {
 
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
-            String candidateFinalUrl = UrlUtil.buildPublicUrlFromKey(
-                    s3Props.getEndPoint(),
-                    s3Props.getBucket(),
-                    s3Key
-            );
+            String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, s3Key);
 
             Image image = Image.of(
                     ImageType.POST,
@@ -252,7 +254,17 @@ public class PostImageServiceImpl implements PostImageService {
             newImages.add(image);
         }
 
-        imageRepository.saveAll(newImages);
+        List<Image> savedImages = imageRepository.saveAll(newImages);
+
+        // todo: 테스트를 위해 유해성 검사 실행
+        publishModerationEvents(savedImages);
+    }
+
+    private void publishModerationEvents(List<Image> savedImages) {
+        for (Image img : savedImages) {
+            String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
+            eventPublisher.publishEvent(new ImageModerationEvent(img.getId(), key));
+        }
     }
 
     private List<String> normalizeList(List<String> list) {
@@ -297,7 +309,7 @@ public class PostImageServiceImpl implements PostImageService {
                     stagingToDelete.add(srcKey);
                 }
 
-                return Image.of(ImageType.POST, postId, finalUrl, myOrder);
+                return Image.of(ImageType.POST, postId, finalUrl, myOrder, ImageModerationStatus.CLEAN, null);
             });
         }
 
