@@ -228,7 +228,8 @@ public class UserService {
         if (dto.imageKey() != null) {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
-        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
+
+        //publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
     }
 
     private boolean notBlank(String s) {
