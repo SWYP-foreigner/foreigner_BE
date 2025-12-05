@@ -2,7 +2,6 @@ package core.global.userfeedback;
 
 
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.errorcode.FeedbackErrorCode;
 import core.global.userfeedback.dto.FeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
