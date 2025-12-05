@@ -3,7 +3,6 @@ package core.global.userfeedback;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.enums.FeedbackSource;
-import core.global.enums.errorcode.FeedbackErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.userfeedback.dto.FeedbackRequest;
@@ -19,25 +18,14 @@ public class FeedbackService {
     private final UserFeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
 
-    /**
-     * 피드백 대상 여부 확인
-     * 이미 피드백을 작성한 유저라면 false 반환
-     */
-    public boolean checkEligibility(Long userId) {
-        User user = getUserOrThrow(userId);
-        return !feedbackRepository.existsByUser(user);
-    }
 
     /**
      * 피드백 저장
+     * 정책 변경: 중복 체크 로직 제거 (여러 번 제출 가능)
      */
     @Transactional
     public void createFeedback(Long userId, FeedbackRequest request) {
         User user = getUserOrThrow(userId);
-
-        if (feedbackRepository.existsByUser(user)) {
-            throw new BusinessException(FeedbackErrorCode.ALREADY_SUBMITTED);
-        }
 
         UserFeedback feedback = UserFeedback.builder()
                 .user(user)
