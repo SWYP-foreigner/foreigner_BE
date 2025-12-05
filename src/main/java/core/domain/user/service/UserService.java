@@ -598,7 +598,11 @@ public class UserService {
             long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
             redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
         }
+        log.info(">>> [DEBUG] 이벤트 발행 시작 - UserID: {}", user.getId());
+
         publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
+
+        log.info(">>> [DEBUG] 이벤트 발행 메서드 호출 완료");
         return new LoginResponseDto(
                 user.getId(),
                 accessToken,
