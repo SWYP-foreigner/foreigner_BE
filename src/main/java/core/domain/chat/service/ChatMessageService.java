@@ -12,9 +12,11 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ChatParticipantStatus;
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.MessageType;
 import core.global.enums.errorcode.ChatErrorCode;
@@ -263,9 +265,23 @@ public class ChatMessageService {
     // [수정됨] 헬퍼 메서드: 매번 DB를 조회하는 대신 미리 가져온 Map에서 꺼내 씁니다.
     private ChatMessageResponse mapToResponse(ChatMessage message, String translatedContent, Map<Long, String> profileMap) {
         User sender = message.getSender();
-
-        // DB 조회 코드 삭제됨 -> Map 조회로 변경 (메모리 연산이라 매우 빠름)
         String senderImg = profileMap.get(sender.getId());
+
+        String finalContent = message.getContent();
+        MessageType finalType = message.getMessageType();
+
+        // 관리자에 의해 삭제된 경우
+        if ("BLOCKED_MEDIA".equals(finalContent)) {
+            finalContent = "관리자에 의해 삭제된 이미지입니다.";
+            finalType = MessageType.TEXT;
+            translatedContent = null;
+        }
+        // 그 외 이미지
+        else if (finalType == MessageType.IMAGE) {
+            if (!finalContent.startsWith("http")) {
+                finalContent = cdnBaseUrl + "/" + finalContent;
+            }
+        }
 
         return new ChatMessageResponse(
                 message.getId(), message.getChatRoom().getId(), sender.getId(),
@@ -358,6 +374,22 @@ public class ChatMessageService {
             // 1. 메시지 저장 (동일)
             ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
             chatMessageRepository.save(savedMessage);
+
+            if (req.messageType() == MessageType.IMAGE) {
+                String fullMediaUrl = cdnBaseUrl + "/" + req.mediaKey();
+
+                Image chatImage = Image.of(
+                        ImageType.CHAT_MEDIA,
+                        savedMessage.getId(),
+                        fullMediaUrl,
+                        0,
+                        ImageModerationStatus.CLEAN,
+                        null
+                );
+                imageRepository.save(chatImage);
+
+                eventPublisher.publishEvent(new ImageModerationEvent(chatImage.getId(), req.mediaKey()));
+            }
 
             chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
                     .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
@@ -455,9 +487,18 @@ public class ChatMessageService {
         }
 
         Map<Long, String> finalMap = senderImageUrlMap;
-        return messages.stream()
-                .map(message -> ChatMessageFirstResponse.fromEntity(message, chatRoom, finalMap.get(message.getSender().getId())))
-                .collect(Collectors.toList());
+        return messages.stream().map(message -> {
+            String finalContent = message.getContent();
+            MessageType finalType = message.getMessageType();
+
+            if ("BLOCKED_MEDIA".equals(finalContent)) {
+                finalContent = "관리자에 의해 삭제된 이미지입니다.";
+                finalType = MessageType.TEXT;
+            } else if (finalType == MessageType.IMAGE && !finalContent.startsWith("http")) {
+                finalContent = cdnBaseUrl + "/" + finalContent;
+            }
+            return ChatMessageFirstResponse.fromEntityWithContent(message, chatRoom, finalMap.get(message.getSender().getId()), finalContent, finalType);
+        }).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

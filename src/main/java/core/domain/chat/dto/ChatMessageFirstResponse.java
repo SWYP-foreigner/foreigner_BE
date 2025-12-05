@@ -6,6 +6,7 @@ import core.domain.user.entity.User;
 import core.global.enums.ImageType;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.enums.MessageType;
 
 import java.time.Instant;
 
@@ -30,6 +31,27 @@ public record ChatMessageFirstResponse(
                 sender.getLastName(),
                 senderImageUrl,
                 message.getContent(),
+                message.getSentAt()
+        );
+    }
+
+    public static ChatMessageFirstResponse fromEntityWithContent(
+            ChatMessage message,
+            ChatRoom room,
+            String senderImageUrl,
+            String finalContent,
+            MessageType finalType
+    ) {
+        User sender = message.getSender();
+
+        return new ChatMessageFirstResponse(
+                message.getId(),
+                room.getId(),
+                sender.getId(),
+                sender.getFirstName(),
+                sender.getLastName(),
+                senderImageUrl,
+                finalContent,
                 message.getSentAt()
         );
     }

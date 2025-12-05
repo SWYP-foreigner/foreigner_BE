@@ -1,9 +1,12 @@
 package core.global.service;
 
+import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.repository.ChatMessageRepository;
 import core.global.entity.image.S3Props;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageModerationStatus;
+import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ public class AdminImageService {
     private final ImageRepository imageRepository;
     private final S3Client s3Client;
     private final S3Props s3Props;
+    private final ChatMessageRepository chatMessageRepository;
 
     @Transactional(readOnly = true)
     public List<Image> getSuspiciousImages() {
@@ -42,6 +46,11 @@ public class AdminImageService {
                 .orElseThrow(() -> new BusinessException(ImageErrorCode.IMAGE_NOT_FOUND));
 
         deleteFromS3(image.getUrl());
+
+        if (image.getImageType() == ImageType.CHAT_MEDIA) {
+            chatMessageRepository.findById(image.getRelatedId())
+                    .ifPresent(ChatMessage::maskContentAsDeleted);
+        }
 
         imageRepository.delete(image);
     }
