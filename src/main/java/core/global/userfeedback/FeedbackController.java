@@ -1,9 +1,8 @@
 package core.global.userfeedback;
 
- // 커스텀 에러 응답 DTO
+
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.errorcode.UserErrorCode;
-import core.global.userfeedback.dto.FeedbackEligibilityResponse;
+import core.global.enums.errorcode.FeedbackErrorCode;
 import core.global.userfeedback.dto.FeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -51,7 +50,6 @@ public class FeedbackController {
                     )
             )
     })
-    @UserErrorDocs({UserErrorCode.INVAI,})
     @PostMapping
     public ResponseEntity<Void> submitFeedback(
             @AuthenticationPrincipal Long userId,

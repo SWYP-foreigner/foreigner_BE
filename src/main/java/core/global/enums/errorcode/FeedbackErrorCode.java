@@ -10,7 +10,7 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum FeedbackErrorCode implements AppError {
 
-    ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이미 피드백을 제출한 사용자입니다.");
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "INVALID_INPUT_VALUE", "입력값이 올바르지 않습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;
