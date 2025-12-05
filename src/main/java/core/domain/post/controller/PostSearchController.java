@@ -3,7 +3,7 @@ package core.domain.post.controller;
 import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.dto.search.SuggestClickRequest;
-import core.domain.post.service.PostSearchService;
+import core.domain.post.service.search.PostSearchService;
 import core.domain.post.service.PostService;
 import core.domain.post.service.search.RecentSearchRedisService;
 import core.domain.post.service.search.SuggestMemoryIndex;
