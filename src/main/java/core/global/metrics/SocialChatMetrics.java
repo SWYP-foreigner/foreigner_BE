@@ -54,7 +54,17 @@ public class SocialChatMetrics {
     }
 
     private static String normCountry(String countryName) {
-        return LOWER_TO_CANON.get(countryName.trim().toLowerCase());
+        if (countryName == null || countryName.isBlank()) {
+            return "unknown";
+        }
+
+        String key = countryName.trim().toLowerCase();
+        String canonicalName = LOWER_TO_CANON.get(key);
+        if (canonicalName == null) {
+            return "unknown";
+        }
+
+        return canonicalName;
     }
 
     private static String normInterestType(String t) {
