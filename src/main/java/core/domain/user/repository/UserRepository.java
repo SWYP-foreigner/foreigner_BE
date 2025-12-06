@@ -189,16 +189,4 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     Object[] visitorShareOverall();
 
 
-    /*
-            * 1. User 엔티티 전체를 가져오지 않고 'fcmToken'만 가져옵니다. (메모리 절약)
-            * 2. DB 인덱스를 활용해 '국가'와 '최근 접속일'로 필터링합니다. (속도 향상)
-            */
-    @Query("SELECT u.fcmToken FROM User u " +
-            "WHERE u.country = :targetCountry " +
-            "AND u.lastSeenAt >= :activeSince")
-    Slice<String> findActiveUserTokens(
-            @Param("targetCountry") String targetCountry,
-            @Param("activeSince") Instant activeSince,
-            Pageable pageable
-    );
 }
