@@ -11,7 +11,7 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.config.QuerydslTestConfig;
+import core.global.config.QuerydslConfig;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.like.entity.Like;
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({QuerydslTestConfig.class, PostRepositoryImpl.class})
+@Import({QuerydslConfig.class, PostRepositoryImpl.class})
 class PostRepositoryImplTest {
 
     @Autowired
