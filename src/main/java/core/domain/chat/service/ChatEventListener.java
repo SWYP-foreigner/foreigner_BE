@@ -3,7 +3,9 @@ package core.domain.chat.service;
 import core.domain.chat.dto.*;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.notification.entity.Notification;
 import core.global.enums.MessageType;
 import core.global.enums.NotificationType;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -50,17 +54,50 @@ public class ChatEventListener {
         ChatMessageResponse message = event.messageResponse();
         ChatRoomSummaryResponse commonSummary = event.roomSummary();
 
-        // ⚡ [최적화] CPU를 풀가동하여 동시에 웹소켓 패킷 발송 (순서 상관없음)
+        // -----------------------------------------------------------------------
+        // ⚡ [최적화 1] 알림 내용 생성 및 대상자 필터링 (Loop 밖에서 1회 수행)
+        // -----------------------------------------------------------------------
+        String contentSnippet = message.originContent();
+        if (message.messageType() == MessageType.IMAGE) {
+            contentSnippet = "send picture";
+        } else if (message.messageType() == MessageType.VIDEO) {
+            contentSnippet = "send video.";
+        }
+        String roomName = (commonSummary != null) ? commonSummary.roomName() : "Chat Room";
+
+        // 본인을 제외한 알림 대상자 리스트 추출
+        List<Long> notificationTargets = event.recipientIds().stream()
+                .filter(id -> !id.equals(message.senderId()))
+                .toList();
+
+        // -----------------------------------------------------------------------
+        // ⚡ [최적화 2] 알림 이벤트 'Bulk' 발행 (단 1회 호출)
+        // -----------------------------------------------------------------------
+        if (!notificationTargets.isEmpty()) {
+            NotificationBulkEvent bulkEvent = new NotificationBulkEvent(
+                    notificationTargets, // 478명의 ID가 담긴 리스트
+                    message.senderId(),
+                    NotificationType.chat,
+                    message.roomId(),
+                    contentSnippet,
+                    roomName
+            );
+
+            eventPublisher.publishEvent(bulkEvent);
+        }
+
+        // -----------------------------------------------------------------------
+        // ⚡ [기존 유지] 웹소켓 패킷 발송 (병렬 처리)
+        // -----------------------------------------------------------------------
+        // 알림은 위에서 처리했으므로, 여기서는 순수하게 WebSocket 전송만 집중합니다.
         event.recipientIds().parallelStream().forEach(recipientId -> {
 
             // 1. [채팅방 내부] 실시간 메시지 전송
             String messageDestination = String.format("/topic/user/%s/%s/messages", recipientId, message.roomId());
             messagingTemplate.convertAndSend(messageDestination, message);
 
-            // 2. [채팅방 목록] 갱신 (DB 조회 제거됨)
+            // 2. [채팅방 목록] 갱신 (DB 조회 X, 더미 데이터 전송)
             if (commonSummary != null) {
-                // 💡 [핵심] 여기서 DB를 조회하지 않고 고정값(-1)을 보냅니다.
-                // 클라이언트는 -1이 오면 "안 읽은 개수는 건드리지 말고(혹은 +1 하고), 내용과 시간만 갱신하자"라고 판단해야 함.
                 int dummyUnreadCount = -1;
 
                 ChatRoomSummaryResponse fastSummary = new ChatRoomSummaryResponse(
@@ -69,41 +106,28 @@ public class ChatEventListener {
                         commonSummary.lastMessageContent(),
                         commonSummary.lastMessageTime(),
                         commonSummary.roomImageUrl(),
-                        dummyUnreadCount, // 👈 여기가 포인트! (DB 조회 X)
+                        dummyUnreadCount,
                         commonSummary.participantCount()
                 );
                 messagingTemplate.convertAndSend("/topic/user/" + recipientId + "/rooms", fastSummary);
             }
 
-            // 3. [알림] 시스템 연동 (본인이 아닌 경우에만)
-            if (!recipientId.equals(message.senderId())) {
-                String contentSnippet = message.originContent(); // 필드명 주의 (originContent)
-
-                if (message.messageType() == MessageType.IMAGE) {
-                    contentSnippet = "사진을 보냈습니다.";
-                } else if (message.messageType() == MessageType.VIDEO) {
-                    contentSnippet = "동영상을 보냈습니다.";
-                }
-
-                String roomName = (commonSummary != null) ? commonSummary.roomName() : "Chat Room";
-
-                NotificationEvent notificationEvent = new NotificationEvent(
-                        recipientId,
-                        message.senderId(),
-                        NotificationType.chat,
-                        message.roomId(),
-                        contentSnippet,
-                        roomName
-                );
-
-                // 알림 리스너에게 토스 (비동기)
-                eventPublisher.publishEvent(notificationEvent);
-            }
         });
 
+        // -----------------------------------------------------------------------
+        // 📊 [로그 유지]
+        // -----------------------------------------------------------------------
+        long currentTime = System.currentTimeMillis();
+        long totalDuration = currentTime - event.startTime();
+
+        log.info("🚀 [E2E Performance] Message {} broadcast complete.", message.id());
+        log.info("   - Recipients: {} users", event.recipientIds().size());
+        log.info("   - Notification Targets: {} users (Bulk Published Once)", notificationTargets.size());
+        log.info("   - Total E2E Latency: {} ms (Service + DB Commit + Async Wait + Socket Push)", totalDuration);
         log.info("Message {} broadcasted via Parallel Stream to {} recipients (DB Query Skipped)",
                 message.id(), event.recipientIds().size());
     }
+
 
     @EventListener
     @Async

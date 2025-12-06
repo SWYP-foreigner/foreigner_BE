@@ -1,5 +1,14 @@
 package core.domain.notification.service;
-
+import core.domain.notification.dto.NotificationBulkEvent;
+import core.domain.notification.entity.Notification;
+import core.domain.notification.repository.NotificationRepository;
+import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
+import core.global.enums.NotificationType;
+import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.util.StopWatch;
 import core.domain.notification.dto.NewUserJoinedEvent;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.User;
@@ -11,18 +20,22 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationEventListener {
-
+    private final EntityManager entityManager;
     private final UserRepository userRepository;
     private final UserNotificationService notificationService;
     private final PushNotificationService pushNotificationService;
     private final NotificationMessageGenerator notificationMessageGenerator;
-
+    private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationRepository notificationRepository;
 
     @Async("dispatchExecutor")
     @EventListener
@@ -52,43 +65,102 @@ public class NotificationEventListener {
     }
 
     /**
-     * ✅ [비효율적인 버전]
-     * 신규 유저 가입 이벤트를 받아 전체 사용자에게 알림을 발송합니다.
-     * 추후 최적화 필요
+     * ✅ [최적화된 버전]
+     * DB 저장 X, 배치 발송 O, 메모리 효율 O
      */
     @Async("dispatchExecutor")
     @EventListener
-    @Transactional
-    public void handleNewUserBroadcastInefficiently(NewUserJoinedEvent event) {
-        log.info("[비효율적 방식] 신규 유저 가입 이벤트 수신. 전체 알림 발송을 시작합니다. 신규 유저 ID: {}", event.newUserId());
+    public void handleNewUserBroadcastOptimized(NewUserJoinedEvent event) {
 
-        User newUserActor = userRepository.findById(event.newUserId()).orElse(null);
-        if (newUserActor == null) {
-            log.warn("신규 유저 정보를 찾을 수 없어 전체 알림을 중단합니다. ID: {}", event.newUserId());
+        User newUser = userRepository.findById(event.newUserId()).orElse(null);
+        if (newUser == null) {
+            log.warn("신규 유저 정보를 찾을 수 없어 브로드캐스트를 중단합니다. ID: {}", event.newUserId());
             return;
         }
 
-        NotificationEvent tempEvent = new NotificationEvent(
-                null, newUserActor.getId(),
-                core.global.enums.NotificationType.newuser,
-                newUserActor.getId(), null, null);
-        String message = notificationMessageGenerator.generateMessage(newUserActor, tempEvent);
+        log.info("📢 신규 유저({}) 브로드캐스트 시작", newUser.getId());
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
 
-        List<User> allUsers = userRepository.findAll();
-        log.warn("[성능 경고] {}명의 모든 사용자를 메모리에 로드했습니다. 사용자 수가 많을 경우 OutOfMemoryError가 발생할 수 있습니다.", allUsers.size());
+        List<String> targetCountries = List.of("South Korea", "KR", "Korea");
+        Instant activeSince = Instant.now().minus(7, ChronoUnit.DAYS);
+        NotificationType notiType = NotificationType.newuser;
 
-        for (User recipient : allUsers) {
-            if (recipient.getId().equals(newUserActor.getId())) {
-                continue;
+        String title = "New friend arrived! 👋";
+        String body = determineMessageInEnglish(newUser);
+
+        int batchSize = 500;
+        Pageable pageable = PageRequest.of(0, batchSize);
+        int totalSent = 0;
+
+        while (true) {
+            Slice<String> tokenSlice = userDeviceTokenRepository.findTokensForBroadcast(
+                    targetCountries, activeSince, notiType, pageable
+            );
+
+            List<String> tokens = tokenSlice.getContent();
+
+            if (!tokens.isEmpty()) {
+                // DB 저장 없이 바로 푸시 발송
+                pushNotificationService.sendBatchPush(tokens, title, body, newUser.getId());
+                totalSent += tokens.size();
             }
 
-            try {
-                notificationService.createAndSaveNotification(recipient, newUserActor, tempEvent, message);
-                pushNotificationService.sendPushNotification(recipient, tempEvent, message);
-            } catch (Exception e) {
-                log.error("사용자 ID {}에게 신규 유저 알림 발송 중 오류 발생", recipient.getId(), e);
-            }
+            if (!tokenSlice.hasNext()) break;
+            pageable = tokenSlice.nextPageable();
         }
-        log.info("[비효율적 방식] 전체 알림 발송 루프 완료. 총 {}명 처리.", allUsers.size());
+
+        stopWatch.stop();
+        log.info("========== [브로드캐스트 결과] ==========");
+        log.info("총 소요 시간: {} 초", stopWatch.getTotalTimeSeconds());
+        log.info("발송 건수: {} 건", totalSent);
+        log.info("========================================");
+    }
+
+    private String determineMessageInEnglish(User newUser) {
+        String country = newUser.getCountry();
+        if (country == null || country.isBlank()) {
+            return "A new friend has joined! Say hello.";
+        }
+
+        country = country.trim();
+        boolean isKorean = country.equalsIgnoreCase("South Korea") || country.equalsIgnoreCase("KR");
+
+        if (isKorean) {
+            return "A new Korean friend has joined! Say hello.";
+        } else {
+            return String.format("A new friend from %s has joined!", country);
+        }
+    }
+
+    @Async
+    @EventListener
+    public void handleBulkNotification(NotificationBulkEvent event) {
+        User senderProxy = entityManager.getReference(User.class, event.senderId());
+        List<Notification> notifications = event.recipientIds().stream()
+                .map(targetId -> {
+                    User receiverProxy = entityManager.getReference(User.class, targetId);
+                    Long referenceId = null;
+                    try {
+                        referenceId = Long.parseLong(String.valueOf(event.roomId()));
+                    } catch (NumberFormatException e) {
+                    }
+
+                    return Notification.builder()
+                            .user(receiverProxy)
+                            .actor(senderProxy)
+                            .message(event.content())
+                            .notificationType(event.type())
+                            .referenceId(referenceId)
+                            .subReferenceId(null)
+                            .build();
+                })
+                .toList();
+
+
+        notificationRepository.saveAll(notifications);
+
+
+        pushNotificationService.sendGroupPush(event.recipientIds(), event.content(), String.valueOf(event.roomId()), event.roomName(), event.senderId());
     }
 }

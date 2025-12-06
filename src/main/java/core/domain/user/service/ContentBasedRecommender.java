@@ -7,19 +7,17 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.enums.FollowStatus;
-import core.global.enums.ImageType;
-import core.global.exception.BusinessException;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.entity.image.repository.ImageRepository;
-import lombok.AllArgsConstructor; // [추가]
-import lombok.Getter; // [추가]
+import core.global.exception.BusinessException;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant; // [추가]
-import java.time.temporal.ChronoUnit; // [추가]
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -29,7 +27,6 @@ import java.util.stream.Collectors;
 public class ContentBasedRecommender {
 
     private final UserRepository userRepository;
-    private final ImageRepository imageRepository;
     private final BlockRepository blockRepository;
     private final FollowRepository followRepository;
 

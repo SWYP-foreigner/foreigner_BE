@@ -7,7 +7,13 @@ import core.domain.post.service.PostSearchService;
 import core.domain.post.service.PostService;
 import core.domain.post.service.search.RecentSearchRedisService;
 import core.domain.post.service.search.SuggestMemoryIndex;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import core.global.service.SimpleKeywordExtractor;
@@ -40,6 +46,8 @@ public class PostSearchController {
     @Operation(summary = "게시글 검색", description = "커서 페이지네이션 지원")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @GetMapping("/{boardId}/posts")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommunityErrorDocs({CommunityErrorCode.BOARD_NOT_FOUND, })
     public ResponseEntity<ApiResponse<CursorPageResponse<SearchResultView>>> getPostList(
             @RequestParam String q,
             @PathVariable Long boardId,
@@ -57,6 +65,9 @@ public class PostSearchController {
     @Operation(summary = "검색결과 상세페이지",
             description = "사용자가 검색결과를 클릭/열람했을 때 호출하여 인기(pop) 점수를 반영하고 상세페이지를 제공합니다.")
     @GetMapping("/{boardId}/posts/{postId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.BLOCKED_USER_POST })
+    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public ResponseEntity<core.global.dto.ApiResponse<PostDetailResponse>> resultClicked(
             @Parameter(description = "보드 ID(1=전체)") @PathVariable Long boardId,
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId,
@@ -88,6 +99,7 @@ public class PostSearchController {
     @Operation(summary = "최근 검색어 조회")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @GetMapping("/recent")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public List<String> recent() {
         featureUsageMetrics.recordCommunityUsage();
         return recentService.list();

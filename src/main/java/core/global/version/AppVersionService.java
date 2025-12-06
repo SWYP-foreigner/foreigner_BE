@@ -15,15 +15,18 @@ public class AppVersionService {
     @Transactional(readOnly = true)
     public VersionCheckDto.Response checkVersion(VersionCheckDto.Request request) {
 
-        // 1. 플랫폼 검증
         Platform platform;
         try {
-            platform = Platform.valueOf(request.getPlatform().toUpperCase());
+            String safePlatform = request.getPlatform()
+                    .replace("\"", "")
+                    .replace("'", "")
+                    .trim()
+                    .toUpperCase();
+
+            platform = Platform.valueOf(safePlatform);
         } catch (Exception e) {
             throw new BusinessException(VersionErrorCode.INVALID_PLATFORM);
         }
-
-        // 2. DB 조회
         AppVersion serverVersion = appVersionRepository.findByPlatform(platform)
                 .orElseThrow(() ->
                         new BusinessException(VersionErrorCode.VERSION_INFO_NOT_FOUND)

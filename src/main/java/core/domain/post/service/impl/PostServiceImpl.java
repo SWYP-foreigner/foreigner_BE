@@ -438,7 +438,6 @@ public class PostServiceImpl implements PostService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
 
@@ -573,7 +572,7 @@ public class PostServiceImpl implements PostService {
                 .existsByAuthorEmailAndContentAndCreatedAtAfter(email, normalizedContent, cutOff);
 
         if (exists) {
-            throw new BusinessException(CommunityErrorCode.DUPLICATE_POST);
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_CONTENT);
         }
     }
 

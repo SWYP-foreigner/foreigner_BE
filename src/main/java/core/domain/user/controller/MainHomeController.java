@@ -2,7 +2,9 @@ package core.domain.user.controller;
 
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,11 +27,12 @@ public class MainHomeController {
 
     @Operation(summary = "팔로우 요청 보내기", description = "마음에 드는 친구에게 팔로우 요청을 전송합니다.")
     @PostMapping("/follow/{userId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED, UserErrorCode.CANNOT_FOLLOW_YOURSELF,  UserErrorCode.FOLLOW_ALREADY_EXISTS})
     public ResponseEntity<ApiResponse<String>> followUser(
             Authentication authentication, @PathVariable Long userId) {
         followService.follow(authentication, userId);
         featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(ApiResponse.success("팔로우 요청이 전송되었습니다."));
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
 }

@@ -2,6 +2,8 @@ package core.domain.user.repository;
 
 
 import core.domain.user.entity.User;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -185,4 +187,6 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     FROM users
     """, nativeQuery = true)
     Object[] visitorShareOverall();
+
+
 }

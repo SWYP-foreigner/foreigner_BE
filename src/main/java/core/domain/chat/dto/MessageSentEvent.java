@@ -9,5 +9,6 @@ import java.util.List;
 public record MessageSentEvent(
         ChatMessageResponse messageResponse,    // 전송된 메시지 내용
         List<Long> recipientIds,                // 수신자 ID 목록
-        ChatRoomSummaryResponse roomSummary     // 갱신될 채팅방 요약 정보
+        ChatRoomSummaryResponse roomSummary   ,  // 갱신될 채팅방 요약 정보
+        long startTime //
 ) {}

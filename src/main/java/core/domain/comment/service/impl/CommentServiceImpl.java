@@ -196,6 +196,10 @@ public class CommentServiceImpl implements CommentService {
 
         validateCommentForbiddenWord(request.content());
 
+        validateDuplicateContent(email, request.content());
+
+        validateCommentFlooding(email);
+
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.COMMENT_NOT_FOUND));
 
@@ -350,7 +354,7 @@ public class CommentServiceImpl implements CommentService {
                 .existsByAuthorEmailAndContentAndCreatedAtAfter(email, normalizedContent, cutOff);
 
         if (exists) {
-            throw new BusinessException(CommunityErrorCode.DUPLICATE_POST);
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_CONTENT);
         }
     }
 

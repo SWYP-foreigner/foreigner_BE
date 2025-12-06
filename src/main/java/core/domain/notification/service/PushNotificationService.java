@@ -1,9 +1,6 @@
 package core.domain.notification.service;
 
-import com.google.firebase.messaging.FirebaseMessaging;
-import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationEvent;
@@ -19,8 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -33,6 +29,7 @@ public class PushNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
+
 
     /**
      * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
@@ -123,11 +120,6 @@ public class PushNotificationService {
                             .putData("myId", String.valueOf(recipient.getId()))
                             .putData("roomName", roomName);
                     break;
-                case newuser:
-                    messageBuilder
-                            .putData("type", "newuser")
-                            .putData("userId", String.valueOf(event.referenceId()));
-                    break;
                 case followuserpost:
                     messageBuilder
                             .putData("type", "followuserpost")
@@ -164,7 +156,6 @@ public class PushNotificationService {
                     reason = "retryable";
                 } else {
                     log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
-                    // 여기에 fallback 로직 추가 가능 (e.g., 이메일 알림)
                 }
 
                 notificationMetrics.mark("push", "failed", reason);
@@ -174,4 +165,151 @@ public class PushNotificationService {
             }
         }
     }
+    @Transactional
+    public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
+        if (tokens == null || tokens.isEmpty()) return;
+
+        MulticastMessage message = MulticastMessage.builder()
+                .addAllTokens(tokens)
+                .setNotification(Notification.builder()
+                        .setTitle(title)
+                        .setBody(body)
+                        .build())
+                .putData("notificationType", NotificationType.newuser.name())
+                .putData("type", "newuser")
+                .putData("userId", String.valueOf(actorId))
+                .build();
+
+        try {
+            long start = System.currentTimeMillis();
+            BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+            if (response.getFailureCount() > 0) {
+                List<String> tokensToDelete = new ArrayList<>();
+                List<SendResponse> responses = response.getResponses();
+
+                for (int i = 0; i < responses.size(); i++) {
+                    SendResponse sendResponse = responses.get(i);
+
+                    if (!sendResponse.isSuccessful()) {
+                        String failedToken = tokens.get(i);
+                        FirebaseMessagingException e = sendResponse.getException();
+                        MessagingErrorCode code = e.getMessagingErrorCode();
+                        String errorMessage = e.getMessage();
+
+                        if (code == MessagingErrorCode.UNREGISTERED ||
+                                code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                                (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token"))) {
+
+                            log.warn("🚨 만료/무효 토큰 감지 -> 삭제 예정: {} (코드: {})", failedToken, code);
+                            tokensToDelete.add(failedToken);
+
+                            notificationMetrics.mark("push_batch", "failed", "invalid_token");
+
+                        }
+                        else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
+                                code == MessagingErrorCode.UNAVAILABLE ||
+                                code == MessagingErrorCode.INTERNAL) {
+                            log.warn("⚠️ FCM 서버 일시적 장애 (재시도 권장): {} (코드: {})", failedToken, code);
+                            notificationMetrics.mark("push_batch", "failed", "retryable");
+                        }
+                        else {
+                            log.error("❌ 기타 배치 발송 실패: {} (코드: {}, 에러: {})", failedToken, code, errorMessage);
+                            notificationMetrics.mark("push_batch", "failed", "unknown");
+                        }
+                    } else {
+                        notificationMetrics.mark("push_batch", "sent", "ok");
+                    }
+                }
+
+                if (!tokensToDelete.isEmpty()) {
+                    userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
+                    log.info("🧹 총 {}개의 만료된 토큰을 DB에서 정리했습니다.", tokensToDelete.size());
+                }
+            }
+
+            log.info("📊 배치 발송 완료: 요청 {}건 / 성공 {}건 / 실패 {}건 (소요시간: {}ms)",
+                    tokens.size(), response.getSuccessCount(), response.getFailureCount(), System.currentTimeMillis() - start);
+
+        } catch (FirebaseMessagingException e) {
+            log.error("💥 FCM 배치 발송 요청 자체 실패", e);
+            notificationMetrics.mark("push_batch", "error", "exception");
+        }
+    }
+    /**
+     * [New] 채팅방 대량 알림 발송 (Listener에서 호출)
+     * - 기존 sendPushNotification의 'chat' 케이스와 동일한 데이터 구조를 가집니다.
+     * - 500개씩 끊어서 FCM에 던집니다.
+     */
+    @Transactional
+    public void sendGroupPush(List<Long> recipientIds, String messageBody, String roomId, String roomName, Long senderId) {
+        if (recipientIds == null || recipientIds.isEmpty()) return;
+
+
+        List<UserDeviceToken> tokens = userDeviceTokenRepository.findAllByUserIdIn(recipientIds);
+
+        if (tokens.isEmpty()) return;
+
+        List<String> tokenStrings = tokens.stream()
+                .map(UserDeviceToken::getDeviceToken)
+                .distinct()
+                .toList();
+
+        Map<String, String> data = new HashMap<>();
+        data.put("notificationType", NotificationType.chat.name());
+        data.put("type", "chat");
+        data.put("roomId", roomId);
+        data.put("roomName", roomName != null ? roomName : "Chat Room");
+        data.put("senderId", String.valueOf(senderId));
+
+
+        List<List<String>> partitions = new ArrayList<>();
+        int batchSize = 500;
+        for (int i = 0; i < tokenStrings.size(); i += batchSize) {
+            partitions.add(tokenStrings.subList(i, Math.min(i + batchSize, tokenStrings.size())));
+        }
+
+        for (List<String> batchTokens : partitions) {
+            MulticastMessage message = MulticastMessage.builder()
+                    .addAllTokens(batchTokens)
+                    .setNotification(com.google.firebase.messaging.Notification.builder()
+                            .setTitle("Foreigner")
+                            .setBody(messageBody)
+                            .build())
+                    .putAllData(data)
+                    .build();
+
+            try {
+                BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+
+                if (response.getFailureCount() > 0) {
+                    List<String> tokensToDelete = new ArrayList<>();
+                    List<SendResponse> responses = response.getResponses();
+
+                    for (int i = 0; i < responses.size(); i++) {
+                        if (!responses.get(i).isSuccessful()) {
+                            FirebaseMessagingException e = responses.get(i).getException();
+                            MessagingErrorCode code = e.getMessagingErrorCode();
+
+                            if (code == MessagingErrorCode.UNREGISTERED ||
+                                    code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                                    code == MessagingErrorCode.INVALID_ARGUMENT) {
+                                tokensToDelete.add(batchTokens.get(i));
+                            }
+                        }
+                    }
+
+                    if (!tokensToDelete.isEmpty()) {
+                        userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
+                        log.info("🧹 Bulk Cleanup: 만료된 토큰 {}개 삭제 완료", tokensToDelete.size());
+                    }
+                }
+
+                notificationMetrics.mark("push_batch", "sent", "ok");
+
+            } catch (FirebaseMessagingException e) {
+                log.error("💥 FCM Batch Request Failed", e);
+                notificationMetrics.mark("push_batch", "error", "exception");
+            }
+        }
+}
 }

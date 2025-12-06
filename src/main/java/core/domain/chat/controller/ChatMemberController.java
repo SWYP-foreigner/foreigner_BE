@@ -3,7 +3,13 @@ package core.domain.chat.controller;
 import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatMemberService;
 import core.global.config.CustomUserDetails;
+import core.global.docs.annotations.ChatErrorDocs;
+import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,9 +43,9 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatRoomParticipantsResponse.class)))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방")
     })
     @GetMapping("/rooms/{roomId}/participants")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public ResponseEntity<ApiResponse<List<ChatRoomParticipantsResponse>>> getParticipants(@PathVariable Long roomId){
         List<ChatRoomParticipantsResponse> responses = chatService.getRoomParticipants(roomId);
         featureUsageMetrics.recordChatUsage();
@@ -51,9 +57,10 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatUserProfileResponse.class))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 유저")
     })
     @GetMapping("/users/{userId}/profile")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
         ChatUserProfileResponse response = chatService.getUserProfile(userId);
         featureUsageMetrics.recordChatUsage();
@@ -64,10 +71,10 @@ public class ChatMemberController {
     @Operation(summary = "특정 사용자 차단", description = "대화 상대를 차단합니다. 이미 차단되어 있거나 자기 자신은 차단할 수 없습니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "차단 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 또는 이미 차단됨"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 사용자를 찾을 수 없음")
     })
     @PostMapping("/block/{targetUserId}")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED, UserErrorCode.CANNOT_BLOCK, UserErrorCode.ALREADY_BLOCKED})
     public ResponseEntity<ApiResponse<String>> blockUser(
             @PathVariable @Positive Long targetUserId,
             @AuthenticationPrincipal CustomUserDetails principal
@@ -82,11 +89,10 @@ public class ChatMemberController {
     @Operation(summary = "채팅 내용 신고", description = "채팅방, 사용자, 메시지 내용을 신고합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 접수 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "본인의 메시지는 신고할 수 없습니다."),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "신고 대상 메시지 또는 신고자를 찾을 수 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 신고한 메시지입니다 (중복 신고)")
     })
     @PostMapping("/declaration")
+    @ChatErrorDocs({ChatErrorCode.DUPLICATE_REPORT,ChatErrorCode.MESSAGE_NOT_FOUND, ChatErrorCode.CANNOT_REPORT_SELF })
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<Void>> declaration(
             @Valid @RequestBody ChatReportRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
@@ -100,9 +106,9 @@ public class ChatMemberController {
     @Operation(summary = "채팅방 번역 기능 설정", description = "특정 채팅방의 메시지 번역 기능을 켜거나 끕니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "설정 변경 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 참여자를 찾을 수 없음")
     })
     @PostMapping("/rooms/{roomId}/translation")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<Void>> toggleTranslation(
             @PathVariable Long roomId,
             @RequestBody ToggleTranslationRequest request,
@@ -116,9 +122,9 @@ public class ChatMemberController {
     @Operation(summary = "채팅방 알림 설정 변경", description = "특정 채팅방의 알림을 켜거나 끕니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "알림 설정 변경 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 해당 채팅방의 참여자가 아닐 경우")
     })
     @PostMapping("/rooms/{roomId}/notifications-toggle")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<Void>> toggleChatRoomNotifications(
             @Parameter(description = "설정을 변경할 채팅방의 ID") @PathVariable Long roomId,
             @Valid @RequestBody ToggleNotificationsRequest request,
@@ -134,9 +140,9 @@ public class ChatMemberController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatNotificationStatusResponse.class))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 참여자가 아님")
     })
     @GetMapping("/rooms/{roomId}/notification-status")
+    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<ChatNotificationStatusResponse>> getNotificationStatus(
             @Parameter(description = "채팅방 ID") @PathVariable @Positive Long roomId,
             @AuthenticationPrincipal CustomUserDetails principal

@@ -134,11 +134,6 @@ public class ChatAiService {
      */
     @Transactional
     public void deleteAiChatRoom(Long userId, Long roomId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-
-
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
         chatMessageRepository.deleteByChatRoomId(roomId);
@@ -175,7 +170,6 @@ public class ChatAiService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
-
 
         ChatRoom chatRoom = findChatRoomById(roomId);
         validateParticipant(userId, chatRoom);
