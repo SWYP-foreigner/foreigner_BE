@@ -141,23 +141,6 @@ public class MyPageController {
     }
 
 
-    /**
-     * todo : /profile/edit,profile/skip-setup가 어디서 쓰이는 불명확함 확인 후 스웨거 및 로직 수정해야함
-     * **/
-    @PatchMapping(value = "/profile/skip-setup", consumes = "application/json", produces = "application/json")
-    @Operation(
-            summary = "프로필 셋업 마무리",
-            description = "로그인 후 사용자가 하는 첫 프로필 셋업.사용자가 데이터를 다 넣는다면 USER로 ROLE을 가지고" +
-                    "한개라도 스킵을한다면 ROLE이 VISITOR가 됩니다."
-    )
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,  })
-    public ResponseEntity<ApiResponse<LoginResponseDto>> skipSetUpProfile(
-            @Valid @RequestBody UserUpdateDto dto
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(userService.finalizeSkipSetupAndReissueToken(dto)));
-    }
-
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(
             summary = "마이페이지 프로필 수정",
