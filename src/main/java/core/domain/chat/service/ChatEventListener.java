@@ -100,7 +100,12 @@ public class ChatEventListener {
                 eventPublisher.publishEvent(notificationEvent);
             }
         });
+        long currentTime = System.currentTimeMillis();
+        long totalDuration = currentTime - event.startTime();
 
+        log.info("🚀 [E2E Performance] Message {} broadcast complete.", message.id());
+        log.info("   - Recipients: {} users", event.recipientIds().size());
+        log.info("   - Total E2E Latency: {} ms (Service + DB Commit + Async Wait + Socket Push)", totalDuration);
         log.info("Message {} broadcasted via Parallel Stream to {} recipients (DB Query Skipped)",
                 message.id(), event.recipientIds().size());
     }
