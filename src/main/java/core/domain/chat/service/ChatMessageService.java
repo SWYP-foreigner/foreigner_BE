@@ -66,6 +66,7 @@ public class ChatMessageService {
     private final TranslationService translationService;
     private final PerspectiveService perspectiveService;
     private final ChatMemberService chatMemberService;
+    private final ChatSummaryService chatSummaryService;
 
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
@@ -179,25 +180,20 @@ public class ChatMessageService {
             // -------------------------------------------------
             sw.start("5. Translation & Publish (Parallel)");
 
+
             List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-            for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
-                String targetLang = entry.getKey();
-                List<Long> recipientIds = entry.getValue();
-                if (recipientIds.isEmpty()) continue;
+            // 번역된 내용을 저장할 맵
+            Map<String, String> translatedContentsMap = new HashMap<>();
 
-                // ★ 병렬 실행 시작: 성능 핵심 구간
-                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                    String translatedContent = null;
-
-                    // (A) 번역 로직
-                    if ("SELF".equals(targetLang)) {
-                        translatedContent = originalContent;
-                    } else if (!"NONE".equals(targetLang)) {
+            // 1. 번역 작업을 미리 병렬로 수행 (옵션: 성능 향상을 위해 병렬 처리 시작)
+            List<CompletableFuture<Void>> translationFutures = recipientsByLang.keySet().stream()
+                    .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
+                    .map(targetLang -> CompletableFuture.runAsync(() -> {
                         long tStart = System.currentTimeMillis();
                         try {
                             List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
-                            if (!results.isEmpty()) translatedContent = results.get(0);
+                            if (!results.isEmpty()) translatedContentsMap.put(targetLang, results.get(0));
                         } catch (Exception e) {
                             log.error("Translation Error for lang: " + targetLang, e);
                         }
@@ -205,30 +201,52 @@ public class ChatMessageService {
                         if ((tEnd - tStart) > 200) {
                             log.warn("!!!! [Slow API] Translation took {} ms for {}", (tEnd - tStart), targetLang);
                         }
-                    }
+                    })).toList();
 
-                    // (B) 메시지 응답 객체 생성
-                    ChatMessageResponse messageResponse = new ChatMessageResponse(
-                            savedMessageId, chatRoom.getId(), sender.getId(),
-                            originalContent, translatedContent, sentAt,
-                            senderFirstName, senderLastName, userImageUrl, MessageType.TEXT
+            // 모든 번역 작업 완료 대기
+            CompletableFuture.allOf(translationFutures.toArray(new CompletableFuture[0])).join();
+
+            // 2. 수신자별 이벤트 발행 스케줄링
+            for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
+                String targetLang = entry.getKey();
+                List<Long> recipientIds = entry.getValue();
+                if (recipientIds.isEmpty()) continue;
+
+                String contentToSend = originalContent; // 기본값은 원문
+
+                if ("SELF".equals(targetLang)) {
+                    // SELF는 원문 그대로
+                } else if ("NONE".equals(targetLang)) {
+                    // 번역 비활성화된 경우, 원문 그대로
+                } else {
+                    // 번역 결과 사용 (미리 계산된 맵에서 가져옴)
+                    contentToSend = translatedContentsMap.getOrDefault(targetLang, originalContent);
+                }
+
+                // 수신자에게 보낼 최종 DTO 생성 (번역된 내용 포함)
+                ChatMessageResponse messageResponse = new ChatMessageResponse(
+                        savedMessageId, chatRoom.getId(), sender.getId(),
+                        originalContent, contentToSend, sentAt,
+                        senderFirstName, senderLastName, userImageUrl, MessageType.TEXT
+                );
+
+                // ★ 핵심 변경: DTO와 수신자 ID 목록을 ChatSummaryService에 전달하여 새로운 트랜잭션에서 처리
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    // ChatSummaryService는 내부에서 recipientIds를 반복하며 Summary 생성 및 이벤트 발행
+                    chatSummaryService.sendSummaryToRecipientsInNewTx(
+                            messageResponse,
+                            recipientIds,
+                            absoluteStartTime
                     );
-
-                    // (C) ChatRoomSummaryResponse 생성 (EAGER 로딩 덕분에 안전하게 DB 관련 호출 가능)
-                    ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-
-                    // (D) 이벤트 발행
-                    eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary, absoluteStartTime));
                 });
 
                 futures.add(future);
             }
 
-            // 모든 병렬 작업 대기 -> 이 시점에 DB Connection을 약 0.4초 정도 점유
+            // 모든 병렬 작업 대기
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             sw.stop();
-
             // -------------------------------------------------
             // 최종 로그
             // -------------------------------------------------
