@@ -20,7 +20,7 @@ public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken
     List<UserDeviceToken> findAllByUserId(Long id);
     void deleteAllByUserId(Long userId);
     List<UserDeviceToken> findAllByUser(User user);
-
+    void deleteByDeviceTokenIn(List<String> deviceTokens);
     /**
      * 🚀 [최적화 쿼리]
      * 1. Target: 'UserDeviceToken' 테이블 기준

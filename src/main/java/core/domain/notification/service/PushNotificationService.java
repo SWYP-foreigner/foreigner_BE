@@ -3,9 +3,7 @@ package core.domain.notification.service;
 import com.google.firebase.messaging.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.notification.dto.NotificationEvent;
-import core.domain.notification.repository.NotificationRepository;
 import core.domain.user.entity.User;
 import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
@@ -15,12 +13,10 @@ import core.global.enums.NotificationType;
 import core.global.metrics.NotificationMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +31,6 @@ public class PushNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
-    private final NotificationRepository notificationRepository;
 
 
     /**
@@ -173,8 +168,10 @@ public class PushNotificationService {
             }
         }
     }
+    @Transactional
     public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
-        if (tokens.isEmpty()) return;
+        if (tokens == null || tokens.isEmpty()) return;
+
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(tokens)
                 .setNotification(Notification.builder()
@@ -187,37 +184,58 @@ public class PushNotificationService {
                 .build();
 
         try {
+            long start = System.currentTimeMillis();
             BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
             if (response.getFailureCount() > 0) {
-                log.warn("배치 발송 완료: 성공 {}, 실패 {}", response.getSuccessCount(), response.getFailureCount());
+                List<String> tokensToDelete = new ArrayList<>();
+                List<SendResponse> responses = response.getResponses();
+
+                for (int i = 0; i < responses.size(); i++) {
+                    SendResponse sendResponse = responses.get(i);
+
+                    if (!sendResponse.isSuccessful()) {
+                        String failedToken = tokens.get(i);
+                        FirebaseMessagingException e = sendResponse.getException();
+                        MessagingErrorCode code = e.getMessagingErrorCode();
+                        String errorMessage = e.getMessage();
+
+                        if (code == MessagingErrorCode.UNREGISTERED ||
+                                code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                                (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token"))) {
+
+                            log.warn("🚨 만료/무효 토큰 감지 -> 삭제 예정: {} (코드: {})", failedToken, code);
+                            tokensToDelete.add(failedToken);
+
+                            notificationMetrics.mark("push_batch", "failed", "invalid_token");
+
+                        }
+                        else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
+                                code == MessagingErrorCode.UNAVAILABLE ||
+                                code == MessagingErrorCode.INTERNAL) {
+                            log.warn("⚠️ FCM 서버 일시적 장애 (재시도 권장): {} (코드: {})", failedToken, code);
+                            notificationMetrics.mark("push_batch", "failed", "retryable");
+                        }
+                        else {
+                            log.error("❌ 기타 배치 발송 실패: {} (코드: {}, 에러: {})", failedToken, code, errorMessage);
+                            notificationMetrics.mark("push_batch", "failed", "unknown");
+                        }
+                    } else {
+                        notificationMetrics.mark("push_batch", "sent", "ok");
+                    }
+                }
+
+                if (!tokensToDelete.isEmpty()) {
+                    userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
+                    log.info("🧹 총 {}개의 만료된 토큰을 DB에서 정리했습니다.", tokensToDelete.size());
+                }
             }
+
+            log.info("📊 배치 발송 완료: 요청 {}건 / 성공 {}건 / 실패 {}건 (소요시간: {}ms)",
+                    tokens.size(), response.getSuccessCount(), response.getFailureCount(), System.currentTimeMillis() - start);
+
         } catch (FirebaseMessagingException e) {
-            log.error("FCM 배치 발송 중 오류 발생 토큰이 없는 유저", e);
+            log.error("💥 FCM 배치 발송 요청 자체 실패", e);
+            notificationMetrics.mark("push_batch", "error", "exception");
         }
-    }
-
-    @Async // 리스너도 비동기 처리 권장
-    @EventListener
-    public void handleBulkNotification(NotificationBulkEvent event) {
-        // 1. Notification 엔티티 리스트 생성 (메모리 작업)
-        List<Notification> notifications = event.recipientIds().stream()
-                .map(userId -> Notification.builder()
-                        .userId(userId)
-                        .senderId(event.senderId())
-                        .roomId(event.roomId())
-                        .type(event.type())
-                        .content(event.content())
-                        .roomName(event.roomName())
-                        .isRead(false)
-                        .createdAt(LocalDateTime.now())
-                        .build())
-                .toList();
-
-        // 2. ⚡ [핵심] DB에 한 방에 저장 (Bulk Insert)
-        // save를 478번 호출하는 것 vs saveAll을 1번 호출하는 것은 천지차이입니다.
-        notificationRepository.saveAll(notifications);
-
-        // 3. (옵션) FCM 같은 외부 푸시 알림도 여기서 Bulk로 요청 가능
-        // fcmService.sendMulticast(event.recipientIds(), ...);
     }
 }
