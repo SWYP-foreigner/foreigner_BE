@@ -16,9 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -158,7 +156,6 @@ public class PushNotificationService {
                     reason = "retryable";
                 } else {
                     log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
-                    // 여기에 fallback 로직 추가 가능 (e.g., 이메일 알림)
                 }
 
                 notificationMetrics.mark("push", "failed", reason);
@@ -238,4 +235,81 @@ public class PushNotificationService {
             notificationMetrics.mark("push_batch", "error", "exception");
         }
     }
+    /**
+     * [New] 채팅방 대량 알림 발송 (Listener에서 호출)
+     * - 기존 sendPushNotification의 'chat' 케이스와 동일한 데이터 구조를 가집니다.
+     * - 500개씩 끊어서 FCM에 던집니다.
+     */
+    @Transactional
+    public void sendGroupPush(List<Long> recipientIds, String messageBody, String roomId, String roomName, Long senderId) {
+        if (recipientIds == null || recipientIds.isEmpty()) return;
+
+
+        List<UserDeviceToken> tokens = userDeviceTokenRepository.findAllByUserIdIn(recipientIds);
+
+        if (tokens.isEmpty()) return;
+
+        List<String> tokenStrings = tokens.stream()
+                .map(UserDeviceToken::getDeviceToken)
+                .distinct()
+                .toList();
+
+        Map<String, String> data = new HashMap<>();
+        data.put("notificationType", NotificationType.chat.name());
+        data.put("type", "chat");
+        data.put("roomId", roomId);
+        data.put("roomName", roomName != null ? roomName : "Chat Room");
+        data.put("senderId", String.valueOf(senderId));
+
+
+        List<List<String>> partitions = new ArrayList<>();
+        int batchSize = 500;
+        for (int i = 0; i < tokenStrings.size(); i += batchSize) {
+            partitions.add(tokenStrings.subList(i, Math.min(i + batchSize, tokenStrings.size())));
+        }
+
+        for (List<String> batchTokens : partitions) {
+            MulticastMessage message = MulticastMessage.builder()
+                    .addAllTokens(batchTokens)
+                    .setNotification(com.google.firebase.messaging.Notification.builder()
+                            .setTitle("Foreigner")
+                            .setBody(messageBody)
+                            .build())
+                    .putAllData(data)
+                    .build();
+
+            try {
+                BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+
+                if (response.getFailureCount() > 0) {
+                    List<String> tokensToDelete = new ArrayList<>();
+                    List<SendResponse> responses = response.getResponses();
+
+                    for (int i = 0; i < responses.size(); i++) {
+                        if (!responses.get(i).isSuccessful()) {
+                            FirebaseMessagingException e = responses.get(i).getException();
+                            MessagingErrorCode code = e.getMessagingErrorCode();
+
+                            if (code == MessagingErrorCode.UNREGISTERED ||
+                                    code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                                    code == MessagingErrorCode.INVALID_ARGUMENT) {
+                                tokensToDelete.add(batchTokens.get(i));
+                            }
+                        }
+                    }
+
+                    if (!tokensToDelete.isEmpty()) {
+                        userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
+                        log.info("🧹 Bulk Cleanup: 만료된 토큰 {}개 삭제 완료", tokensToDelete.size());
+                    }
+                }
+
+                notificationMetrics.mark("push_batch", "sent", "ok");
+
+            } catch (FirebaseMessagingException e) {
+                log.error("💥 FCM Batch Request Failed", e);
+                notificationMetrics.mark("push_batch", "error", "exception");
+            }
+        }
+}
 }

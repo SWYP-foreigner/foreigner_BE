@@ -6,6 +6,7 @@ import core.global.enums.NotificationType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,7 +21,7 @@ public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken
     List<UserDeviceToken> findAllByUserId(Long id);
     void deleteAllByUserId(Long userId);
     List<UserDeviceToken> findAllByUser(User user);
-    void deleteByDeviceTokenIn(List<String> deviceTokens);
+
     /**
      * 🚀 [최적화 쿼리]
      * 1. Target: 'UserDeviceToken' 테이블 기준
@@ -43,4 +44,19 @@ public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken
             @Param("type") NotificationType type,
             Pageable pageable
     );
+
+    /**
+     * [New] 여러 유저의 토큰을 한 번에 조회 (IN 절 최적화)
+     * udt.user.id를 사용하여 User 객체 조인 없이 ID만으로 비교합니다.
+     */
+    @Query("SELECT udt FROM UserDeviceToken udt WHERE udt.user.id IN :userIds")
+    List<UserDeviceToken> findAllByUserIdIn(@Param("userIds") List<Long> userIds);
+
+    /**
+     * [New] 만료된 토큰 리스트를 한 번에 삭제 (Bulk Delete)
+     * 방어 로직에서 수집된 유효하지 않은 토큰들을 일괄 삭제할 때 사용합니다.
+     */
+    @Modifying
+    @Query("DELETE FROM UserDeviceToken udt WHERE udt.deviceToken IN :deviceTokens")
+    void deleteByDeviceTokenIn(@Param("deviceTokens") List<String> deviceTokens);
 }

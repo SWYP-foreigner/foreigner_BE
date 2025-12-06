@@ -1,6 +1,10 @@
 package core.domain.notification.service;
+import core.domain.notification.dto.NotificationBulkEvent;
+import core.domain.notification.entity.Notification;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.global.enums.NotificationType;
+import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -17,6 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -24,12 +29,13 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class NotificationEventListener {
-
+    private final EntityManager entityManager;
     private final UserRepository userRepository;
     private final UserNotificationService notificationService;
     private final PushNotificationService pushNotificationService;
     private final NotificationMessageGenerator notificationMessageGenerator;
     private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationRepository notificationRepository;
 
     @Async("dispatchExecutor")
     @EventListener
@@ -125,5 +131,36 @@ public class NotificationEventListener {
         } else {
             return String.format("A new friend from %s has joined!", country);
         }
+    }
+
+    @Async
+    @EventListener
+    public void handleBulkNotification(NotificationBulkEvent event) {
+        User senderProxy = entityManager.getReference(User.class, event.senderId());
+        List<Notification> notifications = event.recipientIds().stream()
+                .map(targetId -> {
+                    User receiverProxy = entityManager.getReference(User.class, targetId);
+                    Long referenceId = null;
+                    try {
+                        referenceId = Long.parseLong(String.valueOf(event.roomId()));
+                    } catch (NumberFormatException e) {
+                    }
+
+                    return Notification.builder()
+                            .user(receiverProxy)
+                            .actor(senderProxy)
+                            .message(event.content())
+                            .notificationType(event.type())
+                            .referenceId(referenceId)
+                            .subReferenceId(null)
+                            .build();
+                })
+                .toList();
+
+
+        notificationRepository.saveAll(notifications);
+
+
+        pushNotificationService.sendGroupPush(event.recipientIds(), event.content(), String.valueOf(event.roomId()), event.roomName(), event.senderId());
     }
 }

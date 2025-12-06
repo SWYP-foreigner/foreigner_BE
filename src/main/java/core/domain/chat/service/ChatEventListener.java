@@ -5,6 +5,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.notification.entity.Notification;
 import core.global.enums.MessageType;
 import core.global.enums.NotificationType;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -125,6 +127,8 @@ public class ChatEventListener {
         log.info("Message {} broadcasted via Parallel Stream to {} recipients (DB Query Skipped)",
                 message.id(), event.recipientIds().size());
     }
+
+
     @EventListener
     @Async
     public void handleMessageRead(MessageReadEvent event) {
