@@ -1,4 +1,4 @@
-package core.domain.post.repository;
+package core.domain.post.repository.impl;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Expression;
@@ -12,6 +12,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.comment.entity.QComment;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.entity.QPost;
+import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.user.entity.QUser;
 import core.global.entity.image.entity.QImage;
 import core.global.entity.like.entity.QLike;

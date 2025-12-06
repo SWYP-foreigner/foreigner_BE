@@ -64,25 +64,37 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PostServiceImplTest {
 
+    private final String email = "test@example.com";
     @InjectMocks
     private PostServiceImpl postService;
-
-    @Mock private PostRepository postRepository;
-    @Mock private BoardRepository boardRepository;
-    @Mock private LikeRepository likeRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private ImageRepository imageRepository;
-    @Mock private ForbiddenWordService forbiddenWordService;
-    @Mock private ImageService imageService;
-    @Mock private BlockRepository blockRepository;
-    @Mock private BlockPostRepository blockPostRepository;
-    @Mock private TranslationService translationService;
-    @Mock private UserRoleDetectService userRoleDetectService;
-    @Mock private FollowRepository followRepository;
-    @Mock private PostReportRepository postReportRepository;
-
-    private final String email = "test@example.com";
-
+    @Mock
+    private PostRepository postRepository;
+    @Mock
+    private BoardRepository boardRepository;
+    @Mock
+    private LikeRepository likeRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private ImageRepository imageRepository;
+    @Mock
+    private ForbiddenWordService forbiddenWordService;
+    @Mock
+    private ImageService imageService;
+    @Mock
+    private BlockRepository blockRepository;
+    @Mock
+    private BlockPostRepository blockPostRepository;
+    @Mock
+    private TranslationService translationService;
+    @Mock
+    private UserRoleDetectService userRoleDetectService;
+    @Mock
+    private FollowRepository followRepository;
+    @Mock
+    private PostReportRepository postReportRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     private User user;
 
     @BeforeEach
@@ -350,7 +362,8 @@ class PostServiceImplTest {
         verify(postRepository).save(any(Post.class));
         verify(imageService).savePostImages(anyLong(), eq(request.imageUrls()));
         // PostCreatedEvent, NotificationEvent 발행 여부
-        
+        verify(eventPublisher, atLeastOnce()).publishEvent(any(Object.class));
+
     }
 
     // =========================================
