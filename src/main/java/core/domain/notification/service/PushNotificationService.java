@@ -121,11 +121,6 @@ public class PushNotificationService {
                             .putData("myId", String.valueOf(recipient.getId()))
                             .putData("roomName", roomName);
                     break;
-                case newuser:
-                    messageBuilder
-                            .putData("type", "newuser")
-                            .putData("userId", String.valueOf(event.referenceId()));
-                    break;
                 case followuserpost:
                     messageBuilder
                             .putData("type", "followuserpost")
@@ -174,20 +169,19 @@ public class PushNotificationService {
     }
     public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
         if (tokens.isEmpty()) return;
-
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(tokens)
                 .setNotification(Notification.builder()
                         .setTitle(title)
                         .setBody(body)
                         .build())
+                .putData("notificationType", NotificationType.newuser.name())
                 .putData("type", "newuser")
                 .putData("userId", String.valueOf(actorId))
                 .build();
 
         try {
             BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
-
             if (response.getFailureCount() > 0) {
                 log.warn("배치 발송 완료: 성공 {}, 실패 {}", response.getSuccessCount(), response.getFailureCount());
             }
