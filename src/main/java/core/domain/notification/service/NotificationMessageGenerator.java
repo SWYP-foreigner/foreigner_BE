@@ -33,7 +33,6 @@ public class NotificationMessageGenerator {
             case comment -> actorName + " replied to your comment.";
             case follow -> actorName + " accepted your follow request.";
             case receive -> actorName + " started following you.";
-            case newuser -> actorName + " just joined! Say hello!";
             case followuserpost -> actorName + " posted something new.";
             default -> "새로운 알림이 도착했습니다.";
         };

@@ -89,7 +89,7 @@ public class ChatMessageService {
         long startTime = System.currentTimeMillis();
 
         try {
-
+            long absoluteStartTime = System.currentTimeMillis();
             // 1. 메시지 저장
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
             ChatRoom chatRoom = savedMessage.getChatRoom();
@@ -171,18 +171,16 @@ public class ChatMessageService {
                 );
 
                 ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary,absoluteStartTime));
 
-                chatMetrics.onMessageSent("text", true);
-                chatMetrics.recordDelivery(startTime);
+                //chatMetrics.onMessageSent("text", true);
+                //chatMetrics.recordDelivery(startTime);
 
                 long endTime = System.currentTimeMillis();
-                log.debug("Processed message for room {} in {}ms (Recipients: {})",
-                        req.roomId(), (endTime - startTime), chatRoom.getParticipants().size());
             }
         } catch (Exception e) {
-            chatMetrics.onMessageSent("text", false);
-            chatMetrics.recordDelivery(startTime);
+           // chatMetrics.onMessageSent("text", false);
+          //  chatMetrics.recordDelivery(startTime);
 
             throw e;
         }
@@ -350,6 +348,7 @@ public class ChatMessageService {
         long startTime = System.currentTimeMillis();
 
         try {
+            long absoluteStartTime = System.currentTimeMillis();
             ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
                     .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
             User sender = userRepository.findById(req.senderId())
@@ -389,13 +388,13 @@ public class ChatMessageService {
             ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
 
             // 4. [핵심 변경] 직접 전송하지 않고 이벤트만 던집니다.
-            eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+            eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary,absoluteStartTime));
 
-            chatMetrics.onMessageSent("media", true);
-            chatMetrics.recordDelivery(startTime);
+            //chatMetrics.onMessageSent("media", true);
+           // chatMetrics.recordDelivery(startTime);
         } catch (Exception e) {
-            chatMetrics.onMessageSent("media", false);
-            chatMetrics.recordDelivery(startTime);
+           // chatMetrics.onMessageSent("media", false);
+           // chatMetrics.recordDelivery(startTime);
 
             throw e;
         }
