@@ -116,7 +116,7 @@ public class ChatMessageService {
             Instant sentAt = savedMessage.getSentAt();
             String senderFirstName = sender.getFirstName();
             String senderLastName = sender.getLastName();
-
+            int preloadedParticipantCount = chatRoom.getParticipants().size();
             // -------------------------------------------------
             // 구간 2: 비동기 작업 스케줄링
             // -------------------------------------------------
@@ -204,9 +204,7 @@ public class ChatMessageService {
 
                     // (C) ChatRoomSummaryResponse 생성 (사용자 요청 반영: 병렬 구간 내에서 생성)
                     // ★ 여기서 생성해야 번역된 내용이나 최신 상태를 반영한 Summary를 만들 수 있습니다.
-                    // (참고: 만약 buildChatRoomSummaryResponse가 내부적으로 translatedContent를 사용해야 한다면 인자로 넘겨주세요)
                     ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-
                     eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary, absoluteStartTime));
                 });
 
