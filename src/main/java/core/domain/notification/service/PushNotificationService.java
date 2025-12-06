@@ -3,7 +3,9 @@ package core.domain.notification.service;
 import com.google.firebase.messaging.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.user.entity.User;
 import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
@@ -13,9 +15,12 @@ import core.global.enums.NotificationType;
 import core.global.metrics.NotificationMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +35,7 @@ public class PushNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
+    private final NotificationRepository notificationRepository;
 
 
     /**
@@ -188,5 +194,30 @@ public class PushNotificationService {
         } catch (FirebaseMessagingException e) {
             log.error("FCM 배치 발송 중 오류 발생 토큰이 없는 유저", e);
         }
+    }
+
+    @Async // 리스너도 비동기 처리 권장
+    @EventListener
+    public void handleBulkNotification(NotificationBulkEvent event) {
+        // 1. Notification 엔티티 리스트 생성 (메모리 작업)
+        List<Notification> notifications = event.recipientIds().stream()
+                .map(userId -> Notification.builder()
+                        .userId(userId)
+                        .senderId(event.senderId())
+                        .roomId(event.roomId())
+                        .type(event.type())
+                        .content(event.content())
+                        .roomName(event.roomName())
+                        .isRead(false)
+                        .createdAt(LocalDateTime.now())
+                        .build())
+                .toList();
+
+        // 2. ⚡ [핵심] DB에 한 방에 저장 (Bulk Insert)
+        // save를 478번 호출하는 것 vs saveAll을 1번 호출하는 것은 천지차이입니다.
+        notificationRepository.saveAll(notifications);
+
+        // 3. (옵션) FCM 같은 외부 푸시 알림도 여기서 Bulk로 요청 가능
+        // fcmService.sendMulticast(event.recipientIds(), ...);
     }
 }

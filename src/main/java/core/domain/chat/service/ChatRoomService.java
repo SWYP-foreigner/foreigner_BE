@@ -46,7 +46,6 @@ public class ChatRoomService {
     private final UserRoleDetectService userRoleDetectService;
     private final SocialChatMetrics socialChatMetrics;
 
-    // --- 1:1 및 그룹 채팅방 생성 ---
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
         User user = userRepository.findById(currentUserId)
