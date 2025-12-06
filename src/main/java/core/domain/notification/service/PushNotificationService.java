@@ -1,9 +1,6 @@
 package core.domain.notification.service;
 
-import com.google.firebase.messaging.FirebaseMessaging;
-import com.google.firebase.messaging.FirebaseMessagingException;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.MessagingErrorCode;
+import com.google.firebase.messaging.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationEvent;
@@ -33,6 +30,7 @@ public class PushNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
+
 
     /**
      * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
@@ -172,6 +170,29 @@ public class PushNotificationService {
 
                 throw e;
             }
+        }
+    }
+    public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
+        if (tokens.isEmpty()) return;
+
+        MulticastMessage message = MulticastMessage.builder()
+                .addAllTokens(tokens)
+                .setNotification(Notification.builder()
+                        .setTitle(title)
+                        .setBody(body)
+                        .build())
+                .putData("type", "newuser")
+                .putData("userId", String.valueOf(actorId))
+                .build();
+
+        try {
+            BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+
+            if (response.getFailureCount() > 0) {
+                log.warn("배치 발송 완료: 성공 {}, 실패 {}", response.getSuccessCount(), response.getFailureCount());
+            }
+        } catch (FirebaseMessagingException e) {
+            log.error("FCM 배치 발송 중 오류 발생 토큰이 없는 유저", e);
         }
     }
 }
