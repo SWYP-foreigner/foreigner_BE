@@ -31,6 +31,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StopWatch;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -84,59 +86,84 @@ public class ChatMessageService {
     /**
      * 최적화된 일반(TEXT) 메시지 전송 로직
      */
+
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
-        long startTime = System.currentTimeMillis();
+        // 1. [진단] 스레드 및 트랜잭션 상태 확인
+        String currentThreadName = Thread.currentThread().getName();
+        boolean isTxActive = TransactionSynchronizationManager.isActualTransactionActive();
+        String txName = TransactionSynchronizationManager.getCurrentTransactionName();
+
+        log.info(">>>> [Start Sending] Thread: [{}], TxActive: [{}], TxName: [{}], RoomId: {}",
+                currentThreadName, isTxActive, txName, req.roomId());
+
+        StopWatch sw = new StopWatch("ChatSending-" + req.roomId());
 
         try {
             long absoluteStartTime = System.currentTimeMillis();
-            // 1. 메시지 저장
+
+            // -------------------------------------------------
+            // 구간 1: 메시지 저장 (가장 의심됨)
+            // -------------------------------------------------
+            sw.start("1. DB Insert (Message)");
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+            sw.stop();
+
+            // 저장 직후 데이터 준비
             ChatRoom chatRoom = savedMessage.getChatRoom();
             User sender = savedMessage.getSender();
             String originalContent = savedMessage.getContent();
 
-            // 2. [최적화] AI 스팸 감지 (별도 서비스의 @Async 메서드 호출로 변경 권장)
-            // spamDetectionService.checkSpamAndReport(savedMessage.getId(), originalContent);
+            // -------------------------------------------------
+            // 구간 2: 비동기 작업 스케줄링
+            // -------------------------------------------------
+            sw.start("2. Async Task Scheduling");
             CompletableFuture.runAsync(() -> checkSpamAndReport(savedMessage));
+            sw.stop();
 
-            // 3. [최적화] 필요한 데이터 Bulk 조회 (N+1 방지)
+            // -------------------------------------------------
+            // 구간 3: 조회 로직 (이미지, 차단 등)
+            // -------------------------------------------------
+            sw.start("3. DB Select (Meta Data)");
             String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
                     .map(Image::getUrl).orElse(null);
 
-            // 차단 목록 조회
             List<BlockUser> relatedBlocks = blockRepository.findAllRelatedBlocks(sender.getId());
+            sw.stop();
+
+            // -------------------------------------------------
+            // 구간 4: 로직 처리 (그룹핑)
+            // -------------------------------------------------
+            sw.start("4. Java Logic (Grouping)");
             Set<Long> blockedUserIds = relatedBlocks.stream()
                     .map(b -> b.getUser().getId().equals(sender.getId()) ? b.getBlocked().getId() : b.getUser().getId())
                     .collect(Collectors.toSet());
 
-            // 4. [핵심 최적화] 참여자를 '번역 언어별'로 그룹핑
             Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
             for (ChatParticipant p : chatRoom.getParticipants()) {
                 User recipient = p.getUser();
                 if (blockedUserIds.contains(recipient.getId())) continue;
 
-                // =========================================================
-                // [수정 1] 보낸 사람(Sender)은 "NONE"이 아니라 "SELF" 그룹으로 분리
-                // =========================================================
                 if (recipient.getId().equals(sender.getId())) {
                     p.setLastReadMessageId(savedMessage.getId());
-
-                    // "NONE" 대신 "SELF"라는 별도 키를 사용
                     recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
                     continue;
                 }
 
-                // (나머지 참가자 로직 동일)
                 String lang = (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null)
                         ? p.getUser().getTranslateLanguage()
                         : "NONE";
 
                 recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
             }
+            sw.stop();
 
-            // 5. 언어 그룹별로 메시지 생성 및 이벤트 발행
+            // -------------------------------------------------
+            // 구간 5: 번역 API 및 이벤트 발행
+            // -------------------------------------------------
+            sw.start("5. Translation & Publish");
+
             for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
                 String targetLang = entry.getKey();
                 List<Long> recipientIds = entry.getValue();
@@ -144,50 +171,47 @@ public class ChatMessageService {
 
                 String translatedContent = null;
 
-                // =========================================================
-                // [수정 2] "SELF" 그룹이면 원문을 번역본 필드에 채워넣기
-                // =========================================================
                 if ("SELF".equals(targetLang)) {
-                    // 내가 보낸 메시지는 번역 API를 안 쓰지만,
-                    // 내 앱이 번역모드일 때 빈 화면이 뜨지 않도록 '원문'을 '번역필드'에 넣어줌
                     translatedContent = originalContent;
-
                 } else if (!"NONE".equals(targetLang)) {
-                    // "NONE"이 아닐 때만 진짜 번역 API 호출
+                    // 실제 번역 API 호출 시점 체크
+                    long tStart = System.currentTimeMillis();
                     try {
                         List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
                         if (!results.isEmpty()) translatedContent = results.get(0);
                     } catch (Exception e) {
-                        log.error("Batch translation failed for lang={}", targetLang, e);
+                        log.error("Translation Error", e);
+                    }
+                    long tEnd = System.currentTimeMillis();
+                    if ((tEnd - tStart) > 200) {
+                        log.warn("!!!! [Slow API] Translation took {} ms for {}", (tEnd - tStart), targetLang);
                     }
                 }
 
                 ChatMessageResponse messageResponse = new ChatMessageResponse(
                         savedMessage.getId(), chatRoom.getId(), sender.getId(),
-                        originalContent,
-                        translatedContent, // "SELF"일 경우 원문이 들어감 -> 빈 메시지 해결!
-                        savedMessage.getSentAt(),
+                        originalContent, translatedContent, savedMessage.getSentAt(),
                         sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
                 );
 
                 ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary,absoluteStartTime));
 
-                //chatMetrics.onMessageSent("text", true);
-                //chatMetrics.recordDelivery(startTime);
-
-                long endTime = System.currentTimeMillis();
+                // 이벤트 발행
+                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary, absoluteStartTime));
             }
-        } catch (Exception e) {
-           // chatMetrics.onMessageSent("text", false);
-          //  chatMetrics.recordDelivery(startTime);
+            sw.stop();
 
+            // -------------------------------------------------
+            // 최종 로그 출력
+            // -------------------------------------------------
+            log.info(">>>> [Process Complete] Thread: {}", Thread.currentThread().getName());
+            log.info(sw.prettyPrint());
+
+        } catch (Exception e) {
+            log.error("Error in processAndSendChatMessage", e);
             throw e;
         }
-
-
     }
-
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
