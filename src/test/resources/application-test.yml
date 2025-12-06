@@ -54,6 +54,11 @@ spring:
       mail.smtp.ssl.protocols: TLSv1.2
       mail.debug: false
 
+logging:
+  level:
+    org.springframework.jdbc.datasource: debug
+    org.hibernate.engine.jdbc.env.internal.LobCreatorBuilderImpl: warn
+
 
 jwt:
   secret: dummy-jwt-secret
