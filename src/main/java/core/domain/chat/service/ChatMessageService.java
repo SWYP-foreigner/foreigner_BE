@@ -89,7 +89,6 @@ public class ChatMessageService {
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
-        // 1. [진단] 스레드 및 트랜잭션 상태 확인
         String currentThreadName = Thread.currentThread().getName();
         boolean isTxActive = TransactionSynchronizationManager.isActualTransactionActive();
         String txName = TransactionSynchronizationManager.getCurrentTransactionName();
@@ -109,12 +108,12 @@ public class ChatMessageService {
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
             sw.stop();
 
-            // 저장 직후 데이터 준비 (Lazy Loading 방지를 위해 미리 추출)
+            // 데이터 미리 추출 (Lazy Loading 및 트랜잭션 안전성 확보)
             ChatRoom chatRoom = savedMessage.getChatRoom();
             User sender = savedMessage.getSender();
             String originalContent = savedMessage.getContent();
-            Long savedMessageId = savedMessage.getId(); // ID 미리 추출
-            Instant sentAt = savedMessage.getSentAt();  // 시간 미리 추출
+            Long savedMessageId = savedMessage.getId();
+            Instant sentAt = savedMessage.getSentAt();
             String senderFirstName = sender.getFirstName();
             String senderLastName = sender.getLastName();
 
@@ -133,13 +132,10 @@ public class ChatMessageService {
                     .map(Image::getUrl).orElse(null);
 
             List<BlockUser> relatedBlocks = blockRepository.findAllRelatedBlocks(sender.getId());
-
-            // 채팅방 요약 정보는 루프 밖에서 1번만 생성 (성능 최적화)
-            ChatRoomSummaryResponse commonSummary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
             sw.stop();
 
             // -------------------------------------------------
-            // 구간 4: 로직 처리 (그룹핑) - 여기가 핵심 필터링 로직
+            // 구간 4: 그룹핑 로직
             // -------------------------------------------------
             sw.start("4. Java Logic (Grouping)");
             Set<Long> blockedUserIds = relatedBlocks.stream()
@@ -152,15 +148,12 @@ public class ChatMessageService {
                 User recipient = p.getUser();
                 if (blockedUserIds.contains(recipient.getId())) continue;
 
-                // 1. 본인 처리
                 if (recipient.getId().equals(sender.getId())) {
                     p.setLastReadMessageId(savedMessageId);
                     recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
                     continue;
                 }
 
-                // 2. 번역 대상 필터링 (질문하신 핵심 부분)
-                // translateEnabled가 true인 경우에만 해당 언어로 그룹핑, 아니면 "NONE" 그룹
                 String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                         ? recipient.getTranslateLanguage()
                         : "NONE";
@@ -170,11 +163,10 @@ public class ChatMessageService {
             sw.stop();
 
             // -------------------------------------------------
-            // 구간 5: 번역 API 및 이벤트 발행 (병렬 처리 적용)
+            // 구간 5: 번역 API 및 이벤트 발행 (병렬 처리)
             // -------------------------------------------------
             sw.start("5. Translation & Publish (Parallel)");
 
-            // 모든 비동기 작업을 담을 리스트
             List<CompletableFuture<Void>> futures = new ArrayList<>();
 
             for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
@@ -182,15 +174,14 @@ public class ChatMessageService {
                 List<Long> recipientIds = entry.getValue();
                 if (recipientIds.isEmpty()) continue;
 
-                // 각 언어 그룹별로 별도의 스레드에서 병렬 실행
+                // ★ 병렬 실행 시작
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                     String translatedContent = null;
 
-                    // (A) 번역 로직 수행
+                    // (A) 번역 로직
                     if ("SELF".equals(targetLang)) {
                         translatedContent = originalContent;
                     } else if (!"NONE".equals(targetLang)) {
-                        // ★ 병렬로 실행되므로, 여기서 300ms가 걸려도 다른 언어에 영향을 주지 않음
                         long tStart = System.currentTimeMillis();
                         try {
                             List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
@@ -199,33 +190,36 @@ public class ChatMessageService {
                             log.error("Translation Error for lang: " + targetLang, e);
                         }
                         long tEnd = System.currentTimeMillis();
-                        // 로그 요구사항 유지
                         if ((tEnd - tStart) > 200) {
                             log.warn("!!!! [Slow API] Translation took {} ms for {}", (tEnd - tStart), targetLang);
                         }
                     }
 
-                    // (B) 응답 객체 생성
+                    // (B) 메시지 응답 객체 생성
                     ChatMessageResponse messageResponse = new ChatMessageResponse(
                             savedMessageId, chatRoom.getId(), sender.getId(),
                             originalContent, translatedContent, sentAt,
                             senderFirstName, senderLastName, userImageUrl, MessageType.TEXT
                     );
 
-                    // (C) 이벤트 발행 (트랜잭션 커밋 후 리스너가 동작)
-                    eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, commonSummary, absoluteStartTime));
+                    // (C) ChatRoomSummaryResponse 생성 (사용자 요청 반영: 병렬 구간 내에서 생성)
+                    // ★ 여기서 생성해야 번역된 내용이나 최신 상태를 반영한 Summary를 만들 수 있습니다.
+                    // (참고: 만약 buildChatRoomSummaryResponse가 내부적으로 translatedContent를 사용해야 한다면 인자로 넘겨주세요)
+                    ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
+
+                    eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary, absoluteStartTime));
                 });
 
                 futures.add(future);
             }
 
-            // 모든 언어의 번역 및 이벤트 발행이 끝날 때까지 대기 (가장 느린 API 시간만큼만 소요됨)
+            // 모든 병렬 작업 대기
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             sw.stop();
 
             // -------------------------------------------------
-            // 최종 로그 출력
+            // 최종 로그
             // -------------------------------------------------
             log.info(">>>> [Process Complete] Thread: {}", Thread.currentThread().getName());
             log.info(sw.prettyPrint());
@@ -417,7 +411,7 @@ public class ChatMessageService {
 
                 // 차단 체크
                 boolean isBlocked = blockRepository.existsBlock(recipient.getId(), sender.getId()) ||
-                                    blockRepository.existsBlock(sender.getId(), recipient.getId());
+                        blockRepository.existsBlock(sender.getId(), recipient.getId());
                 if (isBlocked) continue;
                 recipientIds.add(recipient.getId());
             }
@@ -438,10 +432,10 @@ public class ChatMessageService {
             eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary,absoluteStartTime));
 
             //chatMetrics.onMessageSent("media", true);
-           // chatMetrics.recordDelivery(startTime);
+            // chatMetrics.recordDelivery(startTime);
         } catch (Exception e) {
-           // chatMetrics.onMessageSent("media", false);
-           // chatMetrics.recordDelivery(startTime);
+            // chatMetrics.onMessageSent("media", false);
+            // chatMetrics.recordDelivery(startTime);
 
             throw e;
         }
