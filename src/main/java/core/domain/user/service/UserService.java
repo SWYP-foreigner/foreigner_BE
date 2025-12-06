@@ -228,6 +228,8 @@ public class UserService {
         if (dto.imageKey() != null) {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
+
+        //publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
     }
 
     private boolean notBlank(String s) {
@@ -572,8 +574,6 @@ public class UserService {
             redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
             responseDto.setNewTokens(accessToken, refreshToken);
         }
-
-        // 7. 최종 응답 반환
         return responseDto;
     }
 
@@ -598,6 +598,7 @@ public class UserService {
             long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
             redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
         }
+
         publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
         return new LoginResponseDto(
                 user.getId(),

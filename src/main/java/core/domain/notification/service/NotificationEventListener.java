@@ -1,5 +1,6 @@
 package core.domain.notification.service;
-
+import core.global.enums.NotificationType;
+import org.springframework.util.StopWatch;
 import core.domain.notification.dto.NewUserJoinedEvent;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.User;
@@ -70,13 +71,19 @@ public class NotificationEventListener {
 
         NotificationEvent tempEvent = new NotificationEvent(
                 null, newUserActor.getId(),
-                core.global.enums.NotificationType.newuser,
+                NotificationType.newuser,
                 newUserActor.getId(), null, null);
         String message = notificationMessageGenerator.generateMessage(newUserActor, tempEvent);
 
+        // 1. 전체 유저 조회 (메모리 경고 지점)
         List<User> allUsers = userRepository.findAll();
         log.warn("[성능 경고] {}명의 모든 사용자를 메모리에 로드했습니다. 사용자 수가 많을 경우 OutOfMemoryError가 발생할 수 있습니다.", allUsers.size());
 
+        // 2. 시간 측정 시작 (스프링 StopWatch 사용)
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        // 3. 루프 돌며 발송
         for (User recipient : allUsers) {
             if (recipient.getId().equals(newUserActor.getId())) {
                 continue;
@@ -89,6 +96,14 @@ public class NotificationEventListener {
                 log.error("사용자 ID {}에게 신규 유저 알림 발송 중 오류 발생", recipient.getId(), e);
             }
         }
+
+        // 4. 시간 측정 종료 및 로그 출력
+        stopWatch.stop();
+        log.info("========== [알림 발송 성능 측정] ==========");
+        log.info("총 소요 시간: {} 초", stopWatch.getTotalTimeSeconds());
+        log.info("처리한 유저 수: {} 명", allUsers.size());
+        log.info("========================================");
+
         log.info("[비효율적 방식] 전체 알림 발송 루프 완료. 총 {}명 처리.", allUsers.size());
     }
 }

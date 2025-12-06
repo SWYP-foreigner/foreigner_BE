@@ -140,6 +140,10 @@ public class MyPageController {
         return ResponseEntity.ok().build();
     }
 
+
+    /**
+     * todo : /profile/edit,profile/skip-setup가 어디서 쓰이는 불명확함 확인 후 스웨거 및 로직 수정해야함
+     * **/
     @PatchMapping(value = "/profile/skip-setup", consumes = "application/json", produces = "application/json")
     @Operation(
             summary = "프로필 셋업 마무리",
@@ -158,15 +162,14 @@ public class MyPageController {
     @Operation(
             summary = "마이페이지 프로필 수정",
             description = "기존사용자(USER)와 스킵한 사용자(VISITOR)모두 수정에 사용합니다. 스킵한 VISITOR 유저가 완료할 시에는" +
-                    " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다." // (설명 수정)
+                    " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다."
     )
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,  })
-    public ResponseEntity<ProfileEditResponseDto> editProfile( // 1. 반환 타입 변경
+    public ResponseEntity<ProfileEditResponseDto> editProfile(
                                                                @Valid @RequestBody UserProfileEditDto dto
     ) {
         featureUsageMetrics.recordFollowUsage();
-        // userService.updateUserProfile이 이제 ProfileEditResponseDto를 반환함
         return ResponseEntity.ok(userService.updateUserProfile(dto));
     }
 
