@@ -87,7 +87,6 @@ public class ChatMessageService {
      * 최적화된 일반(TEXT) 메시지 전송 로직
      */
 
-    @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         String currentThreadName = Thread.currentThread().getName();
         boolean isTxActive = TransactionSynchronizationManager.isActualTransactionActive();
@@ -105,22 +104,34 @@ public class ChatMessageService {
             // 구간 1: 메시지 저장
             // -------------------------------------------------
             sw.start("1. DB Insert (Message)");
+            // this.saveMessage 내부에서 트랜잭션이 활성화된 상태로 메시지 저장
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
             sw.stop();
 
-            // 데이터 미리 추출 (Lazy Loading 및 트랜잭션 안전성 확보)
-            ChatRoom chatRoom = savedMessage.getChatRoom();
-            User sender = savedMessage.getSender();
+            // 데이터 미리 추출 및 EAGER 로딩
+            // ★ [CRITICAL FIX: LazyInitializationException 해결]
+            // buildChatRoomSummaryResponse와 그룹핑 로직에서 Lazy Loading 이슈 발생 가능성이 있는 모든 연관 관계를 Fetch Join으로 미리 로딩합니다.
+            sw.start("1-5. DB Select (EAGER Loading)");
+            ChatRoom refreshedChatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
+                    .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
+            sw.stop();
+
+            // 이후 코드에서 사용할 엔티티를 완벽히 로딩된 엔티티로 교체 및 추출
+            ChatRoom chatRoom = refreshedChatRoom;
+            User sender = savedMessage.getSender(); // savedMessage에서 가져온 sender 엔티티도 혹시 모를 Lazy Loading을 위해 미리 접근합니다.
+            sender.getFirstName();
+
             String originalContent = savedMessage.getContent();
             Long savedMessageId = savedMessage.getId();
             Instant sentAt = savedMessage.getSentAt();
             String senderFirstName = sender.getFirstName();
             String senderLastName = sender.getLastName();
-            int preloadedParticipantCount = chatRoom.getParticipants().size();
+
             // -------------------------------------------------
-            // 구간 2: 비동기 작업 스케줄링
+            // 구간 2: 비동기 작업 스케줄링 (스팸 체크 등)
             // -------------------------------------------------
             sw.start("2. Async Task Scheduling");
+            // checkSpamAndReport는 트랜잭션과 무관한 작업이므로 runAsync로 처리
             CompletableFuture.runAsync(() -> checkSpamAndReport(savedMessage));
             sw.stop();
 
@@ -145,7 +156,7 @@ public class ChatMessageService {
             Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
             for (ChatParticipant p : chatRoom.getParticipants()) {
-                User recipient = p.getUser();
+                User recipient = p.getUser(); // EAGER 로딩 덕분에 안전하게 접근 가능
                 if (blockedUserIds.contains(recipient.getId())) continue;
 
                 if (recipient.getId().equals(sender.getId())) {
@@ -174,7 +185,7 @@ public class ChatMessageService {
                 List<Long> recipientIds = entry.getValue();
                 if (recipientIds.isEmpty()) continue;
 
-                // ★ 병렬 실행 시작
+                // ★ 병렬 실행 시작: 성능 핵심 구간
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                     String translatedContent = null;
 
@@ -202,16 +213,17 @@ public class ChatMessageService {
                             senderFirstName, senderLastName, userImageUrl, MessageType.TEXT
                     );
 
-                    // (C) ChatRoomSummaryResponse 생성 (사용자 요청 반영: 병렬 구간 내에서 생성)
-                    // ★ 여기서 생성해야 번역된 내용이나 최신 상태를 반영한 Summary를 만들 수 있습니다.
+                    // (C) ChatRoomSummaryResponse 생성 (EAGER 로딩 덕분에 안전하게 DB 관련 호출 가능)
                     ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
+
+                    // (D) 이벤트 발행
                     eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary, absoluteStartTime));
                 });
 
                 futures.add(future);
             }
 
-            // 모든 병렬 작업 대기
+            // 모든 병렬 작업 대기 -> 이 시점에 DB Connection을 약 0.4초 정도 점유
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             sw.stop();
@@ -227,7 +239,6 @@ public class ChatMessageService {
             throw e;
         }
     }
-
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         // 1. 참여자 검증 (기존 동일)
