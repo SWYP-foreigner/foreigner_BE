@@ -30,6 +30,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StopWatch;
@@ -658,8 +659,8 @@ public class ChatMessageService {
                 .map(ChatParticipant::getLastReadMessageId).orElse(0L);
         return chatMessageRepository.countUnreadMessages(roomId, lastReadId, userId);
     }
-
-    private ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
         ChatRoom room = chatRoomRepository.findById(roomId).orElseThrow();
         ChatMessage lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId).orElse(null);
 
