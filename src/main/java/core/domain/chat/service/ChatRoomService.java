@@ -107,6 +107,8 @@ public class ChatRoomService {
                     if (room.getIsGroup()) {
                         return true;
                     }
+                    Instant time = getLastMessageTime(room.getId());
+                    log.info("방ID: {}, 시간: {}, 현재시간: {}", room.getId(), time, Instant.now());
                     Optional<User> opponentOpt = room.getParticipants().stream()
                             .map(ChatParticipant::getUser)
                             .filter(u -> !u.getId().equals(userId))
