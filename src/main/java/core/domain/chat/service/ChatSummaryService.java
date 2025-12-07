@@ -43,27 +43,18 @@ public class ChatSummaryService {
      *
      * @param messageResponse 메인 스레드에서 생성한 메시지 DTO
      * @param recipientIds 수신자 ID 목록
-     * @param absoluteStartTime 성능 측정 시작 시간
+     *
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendSummaryToRecipientsInNewTx(
             ChatMessageResponse messageResponse,
-            List<Long> recipientIds,
-            long absoluteStartTime
+            List<Long> recipientIds
     ) {
         Long roomId = messageResponse.roomId();
-
-        // recipientIds는 이미 차단된 유저가 걸러지고, 번역 언어별로 그룹핑된 유저 목록입니다.
         for (Long recipientId : recipientIds) {
-
-            // 1. 수신자별 맞춤형 Summary 생성 (unreadCount 계산 포함)
-            // 새로운 트랜잭션 안에서 안전하게 DB 접근
             ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(roomId, recipientId);
-
-            // 2. 이벤트 발행 (메시지 + 수신자 1인 + Summary)
-            // recipientIds를 1개만 포함하는 List로 발행하여 정확히 1인에게만 전송되도록 함
             eventPublisher.publishEvent(
-                    new MessageSentEvent(messageResponse, List.of(recipientId), summary, absoluteStartTime)
+                    new MessageSentEvent(messageResponse, List.of(recipientId), summary)
             );
         }
     }
@@ -78,25 +69,21 @@ public class ChatSummaryService {
      */
     @Transactional(readOnly = true)
     protected ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
-        // Fetch Join 쿼리 사용을 권장하지만, 현재 ChatMessageService의 코드를 기반으로 findById를 사용합니다.
-        // REQUIRES_NEW 트랜잭션 덕분에 findById(Lazy Loading 가능)도 안전해집니다.
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // 1. 마지막 메시지
+
         ChatMessage lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
                 .orElse(null);
 
         String lastContent = (lastMsg != null) ? lastMsg.getContent() : "대화를 시작해보세요.";
         Instant lastTime = (lastMsg != null) ? lastMsg.getSentAt() : room.getCreatedAt();
 
-        // 2. 안 읽은 메시지 수: 수신자(forUserId) 기준으로 계산
         int unread = countUnreadMessages(roomId, forUserId);
 
         String name = room.getRoomName();
         String img = null;
 
-        // 3. 1:1 채팅방 처리 (상대방 이름, 이미지 URL)
         if (!room.getIsGroup()) {
             Optional<User> opponentOpt = room.getParticipants().stream()
                     .map(p -> p.getUser())
@@ -115,15 +102,11 @@ public class ChatSummaryService {
                 name = "Unknown";
             }
         }
-        // 4. 그룹 채팅방 처리 (그룹 이미지 URL)
         else {
-            // 그룹 이미지 조회 (DB 접근)
             img = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, roomId)
                     .map(url -> url.getUrl())
                     .orElse(null);
         }
-
-        // 5. 최종 Summary Response
         return new ChatRoomSummaryResponse(
                 room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size()
         );

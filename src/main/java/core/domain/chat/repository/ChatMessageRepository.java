@@ -18,14 +18,13 @@ import java.util.Optional;
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>, ChatMessageRepositoryCustom {
 
     void deleteByChatRoomId(Long chatRoomId);
-    /**
-     * 특정 채팅방의 모든 메시지를 메시지 ID 오름차순으로 조회합니다.
-     * (메시지 생성 순서대로 정렬)
-     *
-     * @param chatRoomId 조회할 채팅방의 ID
-     * @return 해당 채팅방의 모든 메시지 리스트
-     */
-    List<ChatMessage> findByChatRoomIdOrderByIdAsc(Long chatRoomId);
+    @Query("SELECT cm FROM ChatMessage cm " +
+            "WHERE cm.id IN (" +
+            "    SELECT MAX(m.id) FROM ChatMessage m " +
+            "    WHERE m.chatRoom.id IN :roomIds " +
+            "    GROUP BY m.chatRoom.id" +
+            ")")
+    List<ChatMessage> findLastMessagesByRoomIds(@Param("roomIds") List<Long> roomIds);
 
     /**
      * 특정 채팅방에서 주어진 키워드가 포함된 메시지를 검색합니다.
