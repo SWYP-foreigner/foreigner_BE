@@ -562,33 +562,39 @@ public class ChatMessageService {
                     .collect(Collectors.toList());
         }
     }
-
+    private List<String> getTranslatedMessages(List<ChatMessage> messages, ChatParticipant participant) {
+        if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null && !messages.isEmpty()) {
+            List<String> contents = messages.stream().map(ChatMessage::getContent).toList();
+            return translationService.translateMessages(contents, participant.getUser().getTranslateLanguage());
+        }
+        return Collections.emptyList();
+    }
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
+        // 1. 참여자 조회
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
-        ChatMessage target = chatMessageRepository.findById(targetMessageId).orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
+        ChatMessage target = chatMessageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
         List<ChatMessage> newer = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
         List<ChatMessage> combined = new ArrayList<>(older);
         combined.add(target);
         combined.addAll(newer);
 
-        boolean needsTranslation = participant.isTranslateEnabled();
-        String targetLanguage = participant.getUser().getTranslateLanguage();
+        List<String> translatedTexts = getTranslatedMessages(combined, participant);
 
-        if (needsTranslation && targetLanguage != null) {
-            List<String> contents = combined.stream().map(ChatMessage::getContent).toList();
-            List<String> translated = translationService.translateMessages(contents, targetLanguage);
-            return IntStream.range(0, combined.size())
-                    .mapToObj(i -> mapToResponse(combined.get(i), translated.get(i)))
-                    .collect(Collectors.toList());
-        }
-
-        return combined.stream().map(m -> mapToResponse(m, null)).collect(Collectors.toList());
+        return IntStream.range(0, combined.size())
+                .mapToObj(i -> {
+                    String translated = translatedTexts.isEmpty() ? null : translatedTexts.get(i);
+                    return mapToResponse(combined.get(i), translated);
+                })
+                .collect(Collectors.toList());
     }
 
     @Transactional
