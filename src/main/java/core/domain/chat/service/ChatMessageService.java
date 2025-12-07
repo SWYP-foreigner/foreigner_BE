@@ -159,9 +159,7 @@ public class ChatMessageService {
 
             // 보낸 사람 처리 (SELF)
             if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId); // Dirty Checking으로 자동 업데이트됨
-                recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
-                continue;
+                p.setLastReadMessageId(messageId); // (자동 업데이트)
             }
 
             // 언어 설정 확인
