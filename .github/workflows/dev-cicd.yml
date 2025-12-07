@@ -231,7 +231,7 @@ jobs:
             APP_NAME=${{ secrets.APP_NAME }}
             GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
             BASE_URL=${{ secrets.BASE_URL }}
-            SIGHTENGINE_API_USER=${{SIGHTENGINE_API_USER}}
+            SIGHTENGINE_API_USER=${{secrets.SIGHTENGINE_API_USER}}
             
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
