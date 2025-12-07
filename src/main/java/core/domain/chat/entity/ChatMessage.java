@@ -54,4 +54,8 @@ public class ChatMessage {
         this.sentAt = Instant.now();
     }
 
+    public void maskContentAsDeleted() {
+        this.content = "BLOCKED_MEDIA";
+    }
+
 }

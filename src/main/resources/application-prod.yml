@@ -146,3 +146,7 @@ app:
 
   api:
     base-url: ${BASE_URL}
+
+sightengine:
+  api-user: ${SIGHTENGINE_API_USER}
+  api-secret: ${SIGHTENGINE_API_SECRET}
