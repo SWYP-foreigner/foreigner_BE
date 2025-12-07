@@ -207,6 +207,7 @@ public class ChatMessageService {
 
     /**
      * 그룹별로 메시지를 생성하고 비동기로 전송합니다.
+     * (DTO 수정 없이 Record 생성자 사용)
      */
     private void executeParallelDispatch(
             Map<String, List<Long>> recipientsByLang,
@@ -222,33 +223,28 @@ public class ChatMessageService {
             List<Long> recipientIds = entry.getValue();
             if (recipientIds.isEmpty()) continue;
 
-            // 전송할 텍스트 결정
-            String contentToSend = determineContent(targetLang, savedMessage.getContent(), translatedContentsMap);
-
-            // DTO 생성
+            String translatedText = translatedContentsMap.get(targetLang);
             ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(), savedMessage.getChatRoom().getId(), sender.getId(),
-                    savedMessage.getContent(), contentToSend, savedMessage.getSentAt(),
-                    sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
+                    savedMessage.getId(),
+                    savedMessage.getChatRoom().getId(),
+                    sender.getId(),
+                    savedMessage.getContent(),                 // originContent (항상 원문)
+                    translatedText,                            // targetContent (번역문 or null)
+                    savedMessage.getSentAt(),                  // sentAt (Entity와 타입 일치 가정)
+                    sender.getFirstName(),                     // senderFirstName
+                    sender.getLastName(),                      // senderLastName
+                    userImageUrl,                              // senderImageUrl
+                    MessageType.TEXT                           // messageType
             );
 
-            // 비동기 전송 (New Transaction)
             CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
                     chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
             );
             futures.add(future);
         }
-
-        // 모든 전송 작업이 끝날 때까지 대기
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
-    private String determineContent(String targetLang, String originalContent, Map<String, String> translatedMap) {
-        if ("SELF".equals(targetLang) || "NONE".equals(targetLang)) {
-            return originalContent; // 원문
-        }
-        return translatedMap.getOrDefault(targetLang, originalContent); // 번역문 (없으면 원문)
-    }
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
