@@ -423,17 +423,32 @@ public class ChatRoomService {
         }
 
         // 5. 정렬 (Collections.sort 사용) - 최신순(내림차순)
-        Collections.sort(sortList, (o1, o2) -> {
-            // 날짜 내림차순: o2(뒤) - o1(앞)
-            if (o2.sortTime == null) return -1;
-            if (o1.sortTime == null) return 1;
-            return o2.sortTime.compareTo(o1.sortTime);
+        Collections.sort(sortList, new Comparator<ChatRoomSortData>() {
+            @Override
+            public int compare(ChatRoomSortData o1, ChatRoomSortData o2) {
+                // 날짜 내림차순: o2(뒤) - o1(앞)
+                if (o2.sortTime == null) return -1;
+                if (o1.sortTime == null) return 1;
+                return o2.sortTime.compareTo(o1.sortTime);
+            }
         });
 
         // 6. 최종 응답 변환 (for문 사용)
         List<ChatRoomSummaryResponse> responseList = new ArrayList<>();
         for (ChatRoomSortData data : sortList) {
+            // 1. 이미 정렬에 사용된 시간을 그대로 가져옵니다. (중복 계산 제거)
+            // record라서 getter가 data.getSortTime()이 아니라 data.sortTime() 입니다.
+            Instant sortTime = data.sortTime;
+
+            // 2. 응답 객체 생성
             ChatRoomSummaryResponse summary = createSummaryResponse(data.room, data.lastMessage, userId);
+
+            // 3. [디버깅 로그]
+            // 여기서 '정렬 기준 시간'이 '현재 시간'과 비슷하게 찍히는지, 아니면 '옛날 시간'인지 확인하세요.
+            System.out.println("방 이름: " + summary.roomName()
+                    + " | 정렬 기준 시간(DB): " + sortTime
+                    + " | 현재 서버 시간: " + Instant.now());
+
             responseList.add(summary);
         }
 
