@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>유해 이미지 검토</title>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background-color: #f8f9fa; }
+        h1 { border-bottom: 2px solid #ddd; padding-bottom: 10px; color: #333; }
+
+        .btn-home {
+            display: inline-block; margin-bottom: 20px; padding: 10px 16px;
+            background-color: #6c757d; color: white; text-decoration: none;
+            border-radius: 5px; font-weight: bold; transition: background 0.2s;
+        }
+        .btn-home:hover { background-color: #5a6268; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white; border: 1px solid #ddd; border-radius: 10px;
+            padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; align-items: flex-start;
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+
+        .img-container {
+            width: 100%; height: 220px; overflow: hidden; border-radius: 8px;
+            margin-bottom: 15px; border: 1px solid #eee;
+            background-color: #f1f1f1; display: flex; justify-content: center; align-items: center;
+        }
+        .card img {
+            max-width: 100%; max-height: 100%; object-fit: contain;
+        }
+
+        .info { width: 100%; margin-bottom: 15px; font-size: 0.95em; color: #555; }
+        .info p { margin: 5px 0; }
+        .reason { color: #dc3545; font-weight: bold; }
+        .date { font-size: 0.85em; color: #888; margin-top: 8px; }
+
+        .btns { width: 100%; display: flex; gap: 10px; margin-top: auto; }
+        .btns form { flex: 1; }
+        .btn {
+            width: 100%; padding: 10px 0; border: none; border-radius: 6px;
+            cursor: pointer; color: white; font-weight: bold; font-size: 0.9em;
+            transition: opacity 0.2s;
+        }
+
+        .btn-pass { background-color: #28a745; }
+        .btn-del { background-color: #dc3545; }
+        .btn:hover { opacity: 0.85; }
+    </style>
+</head>
+<body>
+
+<h1>🚨 유해 의심 이미지 검토 (현재 게시중)</h1>
+<p style="color:#666; margin-bottom:20px; font-size: 1.1em;">
+    아래 이미지들은 <b>AI가 유해하다고 판단(SUSPICIOUS)</b>하였으나, 현재 <b>서비스에 노출</b>되고 있습니다.<br>
+    직접 확인 후 <b>[삭제]</b>하거나 문제없다면 <b>[통과]</b> 처리해주세요.
+</p>
+<a th:href="@{/admin/users/home}" class="btn-home">← 어드민 홈으로</a>
+
+<div class="grid">
+    <div th:each="img : ${images}" class="card">
+        <div class="img-container">
+            <a th:href="${img.url}" target="_blank">
+                <img th:src="${img.url}" alt="검토 이미지" loading="lazy">
+            </a>
+        </div>
+
+        <div class="info">
+            <p><strong>ID:</strong> <span th:text="${img.id}"></span></p>
+            <p><strong>Type:</strong> <span th:text="${img.imageType}"></span></p>
+            <p><strong>Related ID:</strong> <a th:href="@{/admin/posts/{id}(id=${img.relatedId})}" target="_blank" th:text="${img.relatedId}"></a></p>
+            <p class="reason">⚠️ <span th:text="${img.moderationReason}">차단 사유</span></p>
+        </div>
+
+        <div class="btns">
+            <form th:action="@{/admin/images/{id}/pass(id=${img.id})}" method="post" onsubmit="return confirm('정상 이미지입니까? (목록에서만 제거됩니다)');">
+                <button type="submit" class="btn btn-pass">✅ 통과 (정상)</button>
+            </form>
+            <form th:action="@{/admin/images/{id}/delete(id=${img.id})}" method="post" onsubmit="return confirm('정말 삭제하시겠습니까? (S3 파일 및 DB 영구 삭제)');">
+                <button type="submit" class="btn btn-del">🗑 삭제 (유해)</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:if="${#lists.isEmpty(images)}" style="text-align: center; margin-top: 80px; color: #888;">
+    <div style="font-size: 50px; margin-bottom: 20px;">✨</div>
+    <h3>검토할 유해 의심 이미지가 없습니다.</h3>
+    <p>서비스가 클린한 상태입니다.</p>
+</div>
+
+</body>
+</html>

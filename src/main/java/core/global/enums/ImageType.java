@@ -1,5 +1,5 @@
 package core.global.enums;
 
 public enum ImageType {
-    POST, USER, CHAT_ROOM
+    POST, USER, CHAT_ROOM, CHAT_MEDIA
 }
