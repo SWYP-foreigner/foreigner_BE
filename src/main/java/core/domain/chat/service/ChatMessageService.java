@@ -154,17 +154,15 @@ public class ChatMessageService {
         for (ChatParticipant p : chatRoom.getParticipants()) {
             User recipient = p.getUser();
 
-            // 차단된 유저 제외
             if (blockedUserIds.contains(recipient.getId())) continue;
 
-            // 보낸 사람 처리 (SELF)
             if (recipient.getId().equals(sender.getId())) {
                 p.setLastReadMessageId(messageId); // Dirty Checking으로 자동 업데이트됨
                 recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
                 continue;
             }
 
-            // 언어 설정 확인
+
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
                     : "NONE";
@@ -178,14 +176,12 @@ public class ChatMessageService {
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
      */
     private Map<String, String> executeParallelTranslations(String originalContent, Set<String> targetLanguages) {
-        Map<String, String> resultMap = new ConcurrentHashMap<>(); // 병렬 처리를 위해 ConcurrentHashMap 사용 권장
+        Map<String, String> resultMap = new ConcurrentHashMap<>();
 
-        // 번역이 필요한 언어만 필터링
         List<String> languagesToTranslate = targetLanguages.stream()
                 .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
                 .toList();
 
-        // CompletableFuture 리스트 생성 및 실행
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
                     try {
@@ -199,7 +195,6 @@ public class ChatMessageService {
                 }))
                 .toList();
 
-        // 모든 번역이 끝날 때까지 대기 (Join)
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return resultMap;
@@ -228,13 +223,13 @@ public class ChatMessageService {
                     savedMessage.getId(),
                     savedMessage.getChatRoom().getId(),
                     sender.getId(),
-                    savedMessage.getContent(),                 // originContent (항상 원문)
-                    translatedText,                            // targetContent (번역문 or null)
-                    savedMessage.getSentAt(),                  // sentAt (Entity와 타입 일치 가정)
-                    sender.getFirstName(),                     // senderFirstName
-                    sender.getLastName(),                      // senderLastName
-                    userImageUrl,                              // senderImageUrl
-                    MessageType.TEXT                           // messageType
+                    savedMessage.getContent(),
+                    translatedText,
+                    savedMessage.getSentAt(),
+                    sender.getFirstName(),
+                    sender.getLastName(),
+                    userImageUrl,
+                    MessageType.TEXT
             );
 
             CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
@@ -312,13 +307,11 @@ public class ChatMessageService {
         String finalContent = message.getContent();
         MessageType finalType = message.getMessageType();
 
-        // 관리자에 의해 삭제된 경우
         if ("BLOCKED_MEDIA".equals(finalContent)) {
             finalContent = "관리자에 의해 삭제된 이미지입니다.";
             finalType = MessageType.TEXT;
             translatedContent = null;
         }
-        // 그 외 이미지
         else if (finalType == MessageType.IMAGE) {
             if (!finalContent.startsWith("http")) {
                 finalContent = cdnBaseUrl + "/" + finalContent;
