@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChatRoomService {
 
-    // 변수명 중복 제거 및 통일 (repo -> repository)
     private final ChatRoomRepository chatRoomRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -247,7 +246,6 @@ public class ChatRoomService {
         return room;
     }
 
-    // --- Private Helpers (내부 로직) ---
 
     private ChatRoom createNewOneToOneChatRoom(Long userId1, Long userId2) {
         User currentUser = userRepository.findById(userId1)
@@ -275,7 +273,6 @@ public class ChatRoomService {
         }
     }
 
-    // Missing Method Implementation (누락되었던 메서드 추가)
     private Instant getLastMessageTime(Long roomId) {
         return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
                 .map(ChatMessage::getSentAt)
@@ -351,10 +348,9 @@ public class ChatRoomService {
     }
 
     private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
-        return toGroupChatMainResponse(chatRoom); // 로직이 동일하여 재사용
+        return toGroupChatMainResponse(chatRoom);
     }
 
-    // 내부 DTO (Record)
     class ChatRoomSortData {
         ChatRoom room;
         ChatMessage lastMessage;
@@ -369,32 +365,26 @@ public class ChatRoomService {
 
     @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
-        // 1. 사용자 검증
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        // 2. 참여중인 채팅방 목록 조회
         List<ChatRoom> rooms = chatRoomRepository.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
 
         if (rooms.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // 3. [최적화] 모든 방의 마지막 메시지 가져오기 (배치 조회)
-        // 3-1. 방 ID 목록 추출 (for문 사용)
         List<Long> roomIds = new ArrayList<>();
         for (ChatRoom room : rooms) {
             roomIds.add(room.getId());
         }
 
-        // 3-2. 메시지 조회 및 Map 변환 (for문 사용)
         List<ChatMessage> lastMessages = chatMessageRepository.findLastMessagesByRoomIds(roomIds);
         Map<Long, ChatMessage> lastMessageMap = new HashMap<>();
         for (ChatMessage msg : lastMessages) {
             lastMessageMap.put(msg.getChatRoom().getId(), msg);
         }
 
-        // 4. 필터링 및 정렬 데이터 구성
         List<ChatRoomSortData> sortList = new ArrayList<>();
 
         for (ChatRoom room : rooms) {
@@ -407,10 +397,8 @@ public class ChatRoomService {
                 }
             }
            */
-            // (2) 마지막 메시지 가져오기
             ChatMessage lastMessage = lastMessageMap.get(room.getId());
 
-            // (3) 정렬 기준 시간 결정 (절대 Instant.now() 쓰지 않음)
             Instant sortTime;
             if (lastMessage != null) {
                 sortTime = lastMessage.getSentAt();
@@ -418,44 +406,26 @@ public class ChatRoomService {
                 sortTime = room.getCreatedAt();
             }
 
-            // (4) 정렬용 리스트에 추가
             sortList.add(new ChatRoomSortData(room, lastMessage, sortTime));
         }
 
-        // 5. 정렬 (Collections.sort 사용) - 최신순(내림차순)
-        Collections.sort(sortList, new Comparator<ChatRoomSortData>() {
-            @Override
-            public int compare(ChatRoomSortData o1, ChatRoomSortData o2) {
-                // 날짜 내림차순: o2(뒤) - o1(앞)
-                if (o2.sortTime == null) return -1;
-                if (o1.sortTime == null) return 1;
-                return o2.sortTime.compareTo(o1.sortTime);
-            }
+        Collections.sort(sortList, (o1, o2) -> {
+            if (o2.sortTime == null) return -1;
+            if (o1.sortTime == null) return 1;
+            return o2.sortTime.compareTo(o1.sortTime);
         });
 
-        // 6. 최종 응답 변환 (for문 사용)
         List<ChatRoomSummaryResponse> responseList = new ArrayList<>();
         for (ChatRoomSortData data : sortList) {
-            // 1. 이미 정렬에 사용된 시간을 그대로 가져옵니다. (중복 계산 제거)
-            // record라서 getter가 data.getSortTime()이 아니라 data.sortTime() 입니다.
             Instant sortTime = data.sortTime;
 
-            // 2. 응답 객체 생성
             ChatRoomSummaryResponse summary = createSummaryResponse(data.room, data.lastMessage, userId);
-
-            // 3. [디버깅 로그]
-            // 여기서 '정렬 기준 시간'이 '현재 시간'과 비슷하게 찍히는지, 아니면 '옛날 시간'인지 확인하세요.
-            System.out.println("방 이름: " + summary.roomName()
-                    + " | 정렬 기준 시간(DB): " + sortTime
-                    + " | 현재 서버 시간: " + Instant.now());
-
             responseList.add(summary);
         }
 
         return responseList;
     }
 
-    // [응답 생성 헬퍼 메서드] - 복잡도를 줄이기 위해 분리
     private ChatRoomSummaryResponse createSummaryResponse(ChatRoom room, ChatMessage lastMessage, Long userId) {
         String lastMessageContent = "";
         Instant lastMessageTime = room.getCreatedAt();
@@ -472,7 +442,6 @@ public class ChatRoomService {
         String roomImageUrl = null;
 
         if (!room.getIsGroup()) {
-            // 1:1 상대방 찾기 (for문 사용)
             User opponent = null;
             for (ChatParticipant p : room.getParticipants()) {
                 if (!p.getUser().getId().equals(userId)) {
