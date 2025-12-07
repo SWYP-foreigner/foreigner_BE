@@ -43,6 +43,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -89,104 +90,164 @@ public class ChatMessageService {
      * 최적화된 일반(TEXT) 메시지 전송 로직
      */
 
+    @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
-
+            // 1. 메시지 저장 및 필수 데이터 조회
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
-            ChatRoom refreshedChatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
-                    .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
-            ChatRoom chatRoom = refreshedChatRoom;
+            ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
             User sender = savedMessage.getSender();
-            sender.getFirstName();
 
-            String originalContent = savedMessage.getContent();
-            Long savedMessageId = savedMessage.getId();
-            Instant sentAt = savedMessage.getSentAt();
-            String senderFirstName = sender.getFirstName();
-            String senderLastName = sender.getLastName();
+            // 2. 비동기 스팸 체크 (Fire-and-Forget)
+            runSpamCheckAsync(savedMessage);
 
-            CompletableFuture.runAsync(() -> checkSpamAndReport(savedMessage));
-            String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                    .map(Image::getUrl).orElse(null);
+            // 3. 부가 정보 조회 (이미지, 차단 목록)
+            String userImageUrl = getUserProfileImage(sender.getId());
+            List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            List<BlockUser> relatedBlocks = blockRepository.findAllRelatedBlocks(sender.getId());
-            Set<Long> blockedUserIds = relatedBlocks.stream()
-                    .map(b -> b.getUser().getId().equals(sender.getId()) ? b.getBlocked().getId() : b.getUser().getId())
-                    .collect(Collectors.toSet());
+            // 4. [핵심] 수신자 그룹핑 (언어별 분류)
+            Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
+                    chatRoom, sender, blockedUserIds, savedMessage.getId()
+            );
 
-            Map<String, List<Long>> recipientsByLang = new HashMap<>();
+            // 5. [핵심] 병렬 번역 실행 (Parallel Translation)
+            Map<String, String> translatedContentsMap = executeParallelTranslations(
+                    savedMessage.getContent(), recipientsByLang.keySet()
+            );
 
-            for (ChatParticipant p : chatRoom.getParticipants()) {
-                User recipient = p.getUser();
-                if (blockedUserIds.contains(recipient.getId())) continue;
-
-                if (recipient.getId().equals(sender.getId())) {
-                    p.setLastReadMessageId(savedMessageId);
-                    recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
-                    continue;
-                }
-
-                String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
-                        ? recipient.getTranslateLanguage()
-                        : "NONE";
-
-                recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
-            }
-
-
-
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
-            Map<String, String> translatedContentsMap = new HashMap<>();
-            List<CompletableFuture<Void>> translationFutures = recipientsByLang.keySet().stream()
-                    .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
-                    .map(targetLang -> CompletableFuture.runAsync(() -> {
-                        try {
-                            List<String> results = translationService.translateMessages(List.of(originalContent), targetLang);
-                            if (!results.isEmpty()) translatedContentsMap.put(targetLang, results.get(0));
-                        } catch (Exception e) {
-                            log.error("Translation Error for lang: " + targetLang, e);
-                        }
-                    })).toList();
-
-            CompletableFuture.allOf(translationFutures.toArray(new CompletableFuture[0])).join();
-
-            for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
-                String targetLang = entry.getKey();
-                List<Long> recipientIds = entry.getValue();
-                if (recipientIds.isEmpty()) continue;
-
-                String contentToSend = originalContent;
-
-                if ("SELF".equals(targetLang)) {
-                } else if ("NONE".equals(targetLang)) {
-                } else {
-                    contentToSend = translatedContentsMap.getOrDefault(targetLang, originalContent);
-                }
-
-                ChatMessageResponse messageResponse = new ChatMessageResponse(
-                        savedMessageId, chatRoom.getId(), sender.getId(),
-                        originalContent, contentToSend, sentAt,
-                        senderFirstName, senderLastName, userImageUrl, MessageType.TEXT
-                );
-
-                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                    chatSummaryService.sendSummaryToRecipientsInNewTx(
-                            messageResponse,
-                            recipientIds
-
-                    );
-                });
-
-                futures.add(future);
-            }
-
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // 6. [핵심] 그룹별 비동기 발송 (Async Dispatch)
+            executeParallelDispatch(
+                    recipientsByLang, translatedContentsMap, savedMessage, userImageUrl
+            );
 
         } catch (Exception e) {
             log.error("Error in processAndSendChatMessage", e);
             throw e;
         }
     }
+
+
+    private ChatRoom fetchChatRoomWithParticipants(Long roomId) {
+        return chatRoomRepository.findChatRoomWithParticipantsAndUsers(roomId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
+    }
+
+    private void runSpamCheckAsync(ChatMessage message) {
+        CompletableFuture.runAsync(() -> checkSpamAndReport(message));
+    }
+
+    private String getUserProfileImage(Long userId) {
+        return imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .map(Image::getUrl)
+                .orElse(null);
+    }
+
+
+    /**
+     * 수신자를 언어별로 그룹핑합니다. (SELF, NONE, ko, en ...)
+     */
+    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
+        Map<String, List<Long>> recipientsByLang = new HashMap<>();
+
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            User recipient = p.getUser();
+
+            // 차단된 유저 제외
+            if (blockedUserIds.contains(recipient.getId())) continue;
+
+            // 보낸 사람 처리 (SELF)
+            if (recipient.getId().equals(sender.getId())) {
+                p.setLastReadMessageId(messageId); // Dirty Checking으로 자동 업데이트됨
+                recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
+                continue;
+            }
+
+            // 언어 설정 확인
+            String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
+                    ? recipient.getTranslateLanguage()
+                    : "NONE";
+
+            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
+        }
+        return recipientsByLang;
+    }
+
+    /**
+     * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
+     */
+    private Map<String, String> executeParallelTranslations(String originalContent, Set<String> targetLanguages) {
+        Map<String, String> resultMap = new ConcurrentHashMap<>(); // 병렬 처리를 위해 ConcurrentHashMap 사용 권장
+
+        // 번역이 필요한 언어만 필터링
+        List<String> languagesToTranslate = targetLanguages.stream()
+                .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
+                .toList();
+
+        // CompletableFuture 리스트 생성 및 실행
+        List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
+                .map(lang -> CompletableFuture.runAsync(() -> {
+                    try {
+                        List<String> results = translationService.translateMessages(List.of(originalContent), lang);
+                        if (!results.isEmpty()) {
+                            resultMap.put(lang, results.get(0));
+                        }
+                    } catch (Exception e) {
+                        log.error("Translation failed for lang: {}", lang, e);
+                    }
+                }))
+                .toList();
+
+        // 모든 번역이 끝날 때까지 대기 (Join)
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return resultMap;
+    }
+
+    /**
+     * 그룹별로 메시지를 생성하고 비동기로 전송합니다.
+     */
+    private void executeParallelDispatch(
+            Map<String, List<Long>> recipientsByLang,
+            Map<String, String> translatedContentsMap,
+            ChatMessage savedMessage,
+            String userImageUrl
+    ) {
+        User sender = savedMessage.getSender();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
+            String targetLang = entry.getKey();
+            List<Long> recipientIds = entry.getValue();
+            if (recipientIds.isEmpty()) continue;
+
+            // 전송할 텍스트 결정
+            String contentToSend = determineContent(targetLang, savedMessage.getContent(), translatedContentsMap);
+
+            // DTO 생성
+            ChatMessageResponse messageResponse = new ChatMessageResponse(
+                    savedMessage.getId(), savedMessage.getChatRoom().getId(), sender.getId(),
+                    savedMessage.getContent(), contentToSend, savedMessage.getSentAt(),
+                    sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
+            );
+
+            // 비동기 전송 (New Transaction)
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
+                    chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
+            );
+            futures.add(future);
+        }
+
+        // 모든 전송 작업이 끝날 때까지 대기
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+
+    private String determineContent(String targetLang, String originalContent, Map<String, String> translatedMap) {
+        if ("SELF".equals(targetLang) || "NONE".equals(targetLang)) {
+            return originalContent; // 원문
+        }
+        return translatedMap.getOrDefault(targetLang, originalContent); // 번역문 (없으면 원문)
+    }
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
