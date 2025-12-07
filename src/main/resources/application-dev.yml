@@ -212,3 +212,7 @@ resilience4j:
         wait-duration: 1s
         retry-exceptions:
           - jakarta.mail.MessagingException
+
+sightengine:
+  api-user: ${SIGHTENGINE_API_USER}
+  api-secret: ${SIGHTENGINE_API_SECRET}
