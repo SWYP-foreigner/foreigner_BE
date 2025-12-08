@@ -260,6 +260,77 @@ public class PostImageServiceImpl implements PostImageService {
         publishModerationEvents(savedImages);
     }
 
+    @Override
+    @Transactional
+    public void uploadAndSavePostImagesFromUrls(Post post, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return;
+
+        List<Image> newImages = new ArrayList<>();
+        int orderIndex = 0;
+
+        for (String originalUrl : imageUrls) {
+            try {
+
+                String s3Key = "posts/" + post.getId() + "/" + UUID.randomUUID() + getExtension(originalUrl);
+                uploadFileFromUrl(originalUrl, s3Key);
+                String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, s3Key);
+
+                Image image = Image.of(
+                        ImageType.POST,
+                        post.getId(),
+                        finalUrl,
+                        orderIndex++,
+                        ImageModerationStatus.CLEAN,
+                        null
+                );
+                newImages.add(image);
+
+            } catch (Exception e) {
+                log.error("외부 이미지 업로드 실패 (건너뜀): {}", originalUrl, e);
+            }
+        }
+
+        List<Image> savedImages = imageRepository.saveAll(newImages);
+    }
+
+    private void uploadFileFromUrl(String urlString, String key) throws IOException {
+        java.net.URL url = new java.net.URL(urlString);
+        java.net.URLConnection connection = url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+
+        try (java.io.InputStream inputStream = connection.getInputStream()) {
+            String contentType = connection.getContentType();
+            if (contentType == null) contentType = "image/jpeg";
+
+            long length = connection.getContentLengthLong();
+
+            PutObjectRequest.Builder reqBuilder = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .acl(software.amazon.awssdk.services.s3.model.ObjectCannedACL.PUBLIC_READ);
+
+            if (length > 0) {
+                s3Client.putObject(reqBuilder.build(),
+                        software.amazon.awssdk.core.sync.RequestBody.fromInputStream(inputStream, length));
+            } else {
+                byte[] bytes = inputStream.readAllBytes();
+                s3Client.putObject(reqBuilder.build(),
+                        software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
+            }
+        }
+    }
+
+    private String getExtension(String url) {
+        if (url.contains(".")) {
+            String ext = url.substring(url.lastIndexOf("."));
+            if (ext.contains("?")) ext = ext.substring(0, ext.indexOf("?"));
+            if (ext.length() <= 5) return ext;
+        }
+        return ".jpg";
+    }
+
     private void publishModerationEvents(List<Image> savedImages) {
         for (Image img : savedImages) {
             String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
