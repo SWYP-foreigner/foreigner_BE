@@ -154,17 +154,13 @@ public class ChatMessageService {
         for (ChatParticipant p : chatRoom.getParticipants()) {
             User recipient = p.getUser();
 
-            // 차단된 유저 제외
             if (blockedUserIds.contains(recipient.getId())) continue;
 
-            // 보낸 사람 처리 (SELF)
             if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId); // Dirty Checking으로 자동 업데이트됨
-                recipientsByLang.computeIfAbsent("SELF", k -> new ArrayList<>()).add(recipient.getId());
-                continue;
+                p.setLastReadMessageId(messageId); // (자동 업데이트)
             }
 
-            // 언어 설정 확인
+
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
                     : "NONE";
@@ -178,14 +174,12 @@ public class ChatMessageService {
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
      */
     private Map<String, String> executeParallelTranslations(String originalContent, Set<String> targetLanguages) {
-        Map<String, String> resultMap = new ConcurrentHashMap<>(); // 병렬 처리를 위해 ConcurrentHashMap 사용 권장
+        Map<String, String> resultMap = new ConcurrentHashMap<>();
 
-        // 번역이 필요한 언어만 필터링
         List<String> languagesToTranslate = targetLanguages.stream()
                 .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
                 .toList();
 
-        // CompletableFuture 리스트 생성 및 실행
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
                     try {
@@ -199,7 +193,6 @@ public class ChatMessageService {
                 }))
                 .toList();
 
-        // 모든 번역이 끝날 때까지 대기 (Join)
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return resultMap;
@@ -207,6 +200,7 @@ public class ChatMessageService {
 
     /**
      * 그룹별로 메시지를 생성하고 비동기로 전송합니다.
+     * (DTO 수정 없이 Record 생성자 사용)
      */
     private void executeParallelDispatch(
             Map<String, List<Long>> recipientsByLang,
@@ -222,33 +216,28 @@ public class ChatMessageService {
             List<Long> recipientIds = entry.getValue();
             if (recipientIds.isEmpty()) continue;
 
-            // 전송할 텍스트 결정
-            String contentToSend = determineContent(targetLang, savedMessage.getContent(), translatedContentsMap);
-
-            // DTO 생성
+            String translatedText = translatedContentsMap.get(targetLang);
             ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(), savedMessage.getChatRoom().getId(), sender.getId(),
-                    savedMessage.getContent(), contentToSend, savedMessage.getSentAt(),
-                    sender.getFirstName(), sender.getLastName(), userImageUrl, MessageType.TEXT
+                    savedMessage.getId(),
+                    savedMessage.getChatRoom().getId(),
+                    sender.getId(),
+                    savedMessage.getContent(),
+                    translatedText,
+                    savedMessage.getSentAt(),
+                    sender.getFirstName(),
+                    sender.getLastName(),
+                    userImageUrl,
+                    MessageType.TEXT
             );
 
-            // 비동기 전송 (New Transaction)
             CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
                     chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
             );
             futures.add(future);
         }
-
-        // 모든 전송 작업이 끝날 때까지 대기
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
-    private String determineContent(String targetLang, String originalContent, Map<String, String> translatedMap) {
-        if ("SELF".equals(targetLang) || "NONE".equals(targetLang)) {
-            return originalContent; // 원문
-        }
-        return translatedMap.getOrDefault(targetLang, originalContent); // 번역문 (없으면 원문)
-    }
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
@@ -316,13 +305,11 @@ public class ChatMessageService {
         String finalContent = message.getContent();
         MessageType finalType = message.getMessageType();
 
-        // 관리자에 의해 삭제된 경우
         if ("BLOCKED_MEDIA".equals(finalContent)) {
             finalContent = "관리자에 의해 삭제된 이미지입니다.";
             finalType = MessageType.TEXT;
             translatedContent = null;
         }
-        // 그 외 이미지
         else if (finalType == MessageType.IMAGE) {
             if (!finalContent.startsWith("http")) {
                 finalContent = cdnBaseUrl + "/" + finalContent;
@@ -605,33 +592,39 @@ public class ChatMessageService {
                     .collect(Collectors.toList());
         }
     }
-
+    private List<String> getTranslatedMessages(List<ChatMessage> messages, ChatParticipant participant) {
+        if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null && !messages.isEmpty()) {
+            List<String> contents = messages.stream().map(ChatMessage::getContent).toList();
+            return translationService.translateMessages(contents, participant.getUser().getTranslateLanguage());
+        }
+        return Collections.emptyList();
+    }
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
+        // 1. 참여자 조회
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
-        ChatMessage target = chatMessageRepository.findById(targetMessageId).orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
+        ChatMessage target = chatMessageRepository.findById(targetMessageId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
         List<ChatMessage> newer = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
         List<ChatMessage> combined = new ArrayList<>(older);
         combined.add(target);
         combined.addAll(newer);
 
-        boolean needsTranslation = participant.isTranslateEnabled();
-        String targetLanguage = participant.getUser().getTranslateLanguage();
+        List<String> translatedTexts = getTranslatedMessages(combined, participant);
 
-        if (needsTranslation && targetLanguage != null) {
-            List<String> contents = combined.stream().map(ChatMessage::getContent).toList();
-            List<String> translated = translationService.translateMessages(contents, targetLanguage);
-            return IntStream.range(0, combined.size())
-                    .mapToObj(i -> mapToResponse(combined.get(i), translated.get(i)))
-                    .collect(Collectors.toList());
-        }
-
-        return combined.stream().map(m -> mapToResponse(m, null)).collect(Collectors.toList());
+        return IntStream.range(0, combined.size())
+                .mapToObj(i -> {
+                    String translated = translatedTexts.isEmpty() ? null : translatedTexts.get(i);
+                    return mapToResponse(combined.get(i), translated);
+                })
+                .collect(Collectors.toList());
     }
 
     @Transactional

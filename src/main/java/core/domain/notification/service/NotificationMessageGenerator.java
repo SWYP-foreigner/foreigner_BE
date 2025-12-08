@@ -26,7 +26,7 @@ public class NotificationMessageGenerator {
                 if (snippet != null && snippet.length() > 30) {
                     snippet = snippet.substring(0, 30) + "...";
                 }
-                yield actorName + "A new message from you: " + snippet;
+                yield actorName + "\n" + snippet;
             }
 
             case post -> actorName + " commented on your post.";
