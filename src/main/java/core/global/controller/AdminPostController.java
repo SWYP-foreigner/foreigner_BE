@@ -46,12 +46,17 @@ public class AdminPostController {
     public String createCustomPost(
             @RequestParam("boardCategory") String boardCategory,
             @RequestParam("content") String content,
-            @RequestParam("images") List<MultipartFile> images,
+            @RequestParam(value = "images", required = false) List<MultipartFile> images,
             @AuthenticationPrincipal CustomUserDetails principal,
             RedirectAttributes redirectAttributes
     ) {
 
         try {
+            if (images != null && images.size() > 5) {
+                redirectAttributes.addFlashAttribute("errorMessage", "이미지는 최대 5개까지만 업로드 가능합니다.");
+                return "redirect:/admin/posts/new";
+            }
+
             User adminUser = userRepository.findById(principal.getUserId())
                     .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
 
