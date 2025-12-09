@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 
 @Slf4j
@@ -68,14 +70,27 @@ public class AdminImageService {
     }
 
     private String extractKeyFromUrl(String url) {
-        String splitToken = "/" + s3Props.getBucket() + "/";
-        int index = url.indexOf(splitToken);
+        try {
+            URI uri = new URI(url);
+            String path = uri.getPath();
 
-        if (index != -1) {
-            return url.substring(index + splitToken.length());
+            if (path == null || path.isEmpty()) {
+                return null;
+            }
+
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+
+            String bucketName = s3Props.getBucket();
+            if (path.startsWith(bucketName + "/")) {
+                return path.substring(bucketName.length() + 1);
+            }
+            return path;
+
+        } catch (URISyntaxException e) {
+            log.error("Failed to parse URL: {}", url, e);
+            return null;
         }
-
-        log.warn("S3 Key extraction failed. URL: {}, Bucket: {}", url, s3Props.getBucket());
-        return null;
     }
 }
