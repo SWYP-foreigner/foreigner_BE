@@ -1,10 +1,11 @@
 package core.global.dto;
 
 public record AdvancedMetricsDto(
-        long recentSignupsCount,
+        long periodSignupsCount,
         long effectiveActiveUsersCount,
         long recentActiveExistingUsersCount,
-        double d7RetentionRate,
+        double retentionRate,
+        String periodLabel,
         double avgMessagesPerUser7Days,
         String topFeatureName,
         double topFeatureUsageRate
