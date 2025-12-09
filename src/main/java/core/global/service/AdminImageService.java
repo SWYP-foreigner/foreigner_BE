@@ -68,10 +68,14 @@ public class AdminImageService {
     }
 
     private String extractKeyFromUrl(String url) {
-        String prefix = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/";
-        if (url.startsWith(prefix)) {
-            return url.replace(prefix, "");
+        String splitToken = "/" + s3Props.getBucket() + "/";
+        int index = url.indexOf(splitToken);
+
+        if (index != -1) {
+            return url.substring(index + splitToken.length());
         }
+
+        log.warn("S3 Key extraction failed. URL: {}, Bucket: {}", url, s3Props.getBucket());
         return null;
     }
 }
