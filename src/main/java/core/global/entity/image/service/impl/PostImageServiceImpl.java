@@ -230,7 +230,7 @@ public class PostImageServiceImpl implements PostImageService {
                 extension = originalFileName.substring(originalFileName.lastIndexOf("."));
             }
             String uniqueFileName = UUID.randomUUID() + extension;
-            String s3Key = "post-images/" + post.getId() + "/" + uniqueFileName;
+            String s3Key = "posts/" + post.getId() + "/" + uniqueFileName;
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(s3Props.getBucket())
