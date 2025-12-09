@@ -48,7 +48,7 @@
         .crawl-controls span { font-weight: bold; margin-right: 10px; }
         .btn-crawl {
             padding: 8px 12px;
-            background-color: #28a745; /* 초록색 */
+            background-color: #28a745;
             color: white;
             border: none;
             border-radius: 4px;
@@ -79,6 +79,18 @@
             text-decoration: none;
         }
         .btn-create:hover { background-color: #0056b3; }
+
+        .btn-delete-all {
+            padding: 8px 12px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .btn-delete-all:hover { background-color: #c82333; }
     </style>
 </head>
 <body>
@@ -122,6 +134,20 @@
         📝 자체 포스트 등록하기
     </a>
 </div>
+
+<div class="admin-actions" style="background-color: #fff3cd; border: 1px solid #ffeeba;">
+    <form th:action="@{/admin/crawled-data/delete-old}" method="post"
+          onsubmit="return confirm('⚠️ 주의!\n선택한 날짜 이전의 모든 데이터가 영구 삭제됩니다.\n정말 진행하시겠습니까?');"
+          style="display: flex; align-items: center; gap: 10px;">
+
+        <span style="font-weight: bold; color: #856404;">🗑️ 데이터 일괄 정리: </span>
+        <label for="targetDate">기준 날짜:</label>
+        <input type="date" id="targetDate" name="targetDate" required style="padding: 5px;">
+        <span>(00시 00분) 이전의 데이터 삭제</span>
+        <button type="submit" class="btn-delete-all">일괄 삭제</button>
+    </form>
+</div>
+
 <h2>승인 대기 목록</h2>
 
 <table>
@@ -177,7 +203,7 @@
         buttons.forEach(btn => btn.disabled = true);
 
         try {
-            const response = await fetch(url); // GET 요청
+            const response = await fetch(url);
 
             if (response.ok) {
                 const message = await response.text();
