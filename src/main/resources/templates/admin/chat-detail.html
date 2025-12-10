@@ -25,7 +25,7 @@
         <h2>기본 정보</h2>
         <p><strong>채팅방 ID:</strong> <span th:text="*{id}"></span></p>
         <p><strong>방 이름:</strong> <span th:text="*{roomName}"></span></p>
-        <p><strong>유형:</strong> <span th:text="*{group} ? '그룹' : '1:1'"></span></p>
+        <p><strong>유형:</strong> <span th:text="*{isGroup} ? '그룹' : '1:1'"></span></p>
         <p><strong>생성일:</strong> <span th:text="${#temporals.format(chatRoom.createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
     </div>
 
