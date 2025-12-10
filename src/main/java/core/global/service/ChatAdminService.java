@@ -16,6 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class ChatAdminService {
@@ -27,7 +29,30 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatRoomListResponse> searchChatRooms(ChatRoomSearchRequest request, Pageable pageable) {
-        return chatRoomRepository.searchChatRooms(request, pageable);
+        Page<ChatRoomListResponse> page = chatRoomRepository.searchChatRooms(request, pageable);
+
+        return page.map(room -> {
+            if (!room.isGroup()) {
+                List<String> names = chatParticipantRepository.findParticipantNamesByRoomId(room.chatRoomId());
+
+                String newName;
+                if (!names.isEmpty()) {
+                    newName = String.join(", ", names);
+                } else {
+                    newName = "(참여자 없음)";
+                }
+
+                return new ChatRoomListResponse(
+                        room.chatRoomId(),
+                        newName,
+                        room.isGroup(),
+                        room.participantCount(),
+                        room.createdAt()
+                );
+            }
+
+            return room;
+        });
     }
 
     @Transactional(readOnly = true)
