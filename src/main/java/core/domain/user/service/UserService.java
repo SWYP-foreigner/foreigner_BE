@@ -489,6 +489,7 @@ public class UserService {
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+        log.info("저장완료");
     }
 
     /**
