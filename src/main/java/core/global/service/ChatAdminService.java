@@ -1,6 +1,7 @@
 package core.global.service;
 
 import core.domain.chat.dto.*;
+import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatReport;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
@@ -87,5 +88,19 @@ public class ChatAdminService {
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.REPORT_NOT_FOUND));
 
         report.processReport();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ChatMessageDetailDto> getChatRoomMessages(Long roomId, Pageable pageable) {
+        return chatMessageRepository.findAllByChatRoomId(roomId, pageable)
+                .map(ChatMessageDetailDto::from);
+    }
+
+    @Transactional
+    public void deleteChatMessage(Long messageId) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
+        chatMessageRepository.delete(message);
     }
 }

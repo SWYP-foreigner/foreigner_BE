@@ -8,6 +8,7 @@ import core.global.exception.BusinessException;
 import core.global.service.ChatAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -40,18 +41,38 @@ public class ChatAdminViewController {
     @GetMapping("/{roomId}")
     public String chatRoomDetailPage(
             @PathVariable Long roomId,
-            @PageableDefault(size = 10, sort = "joinedAt", direction = Sort.Direction.DESC) Pageable pageable, // 참여일 최신순
+            @PageableDefault(size = 5, sort = "joinedAt", direction = Sort.Direction.DESC) Pageable participantPageable,
+            @RequestParam(defaultValue = "0") int msgPage,
             Model model
     ) {
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        Page<ChatParticipantInfoDto> participantPage = chatAdminService.getChatRoomParticipants(roomId, pageable);
+        Page<ChatParticipantInfoDto> participantPage = chatAdminService.getChatRoomParticipants(roomId, participantPageable);
+
+        Pageable messagePageable = PageRequest.of(msgPage, 20, Sort.by(Sort.Direction.DESC, "sentAt"));
+        Page<ChatMessageDetailDto> messagePage = chatAdminService.getChatRoomMessages(roomId, messagePageable);
 
         model.addAttribute("chatRoom", chatRoom);
         model.addAttribute("participantPage", participantPage);
+        model.addAttribute("messagePage", messagePage);
 
         return "admin/chat-detail";
+    }
+
+    @PostMapping("/{roomId}/messages/{messageId}/delete")
+    public String deleteChatMessage(
+            @PathVariable Long roomId,
+            @PathVariable Long messageId,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            chatAdminService.deleteChatMessage(messageId);
+            redirectAttributes.addFlashAttribute("successMessage", "메시지가 삭제되었습니다.");
+        } catch (BusinessException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/chats/" + roomId;
     }
 
     @PostMapping("/{roomId}/delete")

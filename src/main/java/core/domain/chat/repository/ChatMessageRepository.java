@@ -115,4 +115,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
             nativeQuery = true
     )
     Long countSendMessageUsersLast1Day();
+
+    Page<ChatMessage> findAllByChatRoomId(Long chatRoomId, Pageable pageable);
 }

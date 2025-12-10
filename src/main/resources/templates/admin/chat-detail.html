@@ -4,37 +4,64 @@
     <meta charset="UTF-8">
     <title>채팅방 상세 정보</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .container { max-width: 900px; margin: auto; }
-        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .room-info { background-color: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-bottom: 30px; }
-        .room-info p { margin: 5px 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
-        th { background-color: #f2f2f2; }
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: auto; }
+
+        .header-actions { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
+        h1, h2 { margin: 0; }
+        h2 { margin-top: 40px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 1.2rem; }
+
+        .room-info { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 20px; border-radius: 8px; }
+        .room-info p { margin: 8px 0; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; table-layout: fixed; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; vertical-align: middle; word-wrap: break-word;}
+        th { background-color: #f1f3f5; font-weight: bold; text-align: center; }
+        td { text-align: center; }
+
+        .btn { padding: 5px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; text-decoration: none; display: inline-block;}
+        .btn-danger { background-color: #fa5252; color: white; }
+        .btn-danger:hover { background-color: #e03131; }
+        .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
+
+        .media-preview img { max-width: 100%; max-height: 120px; border-radius: 4px; border: 1px solid #ddd; object-fit: contain; }
+        .media-preview video { max-width: 100%; max-height: 120px; vertical-align: middle; }
+
         .pagination { margin-top: 20px; text-align: center; }
-        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
-        .pagination .active { font-weight: bold; color: black; }
+        .pagination a { margin: 0 5px; color: #495057; text-decoration: none; padding: 5px 10px; border: 1px solid #dee2e6; border-radius: 4px; }
+        .pagination a.active { background-color: #228be6; color: white; border-color: #228be6; }
+        .pagination a:hover:not(.active) { background-color: #f1f3f5; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>채팅방 상세 정보</h1>
+
+    <div class="header-actions">
+        <h1>채팅방 상세 관리</h1>
+        <form th:action="@{/admin/chats/{roomId}/delete(roomId=${chatRoom.id})}" method="post"
+              onsubmit="return confirm('경고: 이 채팅방과 모든 메시지가 영구 삭제됩니다. 계속하시겠습니까?');">
+            <button type="submit" class="btn btn-danger">채팅방 전체 삭제</button>
+        </form>
+    </div>
 
     <div class="room-info" th:object="${chatRoom}">
-        <h2>기본 정보</h2>
-        <p><strong>채팅방 ID:</strong> <span th:text="*{id}"></span></p>
+        <p><strong>ID:</strong> <span th:text="*{id}"></span></p>
         <p><strong>방 이름:</strong> <span th:text="*{roomName}"></span></p>
-        <p><strong>유형:</strong> <span th:text="*{isGroup} ? '그룹' : '1:1'"></span></p>
+        <p><strong>유형:</strong> <span th:text="*{isGroup} ? '그룹 채팅' : '1:1 채팅'"></span></p>
         <p><strong>생성일:</strong> <span th:text="${#temporals.format(chatRoom.createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
     </div>
 
     <h2>참여자 목록</h2>
     <table>
+        <colgroup>
+            <col style="width: 15%;">
+            <col style="width: 35%;">
+            <col style="width: 35%;">
+            <col style="width: 15%;">
+        </colgroup>
         <thead>
         <tr>
             <th>참여자 ID</th>
-            <th>사용자 ID</th>
             <th>사용자 이름</th>
             <th>참여 시각</th>
             <th>상태</th>
@@ -43,27 +70,118 @@
         <tbody>
         <tr th:each="p : ${participantPage.content}">
             <td th:text="${p.participantId}"></td>
-            <td th:text="${p.userId}"></td>
             <td th:text="${p.userName}"></td>
             <td th:text="${#temporals.format(p.joinedAt, 'yyyy-MM-dd HH:mm')}"></td>
             <td th:text="${p.status}"></td>
         </tr>
         </tbody>
     </table>
-
     <div class="pagination" th:if="${participantPage.totalPages > 1}">
-        <a th:if="${participantPage.hasPrevious()}"
-           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number - 1}, sort=${param.sort})}">이전</a>
         <span th:each="pageNumber : ${#numbers.sequence(0, participantPage.totalPages - 1)}">
-            <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, sort=${param.sort})}"
+            <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, msgPage=${param.msgPage})}"
                th:text="${pageNumber + 1}"
                th:classappend="${pageNumber == participantPage.number} ? 'active'"></a>
         </span>
-        <a th:if="${participantPage.hasNext()}"
-           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number + 1}, sort=${param.sort})}">다음</a>
     </div>
 
-    <a th:href="@{/admin/chats}" style="margin-top: 30px; display: inline-block;">← 채팅방 목록으로</a>
+
+    <h2>메시지 내역</h2>
+    <table>
+        <colgroup>
+            <col style="width: 8%;">
+            <col style="width: 10%;">
+            <col style="width: 15%;">
+            <col style="width: 42%;">
+            <col style="width: 15%;">
+            <col style="width: 10%;">
+        </colgroup>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>유형</th>
+            <th>발신자</th>
+            <th>내용</th>
+            <th>발신 시각</th>
+            <th>관리</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${messagePage.isEmpty()}">
+            <td colspan="6" style="text-align: center; color: #999; padding: 20px;">대화 내용이 없습니다.</td>
+        </tr>
+        <tr th:each="msg : ${messagePage.content}">
+            <td th:text="${msg.id}"></td>
+
+            <td>
+                <span th:if="${msg.messageType.name() == 'TEXT'}" style="color: #495057;">텍스트</span>
+                <span th:if="${msg.messageType.name() == 'IMAGE'}" style="color: #228be6; font-weight: bold;">사진</span>
+                <span th:if="${msg.messageType.name() == 'VIDEO'}" style="color: #e03131; font-weight: bold;">동영상</span>
+            </td>
+
+            <td th:text="${msg.senderName}"></td>
+
+            <td style="text-align: left; padding-left: 15px;">
+                <span th:if="${msg.messageType.name() == 'TEXT'}" th:text="${msg.content}"></span>
+
+                <div th:if="${msg.messageType.name() == 'IMAGE'}" class="media-preview">
+                    <a th:href="${msg.content}" target="_blank" title="새창에서 원본 보기">
+                        <img th:src="${msg.content}" alt="첨부 이미지">
+                    </a>
+                </div>
+
+                <div th:if="${msg.messageType.name() == 'VIDEO'}" class="media-preview">
+                    <video th:src="${msg.content}" controls preload="metadata"></video>
+                </div>
+            </td>
+
+            <td th:text="${#temporals.format(msg.sentAt, 'MM-dd HH:mm:ss')}"></td>
+
+            <td>
+                <form th:action="@{/admin/chats/{roomId}/messages/{msgId}/delete(roomId=${chatRoom.id}, msgId=${msg.id})}" method="post"
+                      onsubmit="return confirm('정말 이 메시지를 삭제하시겠습니까?');">
+                    <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="pagination" th:if="${messagePage.totalPages > 0}">
+
+        <a th:if="${!messagePage.first}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${param.page}, msgPage=0)}">
+            &laquo;
+        </a>
+
+        <a th:if="${messagePage.hasPrevious()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${param.page}, msgPage=${messagePage.number - 1})}">
+            &lt;
+        </a>
+
+        <span th:with="start=${T(java.lang.Math).max(0, messagePage.number - 4)},
+                        end=${T(java.lang.Math).min(messagePage.totalPages - 1, messagePage.number + 4)}">
+
+            <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${param.page}, msgPage=${pageNumber})}"
+                   th:text="${pageNumber + 1}"
+                   th:classappend="${pageNumber == messagePage.number} ? 'active'"></a>
+            </span>
+        </span>
+
+        <a th:if="${messagePage.hasNext()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${param.page}, msgPage=${messagePage.number + 1})}">
+            &gt;
+        </a>
+
+        <a th:if="${!messagePage.last}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${param.page}, msgPage=${messagePage.totalPages - 1})}">
+            &raquo;
+        </a>
+    </div>
+
+    <div style="margin-top: 40px;">
+        <a th:href="@{/admin/chats}" class="btn" style="background-color: #ced4da;">← 목록으로 돌아가기</a>
+    </div>
 </div>
 </body>
 </html>
