@@ -460,7 +460,7 @@ public class UserService {
     /**
      * true 반환;
      */
-    public boolean verifyEmailCode(EmailVerificationRequest request) {
+    public void verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
 
@@ -468,12 +468,12 @@ public class UserService {
 
         if (storedCode == null) {
             log.warn("Stored code not found for email: {}. Code may have expired.", email);
-            return false;
+//            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
         if (!storedCode.equals(verificationCode)) {
             log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-            return false;
+//            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
         // 사용한 코드는 즉시 폐기
@@ -486,8 +486,6 @@ public class UserService {
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
-
-        return true;
     }
 
     /**
