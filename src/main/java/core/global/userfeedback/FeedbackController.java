@@ -3,6 +3,7 @@ package core.global.userfeedback;
 
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.UserErrorDocs;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.userfeedback.dto.FeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -52,6 +53,7 @@ public class FeedbackController {
             )
     })
     @PostMapping
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<Void> submitFeedback(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody @Valid FeedbackRequest request

@@ -75,7 +75,7 @@ public class PushNotificationService {
             Message.Builder messageBuilder = Message.builder()
                     .setToken(userDeviceToken.getDeviceToken())
                     .setNotification(com.google.firebase.messaging.Notification.builder()
-                            .setTitle("Foreigner")
+                            .setTitle("Kori")
                             .setBody(message)
                             .build())
                     .putData("notificationType", event.notificationType().name());
@@ -272,7 +272,7 @@ public class PushNotificationService {
             MulticastMessage message = MulticastMessage.builder()
                     .addAllTokens(batchTokens)
                     .setNotification(com.google.firebase.messaging.Notification.builder()
-                            .setTitle("Foreigner")
+                            .setTitle("Kori")
                             .setBody(messageBody)
                             .build())
                     .putAllData(data)

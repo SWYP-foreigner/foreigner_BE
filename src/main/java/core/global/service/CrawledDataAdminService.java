@@ -12,6 +12,7 @@ import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.PostImageService;
 import core.global.enums.CrawledDataStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.CommunityErrorCode;
@@ -36,6 +37,7 @@ public class CrawledDataAdminService {
     private final ImageRepository imageRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
+    private final PostImageService postImageService;
 
     @Transactional(readOnly = true)
     public Page<CrawledDataDto> getPendingCrawledData(Pageable pageable) {
@@ -71,9 +73,7 @@ public class CrawledDataAdminService {
                     ? selectedImageUrls.subList(0, 5)
                     : selectedImageUrls;
 
-            IntStream.range(0, finalImages.size())
-                    .mapToObj(i -> Image.of(ImageType.POST, savedPost.getId(), finalImages.get(i), i))
-                    .forEach(imageRepository::save);
+            postImageService.uploadAndSavePostImagesFromUrls(savedPost, finalImages);
         }
 
         crawledData.updateStatus(CrawledDataStatus.APPROVED, savedPost.getId());
