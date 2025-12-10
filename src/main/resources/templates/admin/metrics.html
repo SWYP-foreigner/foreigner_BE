@@ -18,14 +18,13 @@
         .filter-form { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
         .form-group label { font-size: 0.9em; font-weight: bold; color: #555; }
-        .form-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px; }
+        .form-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn-search { padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; height: 35px; }
         .btn-search:hover { background-color: #0056b3; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         th { background-color: #f2f2f2; }
-
         .btn-home { display: inline-block; margin-top: 30px; padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; }
     </style>
 </head>
@@ -35,16 +34,20 @@
 
     <form class="filter-form" method="get" th:action="@{/admin/metrics}">
         <div class="form-group">
-            <label>최근 가입 기준 (일)</label>
-            <input type="number" name="signupDays" th:value="${signupDays}" min="1">
+            <label>가입 기간 (리텐션 분석)</label>
+            <div style="display: flex; gap: 5px; align-items: center;">
+                <input type="date" name="joinStartDate" th:value="${joinStartDate}" required>
+                <span>~</span>
+                <input type="date" name="joinEndDate" th:value="${joinEndDate}" required>
+            </div>
         </div>
         <div class="form-group">
             <label>기존 유저 기준 (가입 후 N일)</label>
-            <input type="number" name="validJoinDays" th:value="${validJoinDays}" min="1">
+            <input type="number" name="validJoinDays" th:value="${validJoinDays}" min="1" style="width: 80px;">
         </div>
         <div class="form-group">
             <label>유효 활동 기준 (최근 N일)</label>
-            <input type="number" name="validActiveDays" th:value="${validActiveDays}" min="1">
+            <input type="number" name="validActiveDays" th:value="${validActiveDays}" min="1" style="width: 80px;">
         </div>
         <button type="submit" class="btn-search">조회</button>
     </form>
@@ -56,7 +59,6 @@
             <hr style="border:0; border-top:1px dashed #eee; margin:10px 0;">
             <p>비활성(30일): <span th:text="*{inactiveLast30Days}"></span>명</p>
             <p>비활성(7일): <span th:text="*{inactiveLast7Days}"></span>명</p>
-            <p>비활성(3일): <span th:text="*{inactiveLast3Days}"></span>명</p>
         </div>
 
         <div class="card" th:object="${metrics.activityBuckets}">
@@ -70,8 +72,8 @@
             <h2>📈 핵심 성과 지표 (KPI)</h2>
             <div style="display: flex; flex-wrap: wrap; gap: 30px;">
                 <div>
-                    <p><strong>1️⃣ 최근 가입자 수</strong> (<span th:text="${signupDays}"></span>일 내)</p>
-                    <span class="data" th:text="*{recentSignupsCount}"></span>명
+                    <p><strong>1️⃣ 기간 내 가입자 수</strong> (<span th:text="*{periodLabel}"></span>)</p>
+                    <span class="data" th:text="*{periodSignupsCount}"></span>명
                 </div>
                 <div>
                     <p><strong>2️⃣ 유효 활동자 수</strong> (가입 <span th:text="${validJoinDays}"></span>일+ & 활동 <span th:text="${validActiveDays}"></span>일 내)</p>
@@ -85,8 +87,11 @@
             <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
             <div style="display: flex; flex-wrap: wrap; gap: 30px;">
                 <div>
-                    <p><strong>4️⃣ D7 Retention</strong></p>
-                    <span class="data highlight" th:text="*{d7RetentionRate} + '%'"></span>
+                    <p><strong>4️⃣ 기간 내 리텐션</strong></p>
+                    <p style="font-size: 12px; color: #888; margin-top: -10px;">
+                        (<span th:text="*{periodLabel}"></span> 가입자 중 오늘 활동)
+                    </p>
+                    <span class="data highlight" th:text="*{retentionRate} + '%'"></span>
                 </div>
                 <div>
                     <p><strong>5️⃣ 인당 평균 메시지</strong> (7일)</p>

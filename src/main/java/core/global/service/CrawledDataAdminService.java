@@ -10,11 +10,8 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
-import core.global.entity.image.entity.Image;
-import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.PostImageService;
 import core.global.enums.CrawledDataStatus;
-import core.global.enums.ImageType;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -25,8 +22,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -34,7 +33,6 @@ public class CrawledDataAdminService {
 
     private final CrawledDataRepository crawledDataRepository;
     private final PostRepository postRepository;
-    private final ImageRepository imageRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
@@ -91,5 +89,12 @@ public class CrawledDataAdminService {
     public CrawledData getCrawledDataById(Long id) {
         return crawledDataRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
+    }
+
+    @Transactional
+    public long deleteCrawledDataBefore(LocalDate targetDate) {
+        Instant threshold = targetDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+
+        return crawledDataRepository.deleteByCrawledAtBefore(threshold);
     }
 }

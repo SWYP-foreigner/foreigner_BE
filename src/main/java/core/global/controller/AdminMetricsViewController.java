@@ -3,11 +3,14 @@ package core.global.controller;
 import core.global.dto.AdminMetricsDto;
 import core.global.service.AdminMetricsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import java.time.LocalDate;
 
 @Controller
 @RequestMapping("/admin/metrics")
@@ -18,15 +21,20 @@ public class AdminMetricsViewController {
 
     @GetMapping
     public String metricsDashboard(
-            @RequestParam(defaultValue = "7") int signupDays,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate joinStartDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate joinEndDate,
             @RequestParam(defaultValue = "30") int validJoinDays,
             @RequestParam(defaultValue = "7") int validActiveDays,
             Model model
     ) {
-        AdminMetricsDto metrics = metricsService.getDashboardMetrics(signupDays, validJoinDays, validActiveDays);
+        if (joinStartDate == null) joinStartDate = LocalDate.now().minusDays(7);
+        if (joinEndDate == null) joinEndDate = LocalDate.now();
+
+        AdminMetricsDto metrics = metricsService.getDashboardMetrics(joinStartDate, joinEndDate, validJoinDays, validActiveDays);
 
         model.addAttribute("metrics", metrics);
-        model.addAttribute("signupDays", signupDays);
+        model.addAttribute("joinStartDate", joinStartDate);
+        model.addAttribute("joinEndDate", joinEndDate);
         model.addAttribute("validJoinDays", validJoinDays);
         model.addAttribute("validActiveDays", validActiveDays);
 

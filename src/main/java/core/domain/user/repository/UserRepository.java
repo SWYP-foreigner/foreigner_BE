@@ -2,8 +2,6 @@ package core.domain.user.repository;
 
 
 import core.domain.user.entity.User;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -188,5 +186,13 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     """, nativeQuery = true)
     Object[] visitorShareOverall();
 
+    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :start AND :end")
+    long countUsersJoinedInPeriod(@Param("start") Instant start, @Param("end") Instant end);
 
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at BETWEEN :start AND :end
+          AND last_seen_at >= NOW() - INTERVAL '24 hours'
+    """, nativeQuery = true)
+    long countUsersJoinedInPeriodAndActiveToday(@Param("start") Instant start, @Param("end") Instant end);
 }

@@ -54,7 +54,7 @@ public class UserAdminViewController {
                                  @RequestParam(defaultValue = "0") int postPage,
                                  @RequestParam(defaultValue = "0") int commentPage,
                                  @RequestParam(defaultValue = "0") int messagePage
-                                 ) {
+    ) {
 
         Pageable followPageable = PageRequest.of(followPage, DEFAULT_PAGE_SIZE, Sort.by("id").ascending());
         Pageable blockPageable = PageRequest.of(blockPage, DEFAULT_PAGE_SIZE, Sort.by("id").ascending());
@@ -73,17 +73,39 @@ public class UserAdminViewController {
         Page<RecentCommentDto> comments = userAdminService.getRecentCommentsForUser(userId, commentPageable);
         Page<RecentMessageDto> messages = userAdminService.getRecentMessagesForUser(userId, messagePageable);
 
-
         model.addAttribute("user", userInfo);
         model.addAttribute("followings", followings);
         model.addAttribute("blockedUsers", blockedUsers);
         model.addAttribute("chatRooms", chatRooms);
-
         model.addAttribute("posts", posts);
         model.addAttribute("comments", comments);
         model.addAttribute("messages", messages);
 
         return "admin/user-detail";
+    }
+
+    @PostMapping("/{userId}/posts/{postId}/delete")
+    public String deletePost(@PathVariable Long userId, @PathVariable Long postId) {
+        userAdminService.deletePost(postId);
+        return "redirect:/admin/users/" + userId + "?postPage=0";
+    }
+
+    @PostMapping("/{userId}/comments/{commentId}/delete")
+    public String deleteComment(@PathVariable Long userId, @PathVariable Long commentId) {
+        userAdminService.deleteComment(commentId);
+        return "redirect:/admin/users/" + userId + "?commentPage=0";
+    }
+
+    @PostMapping("/{userId}/messages/{messageId}/delete")
+    public String deleteMessage(@PathVariable Long userId, @PathVariable Long messageId) {
+        userAdminService.deleteMessage(messageId);
+        return "redirect:/admin/users/" + userId + "?messagePage=0";
+    }
+
+    @PostMapping("/{userId}/chat-rooms/{chatRoomId}/delete")
+    public String deleteChatRoom(@PathVariable Long userId, @PathVariable Long chatRoomId) {
+        userAdminService.deleteChatRoom(chatRoomId);
+        return "redirect:/admin/users/" + userId + "?chatPage=0";
     }
 
     @PostMapping("/{userId}/delete")
