@@ -1,8 +1,6 @@
 package core.global.controller;
 
-import core.global.entity.image.S3Props;
 import core.global.entity.image.entity.Image;
-import core.global.entity.image.repository.ImageRepository;
 import core.global.service.AdminImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -11,7 +9,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.util.List;
 

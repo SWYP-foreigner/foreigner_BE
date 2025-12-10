@@ -188,9 +188,10 @@ public class UserController {
 
     @PostMapping("/verify-code")
     @Operation(summary = "이메일 인증 코드 검증.")
-    public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
-        boolean isVerified = userService.verifyEmailCode(request);
-        return ResponseEntity.ok(ApiResponse.success(isVerified));
+    public ResponseEntity<ApiResponse<Void>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
+        userService.verifyEmailCode(request);
+        log.info(">>> [Controller] 검증 성공. 프론트로 200 OK 응답 반환.");
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PostMapping("/doLogin")

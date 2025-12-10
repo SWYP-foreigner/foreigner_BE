@@ -448,7 +448,8 @@ public class UserService {
                 ttl,
                 locale
         );
-
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Save] Key: [{}], Code: [{}], TTL: {} min", redisKey, verificationCode, CODE_TTL_MIN);
         redisTemplate.opsForValue().set(
                 EMAIL_VERIFY_CODE_KEY + email,
                 verificationCode,
@@ -460,34 +461,35 @@ public class UserService {
     /**
      * true 반환;
      */
-    public boolean verifyEmailCode(EmailVerificationRequest request) {
+    public void verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
-
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Get] Trying to find Key: [{}]", redisKey);
+        log.info(">>> [Redis Result] Stored Code: [{}], Input Code: [{}]", storedCode, verificationCode);
 
         if (storedCode == null) {
             log.warn("Stored code not found for email: {}. Code may have expired.", email);
-            return false;
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
         if (!storedCode.equals(verificationCode)) {
             log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-            return false;
+               throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
         // 사용한 코드는 즉시 폐기
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
-
+        String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
-                EMAIL_VERIFIED_FLAG_KEY + email,
+                flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
-
-        return true;
+        log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
     }
 
     /**
