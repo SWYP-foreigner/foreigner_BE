@@ -1,6 +1,7 @@
 package core.global.userfeedback;
 
 
+import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.userfeedback.dto.FeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,10 +53,10 @@ public class FeedbackController {
     })
     @PostMapping
     public ResponseEntity<Void> submitFeedback(
-            @AuthenticationPrincipal Long userId,
+            @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody @Valid FeedbackRequest request
     ) {
-        feedbackService.createFeedback(userId, request);
+        feedbackService.createFeedback(principal.getUserId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
