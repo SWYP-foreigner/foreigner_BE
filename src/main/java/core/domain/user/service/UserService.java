@@ -448,7 +448,8 @@ public class UserService {
                 ttl,
                 locale
         );
-
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Save] Key: [{}], Code: [{}], TTL: {} min", redisKey, verificationCode, CODE_TTL_MIN);
         redisTemplate.opsForValue().set(
                 EMAIL_VERIFY_CODE_KEY + email,
                 verificationCode,
@@ -463,17 +464,19 @@ public class UserService {
     public void verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
-
         String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Get] Trying to find Key: [{}]", redisKey);
+        log.info(">>> [Redis Result] Stored Code: [{}], Input Code: [{}]", storedCode, verificationCode);
 
         if (storedCode == null) {
             log.warn("Stored code not found for email: {}. Code may have expired.", email);
-//            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
         if (!storedCode.equals(verificationCode)) {
             log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-//            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
+               throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
         // 사용한 코드는 즉시 폐기
