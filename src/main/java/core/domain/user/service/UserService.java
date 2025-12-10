@@ -481,15 +481,15 @@ public class UserService {
 
         // 사용한 코드는 즉시 폐기
         redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
-
+        String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
-                EMAIL_VERIFIED_FLAG_KEY + email,
+                flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
-        log.info("저장완료");
+        log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
     }
 
     /**
