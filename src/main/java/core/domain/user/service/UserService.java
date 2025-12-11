@@ -226,16 +226,9 @@ public class UserService {
         }
 
         user.updateIsNewUser(false);
-        /*if (dto.imageKey() != null) {
+        if (dto.imageKey() != null) {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
-        if (isAllProfileFieldsFilled(dto)) {
-            publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
-            log.info("모든 프로필 정보 입력 완료. 신규 유저 알림 이벤트 발행: UserID={}", user.getId());
-        } else {
-            log.info("일부 프로필 정보 누락으로 알림 미발행: {}", dto);
-        }*/
-
     }
     /**
      * DTO의 필수 필드가 모두 채워졌는지 검사하는 메서드
