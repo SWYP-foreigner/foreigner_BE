@@ -6,7 +6,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
-import core.global.apple.dto.withdrawIsApple;
+import core.global.apple.dto.WithdrawIsApple;
 import core.global.apple.service.AppleAuthService;
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.AuthErrorDocs;
@@ -66,6 +66,7 @@ public class LoginRegisterController {
     private final FeatureUsageMetrics featureUsageMetrics;
     private final CookieUtil cookieUtil;
     private final GeoService geoService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @GetMapping("/google/callback")
     public String handleGoogleLogin(@RequestParam(required = false) String code,
@@ -268,13 +269,10 @@ public class LoginRegisterController {
     @DeleteMapping("/withdraw")
     @Operation(summary = "회원 탈퇴 API", description = "현재 로그인한 사용자의 계정을 삭제합니다")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    public ResponseEntity<withdrawIsApple> withdraw(HttpServletRequest request) {
-        CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = principal.getUserId();
-        String authHeader = request.getHeader("Authorization");
-        String accessToken = authHeader.substring(7);
-        boolean isapple = userService.withdrawUser(userId, accessToken);
-        withdrawIsApple withdrawIsApple = new withdrawIsApple(isapple);
+    public ResponseEntity<WithdrawIsApple> withdraw(HttpServletRequest request , @AuthenticationPrincipal CustomUserDetails principal) {
+        String accessToken = jwtTokenProvider.resolveToken(request);
+        boolean isapple = userService.withdrawUser(principal.getUserId(), accessToken);
+        WithdrawIsApple withdrawIsApple = new WithdrawIsApple(isapple);
         return ResponseEntity.ok(withdrawIsApple);
     }
 
