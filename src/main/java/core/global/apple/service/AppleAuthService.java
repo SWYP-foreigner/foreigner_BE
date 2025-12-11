@@ -95,28 +95,19 @@ public class AppleAuthService {
     }
     @Transactional
     public LoginResponseDto login(AppleLoginByCodeRequest req) {
-        // 1. Identity Token 검증 및 Claims 추출
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String socialId = claims.getSubject();
         String email = claims.get("email", String.class);
         String provider = Ouathplatform.APPLE.toString();
-
-        // 2. 유저 조회 또는 생성 (여기서 이메일 중복 체크 수행)
         User user = findOrCreateUser(socialId, email, provider, req);
 
-        // 3. 이름 정보 업데이트 (Apple은 최초 가입 시에만 이름을 줌, 혹은 이름 정보가 누락된 경우 보완)
         updateUserNameIfNeeded(user, req.fullName());
-
-        // 4. JWT 토큰 발급 및 Redis 저장
         String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserRole().toString(), user.getEmail());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         Date expirationDate = jwtTokenProvider.getExpiration(refreshToken);
         long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
         redisService.saveRefreshToken(user.getId(), refreshToken, expirationMillis);
-
-        // 5. 로그인 이벤트 발행 (필요하다면 여기서, 혹은 컨트롤러에서)
-        // publisher.publishEvent(...)
 
         return new LoginResponseDto(user.getId(), accessToken, refreshToken, user.isNewUser());
     }
@@ -126,20 +117,15 @@ public class AppleAuthService {
      * ★ 중요: 이메일 중복 검사를 수행하여 DB 에러를 방지합니다.
      */
     private User findOrCreateUser(String socialId, String email, String provider, AppleLoginByCodeRequest req) {
-        // A. 소셜 ID로 가입된 유저 찾기
         User user = userService.getUserBySocialIdAndProvider(socialId, provider);
         if (user != null) {
             return user;
         }
 
-        // B. 가입된 유저는 아닌데, 이메일이 이미 존재하는 경우 (다른 소셜/일반 가입) 체크
-        // Apple은 이메일을 비공개(null)로 줄 수도 있으므로 null 체크 필수
         if (email != null && userService.existsByEmail(email)) {
             throw new BusinessException(UserErrorCode.DUPLICATE_EMAIL_PROVIDER_MISMATCH);
         }
 
-        // C. 신규 회원가입 진행
-        // Apple Refresh Token은 회원가입 시(최초)에만 발급받아 저장
         String appleRefreshToken = requestAppleToken(req.authorizationCode());
 
         return userService.createAppleOauth(
@@ -155,8 +141,6 @@ public class AppleAuthService {
      * Apple 로그인 요청에 이름 정보가 있고, 유저에게 업데이트가 필요한 경우 처리
      */
     private void updateUserNameIfNeeded(User user, AppleLoginByCodeRequest.FullNameDto fullName) {
-        // 유저가 새로 가입 상태이거나, 이름이 아직 설정되지 않은 경우 등 조건 확인
-        // (Apple은 최초 로그인 시에만 fullName을 보내주므로, 이때 놓치면 안 됨)
         if (fullName == null) return;
 
         boolean needsUpdate = false;
@@ -172,14 +156,10 @@ public class AppleAuthService {
         }
 
         if (needsUpdate) {
-            // 이미 Transactional 안이므로 user.update...() 만으로 DB 반영됨.
-            // 별도로 userService.updateUser(user, fullName) 호출 안 해도 됨 (Dirty Checking)
-            // 하지만 명시적으로 호출해야 하는 구조라면 유지.
             userService.updateUser(user, fullName);
         }
     }
 
-    // 문자열 유효성 검사 헬퍼 (StringUtils.hasText 대용)
     private boolean hasText(String str) {
         return str != null && !str.isBlank();
     }
