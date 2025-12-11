@@ -59,9 +59,6 @@ import java.util.Optional;
 @Slf4j
 public class LoginRegisterController {
     private final UserService userService;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final RedisService redisService;
-    private final UserRepository userrepository;
     private final PasswordService passwordService;
     private final AppleAuthService appleAuthService;
     private final ApplicationEventPublisher publisher;
@@ -75,6 +72,13 @@ public class LoginRegisterController {
                                     @RequestParam(required = false) String state) {
         return "Received code: " + code + ", state: " + state;
     }
+    @PostMapping("/doLogin")
+    @Operation(summary = "일반 로그인")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.AUTHENTICATION_FAILED})
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
+        AuthResponse response = userService.login(req);
+        return ResponseEntity.ok(response);
+    }
 
     @Operation(summary = "구글 소셜 로그인", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/google/app-login")
@@ -84,6 +88,7 @@ public class LoginRegisterController {
     }
 
     @PostMapping("/logout")
+    @AuthErrorDocs({AuthErrorCode.INVALID_REFRESH_TOKEN,AuthErrorCode.INVALID_TOKEN })
     @Operation(summary = "로그아웃 API", description = "현재 사용자의 액세스 토큰을 블랙리스트에 등록하고, 리프레시 토큰을 삭제합니다.")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
@@ -93,14 +98,6 @@ public class LoginRegisterController {
         }
         return ResponseEntity.noContent().build();
     }
-
-    @PostMapping("/refresh")
-    @Operation(summary = "토큰 재발급 API", description = "리프레시 토큰으로 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.")
-    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@RequestBody TokenRefreshRequest request) {
-        TokenRefreshResponse responseDto = userService.refreshTokens(request.refreshToken());
-        return ResponseEntity.ok(ApiResponse.success(responseDto));
-    }
-
     @Operation(summary = "애플 소셜 로그인", description = "앱에서 받은 identityToken으로 애플 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/apple/app-login")
     @AuthErrorDocs({AuthErrorCode.INVALID_APPLE_REQUEST})
@@ -118,6 +115,14 @@ public class LoginRegisterController {
             ApiResponse<LoginResponseDto> errorResponse = ApiResponse.fail("로그인 실패: " + e.getMessage());
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PostMapping("/refresh")
+    @AuthErrorDocs({AuthErrorCode.INVALID_REFRESH_TOKEN,AuthErrorCode.INVALID_TOKEN })
+    @Operation(summary = "토큰 재발급 API", description = "리프레시 토큰으로 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.")
+    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@RequestBody TokenRefreshRequest request) {
+        TokenRefreshResponse responseDto = userService.refreshTokens(request.refreshToken());
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
     @GetMapping("/{userId}/info")
@@ -164,13 +169,6 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    @PostMapping("/doLogin")
-    @Operation(summary = "일반 로그인")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.AUTHENTICATION_FAILED})
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody EmailLoginDto req) {
-        AuthResponse response = userService.login(req);
-        return ResponseEntity.ok(response);
-    }
 
     @Operation(summary = "관리자 웹페이지 전용 로그인",
             description = "관리자 계정(ADMIN)인지 확인하고, HttpOnly 쿠키에 accessToken을 발급합니다.")
