@@ -39,6 +39,7 @@ import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -73,6 +74,7 @@ public class UserService {
     private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
+
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
@@ -103,10 +105,54 @@ public class UserService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+    public void logout(String accessToken) {
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
+    }
+
+    public TokenRefreshResponse refreshTokens(String refreshToken) {
+        log.info("--- [토큰 재발급 Service] 시작 ---");
+
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 리프레시 토큰 요청");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 ErrorCode 사용
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+        User user = userRepository.getUserById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", userId);
+            redisService.deleteRefreshToken(userId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+
+        redisService.deleteRefreshToken(userId);
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUserRole().toString(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
+
+        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(userId, newRefreshToken, expirationMillis);
+
+        log.info("--- [토큰 재발급 Service] 완료. 사용자 ID: {} ---", userId);
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
     }
 
     public User create(UserCreateDto memberCreateDto) {
@@ -783,6 +829,7 @@ public class UserService {
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
         userRepository.delete(user);
+        userFeedbackRepository.deleteAllByUser(user);
     }
 
     /**
