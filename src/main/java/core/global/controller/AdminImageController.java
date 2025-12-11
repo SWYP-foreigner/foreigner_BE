@@ -1,5 +1,6 @@
 package core.global.controller;
 
+import core.global.entity.image.dto.SuspiciousImageResponse;
 import core.global.entity.image.entity.Image;
 import core.global.service.AdminImageService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class AdminImageController {
 
     @GetMapping("/reviews")
     public String reviewPage(Model model) {
-        List<Image> images = adminImageService.getSuspiciousImages();
+        List<SuspiciousImageResponse> images = adminImageService.getSuspiciousImages();
         model.addAttribute("images", images);
         return "admin/image-reviews";
     }

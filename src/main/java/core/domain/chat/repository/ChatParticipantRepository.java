@@ -54,4 +54,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
 
     Page<ChatParticipant> findByUserId(Long userId, Pageable pageable);
+
+    @Query("SELECT u.firstName FROM ChatParticipant cp JOIN cp.user u WHERE cp.chatRoom.id = :roomId")
+    List<String> findParticipantNamesByRoomId(@Param("roomId") Long roomId);
 }

@@ -40,7 +40,6 @@
         .info { width: 100%; margin-bottom: 15px; font-size: 0.95em; color: #555; }
         .info p { margin: 5px 0; }
         .reason { color: #dc3545; font-weight: bold; }
-        .date { font-size: 0.85em; color: #888; margin-top: 8px; }
 
         .btns { width: 100%; display: flex; gap: 10px; margin-top: auto; }
         .btns form { flex: 1; }
@@ -74,8 +73,23 @@
 
         <div class="info">
             <p><strong>ID:</strong> <span th:text="${img.id}"></span></p>
+
+            <p><strong>게시자:</strong>
+                <span th:if="${img.uploaderId != null}">
+                    <a th:href="@{/admin/users/{uid}(uid=${img.uploaderId})}"
+                       target="_blank"
+                       style="color: #007bff; text-decoration: none; font-weight: bold;"
+                       th:text="${img.uploaderName}">
+                    </a>
+                    <small style="color:#999;" th:text="'(ID:' + ${img.uploaderId} + ')'"></small>
+                </span>
+                <span th:unless="${img.uploaderId != null}" style="color:#aaa;">정보 없음</span>
+            </p>
+
             <p><strong>Type:</strong> <span th:text="${img.imageType}"></span></p>
-            <p><strong>Related ID:</strong> <a th:href="@{/admin/posts/{id}(id=${img.relatedId})}" target="_blank" th:text="${img.relatedId}"></a></p>
+
+            <p><strong>Related ID:</strong> <span th:text="${img.relatedId}"></span></p>
+
             <p class="reason">⚠️ <span th:text="${img.moderationReason}">차단 사유</span></p>
         </div>
 

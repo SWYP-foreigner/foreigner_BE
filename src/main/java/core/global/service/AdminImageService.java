@@ -2,7 +2,10 @@ package core.global.service;
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.post.repository.PostRepository;
+import core.domain.user.repository.UserRepository;
 import core.global.entity.image.S3Props;
+import core.global.entity.image.dto.SuspiciousImageResponse;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageModerationStatus;
@@ -18,6 +21,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -28,10 +32,45 @@ public class AdminImageService {
     private final S3Client s3Client;
     private final S3Props s3Props;
     private final ChatMessageRepository chatMessageRepository;
+    private final PostRepository postRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public List<Image> getSuspiciousImages() {
-        return imageRepository.findByModerationStatusOrderByIdDesc(ImageModerationStatus.SUSPICIOUS);
+    public List<SuspiciousImageResponse> getSuspiciousImages() {
+        List<Image> images = imageRepository.findByModerationStatusOrderByIdDesc(ImageModerationStatus.SUSPICIOUS);
+        return images.stream().map(this::convertToDto).collect(Collectors.toList());
+    }
+
+    private SuspiciousImageResponse convertToDto(Image img) {
+        Long uploaderId = null;
+        String uploaderName = "알 수 없음";
+
+        try {
+            if (img.getImageType() == ImageType.USER) {
+                uploaderId = img.getRelatedId();
+                uploaderName = userRepository.findById(uploaderId)
+                        .map(u -> u.getFirstName() + " " + u.getLastName())
+                        .orElse("탈퇴한 유저");
+
+            } else if (img.getImageType() == ImageType.POST) {
+                var post = postRepository.findById(img.getRelatedId());
+                if (post.isPresent()) {
+                    uploaderId = post.get().getAuthor().getId();
+                    uploaderName = post.get().getAuthor().getFirstName();
+                }
+
+            } else if (img.getImageType() == ImageType.CHAT_MEDIA) {
+                var msg = chatMessageRepository.findById(img.getRelatedId());
+                if (msg.isPresent()) {
+                    uploaderId = msg.get().getSender().getId();
+                    uploaderName = msg.get().getSender().getFirstName();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("이미지(ID:{})의 업로더 정보를 찾을 수 없습니다.", img.getId());
+        }
+
+        return SuspiciousImageResponse.from(img, uploaderId, uploaderName);
     }
 
     @Transactional
