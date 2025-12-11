@@ -10,10 +10,12 @@ import core.global.apple.dto.withdrawIsApple;
 import core.global.apple.service.AppleAuthService;
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.AuthErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.ImageErrorCodeDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.*;
 import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -52,6 +54,7 @@ import java.util.Optional;
 @Tag(name = "User", description = "사용자 회원가입,로그인 관련 API")
 @RestController
 @RequestMapping("/api/v1/member")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 @RequiredArgsConstructor
 @Slf4j
 public class LoginRegisterController {
