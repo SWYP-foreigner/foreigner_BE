@@ -206,7 +206,7 @@ public class UserService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
-
+        user.updatePurpose(dto.purpose());
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
