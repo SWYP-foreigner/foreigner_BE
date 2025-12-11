@@ -107,6 +107,18 @@ public class OpenApiConfig {
                         }
                     }
 
+                    // 🔥 GlobalErrorDocs
+                    GlobalErrorDocs globalDocs = method.getAnnotation(GlobalErrorDocs.class);
+                    if (globalDocs == null) {
+                        globalDocs = method.getDeclaringClass().getAnnotation(GlobalErrorDocs.class);
+                    }
+
+                    if (globalDocs != null) {
+                        for (GlobalErrorCode code : globalDocs.value()) {
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
+                        }
+                    }
+
                 });
             });
         };
