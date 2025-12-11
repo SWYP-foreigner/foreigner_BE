@@ -175,6 +175,7 @@ public class User {
     public void updateCountry(String country) {
         if (notBlank(country)) this.country = country.trim();
         touchUpdatedAt();
+        updateRoleBasedOnProfile();
     }
 
     public void updateTranslateLanguage(String translateLanguage) {
