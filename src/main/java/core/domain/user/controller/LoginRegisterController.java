@@ -87,57 +87,17 @@ public class LoginRegisterController {
     @Operation(summary = "로그아웃 API", description = "현재 사용자의 액세스 토큰을 블랙리스트에 등록하고, 리프레시 토큰을 삭제합니다.")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        String accessToken = authHeader.substring(7);
-        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
-
-        redisService.blacklistAccessToken(accessToken, expiration);
-
-        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
-        redisService.deleteRefreshToken(userId);
-
-        log.info("사용자 {} 로그아웃 처리 완료.", userId);
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String accessToken = authHeader.substring(7);
+            userService.logout(accessToken);
+        }
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "토큰 재발급 API", description = "리프레시 토큰으로 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.")
     public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshToken(@RequestBody TokenRefreshRequest request) {
-        log.info("--- [토큰 재발급] 요청 수신 ---");
-        String refreshToken = request.refreshToken();
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
-            log.warn("유효하지 않은 리프레시 토큰 요청: {}", refreshToken);
-            return new ResponseEntity<>(ApiResponse.fail("Invalid or expired refresh token"), HttpStatus.UNAUTHORIZED);
-        }
-
-        Long UserId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
-        Optional<User> userOptional = userrepository.getUserById(UserId);
-
-        if (userOptional.isEmpty()) {
-            log.error("토큰의 ID({})로 사용자를 찾을 수 없음", UserId);
-            return new ResponseEntity<>(ApiResponse.fail("User not found"), HttpStatus.NOT_FOUND);
-        }
-
-        User user = userOptional.get();
-
-        String storedRefreshToken = redisService.getRefreshToken(user.getId());
-        log.warn("사용자의 요청한 리프레쉬 토큰 : {}", refreshToken);
-        log.warn("레디스의 요청한 리프레쉬 토큰 : {}", storedRefreshToken);
-        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
-            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", user.getId());
-            redisService.deleteRefreshToken(user.getId());
-            return new ResponseEntity<>(ApiResponse.fail("Refresh token mismatch or blacklisted"), HttpStatus.UNAUTHORIZED);
-        }
-        redisService.deleteRefreshToken(user.getId());
-        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getUserRole().toString(), user.getEmail());
-        String newRefreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-
-        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
-        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
-        redisService.saveRefreshToken(user.getId(), newRefreshToken, expirationMillis);
-
-        log.info("--- [토큰 재발급] 완료. 사용자 ID: {} ---", user.getId());
-
-        TokenRefreshResponse responseDto = new TokenRefreshResponse(newAccessToken, newRefreshToken, user.getId());
+        TokenRefreshResponse responseDto = userService.refreshTokens(request.refreshToken());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 

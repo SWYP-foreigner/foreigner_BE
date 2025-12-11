@@ -108,6 +108,60 @@ public class UserService {
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
+    public void logout(String accessToken) {
+        // 1. 남은 유효시간 계산
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+
+        // 2. Access Token 블랙리스트 등록
+        redisService.blacklistAccessToken(accessToken, expiration);
+
+        // 3. Redis에서 Refresh Token 삭제
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
+    }
+
+    // --- [추가된 로직] 토큰 재발급 ---
+    public TokenRefreshResponse refreshTokens(String refreshToken) {
+        log.info("--- [토큰 재발급 Service] 시작 ---");
+
+        // 1. Refresh Token 유효성 검사
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 리프레시 토큰 요청");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 ErrorCode 사용
+        }
+
+        // 2. 사용자 조회
+        Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+        User user = userRepository.getUserById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 3. Redis에 저장된 Refresh Token과 비교 (탈취 감지)
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", userId);
+            // 보안상 저장된 토큰도 삭제
+            redisService.deleteRefreshToken(userId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN); // 혹은 재로그인 유도 에러
+        }
+
+        // 4. 기존 토큰 삭제 및 새 토큰 생성
+        redisService.deleteRefreshToken(userId);
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUserRole().toString(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
+
+        // 5. 새 Refresh Token Redis 저장
+        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(userId, newRefreshToken, expirationMillis);
+
+        log.info("--- [토큰 재발급 Service] 완료. 사용자 ID: {} ---", userId);
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
+    }
 
     public User create(UserCreateDto memberCreateDto) {
         User user = User.builder()
