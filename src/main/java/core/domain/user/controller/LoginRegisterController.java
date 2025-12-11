@@ -26,6 +26,8 @@ import core.global.service.PasswordService;
 import core.global.util.CookieUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,6 +41,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -185,10 +188,14 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-
-    @PostMapping("/verify-code")
     @Operation(summary = "이메일 인증 코드 검증.")
-    @AuthErrorDocs({AuthErrorCode.VERIFY_CODE_EXPIRES, AuthErrorCode.VERIFY_CODE_NOT_MATCH})
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "검증 성공", content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "인증 코드 만료 또는 재발급 필요", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "인증 코드 불일치", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @AuthErrorDocs({AuthErrorCode.VERIFY_CODE_EXPIRES, AuthErrorCode.VERIFY_CODE_NEED_RESEND, AuthErrorCode.VERIFY_CODE_NOT_MATCH})
+    @PostMapping("/verify-code")
     public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
         boolean result = userService.verifyEmailCode(request);
         return ResponseEntity.ok(ApiResponse.success(result));
