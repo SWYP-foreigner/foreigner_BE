@@ -39,6 +39,7 @@ import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -73,6 +74,7 @@ public class UserService {
     private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
+
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
@@ -103,6 +105,7 @@ public class UserService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -826,6 +829,7 @@ public class UserService {
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
         userRepository.delete(user);
+        userFeedbackRepository.deleteAllByUser(user);
     }
 
     /**
