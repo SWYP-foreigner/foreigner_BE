@@ -5,9 +5,11 @@ import core.domain.chat.service.ChatMessageService;
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.ChatErrorDocs;
 import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Controller;
 
 @Controller
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class ChatWebSocketController {
 
     private final ChatMessageService chatService;

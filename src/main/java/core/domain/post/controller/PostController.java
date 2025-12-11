@@ -4,14 +4,8 @@ import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.service.PostService;
 import core.global.config.CustomUserDetails;
-import core.global.docs.annotations.CommonErrorCodeDocs;
-import core.global.docs.annotations.CommunityErrorDocs;
-import core.global.docs.annotations.ImageErrorCodeDocs;
-import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.errorcode.CommonErrorCode;
-import core.global.enums.errorcode.CommunityErrorCode;
-import core.global.enums.errorcode.ImageErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
+import core.global.docs.annotations.*;
+import core.global.enums.errorcode.*;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @Validated
 @Tag(name = "Posts", description = "게시글/작성/좋아요 API")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class PostController {
 
     private final PostService postService;

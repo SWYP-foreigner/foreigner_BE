@@ -3,19 +3,16 @@ package core.domain.user.controller;
 import core.domain.user.dto.FollowDTO;
 import core.domain.user.dto.ProfileEditResponseDto;
 import core.domain.user.dto.UserProfileEditDto;
-import core.domain.user.dto.UserUpdateDto;
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
 import core.global.appsetting.AppSettingService;
 import core.global.appsetting.SupportLinksResponse;
-import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.ImageErrorCodeDocs;
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.dto.ApiResponse;
-import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
-import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
@@ -37,13 +34,14 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/mypage")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class MyPageController {
-
 
     private final UserService userService;
     private final FollowService followService;
     private final TranslationService translationService;
     private final FeatureUsageMetrics featureUsageMetrics;
+    private final AppSettingService appSettingService;
 
     /**
      * 각 FollowStatus 별 팔로우 목록 조회
@@ -62,14 +60,12 @@ public class MyPageController {
         return ResponseEntity.ok().body(list);
     }
 
-
     @Operation(summary = "Received/Sent 수 조회", description = "PENDING 상태의 보낸/받은 팔로우 요청 수를 조회합니다.")
     @GetMapping("/follows/pending/count")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<Map<String, Long>> getPendingFollowsCount(Authentication authentication) {
         return ResponseEntity.ok(followService.getPendingFollowCounts(authentication));
     }
-
 
     @Operation(
             summary = "로그인 한 사용자의 맞팔 목록(ACCEPTED)",
@@ -84,10 +80,9 @@ public class MyPageController {
         return ResponseEntity.ok(followService.getMyAcceptedFollows(authentication));
     }
 
-
     @Operation(summary = "팔로우 요청 수락", description = "나에게 들어온 팔로우 요청을 수락합니다.")
     @PatchMapping("/accept-follow/{fromUserId}")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND,UserErrorCode.FOLLOWER_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.FOLLOWER_NOT_FOUND})
     public ResponseEntity<Void> acceptFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID") @PathVariable Long fromUserId) {
@@ -100,7 +95,7 @@ public class MyPageController {
 
     @Operation(summary = "팔로우 요청 거절 (decline) ", description = "나에게 들어온 팔로우 요청을 거절합니다. ")
     @DeleteMapping("/decline-follow/{fromUserId}")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND,UserErrorCode.FOLLOWER_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.FOLLOWER_NOT_FOUND})
     public ResponseEntity<Void> declineFollowRequest(
             Authentication authentication,
             @Parameter(description = "팔로우를 요청한 사용자(팔로워)의 ID")
@@ -140,17 +135,16 @@ public class MyPageController {
         return ResponseEntity.ok().build();
     }
 
-
     @PatchMapping(value = "/profile/edit", consumes = "application/json", produces = "application/json")
     @Operation(
             summary = "마이페이지 프로필 수정",
             description = "기존사용자(USER)와 스킵한 사용자(VISITOR)모두 수정에 사용합니다. 스킵한 VISITOR 유저가 완료할 시에는" +
-                    " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다."
+                          " 응답 객체에 [accessToken, refreshToken]이 포함되어 발급됩니다."
     )
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,  })
+    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR,})
     public ResponseEntity<ProfileEditResponseDto> editProfile(
-                                                               @Valid @RequestBody UserProfileEditDto dto
+            @Valid @RequestBody UserProfileEditDto dto
     ) {
         featureUsageMetrics.recordFollowUsage();
         return ResponseEntity.ok(userService.updateUserProfile(dto));
@@ -168,7 +162,6 @@ public class MyPageController {
 
         return ResponseEntity.ok().build();
     }
-    private final AppSettingService appSettingService;
 
     @Operation(
             summary = "고객 지원 링크 조회 (버그 제보/피드백)",
