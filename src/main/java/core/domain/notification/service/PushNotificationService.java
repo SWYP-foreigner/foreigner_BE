@@ -30,17 +30,12 @@ public class PushNotificationService {
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
 
-
     /**
-     * 사용자에게 푸시 알림을 발송합니다. (람다 제거 버전)
-     * 발송 전 3단계 동의 여부를 모두 확인합니다.
-     * 클라이언트 이동을 위한 data 페이로드를 포함합니다.
-     * @param event 알림 이벤트 데이터
-     * @param message 사용자에게 보여줄 최종 메시지
+     * 사용자에게 푸시 알림을 발송합니다.
+     * SENDER_ID_MISMATCH 발생 시 로그 없이 토큰을 삭제합니다.
      */
     @Transactional
     public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
-
 
         if (!recipient.isAgreedToPushNotification()) {
             log.info("사용자 ID {}: 마스터 스위치 OFF. 푸시 알림을 발송하지 않습니다.", recipient.getId());
@@ -133,38 +128,52 @@ public class PushNotificationService {
 
             try {
                 firebaseMessaging.send(fcmMessage);
-                log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(userDeviceToken.getDeviceToken().length() - 5));
+                log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(Math.max(0, userDeviceToken.getDeviceToken().length() - 5)));
 
                 notificationMetrics.mark("push", "sent", "ok");
                 notificationMetrics.recordSend("push", "firebase", start);
+
             } catch (FirebaseMessagingException e) {
                 MessagingErrorCode code = e.getMessagingErrorCode();
                 String errorMessage = e.getMessage();
-
                 String reason = "unknown";
 
-                if (code == MessagingErrorCode.UNREGISTERED ||
-                    (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token")) ||
-                    code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                if (code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                    userDeviceTokenRepository.delete(userDeviceToken);
+                    reason = "invalid_token_mismatch";
+                    // 로그 생략 (원한다면 debug 레벨로 추가 가능)
+                }
+                else if (code == MessagingErrorCode.UNREGISTERED ||
+                        (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token"))) {
                     log.info("만료/무효 토큰 삭제: {} (코드: {})", userDeviceToken.getDeviceToken(), code);
                     userDeviceTokenRepository.delete(userDeviceToken);
                     reason = "invalid_token";
-                } else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
-                           code == MessagingErrorCode.UNAVAILABLE ||
-                           code == MessagingErrorCode.INTERNAL) {
+                }
+                // 재시도 필요
+                else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
+                        code == MessagingErrorCode.UNAVAILABLE ||
+                        code == MessagingErrorCode.INTERNAL) {
                     log.warn("재시도 필요: {} (코드: {})", errorMessage, code);
                     reason = "retryable";
-                } else {
+                }
+                // 기타 에러
+                else {
                     log.error("기타 FCM 에러: {} (코드: {})", errorMessage, code, e);
                 }
 
                 notificationMetrics.mark("push", "failed", reason);
                 notificationMetrics.recordSend("push", "firebase", start);
 
-                throw e;
+                // Sender ID Mismatch가 아닐 때만 예외를 던짐 (로직 흐름 유지)
+                if (code != MessagingErrorCode.SENDER_ID_MISMATCH &&
+                        code != MessagingErrorCode.UNREGISTERED &&
+                        code != MessagingErrorCode.INVALID_ARGUMENT) {
+                    throw e;
+                }
             }
         }
     }
+
     @Transactional
     public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
         if (tokens == null || tokens.isEmpty()) return;
@@ -196,22 +205,27 @@ public class PushNotificationService {
                         MessagingErrorCode code = e.getMessagingErrorCode();
                         String errorMessage = e.getMessage();
 
-                        if (code == MessagingErrorCode.UNREGISTERED ||
-                                code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                        if (code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                            tokensToDelete.add(failedToken);
+                            notificationMetrics.mark("push_batch", "failed", "invalid_token_mismatch");
+                        }
+                        // 기존 만료 토큰 로그
+                        else if (code == MessagingErrorCode.UNREGISTERED ||
                                 (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token"))) {
 
                             log.warn("🚨 만료/무효 토큰 감지 -> 삭제 예정: {} (코드: {})", failedToken, code);
                             tokensToDelete.add(failedToken);
-
                             notificationMetrics.mark("push_batch", "failed", "invalid_token");
 
                         }
+                        // 일시적 장애
                         else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
                                 code == MessagingErrorCode.UNAVAILABLE ||
                                 code == MessagingErrorCode.INTERNAL) {
                             log.warn("⚠️ FCM 서버 일시적 장애 (재시도 권장): {} (코드: {})", failedToken, code);
                             notificationMetrics.mark("push_batch", "failed", "retryable");
                         }
+                        // 기타 에러
                         else {
                             log.error("❌ 기타 배치 발송 실패: {} (코드: {}, 에러: {})", failedToken, code, errorMessage);
                             notificationMetrics.mark("push_batch", "failed", "unknown");
@@ -223,7 +237,8 @@ public class PushNotificationService {
 
                 if (!tokensToDelete.isEmpty()) {
                     userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
-                    log.info("🧹 총 {}개의 만료된 토큰을 DB에서 정리했습니다.", tokensToDelete.size());
+                    // 삭제 완료 사실만 가볍게 INFO로 남김
+                    log.info("🧹 만료 및 프로젝트 불일치 토큰 {}개 정리 완료.", tokensToDelete.size());
                 }
             }
 
@@ -235,15 +250,13 @@ public class PushNotificationService {
             notificationMetrics.mark("push_batch", "error", "exception");
         }
     }
+
     /**
      * [New] 채팅방 대량 알림 발송 (Listener에서 호출)
-     * - 기존 sendPushNotification의 'chat' 케이스와 동일한 데이터 구조를 가집니다.
-     * - 500개씩 끊어서 FCM에 던집니다.
      */
     @Transactional
     public void sendGroupPush(List<Long> recipientIds, String messageBody, String roomId, String roomName, Long senderId) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
-
 
         List<UserDeviceToken> tokens = userDeviceTokenRepository.findAllByUserIdIn(recipientIds);
 
@@ -260,7 +273,6 @@ public class PushNotificationService {
         data.put("roomId", roomId);
         data.put("roomName", roomName != null ? roomName : "Chat Room");
         data.put("senderId", String.valueOf(senderId));
-
 
         List<List<String>> partitions = new ArrayList<>();
         int batchSize = 500;
@@ -289,9 +301,10 @@ public class PushNotificationService {
                         if (!responses.get(i).isSuccessful()) {
                             FirebaseMessagingException e = responses.get(i).getException();
                             MessagingErrorCode code = e.getMessagingErrorCode();
-
-                            if (code == MessagingErrorCode.UNREGISTERED ||
-                                    code == MessagingErrorCode.SENDER_ID_MISMATCH ||
+                            if (code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                                tokensToDelete.add(batchTokens.get(i));
+                            }
+                            else if (code == MessagingErrorCode.UNREGISTERED ||
                                     code == MessagingErrorCode.INVALID_ARGUMENT) {
                                 tokensToDelete.add(batchTokens.get(i));
                             }
@@ -300,7 +313,6 @@ public class PushNotificationService {
 
                     if (!tokensToDelete.isEmpty()) {
                         userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
-                        log.info("🧹 Bulk Cleanup: 만료된 토큰 {}개 삭제 완료", tokensToDelete.size());
                     }
                 }
 
@@ -311,5 +323,5 @@ public class PushNotificationService {
                 notificationMetrics.mark("push_batch", "error", "exception");
             }
         }
-}
+    }
 }
