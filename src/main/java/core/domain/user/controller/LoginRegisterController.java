@@ -46,12 +46,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-@Tag(name = "User", description = "사용자 관련 API")
+@Tag(name = "User", description = "사용자 회원가입,로그인 관련 API")
 @RestController
 @RequestMapping("/api/v1/member")
 @RequiredArgsConstructor
 @Slf4j
-public class UserController {
+public class LoginRegisterController {
     private final UserService userService;
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService;
@@ -188,10 +188,10 @@ public class UserController {
 
     @PostMapping("/verify-code")
     @Operation(summary = "이메일 인증 코드 검증.")
-    public ResponseEntity<ApiResponse<Void>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
-        userService.verifyEmailCode(request);
+    public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
+        boolean result = userService.verifyEmailCode(request);
         log.info(">>> [Controller] 검증 성공. 프론트로 200 OK 응답 반환.");
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @PostMapping("/doLogin")

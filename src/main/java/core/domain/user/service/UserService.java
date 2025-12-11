@@ -461,11 +461,12 @@ public class UserService {
     /**
      * true 반환;
      */
-    public void verifyEmailCode(EmailVerificationRequest request) {
+    public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
         String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+
+        String storedCode = redisTemplate.opsForValue().get(redisKey);
         log.info(">>> [Redis Get] Trying to find Key: [{}]", redisKey);
         log.info(">>> [Redis Result] Stored Code: [{}], Input Code: [{}]", storedCode, verificationCode);
 
@@ -476,20 +477,24 @@ public class UserService {
 
         if (!storedCode.equals(verificationCode)) {
             log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-               throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        // 사용한 코드는 즉시 폐기
-        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        // 사용된 코드 삭제
+        redisTemplate.delete(redisKey);
+
+        // 인증 완료 flag 저장
         String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
-        // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
                 flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+
         log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
+
+        return true; // <- 여기!
     }
 
     /**
