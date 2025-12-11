@@ -53,7 +53,6 @@ jobs:
           --health-timeout=5s
           --health-retries=30
 
-
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -73,7 +72,7 @@ jobs:
       - name: Show Postgres health & container info
         run: |
           sudo apt-get update -y && sudo apt-get install -y postgresql-client jq
-          CID="$(docker ps -q --filter 'ancestor=postgres:16' | head -n1)"
+          CID="$(docker ps -q --filter 'ancestor=groonga/pgroonga:latest-postgres16' | head -n1)"
           echo "Postgres Container ID: $CID"
           docker inspect "$CID" | jq -r '.[0].State.Health.Status'
           docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
@@ -81,7 +80,7 @@ jobs:
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
         run: |
