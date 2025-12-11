@@ -467,23 +467,16 @@ public class UserService {
         String redisKey = EMAIL_VERIFY_CODE_KEY + email;
 
         String storedCode = redisTemplate.opsForValue().get(redisKey);
-        log.info(">>> [Redis Get] Trying to find Key: [{}]", redisKey);
-        log.info(">>> [Redis Result] Stored Code: [{}], Input Code: [{}]", storedCode, verificationCode);
-
         if (storedCode == null) {
-            log.warn("Stored code not found for email: {}. Code may have expired.", email);
             throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
         if (!storedCode.equals(verificationCode)) {
-            log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
             throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        // 사용된 코드 삭제
         redisTemplate.delete(redisKey);
 
-        // 인증 완료 flag 저장
         String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         redisTemplate.opsForValue().set(
                 flagKey,

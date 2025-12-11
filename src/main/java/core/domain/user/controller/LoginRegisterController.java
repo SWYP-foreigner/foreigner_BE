@@ -188,9 +188,9 @@ public class LoginRegisterController {
 
     @PostMapping("/verify-code")
     @Operation(summary = "이메일 인증 코드 검증.")
+    @AuthErrorDocs({AuthErrorCode.VERIFY_CODE_EXPIRES, AuthErrorCode.VERIFY_CODE_NOT_MATCH})
     public ResponseEntity<ApiResponse<Boolean>> verifyEmailCode(@RequestBody EmailVerificationRequest request) {
         boolean result = userService.verifyEmailCode(request);
-        log.info(">>> [Controller] 검증 성공. 프론트로 200 OK 응답 반환.");
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
