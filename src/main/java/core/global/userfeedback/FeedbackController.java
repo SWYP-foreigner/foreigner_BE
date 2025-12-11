@@ -53,7 +53,7 @@ public class FeedbackController {
             )
     })
     @PostMapping
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND,UserErrorCode.INVALID_INPUT_VALUE})
     public ResponseEntity<Void> submitFeedback(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody @Valid FeedbackRequest request

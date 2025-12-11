@@ -33,7 +33,6 @@ public class FeedbackService {
             throw new BusinessException(UserErrorCode.INVALID_INPUT_VALUE);
         }
 
-        // 3. 엔티티 생성 및 저장
         UserFeedback feedback = UserFeedback.builder()
                 .user(user)
                 .content(request.content())
