@@ -70,6 +70,7 @@ public class UserService {
 
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
+    private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
     /**
@@ -461,22 +462,50 @@ public class UserService {
     /**
      * true 반환;
      */
+    /**
+     * 이메일 인증 코드 검증 (5회 이상 실패 시 재발급 필요)
+     */
     public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
-        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
 
-        String storedCode = redisTemplate.opsForValue().get(redisKey);
+        String codeKey = EMAIL_VERIFY_CODE_KEY + email;
+        String attemptKey = EMAIL_VERIFY_ATTEMPT_KEY + email;
+
+        // Redis에서 코드 조회
+        String storedCode = redisTemplate.opsForValue().get(codeKey);
+
         if (storedCode == null) {
             throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
+        // 틀린 경우 처리
         if (!storedCode.equals(verificationCode)) {
+
+            // 실패 횟수 증가
+            Long attempt = redisTemplate.opsForValue().increment(attemptKey);
+
+            // 실패 카운트 TTL 설정(없으면 기본 10분, 코드 TTL과 같게)
+            redisTemplate.expire(attemptKey, VERIFIED_TTL_MIN, TimeUnit.MINUTES);
+
+            // 5회 이상이면 재발급 필요
+            if (attempt != null && attempt >= 5) {
+                // 인증 코드 삭제
+                redisTemplate.delete(codeKey);
+                redisTemplate.delete(attemptKey);
+
+                throw new BusinessException(AuthErrorCode.VERIFY_CODE_NEED_RESEND);
+            }
+
+            // 5회 미만이면 일반적인 "코드 불일치"
             throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        redisTemplate.delete(redisKey);
+        // ★ 성공한 경우: 코드 및 시도 횟수 삭제
+        redisTemplate.delete(codeKey);
+        redisTemplate.delete(attemptKey);
 
+        // 인증 완료 플래그 저장
         String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         redisTemplate.opsForValue().set(
                 flagKey,
@@ -487,7 +516,7 @@ public class UserService {
 
         log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
 
-        return true; // <- 여기!
+        return true;
     }
 
     /**
