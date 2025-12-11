@@ -37,7 +37,7 @@ jobs:
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpass
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd="pg_isready -U testuser -d testdb"
           --health-interval=5s
@@ -80,20 +80,20 @@ jobs:
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
-          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/testdb
+          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5433/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
         run: |
-          until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
+          until pg_isready -h localhost -p 5433 -U testuser -d testdb; do
             echo "Waiting for Postgres..."; sleep 2;
           done
-          PGPASSWORD=testpass psql -h localhost -p 5432 -U testuser -d testdb -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
+          PGPASSWORD=testpass psql -h localhost -p 5433 -U testuser -d testdb -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
           ./gradlew --no-daemon clean preflight "-Dspring.profiles.active=test" "-Dorg.gradle.jvmargs=-Xmx2g"
 
       - name: Dump Postgres logs & ps (before job teardown)
         if: always()
         run: |
-          CID="$(docker ps -q --filter 'ancestor=postgres:16' | head -n1 || true)"
+          CID="$(docker ps -q --filter 'ancestor=groonga/pgroonga:latest-postgres16' | head -n1)"
           if [ -n "$CID" ]; then
             echo "--- docker logs (tail) ---"
             docker logs --tail 200 "$CID" || true

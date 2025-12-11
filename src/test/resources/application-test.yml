@@ -8,7 +8,7 @@ spring:
     baseline-on-migrate: true
 
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/testdb
+    url: jdbc:postgresql://127.0.0.1:5433/testdb
     username: testuser
     password: testpass
     driver-class-name: org.postgresql.Driver
