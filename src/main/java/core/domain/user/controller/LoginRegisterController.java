@@ -81,8 +81,9 @@ public class LoginRegisterController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "구글 소셜 로그인", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
+    @Operation(summary = "구글 소셜 로그인,회원가입", description = "앱에서 받은 인증 코드로 구글 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/google/app-login")
+    @UserErrorDocs({UserErrorCode.DUPLICATE_EMAIL_PROVIDER_MISMATCH,})
     public ResponseEntity<ApiResponse<LoginResponseDto>> googleLogin(@RequestBody GoogleLoginReq req) {
         LoginResponseDto responseDto = googleAuthService.processGoogleLogin(req.getCode());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
@@ -99,23 +100,16 @@ public class LoginRegisterController {
         }
         return ResponseEntity.noContent().build();
     }
-    @Operation(summary = "애플 소셜 로그인", description = "앱에서 받은 identityToken으로 애플 로그인을 처리하고 JWT를 발급합니다.")
+    @Operation(summary = "애플 소셜 로그인 및 회원가입", description = "앱에서 받은 identityToken으로 애플 로그인을 처리하고 JWT를 발급합니다.")
     @PostMapping("/apple/app-login")
     @AuthErrorDocs({AuthErrorCode.INVALID_APPLE_REQUEST})
+    @UserErrorDocs({UserErrorCode.DUPLICATE_RESOURCE, UserErrorCode.DUPLICATE_EMAIL_PROVIDER_MISMATCH}) // 에러 문서화
     public ResponseEntity<ApiResponse<LoginResponseDto>> loginWithApple(
             @Parameter(description = "Apple 로그인 요청 데이터", required = true)
             @RequestBody @Valid AppleLoginByCodeRequest req) {
-
-        try {
-            LoginResponseDto responseDto = appleAuthService.login(req);
-            publisher.publishEvent(new UserLoggedInEvent(responseDto.userId().toString(), "apple"));
-            return ResponseEntity.ok(ApiResponse.success(responseDto));
-
-        } catch (Exception e) {
-            log.error("--- [Apple 앱 로그인] 로그인 처리 중 오류 발생 ---", e);
-            ApiResponse<LoginResponseDto> errorResponse = ApiResponse.fail("로그인 실패: " + e.getMessage());
-            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        LoginResponseDto responseDto = appleAuthService.login(req);
+        publisher.publishEvent(new UserLoggedInEvent(responseDto.userId().toString(), "apple"));
+        return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
     @PostMapping("/refresh")

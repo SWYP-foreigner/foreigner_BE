@@ -53,6 +53,9 @@ public class GoogleAuthService {
 
     private User findOrCreateUser(GoogleProfileDto profile) {
         User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
+        if (user != null) {
+            return user;
+        }
         if (userService.existsByEmail(profile.getEmail())) {
             throw new BusinessException(UserErrorCode.DUPLICATE_EMAIL_PROVIDER_MISMATCH);
         }
