@@ -828,8 +828,8 @@ public class UserService {
         userDeviceTokenRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
+        userFeedbackRepository.deleteAllByUserIdExplicit(userId);
         userRepository.delete(user);
-        userFeedbackRepository.deleteAllByUser(user);
     }
 
     /**
