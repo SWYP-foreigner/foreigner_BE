@@ -39,6 +39,7 @@ import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -70,8 +71,10 @@ public class UserService {
 
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
+    private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
+
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
@@ -102,10 +105,54 @@ public class UserService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+    public void logout(String accessToken) {
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
+    }
+
+    public TokenRefreshResponse refreshTokens(String refreshToken) {
+        log.info("--- [토큰 재발급 Service] 시작 ---");
+
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 리프레시 토큰 요청");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 ErrorCode 사용
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+        User user = userRepository.getUserById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", userId);
+            redisService.deleteRefreshToken(userId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+
+        redisService.deleteRefreshToken(userId);
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUserRole().toString(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
+
+        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(userId, newRefreshToken, expirationMillis);
+
+        log.info("--- [토큰 재발급 Service] 완료. 사용자 ID: {} ---", userId);
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
     }
 
     public User create(UserCreateDto memberCreateDto) {
@@ -205,7 +252,7 @@ public class UserService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
-
+        user.updatePurpose(dto.purpose());
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
@@ -228,10 +275,22 @@ public class UserService {
         if (dto.imageKey() != null) {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
-
-        //publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
     }
-
+    /**
+     * DTO의 필수 필드가 모두 채워졌는지 검사하는 메서드
+     */
+    private boolean isAllProfileFieldsFilled(UserSetupRequest dto) {
+        return notBlank(dto.firstname()) &&
+                notBlank(dto.lastname()) &&
+                notBlank(dto.gender()) &&
+                notBlank(dto.birthday()) &&
+                notBlank(dto.country()) &&
+                notBlank(dto.introduction()) &&
+                notBlank(dto.purpose()) &&
+                notBlank(dto.imageKey()) && // 이미지도 필수
+                dto.language() != null && !dto.language().isEmpty() && // 언어도 1개 이상
+                dto.hobby() != null && !dto.hobby().isEmpty(); // 취미도 1개 이상
+    }
     private boolean notBlank(String s) {
         return s != null && !s.isBlank();
     }
@@ -429,7 +488,8 @@ public class UserService {
                 ttl,
                 locale
         );
-
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Save] Key: [{}], Code: [{}], TTL: {} min", redisKey, verificationCode, CODE_TTL_MIN);
         redisTemplate.opsForValue().set(
                 EMAIL_VERIFY_CODE_KEY + email,
                 verificationCode,
@@ -438,35 +498,60 @@ public class UserService {
         );
     }
 
+
     /**
-     * true 반환;
+     * 이메일 인증 코드 검증 (5회 이상 실패 시 재발급 필요)
      */
     public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
 
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        String codeKey = EMAIL_VERIFY_CODE_KEY + email;
+        String attemptKey = EMAIL_VERIFY_ATTEMPT_KEY + email;
+
+        // Redis에서 코드 조회
+        String storedCode = redisTemplate.opsForValue().get(codeKey);
 
         if (storedCode == null) {
-            log.warn("Stored code not found for email: {}. Code may have expired.", email);
-            return false;
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
+        // 틀린 경우 처리
         if (!storedCode.equals(verificationCode)) {
-            log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-            return false;
+
+            // 실패 횟수 증가
+            Long attempt = redisTemplate.opsForValue().increment(attemptKey);
+
+            // 실패 카운트 TTL 설정(없으면 기본 10분, 코드 TTL과 같게)
+            redisTemplate.expire(attemptKey, VERIFIED_TTL_MIN, TimeUnit.MINUTES);
+
+            // 5회 이상이면 재발급 필요
+            if (attempt != null && attempt >= 5) {
+                // 인증 코드 삭제
+                redisTemplate.delete(codeKey);
+                redisTemplate.delete(attemptKey);
+
+                throw new BusinessException(AuthErrorCode.VERIFY_CODE_NEED_RESEND);
+            }
+
+            // 5회 미만이면 일반적인 "코드 불일치"
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        // 사용한 코드는 즉시 폐기
-        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        // ★ 성공한 경우: 코드 및 시도 횟수 삭제
+        redisTemplate.delete(codeKey);
+        redisTemplate.delete(attemptKey);
 
-        // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
+        // 인증 완료 플래그 저장
+        String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         redisTemplate.opsForValue().set(
-                EMAIL_VERIFIED_FLAG_KEY + email,
+                flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+
+        log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
 
         return true;
     }
@@ -743,6 +828,7 @@ public class UserService {
         userDeviceTokenRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
+        userFeedbackRepository.deleteAllByUserIdExplicit(userId);
         userRepository.delete(user);
     }
 

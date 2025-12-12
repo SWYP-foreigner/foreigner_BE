@@ -6,13 +6,15 @@ import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.media.*;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springdoc.core.customizers.OpenApiCustomizer;
 
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,7 +63,7 @@ public class OpenApiConfig {
                     AuthErrorDocs authDocs = method.getAnnotation(AuthErrorDocs.class);
                     if (authDocs != null) {
                         for (AuthErrorCode code : authDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -69,7 +71,7 @@ public class OpenApiConfig {
                     UserErrorDocs userDocs = method.getAnnotation(UserErrorDocs.class);
                     if (userDocs != null) {
                         for (UserErrorCode code : userDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -77,7 +79,7 @@ public class OpenApiConfig {
                     CommunityErrorDocs commDocs = method.getAnnotation(CommunityErrorDocs.class);
                     if (commDocs != null) {
                         for (CommunityErrorCode code : commDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -85,7 +87,7 @@ public class OpenApiConfig {
                     CommonErrorCodeDocs commonDocs = method.getAnnotation(CommonErrorCodeDocs.class);
                     if (commonDocs != null) {
                         for (CommonErrorCode code : commonDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -93,7 +95,7 @@ public class OpenApiConfig {
                     ImageErrorCodeDocs imageDocs = method.getAnnotation(ImageErrorCodeDocs.class);
                     if (imageDocs != null) {
                         for (ImageErrorCode code : imageDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -101,7 +103,19 @@ public class OpenApiConfig {
                     ChatErrorDocs chatDocs = method.getAnnotation(ChatErrorDocs.class);
                     if (chatDocs != null) {
                         for (ChatErrorCode code : chatDocs.value()) {
-                            addApiError(operation, code.httpStatus().value(), code.message());
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
+                        }
+                    }
+
+                    // 🔥 GlobalErrorDocs
+                    GlobalErrorDocs globalDocs = method.getAnnotation(GlobalErrorDocs.class);
+                    if (globalDocs == null) {
+                        globalDocs = method.getDeclaringClass().getAnnotation(GlobalErrorDocs.class);
+                    }
+
+                    if (globalDocs != null) {
+                        for (GlobalErrorCode code : globalDocs.value()) {
+                            addApiError(operation, code.httpStatus().value(), code.code(), code.message());
                         }
                     }
 
@@ -161,16 +175,50 @@ public class OpenApiConfig {
         return null;
     }
 
-    private void addApiError(Operation operation, int status, String description) {
+    private void addApiError(Operation operation, int status, String errorCode, String description) {
 
         if (operation.getResponses() == null) {
             operation.setResponses(new io.swagger.v3.oas.models.responses.ApiResponses());
         }
 
-        operation.getResponses().addApiResponse(
-                String.valueOf(status),
-                new io.swagger.v3.oas.models.responses.ApiResponse().description(description)
-        );
-    }
+        String statusKey = String.valueOf(status);
 
+        io.swagger.v3.oas.models.responses.ApiResponse apiResponse =
+                operation.getResponses().get(statusKey);
+        if (apiResponse == null) {
+            apiResponse = new io.swagger.v3.oas.models.responses.ApiResponse();
+            operation.getResponses().addApiResponse(statusKey, apiResponse);
+        }
+
+        apiResponse.setDescription(errorCode);
+
+        Content content = apiResponse.getContent();
+        if (content == null) {
+            content = new Content();
+            apiResponse.setContent(content);
+        }
+
+        MediaType mediaType = content.get("application/json");
+        if (mediaType == null) {
+            mediaType = new MediaType();
+            content.addMediaType("application/json", mediaType);
+        }
+
+        // httpStatus를 숫자로 쓰고 싶은 경우 -> IntegerSchema 사용
+        ObjectSchema schema = new ObjectSchema();
+        schema.addProperty("httpStatus", new IntegerSchema().example(status));
+        schema.addProperty("code", new StringSchema().example(errorCode));
+        schema.addProperty("message", new StringSchema().example(description));
+
+        mediaType.setSchema(schema);
+
+        // 예제 값 설정
+        Map<String, Object> example = new LinkedHashMap<>();
+        example.put("httpStatus", status);
+        example.put("code", errorCode);
+        example.put("message", description);
+
+        mediaType.setExample(example);
+
+    }
 }

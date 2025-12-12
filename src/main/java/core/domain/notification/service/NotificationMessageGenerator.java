@@ -26,14 +26,13 @@ public class NotificationMessageGenerator {
                 if (snippet != null && snippet.length() > 30) {
                     snippet = snippet.substring(0, 30) + "...";
                 }
-                yield actorName + "A new message from you: " + snippet;
+                yield actorName + "\n" + snippet;
             }
 
             case post -> actorName + " commented on your post.";
             case comment -> actorName + " replied to your comment.";
             case follow -> actorName + " accepted your follow request.";
             case receive -> actorName + " started following you.";
-            case newuser -> actorName + " just joined! Say hello!";
             case followuserpost -> actorName + " posted something new.";
             default -> "새로운 알림이 도착했습니다.";
         };

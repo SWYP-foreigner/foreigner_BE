@@ -2,8 +2,9 @@ package core.domain.user.controller;
 
 
 import core.domain.user.dto.CommendUsersProfileResponse;
-import core.domain.user.dto.UserProfileResponse;
 import core.domain.user.service.RecommenderService;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
@@ -12,8 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 @Tag(name = "친구 추천 ", description = "친구 추천 API")
 @RestController
 @RequestMapping("/api/v1/commend")

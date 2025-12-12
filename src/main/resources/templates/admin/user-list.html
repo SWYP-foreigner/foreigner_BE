@@ -8,9 +8,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
-        .pagination { margin-top: 20px; text-align: center; }
-        .pagination a { margin: 0 5px; text-decoration: none; }
-        .pagination .active { font-weight: bold; color: black; }
+
+        .pagination { display: flex; justify-content: center; align-items: center; margin-top: 20px; gap: 5px; }
+        .pagination a { text-decoration: none; padding: 8px 12px; border: 1px solid #ddd; color: #007bff; border-radius: 4px; transition: background-color 0.2s; }
+        .pagination a:hover { background-color: #f2f2f2; }
+        .pagination .active { background-color: #007bff; color: white; font-weight: bold; border-color: #007bff; }
+        .pagination .disabled { color: #ccc; pointer-events: none; border-color: #eee; }
+
         .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
         .search-form input { padding: 5px; margin-right: 10px; }
         .search-form button { padding: 5px 10px; }
@@ -70,18 +74,27 @@
     </tbody>
 </table>
 
-<div class="pagination" th:if="${userPage.totalPages > 1}">
-    <a th:href="@{/admin/users(page=${userPage.number - 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
-       th:if="${userPage.hasPrevious()}">이전</a>
+<div class="pagination" th:if="${userPage.totalPages > 0}"
+     th:with="start=${T(java.lang.Math).max(0, userPage.number - 10)},
+              end=${T(java.lang.Math).min(userPage.totalPages - 1, userPage.number + 10)}">
 
-    <span th:each="pageNumber : ${#numbers.sequence(0, userPage.totalPages - 1)}">
-            <a th:href="@{/admin/users(page=${pageNumber}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
-               th:text="${pageNumber + 1}"
-               th:classappend="${pageNumber == userPage.number} ? 'active'"></a>
-        </span>
+    <a th:href="@{/admin/users(page=0, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+       th:classappend="${userPage.first} ? 'disabled'">&lt;&lt;</a>
+
+    <a th:href="@{/admin/users(page=${userPage.number - 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+       th:classappend="${userPage.first} ? 'disabled'">&lt;</a>
+
+    <th:block th:each="pageNumber : ${#numbers.sequence(start, end)}">
+        <a th:href="@{/admin/users(page=${pageNumber}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+           th:text="${pageNumber + 1}"
+           th:classappend="${pageNumber == userPage.number} ? 'active'"></a>
+    </th:block>
 
     <a th:href="@{/admin/users(page=${userPage.number + 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
-       th:if="${userPage.hasNext()}">다음</a>
+       th:classappend="${userPage.last} ? 'disabled'">&gt;</a>
+
+    <a th:href="@{/admin/users(page=${userPage.totalPages - 1}, email=${searchRequest.email}, name=${searchRequest.name}, startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate})}"
+       th:classappend="${userPage.last} ? 'disabled'">&gt;&gt;</a>
 </div>
 </body>
 </html>

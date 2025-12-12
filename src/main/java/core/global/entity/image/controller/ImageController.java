@@ -1,14 +1,16 @@
 package core.global.entity.image.controller;
 
+import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.ImageErrorCodeDocs;
 import core.global.dto.ApiResponse;
-import core.global.dto.UpsertChatRoomImageRequest;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
 import core.global.entity.image.service.ImageService;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Slf4j
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 @Tag(name = "Image", description = "이미지 업로드 관련 API")
 @RestController
 @RequestMapping("/api/v1/images")
@@ -28,6 +30,7 @@ public class ImageController {
     @Operation(summary = "다건 Presigned URL 발급",
             description = "uploadSessionId + files[] 기반으로 Presigned URL을 일괄 발급")
     @PostMapping("/presign")
+    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_UPLOAD_FAILED })
     public ResponseEntity<ApiResponse<List<PresignedUrlResponse>>> getPresignedUrls(
             @RequestBody PresignedUrlRequest request
     ) {

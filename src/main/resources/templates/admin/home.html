@@ -16,7 +16,11 @@
             position: relative;
             display: block;
         }
-        .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
+        .menu-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
         .menu-item .icon { font-size: 48px; margin-bottom: 15px; }
         .menu-item .title { font-size: 20px; font-weight: bold; }
 
@@ -104,6 +108,11 @@
         <a th:href="@{/admin/crawled-data}" class="menu-item">
             <div class="icon">🕸️</div>
             <div class="title">크롤링 관리</div>
+        </a>
+
+        <a th:href="@{/admin/images/reviews}" class="menu-item" style="border: 2px solid #dc3545;">
+            <div class="icon">🚨</div>
+            <div class="title" style="color: #dc3545;">이미지 검토</div>
         </a>
     </div>
 

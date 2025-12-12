@@ -1,5 +1,6 @@
 package core.global.entity.image.repository;
 
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.entity.image.entity.Image;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -109,4 +110,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
      * @return 조회된 Image 엔티티 (Optional)
      */
     Optional<Image> findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
+
+    List<Image> findByModerationStatusOrderByIdDesc(ImageModerationStatus status);
 }

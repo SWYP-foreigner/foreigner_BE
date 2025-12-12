@@ -11,11 +11,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Controller
@@ -71,6 +73,21 @@ public class CrawledDataAdminController {
     public String reject(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         crawledDataAdminService.rejectCrawledData(id);
         redirectAttributes.addFlashAttribute("successMessage", "데이터가 거절 처리되었습니다.");
+        return "redirect:/admin/crawled-data";
+    }
+
+    @PostMapping("/delete-old")
+    public String deleteOldCrawledData(
+            @RequestParam("targetDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate targetDate,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            long deletedCount = crawledDataAdminService.deleteCrawledDataBefore(targetDate);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    targetDate + " 00시 이전의 데이터 " + deletedCount + "건이 삭제되었습니다.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "삭제 중 오류 발생: " + e.getMessage());
+        }
         return "redirect:/admin/crawled-data";
     }
 }

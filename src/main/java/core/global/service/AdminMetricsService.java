@@ -8,7 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Date;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,41 +24,54 @@ public class AdminMetricsService {
     private final ChatMessageRepository chatMessageRepository;
 
     @Transactional(readOnly = true)
-    public AdminMetricsDto getDashboardMetrics(int signupDays, int validJoinDays, int validActiveDays) {
+    public AdminMetricsDto getDashboardMetrics(
+            LocalDate joinStartDate,
+            LocalDate joinEndDate,
+            int validJoinDays,
+            int validActiveDays
+    ) {
 
         InactiveUserStatsDto userStats = fetchInactiveUserStats();
         UserActivityBucketsDto activityBuckets = fetchUserActivityBuckets();
         List<WeeklyCohortDto> weeklyCohorts = fetchWeeklyCohorts();
 
-        AdvancedMetricsDto advancedMetrics = fetchAdvancedMetrics(signupDays, validJoinDays, validActiveDays);
+        AdvancedMetricsDto advancedMetrics = fetchAdvancedMetrics(joinStartDate, joinEndDate, validJoinDays, validActiveDays);
 
         return new AdminMetricsDto(userStats, activityBuckets, weeklyCohorts, advancedMetrics);
     }
 
-    private AdvancedMetricsDto fetchAdvancedMetrics(int signupDays, int validJoinDays, int validActiveDays) {
-        long recentSignups = userRepository.countRecentSignups(signupDays);
+    private AdvancedMetricsDto fetchAdvancedMetrics(
+            LocalDate startDate,
+            LocalDate endDate,
+            int validJoinDays,
+            int validActiveDays
+    ) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        long periodSignups = userRepository.countUsersJoinedInPeriod(startInstant, endInstant);
+        long retainedUsers = userRepository.countUsersJoinedInPeriodAndActiveToday(startInstant, endInstant);
+
+        double retentionRate = (periodSignups == 0) ? 0.0 : ((double) retainedUsers / periodSignups) * 100.0;
+        String periodLabel = startDate.format(DateTimeFormatter.ofPattern("MM.dd")) + " ~ " + endDate.format(DateTimeFormatter.ofPattern("MM.dd"));
 
         long effectiveActive = userRepository.countEffectiveActiveUsers(validJoinDays, validActiveDays);
-
         long recentActiveExisting = userRepository.countRecentActiveExistingUsers(validJoinDays);
-
-        long joined7DaysAgo = userRepository.countUsersJoined7DaysAgo();
-        long retained7Days = userRepository.countUsersJoined7DaysAgoAndActiveToday();
-        double d7Retention = (joined7DaysAgo == 0) ? 0.0 : ((double) retained7Days / joined7DaysAgo) * 100.0;
 
         long msgCount7Days = chatMessageRepository.countMessagesLast7Days();
         long activeUsers7Days = userRepository.countActiveUsersLast7Days();
         double avgMsg = (activeUsers7Days == 0) ? 0.0 : (double) msgCount7Days / activeUsers7Days;
 
-        // todo: 인기 기능 (로그 테이블이 없으므로 예시 로직 or 더미 데이터)
         String topFeatureName = "실시간 번역";
         double topFeatureUsageRate = 34.1;
 
         return new AdvancedMetricsDto(
-                recentSignups,
+                periodSignups,
                 effectiveActive,
                 recentActiveExisting,
-                Math.round(d7Retention * 10) / 10.0,
+                Math.round(retentionRate * 10) / 10.0,
+                periodLabel,
                 Math.round(avgMsg * 10) / 10.0,
                 topFeatureName,
                 topFeatureUsageRate

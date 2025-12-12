@@ -2,6 +2,7 @@ package core.global.entity.image.service.impl;
 
 import core.domain.post.entity.Post;
 import core.global.entity.image.S3Props;
+import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
 import core.global.entity.image.entity.Image;
@@ -9,13 +10,16 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.PostImageService;
 import core.global.entity.image.utils.UrlUtil;
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
+import core.global.service.ContentModerationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,6 +49,8 @@ public class PostImageServiceImpl implements PostImageService {
     private final ImageStorageClient storageClient;
     private final S3Presigner s3Presigner;
     private final S3Props s3Props;
+    private final ContentModerationService contentModerationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${ncp.s3.bucket}")
     private String bucket;
@@ -150,7 +156,9 @@ public class PostImageServiceImpl implements PostImageService {
 
         // 4) DB 저장
         if (!copyResult.toSave().isEmpty()) {
-            imageRepository.saveAll(copyResult.toSave());
+            List<Image> savedImages = imageRepository.saveAll(copyResult.toSave());
+
+            publishModerationEvents(savedImages);
         }
 
         // 스테이징 원본 삭제
@@ -191,7 +199,9 @@ public class PostImageServiceImpl implements PostImageService {
 
         // 4) DB 저장
         if (!copyResult.toSave().isEmpty()) {
-            imageRepository.saveAll(copyResult.toSave());
+            List<Image> savedImages = imageRepository.saveAll(copyResult.toSave());
+
+            publishModerationEvents(savedImages);
         }
 
         // 5) S3 삭제(사용자 제거 + 스테이징 원본)
@@ -203,9 +213,7 @@ public class PostImageServiceImpl implements PostImageService {
     @Transactional
     public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
 
-        if (multipartFiles == null || multipartFiles.isEmpty() || multipartFiles.stream().allMatch(MultipartFile::isEmpty)) {
-            return;
-        }
+        if (multipartFiles == null || multipartFiles.isEmpty()) return;
 
         List<Image> newImages = new ArrayList<>();
         int orderIndex = 0;
@@ -213,35 +221,121 @@ public class PostImageServiceImpl implements PostImageService {
         for (MultipartFile file : multipartFiles) {
             if (file.isEmpty()) continue;
 
+            ImageModerationStatus status = ImageModerationStatus.CLEAN;
+            String reason = null;
+
             String originalFileName = file.getOriginalFilename();
             String extension = "";
             if (originalFileName != null && originalFileName.contains(".")) {
                 extension = originalFileName.substring(originalFileName.lastIndexOf("."));
             }
             String uniqueFileName = UUID.randomUUID() + extension;
-            String s3Key = "post-images/" + post.getId() + "/" + uniqueFileName;
+            String s3Key = "posts/" + post.getId() + "/" + uniqueFileName;
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(s3Props.getBucket())
                     .key(s3Key)
                     .contentType(file.getContentType())
+                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
-            String uploadedUrl = s3Props.getEndPoint() + "/" + s3Props.getBucket() + "/" + s3Key;
-            String candidateFinalUrl = buildCdnUrlFromKey(cdnBaseUrl, uploadedUrl);
+            String candidateFinalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, s3Key);
 
             Image image = Image.of(
                     ImageType.POST,
                     post.getId(),
                     candidateFinalUrl,
-                    orderIndex++
+                    orderIndex++,
+                    status,
+                    reason
             );
             newImages.add(image);
         }
 
-        imageRepository.saveAll(newImages);
+        List<Image> savedImages = imageRepository.saveAll(newImages);
+
+        // todo: 테스트를 위해 유해성 검사 실행
+        publishModerationEvents(savedImages);
+    }
+
+    @Override
+    @Transactional
+    public void uploadAndSavePostImagesFromUrls(Post post, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return;
+
+        List<Image> newImages = new ArrayList<>();
+        int orderIndex = 0;
+
+        for (String originalUrl : imageUrls) {
+            try {
+
+                String s3Key = "posts/" + post.getId() + "/" + UUID.randomUUID() + getExtension(originalUrl);
+                uploadFileFromUrl(originalUrl, s3Key);
+                String finalUrl = UrlUtil.buildPublicUrlFromKey(endPoint, bucket, s3Key);
+
+                Image image = Image.of(
+                        ImageType.POST,
+                        post.getId(),
+                        finalUrl,
+                        orderIndex++,
+                        ImageModerationStatus.CLEAN,
+                        null
+                );
+                newImages.add(image);
+
+            } catch (Exception e) {
+                log.error("외부 이미지 업로드 실패 (건너뜀): {}", originalUrl, e);
+            }
+        }
+
+        List<Image> savedImages = imageRepository.saveAll(newImages);
+    }
+
+    private void uploadFileFromUrl(String urlString, String key) throws IOException {
+        java.net.URL url = new java.net.URL(urlString);
+        java.net.URLConnection connection = url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+
+        try (java.io.InputStream inputStream = connection.getInputStream()) {
+            String contentType = connection.getContentType();
+            if (contentType == null) contentType = "image/jpeg";
+
+            long length = connection.getContentLengthLong();
+
+            PutObjectRequest.Builder reqBuilder = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(contentType)
+                    .acl(software.amazon.awssdk.services.s3.model.ObjectCannedACL.PUBLIC_READ);
+
+            if (length > 0) {
+                s3Client.putObject(reqBuilder.build(),
+                        software.amazon.awssdk.core.sync.RequestBody.fromInputStream(inputStream, length));
+            } else {
+                byte[] bytes = inputStream.readAllBytes();
+                s3Client.putObject(reqBuilder.build(),
+                        software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
+            }
+        }
+    }
+
+    private String getExtension(String url) {
+        if (url.contains(".")) {
+            String ext = url.substring(url.lastIndexOf("."));
+            if (ext.contains("?")) ext = ext.substring(0, ext.indexOf("?"));
+            if (ext.length() <= 5) return ext;
+        }
+        return ".jpg";
+    }
+
+    private void publishModerationEvents(List<Image> savedImages) {
+        for (Image img : savedImages) {
+            String key = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, img.getUrl());
+            eventPublisher.publishEvent(new ImageModerationEvent(img.getId(), key));
+        }
     }
 
     private List<String> normalizeList(List<String> list) {
@@ -286,7 +380,7 @@ public class PostImageServiceImpl implements PostImageService {
                     stagingToDelete.add(srcKey);
                 }
 
-                return Image.of(ImageType.POST, postId, finalUrl, myOrder);
+                return Image.of(ImageType.POST, postId, finalUrl, myOrder, ImageModerationStatus.CLEAN, null);
             });
         }
 

@@ -6,9 +6,11 @@ import core.domain.board.service.BoardService;
 import core.domain.post.dto.comunity.PostWriteAnonymousAvailableResponse;
 import core.domain.post.service.PostService;
 import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.SortOption;
 import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
@@ -29,6 +31,7 @@ import java.util.List;
 @Tag(name = "Board")
 @RestController
 @RequestMapping("/api/v1/boards")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class BoardController {
 
     private final PostService postService;

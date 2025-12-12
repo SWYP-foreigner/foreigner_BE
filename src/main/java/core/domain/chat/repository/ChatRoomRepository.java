@@ -73,6 +73,11 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 
 
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "JOIN FETCH cr.participants p " +
+            "JOIN FETCH p.user u " + // User 엔티티까지 미리 로딩
+            "WHERE cr.id = :roomId")
+    Optional<ChatRoom> findChatRoomWithParticipantsAndUsers(@Param("roomId") Long roomId);
 
 
     /**

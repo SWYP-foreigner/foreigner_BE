@@ -7,10 +7,12 @@ import core.domain.comment.dto.UserCommentItem;
 import core.domain.comment.service.CommentService;
 import core.global.docs.annotations.CommonErrorCodeDocs;
 import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.SortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1")
 @Tag(name = "Comments", description = "댓글 조회/작성/수정/삭제 API")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class CommentController {
     private final CommentService commentService;
     private final FeatureUsageMetrics featureUsageMetrics;

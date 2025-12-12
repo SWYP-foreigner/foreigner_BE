@@ -95,8 +95,50 @@ public class UserAdminService {
      */
     @Transactional(readOnly = true)
     public Page<ChatRoomInfoDto> getChatRoomsForUser(Long userId, Pageable pageable) {
-        return chatParticipantRepository.findByUserId(userId, pageable)
-                .map(ChatRoomInfoDto::from);
+        Page<ChatParticipant> participants = chatParticipantRepository.findByUserId(userId, pageable);
+
+        return participants.map(participant -> {
+            ChatRoom room = participant.getChatRoom();
+            String roomName = room.getRoomName();
+
+            if (!room.getIsGroup()) {
+                List<String> names = chatParticipantRepository.findParticipantNamesByRoomId(room.getId());
+
+                if (!names.isEmpty()) {
+                    roomName = String.join(", ", names);
+                } else {
+                    roomName = "(참여자 없음)";
+                }
+            }
+
+            return new ChatRoomInfoDto(
+                    room.getId(),
+                    roomName,
+                    room.getIsGroup(),
+                    room.getParticipants().size()
+            );
+        });
+    }
+
+    @Transactional
+    public void deletePost(Long postId) {
+        postRepository.deleteById(postId);
+    }
+
+    @Transactional
+    public void deleteComment(Long commentId) {
+        commentRepository.deleteById(commentId);
+    }
+
+    @Transactional
+    public void deleteMessage(Long messageId) {
+        chatMessageRepository.deleteById(messageId);
+    }
+
+    @Transactional
+    public void deleteChatRoom(Long chatRoomId) {
+        chatMessageRepository.deleteAllByChatRoomId(chatRoomId);
+        chatRoomRepository.deleteById(chatRoomId);
     }
 
     /**

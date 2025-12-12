@@ -3,6 +3,8 @@ package core.global.service;
 
 import core.domain.user.entity.User;
 import core.domain.user.service.UserService;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.AccessTokenDto;
 import core.global.dto.GoogleProfileDto;
@@ -51,9 +53,12 @@ public class GoogleAuthService {
 
     private User findOrCreateUser(GoogleProfileDto profile) {
         User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
-        if (user == null) {
-            user = userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
+        if (user != null) {
+            return user;
         }
-        return user;
+        if (userService.existsByEmail(profile.getEmail())) {
+            throw new BusinessException(UserErrorCode.DUPLICATE_EMAIL_PROVIDER_MISMATCH);
+        }
+        return userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
     }
 }

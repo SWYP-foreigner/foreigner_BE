@@ -10,6 +10,6 @@ public record FeedbackRequest(
         @Size(max = 1000, message = "내용은 1000자 이내여야 합니다.")
         String content,
 
-        @Schema(description = "유입 경로", example = "HOME_BANNER")
+        @Schema(description = "만족했는지 안했는지", example = "Satisfied")
         String source
 ) {}

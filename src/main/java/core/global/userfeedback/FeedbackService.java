@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class FeedbackService {
 
     private final UserFeedbackRepository feedbackRepository;
@@ -22,15 +21,22 @@ public class FeedbackService {
     /**
      * 피드백 저장
      * 정책 변경: 중복 체크 로직 제거 (여러 번 제출 가능)
+     * 수정 사항: String 입력값을 대소문자 구분 없이 Enum으로 변환 처리
      */
     @Transactional
     public void createFeedback(Long userId, FeedbackRequest request) {
         User user = getUserOrThrow(userId);
+        FeedbackSource feedbackSource;
+        try {
+            feedbackSource = FeedbackSource.valueOf(request.source().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new BusinessException(UserErrorCode.INVALID_INPUT_VALUE);
+        }
 
         UserFeedback feedback = UserFeedback.builder()
                 .user(user)
                 .content(request.content())
-                .source(FeedbackSource.valueOf(request.source()))
+                .source(feedbackSource)
                 .build();
 
         feedbackRepository.save(feedback);

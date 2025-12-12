@@ -185,4 +185,14 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     FROM users
     """, nativeQuery = true)
     Object[] visitorShareOverall();
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt BETWEEN :start AND :end")
+    long countUsersJoinedInPeriod(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM users 
+        WHERE created_at BETWEEN :start AND :end
+          AND last_seen_at >= NOW() - INTERVAL '24 hours'
+    """, nativeQuery = true)
+    long countUsersJoinedInPeriodAndActiveToday(@Param("start") Instant start, @Param("end") Instant end);
 }

@@ -2,8 +2,10 @@ package core.domain.user.controller;
 
 import core.domain.user.service.FollowService;
 import core.domain.user.service.UserService;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/home")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class MainHomeController {
     private final FollowService followService;
     private final FeatureUsageMetrics featureUsageMetrics;
