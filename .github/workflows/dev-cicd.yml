@@ -36,6 +36,8 @@ jobs:
           POSTGRES_DB: testdb
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd="pg_isready -U testuser -d testdb"
           --health-interval=5s
@@ -44,6 +46,8 @@ jobs:
 
       redis:
         image: redis:7
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd="redis-cli ping || exit 1"
           --health-interval=5s
@@ -95,18 +99,20 @@ jobs:
         env:
           PGPASSWORD: testpass
         run: |
-          echo "Waiting for Postgres..."
-          until pg_isready -h postgres -p 5432 -U testuser -d testdb; do
+          echo "Waiting for Postgres on localhost:5432..."
+          until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
             sleep 2
           done
 
           echo "Postgres is ready. Enabling PGroonga..."
-          psql -h postgres -p 5432 -U testuser -d testdb \
+          psql -h localhost -p 5432 -U testuser -d testdb \
             -c "CREATE EXTENSION IF NOT EXISTS pgroonga;"
 
           echo "Postgres info..."
-          psql -h postgres -p 5432 -U testuser -d testdb \
-            -c "select version(), extname from pg_extension;"
+          psql -h localhost -p 5432 -U testuser -d testdb \
+            -c "select version();"
+          psql -h localhost -p 5432 -U testuser -d testdb \
+            -c "select extname from pg_extension order by extname;"
 
           echo "Waiting for Redis..."
           until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
@@ -119,14 +125,20 @@ jobs:
           CI: "true"
           SPRING_PROFILES_ACTIVE: test
 
-          SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/testdb
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
 
-          SPRING_DATA_REDIS_HOST: redis
+          SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: "6379"
         run: |
-          ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g
+          ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb \
+            -Dspring.datasource.username=testuser \
+            -Dspring.datasource.password=testpass \
+            -Dspring.data.redis.host=localhost \
+            -Dspring.data.redis.port=6379
+      
 
       - name: Dump service logs (before job teardown)
         if: always()
