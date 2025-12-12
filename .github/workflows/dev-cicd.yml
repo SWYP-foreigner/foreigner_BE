@@ -104,8 +104,8 @@ jobs:
             sleep 2
           done
           
-          echo "Postgres is ready. Checking connection..."
-          psql -h postgres -p 5432 -U testuser -d testdb -c "select version();"
+          echo "Waiting for Postgres on localhost:5432..."
+          psql -h localhost -p 5432 -U testuser -d testdb -c "select version();"
           
           echo "Waiting for Redis..."
           until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
