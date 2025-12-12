@@ -1,0 +1,8 @@
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'testuser') THEN
+CREATE ROLE testuser WITH LOGIN PASSWORD 'testpass' SUPERUSER;
+END IF;
+END $$;
+
+CREATE EXTENSION IF NOT EXISTS pgroonga;
