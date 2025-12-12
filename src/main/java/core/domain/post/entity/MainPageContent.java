@@ -60,4 +60,8 @@ public class MainPageContent {
         this.originalUrl = originalUrl;
         this.publisher = publisher;
     }
+
+    public void changeHtmlContent(String htmlContent) {
+        this.htmlContent = htmlContent;
+    }
 }
