@@ -1,4 +1,4 @@
-package core.domain.post.service;
+package core.domain.post.service.search;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -6,7 +6,6 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
-import core.domain.post.service.search.SuggestMemoryIndex;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;

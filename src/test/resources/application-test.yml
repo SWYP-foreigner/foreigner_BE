@@ -1,0 +1,181 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-test.sql
+
+  flyway:
+    enabled: false
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/testdb}
+    username: ${SPRING_DATASOURCE_USERNAME:testuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:testpass}
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    defer-datasource-initialization: true
+
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+
+  thymeleaf:
+    encoding: UTF-8
+    prefix: classpath:/templates/
+    suffix: .html
+    check-template-location: true
+
+  mail:
+    host: localhost
+    port: 587
+    username: dummy@mail.com
+    password: dummy-pass
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: false
+      mail.smtp.ssl.trust: smtp.naver.com
+      mail.smtp.ssl.protocols: TLSv1.2
+      mail.debug: false
+
+logging:
+  level:
+    org.springframework.jdbc.datasource: debug
+    org.hibernate.engine.jdbc.env.internal.LobCreatorBuilderImpl: warn
+
+
+jwt:
+  secret: dummy-jwt-secret
+  access-expiration: 30
+  refresh-expiration: 10080
+
+
+cloud:
+  openfeign:
+    client:
+      config:
+        default:
+          connectTimeout: 3000
+          readTimeout: 5000
+          loggerLevel: NONE
+
+
+oauth:
+  google:
+    android:
+      client-id: dummy-android-client-id
+      redirect-uri: https://localhost/android/callback
+    ios:
+      client-id: dummy-ios-client-id
+      redirect-uri: https://localhost/ios/callback
+    web:
+      client-id: dummy-web-client-id
+      client-secret: dummy-secret
+      redirect-uri: https://localhost/web/callback
+
+  apple:
+    issuer: https://appleid.apple.com
+    team-id: TEST_TEAM
+    key-id: TEST_KEY
+    client-id: dummy.apple.client.id
+    redirect-uri: https://localhost/apple/callback
+    private-key-pem: |
+      -----BEGIN PRIVATE KEY-----
+      TEST_PRIVATE_KEY
+      -----END PRIVATE KEY-----
+
+
+ncp:
+  s3:
+    access-key: dummy-access
+    secret-key: dummy-secret
+    region: kr-standard
+    endpoint: https://kr.object.ncloudstorage.com
+    bucket: dummy-bucket
+  clova:
+    apiUrl: https://dummy-clova-url
+    apiKey: dummy-clova-api-key
+
+
+swagger:
+  server-url: http://localhost:8080
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+
+google:
+  cloud:
+    project:
+      id: dummy-project
+    translate:
+      api-key: dummy-translate
+    perspective:
+      api-key: dummy-perspective
+  maps:
+    api:
+      key: dummy-map-key
+  mail:
+    from: dummy@mail.com
+    brand: DummyBrand
+    code-ttl-minutes: 3
+
+  password:
+    reset:
+      ttl-minutes: 15
+      session-ttl-minutes: 5
+
+  api:
+    base-url: http://localhost:8080
+
+
+cdn:
+  base-url: http://localhost/cdn
+
+
+firebase:
+  credentials:
+    json-string: "{}"
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: my-service
+
+
+app:
+  mail:
+    from: dummy@mail.com
+    brand: DummyBrand
+    code-ttl-minutes: 3
