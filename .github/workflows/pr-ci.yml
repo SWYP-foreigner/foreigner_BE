@@ -82,6 +82,7 @@ jobs:
           END $$;
 
           CREATE EXTENSION IF NOT EXISTS pgroonga;
+          CREATE EXTENSION IF NOT EXISTS unaccent;
           SQL
 
           echo "Extensions:"
