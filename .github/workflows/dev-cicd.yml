@@ -99,49 +99,35 @@ jobs:
         env:
           PGPASSWORD: testpass
         run: |
-          echo "Waiting for Postgres on localhost:5432..."
+          echo "Waiting for Postgres on postgres:5432..."
           until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
             sleep 2
           done
 
-          echo "Postgres is ready. Enabling PGroonga..."
-          psql -h localhost -p 5432 -U testuser -d testdb \
-            -c "CREATE EXTENSION IF NOT EXISTS pgroonga;"
-
-          echo "Postgres info..."
-          psql -h localhost -p 5432 -U testuser -d testdb \
-            -c "select version();"
-          psql -h localhost -p 5432 -U testuser -d testdb \
-            -c "select extname from pg_extension order by extname;"
+          echo "Postgres is ready. Checking connection..."
+          psql -h postgres -p 5432 -U testuser -d testdb -c "select version();"
 
           echo "Waiting for Redis..."
           until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
             sleep 2
           done
           echo "Redis is ready."
+      
 
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
           SPRING_PROFILES_ACTIVE: test
-          SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/testdb
-          SPRING_DATASOURCE_USERNAME: testuser
-          SPRING_DATASOURCE_PASSWORD: testpass
-          SPRING_DATA_REDIS_HOST: redis
-          SPRING_DATA_REDIS_PORT: "6379"
         run: |
           echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
-          echo "SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL"
-          echo "SPRING_DATA_REDIS_HOST=$SPRING_DATA_REDIS_HOST"
 
-          ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g \
+          ./gradlew --no-daemon clean test -Dorg.gradle.jvmargs=-Xmx2g \
             -Dspring.profiles.active=test \
-            -Dspring.datasource.url=jdbc:postgresql://postgres:5432/testdb \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
             -Dspring.datasource.username=testuser \
             -Dspring.datasource.password=testpass \
-            -Dspring.data.redis.host=redis \
+            -Dspring.data.redis.host=localhost \
             -Dspring.data.redis.port=6379
-      
       
 
       - name: Dump service logs (before job teardown)

@@ -1,5 +1,5 @@
 package core.domain.post.repository.impl;
 
-class PostSearchRepositoryImplTest {
+public class PostSearchRepositoryImplTest {
 
 }

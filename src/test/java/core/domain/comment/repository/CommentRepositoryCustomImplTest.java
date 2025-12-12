@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(QuerydslConfig.class)
-class CommentRepositoryCustomImplTest {
+public class CommentRepositoryCustomImplTest {
 
     @Autowired
     private CommentRepositoryCustomImpl commentRepositoryCustom;

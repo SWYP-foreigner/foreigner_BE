@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({QuerydslConfig.class, PostRepositoryImpl.class})
-class PostRepositoryImplTest {
+public class PostRepositoryImplTest {
 
     @Autowired
     private PostRepositoryImpl postRepositoryImpl;

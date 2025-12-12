@@ -3,10 +3,13 @@ spring:
     activate:
       on-profile: test
 
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-test.sql
+
   flyway:
     enabled: false
-    baseline-on-migrate: true
-
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/testdb}
     username: ${SPRING_DATASOURCE_USERNAME:testuser}
