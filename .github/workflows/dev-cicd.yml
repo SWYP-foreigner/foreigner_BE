@@ -80,14 +80,14 @@ jobs:
         run: |
           echo "--- docker ps ---"
           docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
-
+          
           echo "--- postgres health ---"
           PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
           echo "Postgres CID: $PG_CID"
           if [ -n "$PG_CID" ]; then
             docker inspect "$PG_CID" | jq -r '.[0].State.Health.Status'
           fi
-
+          
           echo "--- redis health ---"
           RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
           echo "Redis CID: $RD_CID"
@@ -103,16 +103,16 @@ jobs:
           until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
             sleep 2
           done
-
+          
           echo "Postgres is ready. Checking connection..."
           psql -h postgres -p 5432 -U testuser -d testdb -c "select version();"
-
+          
           echo "Waiting for Redis..."
           until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
             sleep 2
           done
           echo "Redis is ready."
-      
+
 
       - name: Run preflight (tests + coverage)
         env:
@@ -120,7 +120,7 @@ jobs:
           SPRING_PROFILES_ACTIVE: test
         run: |
           echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
-
+          
           ./gradlew --no-daemon clean test -Dorg.gradle.jvmargs=-Xmx2g \
             -Dspring.profiles.active=test \
             -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
@@ -128,20 +128,20 @@ jobs:
             -Dspring.datasource.password=testpass \
             -Dspring.data.redis.host=localhost \
             -Dspring.data.redis.port=6379
-      
+
 
       - name: Dump service logs (before job teardown)
         if: always()
         run: |
           echo "--- docker ps ---"
           docker ps || true
-
+          
           PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
           if [ -n "$PG_CID" ]; then
             echo "--- postgres logs (tail) ---"
             docker logs --tail 200 "$PG_CID" || true
           fi
-
+          
           RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
           if [ -n "$RD_CID" ]; then
             echo "--- redis logs (tail) ---"
@@ -172,7 +172,7 @@ jobs:
             echo "NOTION_TOKEN or NOTION_DB_ID is empty. Skip Notion sync."
             exit 0
           fi
-
+          
           echo "Running Notion sync (failures will NOT break CI)..."
           ./gradlew --no-daemon runNotionSync || {
             echo "⚠️ Notion sync failed (ignored for CI). Check logs above.";
@@ -204,7 +204,7 @@ jobs:
           cache-to: |
             type=gha,mode=max
             type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/foreigner:buildcache,mode=max
-
+  
 
   deploy-app:
     needs: [ build ]
@@ -310,7 +310,7 @@ jobs:
               FIREBASE_JSON_COMPACT="$(tr -d '\n' < firebase.json)"
             fi
             # 공백/특수문자 안전하게 기록
-
+            
             # 이미지 변수는 .env에 한 번만 기록
             {
               echo "IMAGE=${IMAGE}"
@@ -411,16 +411,16 @@ jobs:
             set -euo pipefail
             REPO="${{ secrets.DOCKERHUB_USERNAME }}/foreigner"
             KEEP=4
-
+            
             # 실행/중지 컨테이너가 쓰는 이미지 목록 (보존)
             ALL_IN_USE="$(docker ps -a --format '{{.Image}}' | grep "^${REPO}:" | sort -u || true)"
-
+            
             # 최신 4개 태그 (롤백 대비 보존)
             KEEP_TAGS="$(
               docker image ls "$REPO" --format '{{.Tag}} {{.CreatedAt}}' \
               | sort -rk2 | awk '{print $1}' | head -n "$KEEP"
             )"
-
+            
             # 레포의 모든 태그 중, in-use/최신4개 제외하고 삭제
             docker image ls "$REPO" --format '{{.Repository}}:{{.Tag}}' \
             | while read -r IMG; do
@@ -433,9 +433,9 @@ jobs:
               fi
               docker rmi "$IMG" || true
             done
-
+            
             # dangling 레이어 추가 정리
             docker image prune -f || true
-
+            
             echo "Remaining images:"
             docker image ls "$REPO" --format '{{.Repository}}:{{.Tag}}\t{{.CreatedSince}}' | sort -k2
