@@ -124,20 +124,24 @@ jobs:
         env:
           CI: "true"
           SPRING_PROFILES_ACTIVE: test
-
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
-
-          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_HOST: redis
           SPRING_DATA_REDIS_PORT: "6379"
         run: |
+          echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
+          echo "SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL"
+          echo "SPRING_DATA_REDIS_HOST=$SPRING_DATA_REDIS_HOST"
+
           ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g \
-            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb \
+            -Dspring.profiles.active=test \
+            -Dspring.datasource.url=jdbc:postgresql://postgres:5432/testdb \
             -Dspring.datasource.username=testuser \
             -Dspring.datasource.password=testpass \
-            -Dspring.data.redis.host=localhost \
+            -Dspring.data.redis.host=redis \
             -Dspring.data.redis.port=6379
+      
       
 
       - name: Dump service logs (before job teardown)
