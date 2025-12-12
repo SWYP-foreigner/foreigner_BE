@@ -100,12 +100,15 @@ jobs:
             sleep 2
           done
 
-          echo "Postgres is ready. Checking info..."
+          echo "Postgres is ready. Enabling PGroonga..."
           psql -h postgres -p 5432 -U testuser -d testdb \
-            -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
+            -c "CREATE EXTENSION IF NOT EXISTS pgroonga;"
+
+          echo "Postgres info..."
+          psql -h postgres -p 5432 -U testuser -d testdb \
+            -c "select version(), extname from pg_extension;"
 
           echo "Waiting for Redis..."
-          # redis-cli는 runner에 기본이 아닐 수 있어, 컨테이너 내부에서 ping
           until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
             sleep 2
           done
