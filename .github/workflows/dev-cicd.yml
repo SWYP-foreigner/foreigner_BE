@@ -36,17 +36,14 @@ jobs:
           POSTGRES_DB: testdb
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpass
-        ports:
-          - 5433:5432
         options: >-
           --health-cmd="pg_isready -U testuser -d testdb"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=30
+
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
         options: >-
           --health-cmd="redis-cli ping || exit 1"
           --health-interval=5s
@@ -55,52 +52,97 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
 
       - name: Gradle Wrapper Validate
         uses: gradle/actions/wrapper-validation@v3
         continue-on-error: true
         timeout-minutes: 5
 
-      - name: Show Postgres health & container info
+      - name: Install clients (psql, jq)
         run: |
-          sudo apt-get update -y && sudo apt-get install -y postgresql-client jq
-          CID="$(docker ps -q --filter 'ancestor=groonga/pgroonga:latest-postgres16' | head -n1)"
-          echo "Postgres Container ID: $CID"
-          docker inspect "$CID" | jq -r '.[0].State.Health.Status'
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client jq
+
+      - name: Show service containers status
+        run: |
+          echo "--- docker ps ---"
           docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
+
+          echo "--- postgres health ---"
+          PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
+          echo "Postgres CID: $PG_CID"
+          if [ -n "$PG_CID" ]; then
+            docker inspect "$PG_CID" | jq -r '.[0].State.Health.Status'
+          fi
+
+          echo "--- redis health ---"
+          RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
+          echo "Redis CID: $RD_CID"
+          if [ -n "$RD_CID" ]; then
+            docker inspect "$RD_CID" | jq -r '.[0].State.Health.Status'
+          fi
+
+      - name: Wait for Postgres & Redis
+        env:
+          PGPASSWORD: testpass
+        run: |
+          echo "Waiting for Postgres..."
+          until pg_isready -h postgres -p 5432 -U testuser -d testdb; do
+            sleep 2
+          done
+
+          echo "Postgres is ready. Checking info..."
+          psql -h postgres -p 5432 -U testuser -d testdb \
+            -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
+
+          echo "Waiting for Redis..."
+          # redis-cli는 runner에 기본이 아닐 수 있어, 컨테이너 내부에서 ping
+          until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
+            sleep 2
+          done
+          echo "Redis is ready."
 
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
-          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5433/testdb
+          SPRING_PROFILES_ACTIVE: test
+
+          SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/testdb
           SPRING_DATASOURCE_USERNAME: testuser
           SPRING_DATASOURCE_PASSWORD: testpass
-        run: |
-          until pg_isready -h localhost -p 5433 -U testuser -d testdb; do
-            echo "Waiting for Postgres..."; sleep 2;
-          done
-          PGPASSWORD=testpass psql -h localhost -p 5433 -U testuser -d testdb -c "select version(), current_database(), inet_server_addr(), inet_server_port();"
-          ./gradlew --no-daemon clean preflight "-Dspring.profiles.active=test" "-Dorg.gradle.jvmargs=-Xmx2g"
 
-      - name: Dump Postgres logs & ps (before job teardown)
+          SPRING_DATA_REDIS_HOST: redis
+          SPRING_DATA_REDIS_PORT: "6379"
+        run: |
+          ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g
+
+      - name: Dump service logs (before job teardown)
         if: always()
         run: |
-          CID="$(docker ps -q --filter 'ancestor=groonga/pgroonga:latest-postgres16' | head -n1)"
-          if [ -n "$CID" ]; then
-            echo "--- docker logs (tail) ---"
-            docker logs --tail 200 "$CID" || true
-          fi
           echo "--- docker ps ---"
           docker ps || true
-          echo "NOTE: 서비스 컨테이너는 이 스텝 이후, 잡 종료 시 자동 정리됩니다."
+
+          PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
+          if [ -n "$PG_CID" ]; then
+            echo "--- postgres logs (tail) ---"
+            docker logs --tail 200 "$PG_CID" || true
+          fi
+
+          RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
+          if [ -n "$RD_CID" ]; then
+            echo "--- redis logs (tail) ---"
+            docker logs --tail 200 "$RD_CID" || true
+          fi
+  
 
   sync-error-codes:
     needs: [ preflight, quality-tests ]
