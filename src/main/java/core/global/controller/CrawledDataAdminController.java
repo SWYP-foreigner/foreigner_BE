@@ -16,6 +16,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
@@ -73,12 +74,14 @@ public class CrawledDataAdminController {
             @RequestParam(value = "boardId", required = false) Long boardId,
             @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
-            @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl, // [추가]
-            @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl, // [추가]
+            @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
+            @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
+            @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
+            @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl);
+            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
@@ -95,10 +98,12 @@ public class CrawledDataAdminController {
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
             @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
+            @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
+            @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl);
+            crawledDataAdminService.approveAndPost(id, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());

@@ -196,6 +196,10 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
+        if (document.querySelector('.message.success')) {
+            sessionStorage.removeItem(STORAGE_KEY);
+        }
+
         const selectedIds = getSelectedIds();
         updateSelectionInfo(selectedIds.size);
 

@@ -19,6 +19,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.PostImageService;
 import core.global.enums.CrawledDataStatus;
 import core.global.enums.ImageType;
+import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -33,12 +34,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetUrlRequest;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.time.Instant;
@@ -101,7 +104,9 @@ public class CrawledDataAdminService {
 
     @Transactional
     public void approveMergedData(List<Long> sourceIds, String title, String publishType, Long boardId, String content,
-                                  List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl) {
+                                  List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
+                                  MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile) {
+
         List<CrawledData> sourceDataList = crawledDataRepository.findAllById(sourceIds);
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         User adminUser = userRepository.findById(principal.getUserId())
@@ -135,12 +140,8 @@ public class CrawledDataAdminService {
             String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache);
             savedContent.changeHtmlContent(processedHtml);
 
-            if (mainThumbnailUrl != null) {
-                saveSpecificThumbnail(contentId, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
-            }
-            if (popularThumbnailUrl != null) {
-                saveSpecificThumbnail(contentId, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
-            }
+            processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
+            processAndSaveThumbnail(contentId, popularThumbnailFile, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
         }
 
         for (CrawledData data : sourceDataList) {
@@ -150,7 +151,9 @@ public class CrawledDataAdminService {
 
     @Transactional
     public void approveAndPost(Long crawledDataId, String publishType, Long boardId, String content,
-                               List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl) {
+                               List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
+                               MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile) {
+
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -184,15 +187,61 @@ public class CrawledDataAdminService {
             String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache);
             savedContent.changeHtmlContent(processedHtml);
 
-            if (mainThumbnailUrl != null) {
-                saveSpecificThumbnail(contentId, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
-            }
-            if (popularThumbnailUrl != null) {
-                saveSpecificThumbnail(contentId, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
-            }
+            processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
+            processAndSaveThumbnail(contentId, popularThumbnailFile, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
         }
 
         crawledData.updateStatus(CrawledDataStatus.APPROVED, savedReferenceId);
+    }
+
+    private void processAndSaveThumbnail(Long contentId, MultipartFile file, String url, ImageType type, Map<String, String> urlCache) {
+        String s3Url = null;
+
+        if (file != null && !file.isEmpty()) {
+            s3Url = uploadMultipartFileToS3(file, contentId);
+        }
+        else if (url != null && !url.isBlank()) {
+            s3Url = urlCache.computeIfAbsent(url, k -> this.uploadImageToS3(k, contentId));
+        }
+
+        if (s3Url != null) {
+            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, type)) {
+                Image image = Image.of(type, contentId, s3Url, 0);
+                imageRepository.save(image);
+            }
+        }
+    }
+
+    private String uploadMultipartFileToS3(MultipartFile file, Long contentId) {
+        try {
+            String originalFilename = file.getOriginalFilename();
+            String extension = ".jpg";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+            }
+
+            String fileName = UUID.randomUUID() + extension;
+            String s3Key = "main-page/" + contentId + "/" + fileName;
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(s3Props.getBucket())
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentLength(file.getSize())
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            return s3Client.utilities().getUrl(GetUrlRequest.builder()
+                    .bucket(s3Props.getBucket())
+                    .key(s3Key)
+                    .build()).toString();
+
+        } catch (IOException e) {
+            log.error("Failed to upload MultipartFile to S3", e);
+            throw new BusinessException(CommonErrorCode.FILE_UPLOAD_ERROR);
+        }
     }
 
     private void saveSpecificThumbnail(Long contentId, String originalUrl, ImageType type, Map<String, String> uploadedUrlCache) {

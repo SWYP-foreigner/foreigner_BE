@@ -19,7 +19,9 @@ public enum CommonErrorCode implements AppError {
     TRANSLATE_FAIL(HttpStatus.INTERNAL_SERVER_ERROR, "메시지 번역에 실패했습니다."),
 
     NOTIFICATION_FORBIDDEN(HttpStatus.FORBIDDEN, "알람을 받은 유저와 같은 유저가 아닙니다."),
-    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 알람을 찾을 수 없습니다.");
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 알람을 찾을 수 없습니다."),
+
+    FILE_UPLOAD_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드 처리 중 오류가 발생했습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;
