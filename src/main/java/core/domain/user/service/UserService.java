@@ -259,47 +259,40 @@ public class UserService {
 // UserSetupRequest dto를 받는 메서드 내부
         if (dto.language() != null && !dto.language().isEmpty()) {
 
-            // 1. [정제 로직] updateLanguage와 updateTranslateLanguage에 사용할 리스트 생성
-            List<String> languages = dto.language().stream()
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
-                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
 
-            if (!languages.isEmpty()) {
-                // languages 컬럼에는 정제된 소문자 전체 리스트를 CSV로 저장
-                String userLanguagesCsv = String.join(",", languages);
-                user.updateLanguage(userLanguagesCsv);
+            if (!rawLanguages.isEmpty()) {
 
-                // 2. [대표 번역 언어 추출] (pattern 정의 필요)
-                String firstTranslatedLanguage = languages.stream()
-                        .map(s -> {
-                            // **주의:** pattern 객체가 어디에 정의되어 있는지 확인하고 가져와야 합니다.
-                            // 만약 pattern 객체가 없다면, 간단히 첫 번째 항목의 ISO 코드만 사용하거나,
-                            // 정규식 대신 단순 문자열 처리(예: substring)를 적용해야 합니다.
-
-                            // 정규식 Matcher 사용 (updateUserLanguage 로직 그대로 적용)
-                            Matcher matcher = pattern.matcher(s);
-                            if (matcher.find()) {
-                                return matcher.group(1).trim();
-                            }
-                            // [대안] 만약 정규식이 없거나 코드가 'ko'와 같이 바로 들어오는 경우
-                            if (s.length() <= 5 && !s.contains("[")) {
-                                return s;
-                            }
-                            return "";
-                        })
-                        .filter(s -> !s.isEmpty())
-                        .findFirst()
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
                 }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
+                }
             }
         }
+
         if (dto.hobby() != null && !dto.hobby().isEmpty()) {
             String csv = String.join(",", dto.hobby());
             user.updateHobby(csv);
@@ -344,7 +337,30 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
+    private String normalizeLanguageCode(String rawLang) {
+        if (rawLang == null) return "";
 
+        String normalized = rawLang.toLowerCase().trim();
+
+        // 1. 정규식 패턴 기반 추출 (예: 'abkhaz [ab]' -> 'ab')
+        Matcher matcher = pattern.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        // 2. 대시(-) 처리 (예: 'fr-fr' -> 'fr')
+        if (normalized.contains("-")) {
+            return normalized.split("-")[0].trim();
+        }
+
+        // 3. 단순 코드인 경우 (예: 'ko', 'en')
+        // 코드 길이가 2~5자인 경우 (예: zh-CN)는 그대로 반환
+        if (normalized.length() >= 2 && normalized.length() <= 5) {
+            return normalized;
+        }
+
+        return ""; // 그 외 알 수 없는 포맷은 무시
+    }
     @Transactional
     public void deleteProfileImage() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
