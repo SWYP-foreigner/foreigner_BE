@@ -32,6 +32,7 @@ import java.util.List;
 @Getter
 @NoArgsConstructor
 public class Post {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "post_id")
