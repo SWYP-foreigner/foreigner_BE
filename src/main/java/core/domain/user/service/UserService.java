@@ -256,13 +256,40 @@ public class UserService {
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
+// UserSetupRequest dto를 받는 메서드 내부
         if (dto.language() != null && !dto.language().isEmpty()) {
-            String userLanguagesCsv = String.join(",", dto.language());
-            user.updateLanguage(userLanguagesCsv);
 
-            String firstTranslatedLanguage = dto.language().get(0);
-            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
-                user.updateTranslateLanguage(firstTranslatedLanguage);
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+
+            if (!rawLanguages.isEmpty()) {
+
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
+                        .orElse("");
+
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
+                }
             }
         }
 
@@ -310,7 +337,30 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
+    private String normalizeLanguageCode(String rawLang) {
+        if (rawLang == null) return "";
 
+        String normalized = rawLang.toLowerCase().trim();
+
+        // 1. 정규식 패턴 기반 추출 (예: 'abkhaz [ab]' -> 'ab')
+        Matcher matcher = pattern.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        // 2. 대시(-) 처리 (예: 'fr-fr' -> 'fr')
+        if (normalized.contains("-")) {
+            return normalized.split("-")[0].trim();
+        }
+
+        // 3. 단순 코드인 경우 (예: 'ko', 'en')
+        // 코드 길이가 2~5자인 경우 (예: zh-CN)는 그대로 반환
+        if (normalized.length() >= 2 && normalized.length() <= 5) {
+            return normalized;
+        }
+
+        return ""; // 그 외 알 수 없는 포맷은 무시
+    }
     @Transactional
     public void deleteProfileImage() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -593,30 +643,40 @@ public class UserService {
             user.updatePurpose(dto.purpose());
         }
 
+// UserLanguageDTO dto를 받는 메서드 내부 (updateUserLanguage 로직)
+
         if (dto.language() != null && !dto.language().isEmpty()) {
-            List<String> languages = dto.language().stream()
+
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
-                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
 
-            if (!languages.isEmpty()) {
-                String userLanguagesCsv = String.join(",", languages);
-                user.updateLanguage(userLanguagesCsv);
+            if (!rawLanguages.isEmpty()) {
 
-                String firstTranslatedLanguage = languages.stream()
-                        .map(s -> {
-                            Matcher matcher = pattern.matcher(s);
-                            return matcher.find() ? matcher.group(1).trim() : "";
-                        })
-                        .filter(s -> !s.isEmpty())
-                        .findFirst()
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
                 }
             }
         }
@@ -660,37 +720,6 @@ public class UserService {
             responseDto.setNewTokens(accessToken, refreshToken);
         }
         return responseDto;
-    }
-
-    @Transactional
-    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
-
-        updateSkipUserSetup(dto);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        String accessToken = jwtTokenProvider.createAccessToken(
-                user.getId(),
-                user.getUserRole().name(),
-                user.getEmail()
-        );
-        String refreshToken = redisService.getRefreshToken(user.getId());
-        if (refreshToken == null) {
-            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
-            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
-        }
-
-        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
-        return new LoginResponseDto(
-                user.getId(),
-                accessToken,
-                refreshToken,
-                user.isNewUser()
-        );
     }
 
     @Transactional
