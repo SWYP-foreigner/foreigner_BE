@@ -5,15 +5,13 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
 import core.global.enums.BoardCategory;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -44,33 +42,26 @@ public class AdminPostController {
      */
     @PostMapping("/custom")
     public String createCustomPost(
-            @RequestParam("boardCategory") String boardCategory,
+            @RequestParam("publishType") String publishType,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "boardCategory", required = false) String boardCategory,
             @RequestParam("content") String content,
-            @RequestParam(value = "images", required = false) List<MultipartFile> images,
+            @RequestParam(value = "generalImages", required = false) List<MultipartFile> generalImages,
+            @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
+            @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             @AuthenticationPrincipal CustomUserDetails principal,
             RedirectAttributes redirectAttributes
     ) {
 
         try {
-            if (images != null && images.size() > 5) {
-                redirectAttributes.addFlashAttribute("errorMessage", "이미지는 최대 5개까지만 업로드 가능합니다.");
-                return "redirect:/admin/posts/new";
-            }
-
             User adminUser = userRepository.findById(principal.getUserId())
-                    .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-            BoardCategory category = BoardCategory.valueOf(boardCategory.toUpperCase());
-
-            postService.createAdminPost(content, category, images, adminUser);
+            postService.createAdminPost(title, content, publishType, boardCategory, generalImages, mainThumbnailFile, popularThumbnailFile, adminUser);
 
             redirectAttributes.addFlashAttribute("successMessage", "포스트가 성공적으로 발행되었습니다.");
             return "redirect:/admin/crawled-data";
 
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid BoardCategory provided: {}", boardCategory, e);
-            redirectAttributes.addFlashAttribute("errorMessage", "유효하지 않은 게시판 카테고리입니다.");
-            return "redirect:/admin/posts/new";
         } catch (Exception e) {
             log.error("Failed to create custom post", e);
             redirectAttributes.addFlashAttribute("errorMessage", "포스트 등록 실패: " + e.getMessage());

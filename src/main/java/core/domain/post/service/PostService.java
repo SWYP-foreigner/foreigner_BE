@@ -3,7 +3,6 @@ package core.domain.post.service;
 import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.user.entity.User;
-import core.global.enums.BoardCategory;
 import core.domain.post.dto.comunity.*;
 import core.global.enums.SortOption;
 import core.global.pagination.CursorPageResponse;
@@ -40,7 +39,11 @@ public interface PostService {
 
     void blockPost(@Positive Long postId);
 
-    void createAdminPost(String content, BoardCategory category, List<MultipartFile> images, User adminUser) throws IOException;
+    void createAdminPost(String title, String content, String publishType,
+                         String boardCategoryStr,
+                         List<MultipartFile> generalImages,
+                         MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                         User adminUser) throws IOException;
 
     void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
 

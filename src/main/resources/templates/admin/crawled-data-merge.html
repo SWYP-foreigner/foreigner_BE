@@ -2,26 +2,23 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>크롤링 데이터 상세 및 승인</title>
+    <title>데이터 병합 및 게시</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-
         body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background-color: #f4f6f9; }
         .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; font-size: 24px; }
-        .meta-info { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; color: #555; }
-        .meta-info p { margin: 5px 0; }
+        .meta-info { background-color: #e2e3e5; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #383d41; }
+        .title-input-group { margin-bottom: 20px; }
+        .title-input-group input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; }
         .publish-type-selector { display: flex; gap: 20px; margin-bottom: 15px; padding: 15px; background: #eef2f7; border-radius: 5px; font-weight: bold; }
         .radio-label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .content-editor { margin-top: 10px; }
-        .content-editor textarea { width: 100%; height: 400px; line-height: 1.5; padding: 15px; border: 1px solid #ced4da; border-radius: 4px; font-family: monospace; font-size: 14px; resize: vertical; }
+        .content-editor textarea { width: 100%; height: 500px; padding: 15px; border: 1px solid #ced4da; border-radius: 4px; font-family: monospace; font-size: 14px; resize: vertical; }
         .thumbnail-manager { display: flex; gap: 20px; margin-bottom: 30px; padding: 20px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; }
         .thumb-box { flex: 1; text-align: center; background: #fff; padding: 15px; border-radius: 5px; border: 1px solid #ddd; }
-        .thumb-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #856404; }
         .thumb-preview-area { width: 100%; height: 180px; background: #eee; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed #ccc; }
         .thumb-preview-area img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .thumb-btn-group { display: flex; gap: 5px; justify-content: center; }
         .btn-thumb-action { font-size: 12px; padding: 5px 10px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 3px; }
         .btn-thumb-action:hover { background: #f0f0f0; }
         .image-gallery { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
@@ -33,191 +30,160 @@
         .control-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
         .image-item.selected-content { border-color: #007bff; box-shadow: 0 0 5px rgba(0,123,255,0.3); }
         .btn-insert-html { width: 100%; margin-top: 5px; background-color: #17a2b8; color: white; border: none; padding: 5px; border-radius: 3px; font-size: 11px; cursor: pointer; }
-
+        .mode-general .only-main { display: none !important; }
+        .mode-main .only-general { display: none !important; }
+        .mode-main .btn-insert-html { display: block; }
         .crop-modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); }
         .crop-container { width: 90%; max-width: 800px; margin: 30px auto; background: #fff; padding: 20px; display: flex; flex-direction: column; border-radius: 8px; }
         .crop-area { height: 400px; background: #333; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center; }
         .crop-area img { display: block; max-width: 100%; max-height: 100%; }
-
         .crop-info-bar { display: flex; gap: 15px; margin-top: 10px; justify-content: center; align-items: center; background: #eee; padding: 8px; border-radius: 4px; font-size: 14px; }
         .crop-input-group { display: flex; align-items: center; gap: 5px; }
         .crop-input-group input { width: 60px; padding: 4px; text-align: right; border: 1px solid #ccc; border-radius: 3px; }
-
         .crop-toolbar { display: flex; gap: 8px; margin-top: 10px; justify-content: center; background: #f8f9fa; padding: 10px; border-radius: 4px; flex-wrap: wrap; }
         .crop-toolbar button { background: white; border: 1px solid #ccc; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 13px; }
         .crop-toolbar button:hover { background: #e2e6ea; }
         .crop-toolbar .separator { width: 1px; background: #ccc; height: 20px; margin: 0 5px; }
-
         .crop-bottom-actions { margin-top: 15px; text-align: right; border-top: 1px solid #eee; padding-top: 15px; }
-
-        .mode-general .only-main { display: none !important; }
-        .mode-main .only-general { display: none !important; }
-        .mode-main .btn-insert-html { display: block; }
-        .action-buttons { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f0f0; }
-        .approval-form-controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-top: 15px; }
+        .approval-form-controls { margin-top: 20px; text-align: right; }
         .modal { display: none; position: fixed; z-index: 1000; padding-top: 50px; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.9); }
         .modal-content { margin: auto; display: block; max-width: 90%; max-height: 90%; }
         .close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; }
-
+        .thumb-btn-group { display: flex; gap: 5px; justify-content: center; }
     </style>
 </head>
 <body class="mode-general">
 
-<div class="container" th:object="${crawledData}">
-    <h1 th:text="*{title}">크롤링 데이터 상세</h1>
+<div class="container" th:object="${mergedData}">
+    <h1>🧩 데이터 병합 및 게시</h1>
 
     <div class="meta-info">
-        <p><strong>ID:</strong> <span th:text="*{id}"></span> | <strong>출처:</strong> <span th:text="*{sourceSite}"></span></p>
-        <p><strong>원본 URL:</strong> <a th:href="*{originalUrl}" target="_blank" th:text="*{originalUrl}"></a></p>
+        <p><strong>병합 대상 ID:</strong> <span th:text="${sourceIds}"></span> (총 <span th:text="${#lists.size(sourceIds)}"></span>건)</p>
+        <p style="font-size: 0.9em; margin-top:5px;">※ 제목과 내용을 수정하고 이미지를 선택해주세요.</p>
     </div>
 
-    <div class="action-buttons" th:if="*{status == T(core.global.enums.CrawledDataStatus).PENDING}">
-        <form th:action="@{/admin/crawled-data/{id}/approve(id=*{id})}" method="post" id="approvalForm" enctype="multipart/form-data" onsubmit="return validateForm()">
+    <form th:action="@{/admin/crawled-data/merge/approve}" method="post" id="approvalForm" enctype="multipart/form-data" onsubmit="return validateForm()">
 
-            <div class="publish-type-selector">
-                <span>게시 유형:</span>
-                <label class="radio-label">
-                    <input type="radio" name="publishType" value="GENERAL" checked onclick="setMode('GENERAL')">
-                    일반 게시판 (Text)
-                </label>
-                <label class="radio-label">
-                    <input type="radio" name="publishType" value="MAIN_PAGE" onclick="setMode('MAIN_PAGE')">
-                    메인 페이지 (HTML)
-                </label>
-            </div>
+        <input type="hidden" name="sourceIds" th:value="${#strings.listJoin(sourceIds, ',')}">
 
-            <div class="thumbnail-manager only-main">
-                <div class="thumb-box">
-                    <h4>목록 썸네일 (Main)</h4>
-                    <div class="thumb-preview-area">
-                        <img id="previewMain" src="" alt="선택 안됨" style="display:none;">
-                        <span id="placeholderMain" style="color:#ccc; font-size:12px;">이미지 없음</span>
-                    </div>
+        <div class="title-input-group">
+            <label for="titleInput">제목 (수정 가능):</label>
+            <input type="text" id="titleInput" name="title" th:value="*{title}" required placeholder="게시글 제목을 입력하세요">
+        </div>
 
-                    <div id="editActionsMain" class="thumb-btn-group" style="display:none; margin-bottom: 10px;">
-                        <button type="button" class="btn-thumb-action" onclick="openCropperForUpload('Main')" style="flex:1;">자르기</button>
-                        <button type="button" class="btn-thumb-action" onclick="resetUpload('Main')" style="flex:1; color:#dc3545;">원본(초기화)</button>
-                    </div>
+        <div class="publish-type-selector">
+            <span>게시 유형:</span>
+            <label class="radio-label"><input type="radio" name="publishType" value="GENERAL" checked onclick="setMode('GENERAL')"> 일반 게시판</label>
+            <label class="radio-label"><input type="radio" name="publishType" value="MAIN_PAGE" onclick="setMode('MAIN_PAGE')"> 메인 페이지 (HTML)</label>
+        </div>
 
-                    <div class="thumb-btn-group">
-                        <label class="btn-thumb-action">
-                            파일 업로드
-                            <input type="file" name="mainThumbnailFile" id="fileMain" accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'Main')">
-                        </label>
-                        <input type="hidden" name="mainThumbnailUrl" id="urlMain">
-                    </div>
+        <div class="thumbnail-manager only-main">
+            <div class="thumb-box">
+                <h4>목록 썸네일 (Main)</h4>
+                <div class="thumb-preview-area">
+                    <img id="previewMain" src="" alt="선택 안됨" style="display:none;">
+                    <span id="placeholderMain" style="color:#ccc; font-size:12px;">이미지 없음</span>
                 </div>
 
-                <div class="thumb-box">
-                    <h4>인기 썸네일 (Pop)</h4>
-                    <div class="thumb-preview-area">
-                        <img id="previewPop" src="" alt="선택 안됨" style="display:none;">
-                        <span id="placeholderPop" style="color:#ccc; font-size:12px;">이미지 없음</span>
-                    </div>
+                <div id="editActionsMain" class="thumb-btn-group" style="display:none; margin-bottom: 10px;">
+                    <button type="button" class="btn-thumb-action" onclick="openCropperForUpload('Main')" style="flex:1;">자르기</button>
+                    <button type="button" class="btn-thumb-action" onclick="resetUpload('Main')" style="flex:1; color:#dc3545;">원본(초기화)</button>
+                </div>
 
-                    <div id="editActionsPop" class="thumb-btn-group" style="display:none; margin-bottom: 10px;">
-                        <button type="button" class="btn-thumb-action" onclick="openCropperForUpload('Pop')" style="flex:1;">자르기</button>
-                        <button type="button" class="btn-thumb-action" onclick="resetUpload('Pop')" style="flex:1; color:#dc3545;">원본(초기화)</button>
-                    </div>
-
-                    <div class="thumb-btn-group">
-                        <label class="btn-thumb-action">
-                            파일 업로드
-                            <input type="file" name="popularThumbnailFile" id="filePop" accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'Pop')">
-                        </label>
-                        <input type="hidden" name="popularThumbnailUrl" id="urlPop">
-                    </div>
+                <div class="thumb-btn-group">
+                    <label class="btn-thumb-action">
+                        파일 업로드 <input type="file" name="mainThumbnailFile" id="fileMain" accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'Main')">
+                    </label>
+                    <input type="hidden" name="mainThumbnailUrl" id="urlMain">
                 </div>
             </div>
-
-            <div class="content-editor">
-                <div style="margin-bottom: 5px; display: flex; justify-content: space-between;">
-                    <label><strong>내용 편집</strong> <span class="only-main" style="color:blue; font-size:0.8em;">(HTML 모드)</span></label>
-                    <button type="button" class="btn-preview only-main" onclick="previewHtml()">HTML 미리보기</button>
+            <div class="thumb-box">
+                <h4>인기 썸네일 (Pop)</h4>
+                <div class="thumb-preview-area">
+                    <img id="previewPop" src="" alt="선택 안됨" style="display:none;">
+                    <span id="placeholderPop" style="color:#ccc; font-size:12px;">이미지 없음</span>
                 </div>
-                <textarea id="contentArea" name="content" th:text="*{contentSnippet}" placeholder="게시할 내용을 작성하세요."></textarea>
+
+                <div id="editActionsPop" class="thumb-btn-group" style="display:none; margin-bottom: 10px;">
+                    <button type="button" class="btn-thumb-action" onclick="openCropperForUpload('Pop')" style="flex:1;">자르기</button>
+                    <button type="button" class="btn-thumb-action" onclick="resetUpload('Pop')" style="flex:1; color:#dc3545;">원본(초기화)</button>
+                </div>
+
+                <div class="thumb-btn-group">
+                    <label class="btn-thumb-action">
+                        파일 업로드 <input type="file" name="popularThumbnailFile" id="filePop" accept="image/*" style="display:none;" onchange="handleFileSelect(this, 'Pop')">
+                    </label>
+                    <input type="hidden" name="popularThumbnailUrl" id="urlPop">
+                </div>
+            </div>
+        </div>
+
+        <div class="content-editor">
+            <div style="margin-bottom: 5px; display: flex; justify-content: space-between;">
+                <label><strong>내용 편집</strong></label>
+                <button type="button" class="btn-preview only-main" onclick="previewHtml()" style="background:#17a2b8; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">미리보기</button>
+            </div>
+            <textarea id="contentArea" name="content" th:text="*{content}"></textarea>
+        </div>
+
+        <div class="image-gallery">
+            <h3>통합 이미지 관리</h3>
+
+            <div th:if="${#lists.isEmpty(mergedData.imageUrls)}" style="padding: 20px; text-align: center; color: #888; background: #fafafa;">
+                <p>⚠️ 병합된 이미지가 없습니다.</p>
+                <p class="only-main" style="font-size: 0.9em; color: blue;">직접 파일을 업로드하여 썸네일을 설정해주세요.</p>
             </div>
 
-            <div class="image-gallery">
-                <h3>이미지 관리</h3>
-
-                <div th:if="${#lists.isEmpty(crawledData.imageUrls)}" style="padding: 20px; text-align: center; color: #888; background: #fafafa;">
-                    <p>⚠️ 크롤링된 이미지가 없습니다.</p>
-                    <p class="only-main" style="font-size: 0.9em; color: blue;">위의 <b>[파일 업로드]</b> 버튼을 통해 썸네일을 직접 등록해주세요.</p>
+            <div th:if="${!#lists.isEmpty(mergedData.imageUrls)}">
+                <div class="only-general" style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
+                    * <b>본문 포함</b>을 체크하면 게시글 내용 하단에 이미지가 자동 첨부됩니다.
                 </div>
+                <div class="image-grid">
+                    <div th:each="imgUrl, iterStat : *{imageUrls}" class="image-item" th:classappend="${iterStat.index < 5} ? 'selected-content'">
+                        <div class="image-wrapper" onclick="openModal(this.querySelector('img').src)">
+                            <img th:src="${imgUrl}" class="image-preview">
+                        </div>
 
-                <div th:if="${!#lists.isEmpty(crawledData.imageUrls)}">
-                    <div class="only-general" style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
-                        * <b>본문 포함</b>을 체크하면 게시글 내용 하단에 이미지가 자동 첨부됩니다.
-                    </div>
-                    <div class="only-main" style="font-size: 0.9em; color: blue; margin-bottom: 10px;">
-                        * <b>[자르기 & 설정]</b>: 이미지를 원하는 비율로 잘라 썸네일로 등록합니다.<br>
-                        * <b>[원본 사용]</b>: 원본 이미지를 그대로 썸네일 URL로 사용합니다.
-                    </div>
+                        <div class="image-controls">
+                            <label class="control-row only-general">
+                                <input type="checkbox" name="selectedImageUrls" th:value="${imgUrl}" th:checked="${iterStat.index < 5}" onclick="handleContentCheckbox(this)">
+                                <span>본문 포함</span>
+                            </label>
 
-                    <div class="img-count-info only-general" id="imgCountDisplay">본문 포함 이미지: 0 / 5</div>
-
-                    <div class="image-grid">
-                        <div th:each="imgUrl, iterStat : *{imageUrls}" class="image-item" th:classappend="${iterStat.index < 5} ? 'selected-content'">
-
-                            <div class="image-wrapper" onclick="openModal(this.querySelector('img').src)">
-                                <img th:src="${imgUrl}" class="image-preview" alt="Crawled Image">
+                            <div class="only-main" style="display:flex; gap:5px; flex-wrap:wrap;">
+                                <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="openCropper(this.getAttribute('data-url'), 'Main')">Main 자르기</button>
+                                <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="setOriginalThumb(this.getAttribute('data-url'), 'Main')">원본</button>
+                            </div>
+                            <div class="only-main" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
+                                <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="openCropper(this.getAttribute('data-url'), 'Pop')">Pop 자르기</button>
+                                <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="setOriginalThumb(this.getAttribute('data-url'), 'Pop')">원본</button>
                             </div>
 
-                            <div class="image-controls">
-                                <label class="control-row only-general">
-                                    <input type="checkbox" name="selectedImageUrls" th:value="${imgUrl}"
-                                           th:checked="${iterStat.index < 5}" onclick="handleContentCheckbox(this)">
-                                    <span>본문 포함</span>
-                                </label>
-
-                                <div class="only-main" style="display:flex; gap:5px; flex-wrap:wrap;">
-                                    <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="openCropper(this.getAttribute('data-url'), 'Main')">
-                                        Main 자르기
-                                    </button>
-                                    <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="setOriginalThumb(this.getAttribute('data-url'), 'Main')">
-                                        원본
-                                    </button>
-                                </div>
-                                <div class="only-main" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
-                                    <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="openCropper(this.getAttribute('data-url'), 'Pop')">
-                                        Pop 자르기
-                                    </button>
-                                    <button type="button" class="btn-thumb-action" style="flex:1;" th:data-url="${imgUrl}" onclick="setOriginalThumb(this.getAttribute('data-url'), 'Pop')">
-                                        원본
-                                    </button>
-                                </div>
-
-                                <button type="button" class="btn-insert-html only-main" style="margin-top: 8px;"
-                                        th:data-url="${imgUrl}" onclick="insertImageToEditor(this.getAttribute('data-url'))">
-                                    본문에 넣기 ⬇️
-                                </button>
-                            </div>
+                            <button type="button" class="btn-insert-html only-main" style="margin-top:8px;" th:data-url="${imgUrl}" onclick="insertImageToEditor(this.getAttribute('data-url'))">
+                                본문에 넣기 ⬇️
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="approval-form-controls">
-                <div class="only-general">
-                    <label for="boardSelect">게시할 게시판:</label>
-                    <select id="boardSelect" name="boardId">
-                        <option value="">게시판 선택</option>
-                        <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.displayName}"></option>
-                    </select>
-                </div>
+        <div class="approval-form-controls">
+            <span id="generalBoardSelect">
+                <label>게시판:</label>
+                <select name="boardId" id="boardSelect">
+                    <option value="">선택하세요</option>
+                    <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.displayName}"></option>
+                </select>
+            </span>
+            <button type="submit" style="background-color: #6f42c1; color: white; padding: 12px 24px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: 10px;">
+                병합 및 게시 완료
+            </button>
+        </div>
+    </form>
 
-                <button type="submit" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                    승인 및 게시
-                </button>
-            </div>
-        </form>
-
-        <form class="reject-form" style="margin-top: 20px; border-top: 1px dashed #aaa; padding-top: 15px;"
-              th:action="@{/admin/crawled-data/{id}/reject(id=*{id})}" method="post"
-              onsubmit="return confirm('이 항목을 거절 처리하시겠습니까?');">
-            <button type="submit" style="background-color: #6c757d; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">거절</button>
-        </form>
+    <div style="margin-top: 20px; text-align: right;">
+        <a th:href="@{/admin/crawled-data}" style="color: #666; text-decoration: none;">취소하고 목록으로</a>
     </div>
 </div>
 
@@ -255,8 +221,8 @@
         </div>
 
         <div class="crop-bottom-actions">
-            <button type="button" onclick="closeCropper()" style="background:#6c757d; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:4px;">취소</button>
-            <button type="button" onclick="confirmCrop()" style="background:#007bff; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:4px;">적용하기</button>
+            <button type="button" onclick="closeCropper()" style="background:#6c757d; color:white; border:none; padding:10px 20px;">취소</button>
+            <button type="button" onclick="confirmCrop()" style="background:#007bff; color:white; border:none; padding:10px 20px;">적용하기</button>
         </div>
     </div>
 </div>
@@ -282,23 +248,25 @@
     let uploadedOriginalFiles = { Main: null, Pop: null };
 
     document.addEventListener("DOMContentLoaded", function() {
-        updateCount();
         setMode('GENERAL');
     });
 
     function setMode(mode) {
         currentMode = mode;
-        const body = document.body;
         const boardSelect = document.getElementById('boardSelect');
+        const boardArea = document.getElementById('generalBoardSelect');
+        const body = document.body;
 
         if (mode === 'MAIN_PAGE') {
             body.classList.remove('mode-general');
             body.classList.add('mode-main');
-            if(boardSelect) boardSelect.removeAttribute('required');
+            boardSelect.removeAttribute('required');
+            boardArea.style.display = 'none';
         } else {
             body.classList.remove('mode-main');
             body.classList.add('mode-general');
-            if(boardSelect) boardSelect.setAttribute('required', 'required');
+            boardSelect.setAttribute('required', 'required');
+            boardArea.style.display = 'inline-block';
         }
     }
 
@@ -329,7 +297,6 @@
     function resetUpload(type) {
         if (uploadedOriginalFiles[type]) {
             const fileInput = document.getElementById('file' + type);
-
             const container = new DataTransfer();
             container.items.add(uploadedOriginalFiles[type]);
             fileInput.files = container.files;
@@ -438,20 +405,15 @@
             const file = new File([blob], "cropped_" + currentCropTarget + ".jpg", { type: "image/jpeg" });
             const container = new DataTransfer();
             container.items.add(file);
-
-            const fileInput = document.getElementById('file' + currentCropTarget);
-            fileInput.files = container.files;
+            document.getElementById('file' + currentCropTarget).files = container.files;
 
             const urlInput = document.getElementById('url' + currentCropTarget);
             urlInput.value = '';
             urlInput.disabled = true;
 
             const reader = new FileReader();
-            reader.onload = function(e) {
-                updateThumbPreview(currentCropTarget, e.target.result);
-            }
+            reader.onload = function(e) { updateThumbPreview(currentCropTarget, e.target.result); }
             reader.readAsDataURL(file);
-
             closeCropper();
         }, 'image/jpeg', 1.0);
     }
@@ -465,9 +427,8 @@
 
     function validateForm() {
         if (currentMode === 'GENERAL') {
-            const boardId = document.getElementById('boardSelect').value;
-            if (!boardId) {
-                alert("게시할 게시판을 선택해주세요.");
+            if (!document.getElementById('boardSelect').value) {
+                alert("게시판을 선택해주세요.");
                 return false;
             }
             return confirm("일반 게시판에 등록하시겠습니까?");
@@ -476,7 +437,6 @@
             const mainUrl = document.getElementById('urlMain').value;
             const popFile = document.getElementById('filePop').files.length > 0;
             const popUrl = document.getElementById('urlPop').value;
-            const content = document.getElementById('contentArea').value;
 
             const hasMain = mainFile || (mainUrl && mainUrl.trim() !== "");
             const hasPop = popFile || (popUrl && popUrl.trim() !== "");
@@ -489,42 +449,21 @@
                 alert("인기 썸네일(Pop)을 설정해주세요.");
                 return false;
             }
-            if (content.trim().length === 0) {
-                alert("HTML 내용을 입력해주세요.");
-                return false;
-            }
             return confirm("메인 페이지용 콘텐츠로 등록하시겠습니까?");
         }
     }
 
-    function insertImageToEditor(imageUrl) {
+    function insertImageToEditor(url) {
         const textarea = document.getElementById('contentArea');
-        const imgTag = `\n<img src="${imageUrl}" alt="image" style="max-width: 100%; display: block; margin: 20px auto;" />\n`;
-        const startPos = textarea.selectionStart;
-        const endPos = textarea.selectionEnd;
-        const text = textarea.value;
-        textarea.value = text.substring(0, startPos) + imgTag + text.substring(endPos);
+        const tag = `\n<img src="${url}" style="max-width:100%; display:block; margin:20px auto;">\n`;
+        textarea.setRangeText(tag, textarea.selectionStart, textarea.selectionEnd, 'end');
         textarea.focus();
     }
 
     function handleContentCheckbox(checkbox) {
-        const checkedBoxes = document.querySelectorAll('input[name="selectedImageUrls"]:checked');
-        if (checkedBoxes.length > 5 && checkbox.checked) {
-            alert("최대 5개까지만 선택 가능합니다.");
-            checkbox.checked = false;
-            return;
-        }
         const container = checkbox.closest('.image-item');
         if (checkbox.checked) container.classList.add('selected-content');
         else container.classList.remove('selected-content');
-        updateCount();
-    }
-
-    function updateCount() {
-        const checkboxes = document.querySelectorAll('input[name="selectedImageUrls"]:checked');
-        const count = checkboxes ? checkboxes.length : 0;
-        const display = document.getElementById('imgCountDisplay');
-        if (display) display.innerText = `본문 포함 이미지: ${count} / 5`;
     }
 
     function previewHtml() {
@@ -534,9 +473,7 @@
     function closeHtmlPreview() { document.getElementById('htmlPreviewModal').style.display = 'none'; }
     function openModal(src) { document.getElementById("modalImage").src = src; document.getElementById("imageModal").style.display = "block"; }
     function closeModal() { document.getElementById("imageModal").style.display = "none"; }
-    window.onclick = function(event) {
-        if (event.target == document.getElementById("imageModal")) closeModal();
-    }
+    window.onclick = function(event) { if (event.target == document.getElementById("imageModal")) closeModal(); }
 </script>
 </body>
 </html>

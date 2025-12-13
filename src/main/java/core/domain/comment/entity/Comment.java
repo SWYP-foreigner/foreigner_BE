@@ -1,5 +1,6 @@
 package core.domain.comment.entity;
 
+import core.domain.post.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
@@ -32,6 +33,10 @@ public class Comment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "post_id", nullable = false)
     private Post post;
+
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "main_page_content_id")
+//    private MainPageContent mainPageContent;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

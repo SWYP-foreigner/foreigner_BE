@@ -113,6 +113,7 @@ dependencies {
 
     implementation 'org.jsoup:jsoup:1.17.2'
     implementation 'org.htmlunit:htmlunit:3.11.0'
+    implementation 'org.webjars.npm:cropperjs:1.5.13'
 
     implementation 'org.springframework.security:spring-security-messaging'
 

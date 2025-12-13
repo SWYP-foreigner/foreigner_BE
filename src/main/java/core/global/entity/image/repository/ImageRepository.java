@@ -112,4 +112,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     Optional<Image> findTopByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType imageType, Long relatedId);
 
     List<Image> findByModerationStatusOrderByIdDesc(ImageModerationStatus status);
+
+    boolean existsByRelatedIdAndUrlAndImageType(Long contentId, String url, ImageType type);
 }

@@ -3,6 +3,7 @@ package core.global.controller;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.crawling.CrawledDataDto;
+import core.domain.post.dto.crawling.MergedCrawledDataDto;
 import core.domain.post.entity.CrawledData;
 import core.global.exception.BusinessException;
 import core.global.service.CrawledDataAdminService;
@@ -15,6 +16,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
@@ -52,17 +54,57 @@ public class CrawledDataAdminController {
         return "admin/crawled-data-detail";
     }
 
-    @PostMapping("/{id}/approve")
-    public String approveAndPost(
-            @PathVariable Long id,
-            @RequestParam Long boardId,
-            @RequestParam String content,
+    @GetMapping("/merge")
+    public String mergeCrawledDataPage(@RequestParam("ids") List<Long> ids, Model model) {
+        MergedCrawledDataDto mergedData = crawledDataAdminService.getMergedCrawledData(ids);
+        List<Board> boards = boardRepository.findAll();
+
+        model.addAttribute("mergedData", mergedData);
+        model.addAttribute("sourceIds", ids);
+        model.addAttribute("boards", boards);
+
+        return "admin/crawled-data-merge";
+    }
+
+    @PostMapping("/merge/approve")
+    public String approveMergedPost(
+            @RequestParam("sourceIds") List<Long> sourceIds,
+            @RequestParam("title") String title,
+            @RequestParam("publishType") String publishType,
+            @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
+            @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
+            @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
+            @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
+            @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, boardId, content, selectedImageUrls);
-            redirectAttributes.addFlashAttribute("successMessage", "데이터가 게시물로 성공적으로 발행되었습니다.");
+            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
+        } catch (BusinessException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/crawled-data";
+    }
+
+    @PostMapping("/{id}/approve")
+    public String approveAndPost(
+            @PathVariable Long id,
+            @RequestParam("publishType") String publishType,
+            @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam("content") String content,
+            @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
+            @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
+            @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
+            @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
+            @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            crawledDataAdminService.approveAndPost(id, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
