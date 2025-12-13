@@ -256,16 +256,50 @@ public class UserService {
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
+// UserSetupRequest dto를 받는 메서드 내부
         if (dto.language() != null && !dto.language().isEmpty()) {
-            String userLanguagesCsv = String.join(",", dto.language());
-            user.updateLanguage(userLanguagesCsv);
 
-            String firstTranslatedLanguage = dto.language().get(0);
-            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
-                user.updateTranslateLanguage(firstTranslatedLanguage);
+            // 1. [정제 로직] updateLanguage와 updateTranslateLanguage에 사용할 리스트 생성
+            List<String> languages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .map(String::toLowerCase)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+
+            if (!languages.isEmpty()) {
+                // languages 컬럼에는 정제된 소문자 전체 리스트를 CSV로 저장
+                String userLanguagesCsv = String.join(",", languages);
+                user.updateLanguage(userLanguagesCsv);
+
+                // 2. [대표 번역 언어 추출] (pattern 정의 필요)
+                String firstTranslatedLanguage = languages.stream()
+                        .map(s -> {
+                            // **주의:** pattern 객체가 어디에 정의되어 있는지 확인하고 가져와야 합니다.
+                            // 만약 pattern 객체가 없다면, 간단히 첫 번째 항목의 ISO 코드만 사용하거나,
+                            // 정규식 대신 단순 문자열 처리(예: substring)를 적용해야 합니다.
+
+                            // 정규식 Matcher 사용 (updateUserLanguage 로직 그대로 적용)
+                            Matcher matcher = pattern.matcher(s);
+                            if (matcher.find()) {
+                                return matcher.group(1).trim();
+                            }
+                            // [대안] 만약 정규식이 없거나 코드가 'ko'와 같이 바로 들어오는 경우
+                            if (s.length() <= 5 && !s.contains("[")) {
+                                return s;
+                            }
+                            return "";
+                        })
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse("");
+
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
             }
         }
-
         if (dto.hobby() != null && !dto.hobby().isEmpty()) {
             String csv = String.join(",", dto.hobby());
             user.updateHobby(csv);
