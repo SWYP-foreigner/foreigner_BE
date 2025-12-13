@@ -159,7 +159,7 @@ public class FollowService {
             }
         }
         if (existingReverse != null) {
-            switch (existing.getStatus()) {
+            switch (existingReverse.getStatus()) {
                 case PENDING -> {
                     log.info("[FOLLOW] 이미 팔로우 신청 대기 중(Rev): from={}, to={}", targetUser.getId(), follower.getId());
                     throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
