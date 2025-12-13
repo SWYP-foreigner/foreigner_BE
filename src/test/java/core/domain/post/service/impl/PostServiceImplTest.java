@@ -1,502 +1,577 @@
-//package core.domain.post.service.impl;
-//
-//import core.domain.board.entity.Board;
-//import core.domain.board.repository.BoardRepository;
-//import core.domain.post.dto.*;
-//import core.domain.post.entity.Post;
-//import core.domain.post.repository.PostRepository;
-//import core.domain.user.entity.User;
-//import core.domain.user.repository.UserRepository;
-//import core.global.enums.BoardCategory;
-//import core.global.enums.ImageType;
-//import core.global.enums.LikeType;
-//import core.global.exception.BusinessException;
-//import core.global.image.entity.Image;
-//import core.global.image.repository.ImageRepository;
-//import core.global.like.entity.Like;
-//import core.global.like.repository.LikeRepository;
-//import core.global.service.ForbiddenWordService;
-//import core.global.pagination.CursorCodec;
-//import core.global.pagination.CursorPageResponse;
-//import org.junit.jupiter.api.*;
-//import org.junit.jupiter.api.extension.ExtendWith;
-//import org.mockito.ArgumentCaptor;
-//import org.mockito.InjectMocks;
-//import org.mockito.Mock;
-//import org.mockito.junit.jupiter.MockitoExtension;
-//import org.springframework.http.HttpStatus;
-//import org.springframework.security.core.Authentication;
-//import org.springframework.security.core.context.SecurityContext;
-//import org.springframework.security.core.context.SecurityContextHolder;
-//
-//import java.time.Instant;
-//import java.time.temporal.ChronoUnit;
-//import java.util.List;
-//import java.util.Map;
-//import java.util.Optional;
-//
-//import static org.assertj.core.api.Assertions.assertThat;
-//import static org.assertj.core.api.Assertions.assertThatThrownBy;
-//import static org.mockito.ArgumentMatchers.*;
-//import static org.mockito.BDDMockito.*;
-//
-//@ExtendWith(MockitoExtension.class)
-//class PostServiceImplTest {
-//
-//    @Mock private PostRepository postRepository;
-//    @Mock private BoardRepository boardRepository;
-//    @Mock private LikeRepository likeRepository;
-//    @Mock private UserRepository userRepository;
-//    @Mock private ImageRepository imageRepository;
-//    @Mock private ForbiddenWordService forbiddenWordService;
-//
-//    @InjectMocks
-//    private PostServiceImpl service;
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // SecurityContext 세팅/정리
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @BeforeEach
-//    void setUpSecurityContext() {
-//        Authentication auth = mock(Authentication.class);
-//        given(auth.getName()).willReturn("alice");
-//        SecurityContext sc = mock(SecurityContext.class);
-//        given(sc.getAuthentication()).willReturn(auth);
-//        SecurityContextHolder.setContext(sc);
-//    }
-//
-//    @AfterEach
-//    void clearSecurityContext() {
-//        SecurityContextHolder.clearContext();
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // Get PostDetail
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("getPostDetail - 조회수 증가(changeCheckCount) 호출 및 상세 조회 위임")
-//    void getPostDetail_success() {
-//        Long postId = 100L;
-//        Post post = mock(Post.class);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        // ★ 현재 사용자 name="alice" → 이름으로 유저 찾고, 이메일 꺼내서 사용
-//        User u = mock(User.class);
-//        given(userRepository.findByName("alice")).willReturn(Optional.of(u));
-//        given(u.getEmail()).willReturn("alice@email.com");
-//
-//        PostDetailResponse detail = mock(PostDetailResponse.class);
-//        given(postRepository.findPostDetail("alice@email.com", postId)).willReturn(detail);
-//
-//        PostDetailResponse result = service.getPostDetail(postId);
-//
-//        then(post).should().changeCheckCount();
-//        then(postRepository).should().findPostDetail("alice@email.com", postId);
-//        assertThat(result).isSameAs(detail);
-//    }
-//
-//    @Test
-//    @DisplayName("getPostDetail - 게시글 없음 예외")
-//    void getPostDetail_notFound() {
-//        given(postRepository.findById(1L)).willReturn(Optional.empty());
-//        assertThatThrownBy(() -> service.getPostDetail(1L))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.NOT_FOUND);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // Write Post
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("writePost - boardId=1이면 쓰기 불가")
-//    void writePost_board1_forbidden() {
-//        PostWriteRequest req = mock(PostWriteRequest.class);
-//
-//        assertThatThrownBy(() -> service.writePost(1L, req))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.CONFLICT);
-//    }
-//
-//    @Test
-//    @DisplayName("writePost - 익명 허용 안되는 게시판에서 isAnonymous=true면 예외")
-//    void writePost_anonymous_policy_violation() {
-//        Long boardId = 10L;
-//        Board board = mock(Board.class);
-//        given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
-//        given(board.getCategory()).willReturn(BoardCategory.ACTIVITY); // 익명 불가
-//
-//        PostWriteRequest req = mock(PostWriteRequest.class);
-//        given(req.isAnonymous()).willReturn(true);
-//
-//        assertThatThrownBy(() -> service.writePost(boardId, req))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.CONFLICT);
-//    }
-//
-//    @Test
-//    @DisplayName("writePost - 정상 저장 및 이미지 저장")
-//    void writePost_success_withImages() {
-//        Long boardId = 10L;
-//        Board board = mock(Board.class);
-//        given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
-//        given(board.getCategory()).willReturn(BoardCategory.FREE_TALK); // 익명 허용
-//
-//        given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
-//
-//        User user = mock(User.class);
-//        given(userRepository.findByName("alice")).willReturn(Optional.of(user));
-//
-//        PostWriteRequest req = mock(PostWriteRequest.class);
-//        given(req.isAnonymous()).willReturn(true);
-//        given(req.imageUrls()).willReturn(List.of(" https://a.jpg ", "", "https://b.png"));
-//
-//        willAnswer(inv -> inv.getArgument(0)).given(postRepository).save(any(Post.class));
-//
-//        service.writePost(boardId, req);
-//
-//        then(postRepository).should().save(any(Post.class));
-//
-//        ArgumentCaptor<List<Image>> captor = ArgumentCaptor.forClass(List.class);
-//        then(imageRepository).should().saveAll(captor.capture());
-//
-//        List<Image> saved = captor.getValue();
-//        assertThat(saved).hasSize(2);
-//        assertThat(saved.stream().map(Image::getUrl)).containsExactly("https://a.jpg", "https://b.png");
-//    }
-//
-//    @Test
-//    @DisplayName("writePost - 사용자 없음 예외")
-//    void writePost_userNotFound() {
-//        Long boardId = 10L;
-//        Board board = mock(Board.class);
-//        given(boardRepository.findById(boardId)).willReturn(Optional.of(board));
-//        given(board.getCategory()).willReturn(BoardCategory.QNA);
-//
-//        given(forbiddenWordService.containsForbiddenWord(any())).willReturn(false);
-//
-//        PostWriteRequest req = mock(PostWriteRequest.class);
-//        given(req.isAnonymous()).willReturn(false);
-//
-//        given(userRepository.findByName("alice")).willReturn(Optional.empty());
-//
-//        assertThatThrownBy(() -> service.writePost(boardId, req))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.NOT_FOUND);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // Update Post
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("updatePost - 작성자와 동일 이름이면 (현재 코드 기준) 수정 금지 예외 발생")
-//    void updatePost_forbidden_when_sameAuthorName() {
-//        Long postId = 7L;
-//        Post post = mock(Post.class);
-//        User author = mock(User.class);
-//        given(author.getName()).willReturn("alice");
-//        given(post.getAuthor()).willReturn(author);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        PostUpdateRequest req = mock(PostUpdateRequest.class);
-//
-//        assertThatThrownBy(() -> service.updatePost(postId, req))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.FORBIDDEN);
-//    }
-//
-//    @Test
-//    @DisplayName("updatePost - 내용 수정 + 이미지 삭제/추가 정상 동작")
-//    void updatePost_success_editContent_and_images() {
-//        Long postId = 9L;
-//
-//        Post post = mock(Post.class);
-//        User author = mock(User.class);
-//        given(author.getName()).willReturn("bob"); // 호출자는 "alice"
-//        given(post.getAuthor()).willReturn(author);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        PostUpdateRequest req = mock(PostUpdateRequest.class);
-//        given(req.content()).willReturn("NEW CONTENT");
-//        given(req.removedImages()).willReturn(List.of("old1"));
-//        given(req.images()).willReturn(List.of("new1", "new2"));
-//
-//        Image img = mock(Image.class);
-//        given(img.getUrl()).willReturn("old1");
-//        given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
-//                .willReturn(List.of(img));
-//
-//        service.updatePost(postId, req);
-//
-//        then(post).should().changeContent("NEW CONTENT");
-//        then(imageRepository).should()
-//                .deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, List.of("old1"));
-//        then(img).should().changePosition(0);
-//        then(imageRepository).should(times(2)).save(any(Image.class));
-//    }
-//
-//    @Test
-//    @DisplayName("updatePost - 수정 대상 게시글 없음")
-//    void updatePost_postNotFound() {
-//        given(postRepository.findById(99L)).willReturn(Optional.empty());
-//        PostUpdateRequest req = mock(PostUpdateRequest.class);
-//        assertThatThrownBy(() -> service.updatePost(99L, req))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.NOT_FOUND);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // Delete Post
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("deletePost - 권한 없음")
-//    void deletePost_forbidden() {
-//        Long postId = 11L;
-//        Post post = mock(Post.class);
-//        User author = mock(User.class);
-//        given(author.getName()).willReturn("bob");
-//        given(post.getAuthor()).willReturn(author);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        assertThatThrownBy(() -> service.deletePost(postId))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.FORBIDDEN);
-//    }
-//
-//    @Test
-//    @DisplayName("deletePost - 이미지가 있으면 이미지 먼저 삭제 후 게시글 삭제")
-//    void deletePost_success_withImages() {
-//        Long postId = 12L;
-//        Post post = mock(Post.class);
-//        User author = mock(User.class);
-//        given(author.getName()).willReturn("alice");
-//        given(post.getAuthor()).willReturn(author);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        Image i1 = mock(Image.class);
-//        Image i2 = mock(Image.class);
-//        given(i1.getUrl()).willReturn("u1");
-//        given(i2.getUrl()).willReturn("u2");
-//        given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
-//                .willReturn(List.of(i1, i2));
-//
-//        service.deletePost(postId);
-//
-//        then(imageRepository).should()
-//                .deleteByImageTypeAndRelatedId(ImageType.POST, postId);
-//        then(postRepository).should().delete(post);
-//    }
-//
-//    @Test
-//    @DisplayName("deletePost - 이미지가 없으면 바로 게시글 삭제")
-//    void deletePost_success_noImages() {
-//        Long postId = 13L;
-//        Post post = mock(Post.class);
-//        User author = mock(User.class);
-//        given(author.getName()).willReturn("alice");
-//        given(post.getAuthor()).willReturn(author);
-//        given(postRepository.findById(postId)).willReturn(Optional.of(post));
-//
-//        given(imageRepository.findByImageTypeAndRelatedIdOrderByPositionAsc(ImageType.POST, postId))
-//                .willReturn(List.of());
-//
-//        service.deletePost(postId);
-//
-//        then(imageRepository).should(never())
-//                .deleteByImageTypeAndRelatedId(any(), anyLong());
-//        then(postRepository).should().delete(post);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // Add/Remove Like
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("addLike - 이미 좋아요가 있으면 예외")
-//    void addLike_alreadyExists() {
-//        given(likeRepository.findLikeByUserEmailAndType("alice", 77L, LikeType.POST))
-//                .willReturn(Optional.of(mock(Like.class)));
-//
-//        assertThatThrownBy(() -> service.addLike(77L))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.CONFLICT);
-//    }
-//
-//    @Test
-//    @DisplayName("addLike - 정상 저장")
-//    void addLike_success() {
-//        given(likeRepository.findLikeByUserEmailAndType("alice", 77L, LikeType.POST))
-//                .willReturn(Optional.empty());
-//
-//        User u = mock(User.class);
-//        given(userRepository.findByName("alice")).willReturn(Optional.of(u));
-//
-//        service.addLike(77L);
-//
-//        then(likeRepository).should().save(any(Like.class));
-//    }
-//
-//    @Test
-//    @DisplayName("removeLike - 정상 삭제")
-//    void removeLike_success() {
-//        service.removeLike(77L);
-//        then(likeRepository).should()
-//                .deleteByUserEmailAndIdAndType("alice", 77L, LikeType.POST);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // getMyPostList — CursorPageResponse(items, hasNext, nextCursor)
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("getMyPostList - 첫 페이지(size+1) → hasNext=true, items trim, nextCursor 생성")
-//    void firstPage_hasNext_true_trimmed_withNextCursor() {
-//        int size = 3;
-//        UserPostItem r1 = mock(UserPostItem.class);
-//        UserPostItem r2 = mock(UserPostItem.class);
-//        UserPostItem r3 = mock(UserPostItem.class); // 마지막(트림 후 기준)
-//        UserPostItem r4 = mock(UserPostItem.class); // size+1
-//
-//        Instant lastCreated = Instant.now().minusSeconds(10);
-//        long lastId = 345L;
-//
-//        given(r3.createdAt()).willReturn(lastCreated);
-//        given(r3.postId()).willReturn(lastId);
-//
-//        given(postRepository.findMyPostsFirstByEmail("alice", size + 1))
-//                .willReturn(List.of(r1, r2, r3, r4));
-//
-//        CursorPageResponse<UserPostItem> res = service.getMyPostList(null, size);
-//
-//        assertThat(res.hasNext()).isTrue();
-//        assertThat(res.items()).hasSize(size);
-//        assertThat(res.nextCursor()).isNotNull();
-//
-//        Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
-//        assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
-//        assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
-//
-//        then(postRepository).should().findMyPostsFirstByEmail("alice", size + 1);
-//    }
-//
-//    @Test
-//    @DisplayName("getMyPostList - 첫 페이지(size 이하) → hasNext=false, trim 없음, nextCursor=null")
-//    void firstPage_hasNext_false_notTrimmed() {
-//        int size = 3;
-//        UserPostItem r1 = mock(UserPostItem.class);
-//        UserPostItem r2 = mock(UserPostItem.class);
-//
-//        given(postRepository.findMyPostsFirstByEmail("alice", size + 1))
-//                .willReturn(List.of(r1, r2)); // size 이하
-//
-//        CursorPageResponse<UserPostItem> res = service.getMyPostList("", size);
-//
-//        assertThat(res.hasNext()).isFalse();
-//        assertThat(res.items()).hasSize(2);
-//        assertThat(res.nextCursor()).isNull();
-//
-//        then(postRepository).should().findMyPostsFirstByEmail("alice", size + 1);
-//    }
-//
-//    @Test
-//    @DisplayName("getMyPostList - 다음 페이지(size+1) → hasNext=true, items trim, nextCursor 생성")
-//    void nextPage_hasNext_true_trimmed_withNextCursor() {
-//        int size = 2;
-//        Instant cursorCreatedAt = Instant.now();
-//        Long cursorId = 123L;
-//        String cursor = CursorCodec.encode(Map.of(
-//                "t", cursorCreatedAt.toString(),
-//                "id", cursorId
-//        ));
-//
-//        UserPostItem r1 = mock(UserPostItem.class);
-//        UserPostItem r2 = mock(UserPostItem.class); // 트림 후 마지막
-//        UserPostItem r3 = mock(UserPostItem.class); // size+1
-//
-//        Instant lastCreated = Instant.now().minusSeconds(5);
-//        long lastId = 777L;
-//
-//        given(r2.createdAt()).willReturn(lastCreated);
-//        given(r2.postId()).willReturn(lastId);
-//
-//        given(postRepository.findMyPostsNextByEmail(
-//                eq("alice"),
-//                eq(cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS)),
-//                eq(cursorId),
-//                eq(size + 1)))
-//                .willReturn(List.of(r1, r2, r3));
-//
-//        CursorPageResponse<UserPostItem> res = service.getMyPostList(cursor, size);
-//
-//        assertThat(res.hasNext()).isTrue();
-//        assertThat(res.items()).hasSize(size);
-//        assertThat(res.nextCursor()).isNotNull();
-//
-//        Map<String, Object> decoded = CursorCodec.decode(res.nextCursor());
-//        assertThat(decoded.get("t")).isEqualTo(lastCreated.toString());
-//        assertThat(Long.parseLong((String) decoded.get("id"))).isEqualTo(lastId);
-//
-//        then(postRepository).should().findMyPostsNextByEmail(
-//                "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
-//    }
-//
-//    @Test
-//    @DisplayName("getMyPostList - 다음 페이지(size 이하) → hasNext=false, trim 없음, nextCursor=null")
-//    void nextPage_hasNext_false_notTrimmed() {
-//        int size = 2;
-//        Instant cursorCreatedAt = Instant.now();
-//        Long cursorId = 123L;
-//        String cursor = CursorCodec.encode(Map.of(
-//                "t", cursorCreatedAt.toString(),
-//                "id", cursorId
-//        ));
-//
-//        UserPostItem r1 = mock(UserPostItem.class);
-//
-//        given(postRepository.findMyPostsNextByEmail(
-//                eq("alice"),
-//                eq(cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS)),
-//                eq(cursorId),
-//                eq(size + 1)))
-//                .willReturn(List.of(r1)); // size 이하
-//
-//        CursorPageResponse<UserPostItem> res = service.getMyPostList(cursor, size);
-//
-//        assertThat(res.hasNext()).isFalse();
-//        assertThat(res.items()).hasSize(1);
-//        assertThat(res.nextCursor()).isNull();
-//
-//        then(postRepository).should().findMyPostsNextByEmail(
-//                "alice", cursorCreatedAt.truncatedTo(ChronoUnit.MILLIS), cursorId, size + 1);
-//    }
-//
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    // isAnonymousAvailable
-//    // ─────────────────────────────────────────────────────────────────────────────
-//    @Test
-//    @DisplayName("isAnonymousAvailable - 게시글의 익명 작성 가능 여부 반환")
-//    void isAnonymousAvailable_success() {
-//        Post p = mock(Post.class);
-//        given(p.getAnonymous()).willReturn(Boolean.TRUE);
-//        given(postRepository.findById(7L)).willReturn(Optional.of(p));
-//
-//        CommentWriteAnonymousAvailableResponse res = service.isAnonymousAvaliable(7L);
-//
-//        assertThat(res.isAnonymousAvailable()).isTrue();
-//    }
-//
-//    @Test
-//    @DisplayName("isAnonymousAvailable - 게시글 없음 예외")
-//    void isAnonymousAvailable_notFound() {
-//        given(postRepository.findById(7L)).willReturn(Optional.empty());
-//        assertThatThrownBy(() -> service.isAnonymousAvaliable(7L))
-//                .isInstanceOf(BusinessException.class)
-//                .extracting("status")
-//                .isEqualTo(HttpStatus.NOT_FOUND);
-//    }
-//}
+package core.domain.post.service.impl;
+
+import core.domain.board.dto.BoardItem;
+import core.domain.board.entity.Board;
+import core.domain.board.repository.BoardRepository;
+import core.domain.post.dto.admin.PostReportRequest;
+import core.domain.post.dto.comunity.PostDetailResponse;
+import core.domain.post.dto.comunity.PostUpdateRequest;
+import core.domain.post.dto.comunity.PostWriteRequest;
+import core.domain.post.dto.comunity.UserPostItem;
+import core.domain.post.entity.BlockPost;
+import core.domain.post.entity.Post;
+import core.domain.post.entity.PostReport;
+import core.domain.post.repository.BlockPostRepository;
+import core.domain.post.repository.PostReportRepository;
+import core.domain.post.repository.PostRepository;
+import core.domain.user.entity.BlockUser;
+import core.domain.user.entity.Follow;
+import core.domain.user.entity.User;
+import core.domain.user.repository.BlockRepository;
+import core.domain.user.repository.FollowRepository;
+import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.ImageService;
+import core.global.entity.like.entity.Like;
+import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.BoardCategory;
+import core.global.enums.FollowStatus;
+import core.global.enums.LikeType;
+import core.global.enums.SortOption;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
+import core.global.pagination.CursorPageResponse;
+import core.global.service.ForbiddenWordService;
+import core.global.service.TranslationService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.List;
+import java.util.Optional;
+
+import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
+import static core.global.enums.errorcode.CommunityErrorCode.POST_NOT_FOUND;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+class PostServiceImplTest {
+
+    private final String email = "test@example.com";
+    @InjectMocks
+    private PostServiceImpl postService;
+    @Mock
+    private PostRepository postRepository;
+    @Mock
+    private BoardRepository boardRepository;
+    @Mock
+    private LikeRepository likeRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private ImageRepository imageRepository;
+    @Mock
+    private ForbiddenWordService forbiddenWordService;
+    @Mock
+    private ImageService imageService;
+    @Mock
+    private BlockRepository blockRepository;
+    @Mock
+    private BlockPostRepository blockPostRepository;
+    @Mock
+    private TranslationService translationService;
+    @Mock
+    private UserRoleDetectService userRoleDetectService;
+    @Mock
+    private FollowRepository followRepository;
+    @Mock
+    private PostReportRepository postReportRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+    private User user;
+
+    @BeforeEach
+    void setUp() {
+        // SecurityContext mocking
+        SecurityContext context = mock(SecurityContext.class);
+        Authentication authentication = mock(Authentication.class);
+        when(context.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(email);
+        SecurityContextHolder.setContext(context);
+
+        user = mock(User.class);
+        lenient().when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+    }
+
+    // =========================================
+    // getPostList
+    // =========================================
+
+    @Test
+    @DisplayName("getPostList - 존재하지 않는 게시판이면 BOARD_NOT_FOUND 예외")
+    void getPostList_boardNotFound_throwsException() {
+        Long boardId = 10L;
+        when(boardRepository.existsById(boardId)).thenReturn(false);
+
+        assertThatThrownBy(() ->
+                postService.getPostList(boardId, SortOption.LATEST, null, 10)
+        )
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(BOARD_NOT_FOUND);
+                });
+
+        verify(postRepository, never()).findLatestPosts(anyLong(), any(), any(), any(), anyInt(), any());
+        verify(postRepository, never()).findPopularPosts(anyLong(), any(), any(), any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("getPostList - 정상 조회(LATEST), rows가 비어있으면 빈 페이지 반환")
+    void getPostList_latest_empty() {
+        Long boardId = 1L; // 전체 게시판 (resolvedBoardId=null)
+        int size = 5;
+
+        // user는 @BeforeEach에서 stub
+        when(postRepository.findLatestPosts(
+                anyLong(),
+                isNull(),
+                isNull(),
+                isNull(),
+                eq(size + 1),
+                isNull()
+        )).thenReturn(List.of());
+
+        CursorPageResponse<BoardItem> response =
+                postService.getPostList(boardId, SortOption.LATEST, null, size);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.hasNext()).isFalse();
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    // =========================================
+    // getPostDetail
+    // =========================================
+
+    @Test
+    @DisplayName("getPostDetail - 로그인 유저 없으면 USER_NOT_FOUND 예외")
+    void getPostDetail_userNotFound_throwsException() {
+        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.getPostDetail(1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+                });
+
+        verify(postRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("getPostDetail - 게시글이 없으면 POST_NOT_FOUND 예외")
+    void getPostDetail_postNotFound_throwsException() {
+        when(postRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.getPostDetail(1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(POST_NOT_FOUND);
+                });
+
+        verify(postRepository, never()).incrementViewCount(anyLong());
+    }
+
+    @Test
+    @DisplayName("getPostDetail - 차단 관계이면 BLOCKED_USER_POST 예외")
+    void getPostDetail_blockedUser_throwsException() {
+        User author = mock(User.class);
+        when(author.getEmail()).thenReturn("other@example.com");
+
+        Post post = mock(Post.class);
+        when(post.getAuthor()).thenReturn(author);
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        when(blockRepository.existsBlockedByEmail(email, "other@example.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> postService.getPostDetail(1L, false))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.BLOCKED_USER_POST);
+                });
+
+        verify(postRepository, never()).incrementViewCount(anyLong());
+    }
+
+    @Test
+    @DisplayName("getPostDetail - translate=false일 때 단순 상세 조회 + 조회수 증가")
+    void getPostDetail_translateFalse_success() {
+        User author = mock(User.class);
+        when(author.getEmail()).thenReturn("other@example.com");
+
+        Post post = mock(Post.class);
+        when(post.getAuthor()).thenReturn(author);
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        PostDetailResponse detail = mock(PostDetailResponse.class);
+        when(postRepository.findPostDetail(email, 1L)).thenReturn(detail);
+
+        PostDetailResponse result = postService.getPostDetail(1L, false);
+
+        assertThat(result).isEqualTo(detail);
+        verify(postRepository).incrementViewCount(1L);
+        verify(translationService, never()).translatePost(anyString(), anyString());
+    }
+
+    // =========================================
+    // writePost
+    // =========================================
+
+    @Test
+    @DisplayName("writePost - boardId가 1이면 NOT_AVAILABLE_WRITE 예외")
+    void writePost_notAvailableBoard_throwsException() {
+        PostWriteRequest request = new PostWriteRequest("content", false, List.of());
+
+        assertThatThrownBy(() -> postService.writePost(1L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.NOT_AVAILABLE_WRITE);
+                });
+
+        verify(boardRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("writePost - 게시판이 없으면 BOARD_NOT_FOUND 예외")
+    void writePost_boardNotFound_throwsException() {
+        Long boardId = 10L;
+        PostWriteRequest request = new PostWriteRequest("content", false, List.of());
+
+        when(boardRepository.findById(boardId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.writePost(boardId, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(BOARD_NOT_FOUND);
+                });
+
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("writePost - 금지어 포함 시 FORBIDDEN_WORD_DETECTED 예외")
+    void writePost_forbiddenWord_throwsException() {
+        Long boardId = 2L;
+        PostWriteRequest request = new PostWriteRequest("bad word", false, List.of());
+
+        Board board = mock(Board.class);
+        when(board.getCategory()).thenReturn(BoardCategory.FREE_TALK);
+        when(boardRepository.findById(boardId)).thenReturn(Optional.of(board));
+
+        when(forbiddenWordService.containsForbiddenWord("bad word"))
+                .thenReturn(List.of("bad"));
+
+        assertThatThrownBy(() -> postService.writePost(boardId, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommonErrorCode.FORBIDDEN_WORD_DETECTED);
+                });
+
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("writePost - 도배(5분 내 게시글 수 초과)면 TOO_MANY_POSTS 예외")
+    void writePost_flooding_throwsException() {
+        Long boardId = 2L;
+        PostWriteRequest request = new PostWriteRequest("hello", false, List.of());
+
+        Board board = mock(Board.class);
+        when(board.getCategory()).thenReturn(BoardCategory.FREE_TALK);
+        when(boardRepository.findById(boardId)).thenReturn(Optional.of(board));
+
+        when(forbiddenWordService.containsForbiddenWord("hello"))
+                .thenReturn(List.of());
+        when(postRepository.existsByAuthorEmailAndContentAndCreatedAtAfter(anyString(), anyString(), any()))
+                .thenReturn(false);
+        when(postRepository.countByAuthorEmailAndCreatedAtAfter(anyString(), any()))
+                .thenReturn(3L); // FLOOD_MAX_POSTS = 3 이상
+
+        assertThatThrownBy(() -> postService.writePost(boardId, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.TOO_MANY_POSTS);
+                });
+
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("writePost - 정상 작성 시 Post 저장 및 이미지 저장, 팔로워 알림 발행")
+    void writePost_success() {
+        Long boardId = 2L;
+        PostWriteRequest request = new PostWriteRequest("hello", false, List.of("img1"));
+
+        Board board = mock(Board.class);
+        when(board.getCategory()).thenReturn(BoardCategory.FREE_TALK);
+        when(boardRepository.findById(boardId)).thenReturn(Optional.of(board));
+
+        when(forbiddenWordService.containsForbiddenWord("hello"))
+                .thenReturn(List.of());
+        when(postRepository.existsByAuthorEmailAndContentAndCreatedAtAfter(anyString(), anyString(), any()))
+                .thenReturn(false);
+        when(postRepository.countByAuthorEmailAndCreatedAtAfter(anyString(), any()))
+                .thenReturn(0L);
+
+        // user
+        when(user.getId()).thenReturn(1L);
+
+        // postRepository.save → 넘긴 Post 그대로 리턴
+        Post savedPost = mock(Post.class);
+        when(savedPost.getId()).thenReturn(100L);
+        when(savedPost.getAuthor()).thenReturn(user);
+
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+
+        // 팔로워: 1명 있다고 가정
+        User followerUser = mock(User.class);
+        when(followerUser.getId()).thenReturn(2L);
+
+        Follow follow = mock(Follow.class);
+        when(follow.getUser()).thenReturn(followerUser);
+        when(follow.getFollowing()).thenReturn(user);
+        when(followRepository.findAllByFollowingAndStatus(user, FollowStatus.ACCEPTED))
+                .thenReturn(List.of(follow));
+
+        postService.writePost(boardId, request);
+
+        verify(postRepository).save(any(Post.class));
+        verify(imageService).savePostImages(anyLong(), eq(request.imageUrls()));
+        // PostCreatedEvent, NotificationEvent 발행 여부
+        verify(eventPublisher, atLeastOnce()).publishEvent(any(Object.class));
+
+    }
+
+    // =========================================
+    // updatePost
+    // =========================================
+
+    @Test
+    @DisplayName("updatePost - 작성자가 아니면 POST_EDIT_FORBIDDEN 예외")
+    void updatePost_notAuthor_throwsException() {
+        Long postId = 1L;
+        PostUpdateRequest request = new PostUpdateRequest("updated", List.of(), List.of());
+
+        when(forbiddenWordService.containsForbiddenWord("updated"))
+                .thenReturn(List.of());
+
+        Post post = mock(Post.class);
+        User author = mock(User.class);
+        when(author.getEmail()).thenReturn("other@example.com");
+        when(post.getAuthor()).thenReturn(author);
+        when(postRepository.findById(postId)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> postService.updatePost(postId, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.POST_EDIT_FORBIDDEN);
+                });
+
+        verify(post, never()).changeContent(anyString());
+        verify(imageService, never()).updatePostImages(anyLong(), anyList(), anyList());
+    }
+
+    // =========================================
+    // deletePost
+    // =========================================
+
+    @Test
+    @DisplayName("deletePost - 작성자가 아니면 POST_DELETE_FORBIDDEN 예외")
+    void deletePost_notAuthor_throwsException() {
+        Long postId = 1L;
+
+        Post post = mock(Post.class);
+        User author = mock(User.class);
+        when(author.getEmail()).thenReturn("other@example.com");
+        when(post.getAuthor()).thenReturn(author);
+        when(postRepository.findById(postId)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> postService.deletePost(postId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.POST_DELETE_FORBIDDEN);
+                });
+
+        verify(postRepository, never()).delete(any(Post.class));
+    }
+
+    // =========================================
+    // addLike / removeLike
+    // =========================================
+
+    @Test
+    @DisplayName("addLike - 이미 좋아요 되어 있으면 LIKE_ALREADY_EXIST 예외")
+    void addLike_alreadyExists_throwsException() {
+        Long postId = 1L;
+
+        Like like = mock(Like.class);
+        when(likeRepository.findLikeByUserEmailAndType(email, postId, LikeType.POST))
+                .thenReturn(Optional.of(like));
+
+        assertThatThrownBy(() -> postService.addLike(postId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.LIKE_ALREADY_EXIST);
+                });
+
+        verify(likeRepository, never()).save(any(Like.class));
+    }
+
+    @Test
+    @DisplayName("removeLike - 정상 삭제 시 deleteByUserEmailAndIdAndType 호출")
+    void removeLike_success() {
+        Long postId = 1L;
+
+        postService.removeLike(postId);
+
+        verify(likeRepository).deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
+    }
+
+    // =========================================
+    // getMyPostList
+    // =========================================
+
+    @Test
+    @DisplayName("getMyPostList - 첫 페이지, 결과가 없으면 빈 페이지 반환")
+    void getMyPostList_empty() {
+        int size = 5;
+        String cursor = null;
+
+        when(postRepository.findMyPostsFirstByEmail(email, size + 1))
+                .thenReturn(List.of());
+
+        CursorPageResponse<UserPostItem> response =
+                postService.getMyPostList(cursor, size);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.hasNext()).isFalse();
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    // =========================================
+    // isAnonymousAvaliable
+    // =========================================
+
+    @Test
+    @DisplayName("isAnonymousAvaliable - 게시글이 없으면 POST_NOT_FOUND 예외")
+    void isAnonymousAvaliable_postNotFound_throwsException() {
+        when(postRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> postService.isAnonymousAvaliable(1L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(POST_NOT_FOUND);
+                });
+    }
+
+    // =========================================
+    // blockUser / blockPost
+    // =========================================
+
+    @Test
+    @DisplayName("blockUser - 자기 자신은 차단 불가(CANNOT_BLOCK)")
+    void blockUser_self_throwsException() {
+        User target = mock(User.class);
+        when(target.getEmail()).thenReturn(email);
+        when(postRepository.findUserByPostId(1L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> postService.blockUser(1L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(UserErrorCode.CANNOT_BLOCK);
+                });
+
+        verify(blockRepository, never()).save(any(BlockUser.class));
+    }
+
+    @Test
+    @DisplayName("blockPost - 내 글이면 차단 불가(CANNOT_BLOCK)")
+    void blockPost_ownPost_throwsException() {
+        Post post = mock(Post.class);
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(post.getAuthor()).thenReturn(user);
+        when(user.getEmail()).thenReturn(email);
+
+        assertThatThrownBy(() -> postService.blockPost(1L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(UserErrorCode.CANNOT_BLOCK);
+                });
+
+        verify(blockPostRepository, never()).save(any(BlockPost.class));
+    }
+
+
+    // =========================================
+    // reportPost
+    // =========================================
+
+    @Test
+    @DisplayName("reportPost - 신고자가 존재하지 않으면 USER_NOT_FOUND 예외")
+    void reportPost_reporterNotFound_throwsException() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        PostReportRequest request = new PostReportRequest("SPAM", "detail");
+
+        assertThatThrownBy(() -> postService.reportPost(1L, 10L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+                });
+
+        verify(postReportRepository, never()).save(any(PostReport.class));
+    }
+
+    @Test
+    @DisplayName("reportPost - 같은 게시글을 중복 신고하면 DUPLICATE_REPORT 예외")
+    void reportPost_duplicateReport_throwsException() {
+        User reporter = mock(User.class);
+        Post post = mock(Post.class);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(postRepository.findById(10L)).thenReturn(Optional.of(post));
+        when(postReportRepository.existsByReporterAndPost(reporter, post)).thenReturn(true);
+
+        PostReportRequest request = new PostReportRequest("SPAM", "detail");
+
+        assertThatThrownBy(() -> postService.reportPost(1L, 10L, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.DUPLICATE_REPORT);
+                });
+
+        verify(postReportRepository, never()).save(any(PostReport.class));
+    }
+}

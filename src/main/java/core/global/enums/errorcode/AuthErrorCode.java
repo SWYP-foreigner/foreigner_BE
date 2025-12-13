@@ -36,7 +36,11 @@ public enum AuthErrorCode implements AppError {
     JWT_TOKEN_BLACKLISTED(HttpStatus.UNAUTHORIZED, "블랙리스트에 등록된 토큰입니다."),
     AUTHENTICATION_ADMIN_FAILED(HttpStatus.UNAUTHORIZED, "관리자 계정이 아닙니다. 접근 권한이 없습니다."),
     VERIFY_CODE_EXPIRES(HttpStatus.BAD_REQUEST, "인증 코드가 만료되었거나 존재하지 않습니다."),
-    VERIFY_CODE_NOT_MATCH(HttpStatus.CONFLICT, "인증 코드가 일치하지 않습니다.");
+    VERIFY_CODE_NOT_MATCH(HttpStatus.CONFLICT, "인증 코드가 일치하지 않습니다."),
+    VERIFY_CODE_NEED_RESEND(HttpStatus.BAD_REQUEST, "인증 코드를 다시 요청해야 합니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않거나 만료되었습니다."),
+    // [추가 권장] 토큰 자체가 형식이 잘못되었거나 만료된 경우
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다.");
 
 
     private final HttpStatus httpStatus;

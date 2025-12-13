@@ -1,4 +1,4 @@
-package core.domain.post.service;
+package core.domain.post.service.crawling;
 
 import core.domain.post.entity.CrawledData;
 import core.domain.post.repository.CrawledDataRepository;

@@ -39,6 +39,7 @@ import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -70,8 +71,10 @@ public class UserService {
 
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
+    private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
+
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
@@ -102,10 +105,54 @@ public class UserService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+    public void logout(String accessToken) {
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
+    }
+
+    public TokenRefreshResponse refreshTokens(String refreshToken) {
+        log.info("--- [토큰 재발급 Service] 시작 ---");
+
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("유효하지 않은 리프레시 토큰 요청");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 ErrorCode 사용
+        }
+
+        Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+        User user = userRepository.getUserById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        String storedRefreshToken = redisService.getRefreshToken(userId);
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
+            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", userId);
+            redisService.deleteRefreshToken(userId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+
+        redisService.deleteRefreshToken(userId);
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUserRole().toString(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
+
+        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
+        redisService.saveRefreshToken(userId, newRefreshToken, expirationMillis);
+
+        log.info("--- [토큰 재발급 Service] 완료. 사용자 ID: {} ---", userId);
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
     }
 
     public User create(UserCreateDto memberCreateDto) {
@@ -205,17 +252,44 @@ public class UserService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
-
+        user.updatePurpose(dto.purpose());
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
+// UserSetupRequest dto를 받는 메서드 내부
         if (dto.language() != null && !dto.language().isEmpty()) {
-            String userLanguagesCsv = String.join(",", dto.language());
-            user.updateLanguage(userLanguagesCsv);
 
-            String firstTranslatedLanguage = dto.language().get(0);
-            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
-                user.updateTranslateLanguage(firstTranslatedLanguage);
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+
+            if (!rawLanguages.isEmpty()) {
+
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
+                        .orElse("");
+
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
+                }
             }
         }
 
@@ -225,16 +299,9 @@ public class UserService {
         }
 
         user.updateIsNewUser(false);
-        /*if (dto.imageKey() != null) {
+        if (dto.imageKey() != null) {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
-        if (isAllProfileFieldsFilled(dto)) {
-            publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
-            log.info("모든 프로필 정보 입력 완료. 신규 유저 알림 이벤트 발행: UserID={}", user.getId());
-        } else {
-            log.info("일부 프로필 정보 누락으로 알림 미발행: {}", dto);
-        }*/
-
     }
     /**
      * DTO의 필수 필드가 모두 채워졌는지 검사하는 메서드
@@ -270,7 +337,30 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
+    private String normalizeLanguageCode(String rawLang) {
+        if (rawLang == null) return "";
 
+        String normalized = rawLang.toLowerCase().trim();
+
+        // 1. 정규식 패턴 기반 추출 (예: 'abkhaz [ab]' -> 'ab')
+        Matcher matcher = pattern.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        // 2. 대시(-) 처리 (예: 'fr-fr' -> 'fr')
+        if (normalized.contains("-")) {
+            return normalized.split("-")[0].trim();
+        }
+
+        // 3. 단순 코드인 경우 (예: 'ko', 'en')
+        // 코드 길이가 2~5자인 경우 (예: zh-CN)는 그대로 반환
+        if (normalized.length() >= 2 && normalized.length() <= 5) {
+            return normalized;
+        }
+
+        return ""; // 그 외 알 수 없는 포맷은 무시
+    }
     @Transactional
     public void deleteProfileImage() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -458,38 +548,62 @@ public class UserService {
         );
     }
 
+
     /**
-     * true 반환;
+     * 이메일 인증 코드 검증 (5회 이상 실패 시 재발급 필요)
      */
-    public void verifyEmailCode(EmailVerificationRequest request) {
+    public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
-        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
-        log.info(">>> [Redis Get] Trying to find Key: [{}]", redisKey);
-        log.info(">>> [Redis Result] Stored Code: [{}], Input Code: [{}]", storedCode, verificationCode);
+
+        String codeKey = EMAIL_VERIFY_CODE_KEY + email;
+        String attemptKey = EMAIL_VERIFY_ATTEMPT_KEY + email;
+
+        // Redis에서 코드 조회
+        String storedCode = redisTemplate.opsForValue().get(codeKey);
 
         if (storedCode == null) {
-            log.warn("Stored code not found for email: {}. Code may have expired.", email);
             throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
+        // 틀린 경우 처리
         if (!storedCode.equals(verificationCode)) {
-            log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-               throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
+
+            // 실패 횟수 증가
+            Long attempt = redisTemplate.opsForValue().increment(attemptKey);
+
+            // 실패 카운트 TTL 설정(없으면 기본 10분, 코드 TTL과 같게)
+            redisTemplate.expire(attemptKey, VERIFIED_TTL_MIN, TimeUnit.MINUTES);
+
+            // 5회 이상이면 재발급 필요
+            if (attempt != null && attempt >= 5) {
+                // 인증 코드 삭제
+                redisTemplate.delete(codeKey);
+                redisTemplate.delete(attemptKey);
+
+                throw new BusinessException(AuthErrorCode.VERIFY_CODE_NEED_RESEND);
+            }
+
+            // 5회 미만이면 일반적인 "코드 불일치"
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        // 사용한 코드는 즉시 폐기
-        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        // ★ 성공한 경우: 코드 및 시도 횟수 삭제
+        redisTemplate.delete(codeKey);
+        redisTemplate.delete(attemptKey);
+
+        // 인증 완료 플래그 저장
         String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
-        // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
         redisTemplate.opsForValue().set(
                 flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+
         log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
+
+        return true;
     }
 
     /**
@@ -529,30 +643,40 @@ public class UserService {
             user.updatePurpose(dto.purpose());
         }
 
+// UserLanguageDTO dto를 받는 메서드 내부 (updateUserLanguage 로직)
+
         if (dto.language() != null && !dto.language().isEmpty()) {
-            List<String> languages = dto.language().stream()
+
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
-                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
 
-            if (!languages.isEmpty()) {
-                String userLanguagesCsv = String.join(",", languages);
-                user.updateLanguage(userLanguagesCsv);
+            if (!rawLanguages.isEmpty()) {
 
-                String firstTranslatedLanguage = languages.stream()
-                        .map(s -> {
-                            Matcher matcher = pattern.matcher(s);
-                            return matcher.find() ? matcher.group(1).trim() : "";
-                        })
-                        .filter(s -> !s.isEmpty())
-                        .findFirst()
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
                 }
             }
         }
@@ -596,37 +720,6 @@ public class UserService {
             responseDto.setNewTokens(accessToken, refreshToken);
         }
         return responseDto;
-    }
-
-    @Transactional
-    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
-
-        updateSkipUserSetup(dto);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        String accessToken = jwtTokenProvider.createAccessToken(
-                user.getId(),
-                user.getUserRole().name(),
-                user.getEmail()
-        );
-        String refreshToken = redisService.getRefreshToken(user.getId());
-        if (refreshToken == null) {
-            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
-            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
-        }
-
-        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
-        return new LoginResponseDto(
-                user.getId(),
-                accessToken,
-                refreshToken,
-                user.isNewUser()
-        );
     }
 
     @Transactional
@@ -764,6 +857,7 @@ public class UserService {
         userDeviceTokenRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
+        userFeedbackRepository.deleteAllByUserIdExplicit(userId);
         userRepository.delete(user);
     }
 

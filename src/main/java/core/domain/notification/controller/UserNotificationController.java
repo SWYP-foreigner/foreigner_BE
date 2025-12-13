@@ -8,11 +8,13 @@ import core.domain.usernotificationsetting.dto.NotificationSettingResponseDto;
 import core.domain.usernotificationsetting.service.UserNotificationSettingService;
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
 import core.global.entity.image.dto.NotificationSliceResponseDto;
 import core.global.enums.NotificationType;
 import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -34,6 +36,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/user/notification")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class UserNotificationController {
 
     private final UserNotificationService userNotificationService;

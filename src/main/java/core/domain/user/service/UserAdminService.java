@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.dto.RecentCommentDto;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.notification.repository.NotificationRepository;
 import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
@@ -19,13 +20,17 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
+import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
+import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.apple.service.AppleWithdrawalService;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,6 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -53,8 +59,11 @@ public class UserAdminService {
     private final ChatMessageRepository chatMessageRepository;
     private final BlockPostRepository blockPostRepository;
     private final AppleWithdrawalService appleWithdrawalService;
-
-
+    private final UserDeviceTokenRepository userDeviceTokenRepository;
+    private final NotificationRepository notificationRepository;
+    private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
+    private final ImageService imageService;
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
         User user = userRepository.findById(userId)
@@ -147,27 +156,25 @@ public class UserAdminService {
      */
     @Transactional
     public void hardDeleteUser(Long userId) {
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        if ("APPLE".equals(user.getProvider())) {
-            appleWithdrawalService.revokeAppleToken(user);
+        Optional<User> user =userRepository.findById(userId);
+        User NowUser = new User();
+        if(user.isPresent()) {
+            NowUser = user.get();
         }
-
-        log.info(">>>> Starting data cleanup for user ID: {}", userId);
-
         List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
+
         for (ChatRoom chatRoom : ownedChatRooms) {
             List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
+
             if (!participants.isEmpty()) {
-                chatRoom.changeOwner(participants.get(0).getUser());
+                User newOwner = participants.get(0).getUser();
+                chatRoom.changeOwner(newOwner);
                 chatRoomRepository.save(chatRoom);
             } else {
                 chatRoomRepository.delete(chatRoom);
             }
         }
-
+        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
         if (userPosts != null && !userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
@@ -180,12 +187,16 @@ public class UserAdminService {
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
-        blockRepository.deleteAllByUserOrBlocked(user);
+        imageService.deleteUserProfileImage(userId);
+        blockRepository.deleteAllByUserOrBlocked(NowUser);
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
-        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
-
-        userRepository.delete(user);
+        userNotificationSettingRepository.deleteAllByUserId(userId);
+        userDeviceTokenRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByUserId(userId);
+        notificationRepository.deleteAllByActorId(userId);
+        userFeedbackRepository.deleteAllByUserIdExplicit(userId);
+        userRepository.delete(NowUser);
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
 

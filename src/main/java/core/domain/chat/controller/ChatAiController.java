@@ -3,9 +3,11 @@ import core.domain.chat.dto.*;
 import core.domain.chat.service.ChatAiService;
 import core.global.config.CustomUserDetails;
 import core.global.docs.annotations.ChatErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
 import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/chat/ai")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class ChatAiController {
 
     private final ChatAiService chatAiService;

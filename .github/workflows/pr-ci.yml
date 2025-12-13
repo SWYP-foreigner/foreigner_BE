@@ -16,6 +16,32 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: groonga/pgroonga:latest
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d testdb"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping || exit 1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -32,7 +58,50 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
 
+      - name: Install clients (psql)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres & init (role + pgroonga)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          echo "Waiting for Postgres on localhost:5432..."
+          until pg_isready -h localhost -p 5432 -U postgres -d testdb; do
+            sleep 2
+          done
+
+          echo "Init role + extension..."
+          psql -h localhost -p 5432 -U postgres -d testdb -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'testuser') THEN
+              CREATE ROLE testuser WITH LOGIN PASSWORD 'testpass' SUPERUSER;
+            END IF;
+          END $$;
+
+          CREATE EXTENSION IF NOT EXISTS pgroonga;
+          CREATE EXTENSION IF NOT EXISTS unaccent;
+          SQL
+
+          echo "Extensions:"
+          psql -h localhost -p 5432 -U postgres -d testdb -c "SELECT extname FROM pg_extension ORDER BY extname;"
+
       - name: Run preflight (tests + coverage)
         env:
           CI: "true"
-        run: ./gradlew --no-daemon clean preflight "-Dorg.gradle.jvmargs=-Xmx2g"
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/testdb
+          SPRING_DATASOURCE_USERNAME: testuser
+          SPRING_DATASOURCE_PASSWORD: testpass
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: "6379"
+        run: |
+          ./gradlew --no-daemon clean preflight -Dorg.gradle.jvmargs=-Xmx2g \
+            -Dspring.profiles.active=test \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb \
+            -Dspring.datasource.username=testuser \
+            -Dspring.datasource.password=testpass \
+            -Dspring.data.redis.host=localhost \
+            -Dspring.data.redis.port=6379

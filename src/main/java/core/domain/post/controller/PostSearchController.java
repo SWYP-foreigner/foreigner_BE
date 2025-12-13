@@ -3,16 +3,18 @@ package core.domain.post.controller;
 import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.dto.search.SuggestClickRequest;
-import core.domain.post.service.PostSearchService;
+import core.domain.post.service.search.PostSearchService;
 import core.domain.post.service.PostService;
 import core.domain.post.service.search.RecentSearchRedisService;
 import core.domain.post.service.search.SuggestMemoryIndex;
 import core.global.docs.annotations.CommonErrorCodeDocs;
 import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
@@ -34,6 +36,7 @@ import java.util.List;
 @RequestMapping("/api/v1/search")
 @RequiredArgsConstructor
 @Tag(name = "Search", description = "게시글 검색/자동완성/최근 검색어 API")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class PostSearchController {
 
     private final PostService postService;
