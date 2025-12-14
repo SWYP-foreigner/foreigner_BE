@@ -2,6 +2,7 @@ package core.global.security;
 
 import core.global.constants.AIOnlyPaths;
 import core.global.metrics.PresenceActivityFilter;
+import core.global.smoke.SmokeTokenFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,8 @@ public class SecurityConfig {
     private final JwtTokenFilter jwtTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final PresenceActivityFilter presenceActivityFilter;
+    private final SmokeTokenFilter smokeTokenFilter;
+
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -65,6 +68,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
 
+        http.addFilterBefore(smokeTokenFilter, JwtTokenFilter.class);
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
 
