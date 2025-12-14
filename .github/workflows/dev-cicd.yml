@@ -213,6 +213,10 @@ jobs:
     steps:
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
+          SMOKE_RETRIES: ${{ secrets.SMOKE_RETRIES }}
+          SMOKE_SLEEP: ${{ secrets.SMOKE_SLEEP }}
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
@@ -221,17 +225,11 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
+
+            : "${SMOKE_TOKEN:?SMOKE_TOKEN is required}"
+            SMOKE_RETRIES="${SMOKE_RETRIES}"
+            SMOKE_SLEEP="${SMOKE_SLEEP}"
             
-            SMOKE_URL="https://dev.ko-ri.cloud/internal/smoke?mode=gate"
-            SMOKE_TOKEN="${{ secrets.SMOKE_TOKEN }}"
-            SMOKE_RETRIES="${{ secrets.SMOKE_RETRIES || 20 }}"
-            SMOKE_SLEEP="${{ secrets.SMOKE_SLEEP || 3 }}"
-    
-            
-            echo "SMOKE_URL=$SMOKE_URL"
-            echo "SMOKE_RETRIES=${SMOKE_RETRIES:-<empty>} SMOKE_SLEEP=${SMOKE_SLEEP:-<empty>}"
-  
-  
             mkdir -p ~/foreigner
             cd ~/foreigner
             
@@ -357,6 +355,10 @@ jobs:
             esac
             
             export ACTIVE_SLOT NEXT_SLOT
+            SMOKE_URL="http://app-${NEXT_SLOT}:8080/internal/smoke?mode=gate"
+            echo "SMOKE_URL=$SMOKE_URL"
+            echo "SMOKE_RETRIES=$SMOKE_RETRIES, SMOKE_SLEEP=$SMOKE_SLEEP"
+            
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             # -------------------------------------------------------------------------------
             
@@ -393,7 +395,13 @@ jobs:
             set +e
             for i in $(seq 1 "$SMOKE_RETRIES"); do
               echo "Smoke attempt $i/$SMOKE_RETRIES..."
-              docker exec "$GW_ID" sh -lc "apk add --no-cache curl >/dev/null 2>&1 || true; curl -sk --max-time 5 -f -H \"X-Smoke-Token: ${SMOKE_TOKEN}\" \"${SMOKE_URL}\"" >/tmp/smoke.out 2>/tmp/smoke.err
+              docker exec "$GW_ID" sh -lc \
+                "apk add --no-cache curl >/dev/null 2>&1 || true; \
+                 curl -sS --max-time 5 -f \
+                   -H \"X-Smoke-Token: ${SMOKE_TOKEN}\" \
+                   \"${SMOKE_URL}\"" \
+                >/tmp/smoke.out 2>/tmp/smoke.err
+              
               RC=$?
               if [ "$RC" -eq 0 ]; then
                 echo "✅ Smoke test passed."
