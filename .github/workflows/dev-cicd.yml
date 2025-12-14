@@ -398,11 +398,16 @@ jobs:
                 apk add --no-cache curl >/dev/null 2>&1 || true
               
                 echo "[smoke] request: '"$SMOKE_URL"'"
-                HTTP_CODE="$(curl -sS --max-time 10 \
-                                         -H "X-Smoke-Token: '"$SMOKE_TOKEN"'" \
+                HTTP_CODE=$(curl -sS --max-time 10 \
+                  -H "X-Smoke-Token: $SMOKE_TOKEN" \
                   -o /tmp/smoke.body \
                   -w "%{http_code}" \
-                                         "'"$SMOKE_URL"'")"
+                  "$SMOKE_URL")
+                  
+                if ! echo "$HTTP_CODE" | grep -Eq '^[0-9]{3}$'; then
+                  echo "[smoke] invalid http_code='$HTTP_CODE'"
+                  exit 1
+                fi
                 
                 echo "[smoke] http_code=$HTTP_CODE"
                 echo "[smoke] body:"
