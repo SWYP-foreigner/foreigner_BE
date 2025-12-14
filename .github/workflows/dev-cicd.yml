@@ -213,10 +213,6 @@ jobs:
     steps:
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
-          SMOKE_RETRIES: ${{ secrets.SMOKE_RETRIES }}
-          SMOKE_SLEEP: ${{ secrets.SMOKE_SLEEP }}
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
@@ -226,9 +222,11 @@ jobs:
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
+            SMOKE_TOKEN='${{ secrets.SMOKE_TOKEN }}'
+            SMOKE_RETRIES='${{ secrets.SMOKE_RETRIES }}'
+            SMOKE_SLEEP='${{ secrets.SMOKE_SLEEP }}'
+            
             : "${SMOKE_TOKEN:?SMOKE_TOKEN is required}"
-            SMOKE_RETRIES="${SMOKE_RETRIES}"
-            SMOKE_SLEEP="${SMOKE_SLEEP}"
             
             mkdir -p ~/foreigner
             cd ~/foreigner
