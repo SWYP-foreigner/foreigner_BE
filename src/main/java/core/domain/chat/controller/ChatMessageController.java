@@ -58,7 +58,7 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
-    // [수정 2] List 반환 명시 (@ArraySchema)
+
     @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",

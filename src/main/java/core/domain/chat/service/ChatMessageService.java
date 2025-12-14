@@ -66,7 +66,6 @@ public class ChatMessageService {
 
     // Service
     private final UserRoleDetectService userRoleDetectService;
-    private final TranslationService translationService;
     private final PerspectiveService perspectiveService;
     private final ChatMemberService chatMemberService;
     private final ChatSummaryService chatSummaryService;
@@ -275,24 +274,19 @@ public class ChatMessageService {
                             (existing, replacement) -> existing
                     ));
         }
-
+        final Map<Long, String> finalProfileMap = profileMap;
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
-            List<String> originalContents = messages.stream()
-                    .map(ChatMessage::getContent)
-                    .collect(Collectors.toList());
-            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
 
-            List<ChatMessage> finalMessages = messages;
-            Map<Long, String> finalProfileMap = profileMap;
+            Map<Long, String> translatedMap = chatTranslationService.getTranslatedMessages(messages, targetLanguage);
 
-            return IntStream.range(0, messages.size())
-                    .mapToObj(i -> {
-                        ChatMessage message = finalMessages.get(i);
-                        String translatedContent = translatedContents.get(i);
+            return messages.stream()
+                    .map(message -> {
+                        String translatedContent = translatedMap.get(message.getId());
                         return mapToResponse(message, translatedContent, finalProfileMap);
-                    }).collect(Collectors.toList());
+                    })
+                    .collect(Collectors.toList());
+
         } else {
-            Map<Long, String> finalProfileMap = profileMap;
             return messages.stream()
                     .map(message -> mapToResponse(message, null, finalProfileMap))
                     .collect(Collectors.toList());
@@ -570,42 +564,36 @@ public class ChatMessageService {
 
         // 4. 번역 및 응답 변환 (검색된 소수의 메시지만 번역)
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
-            List<String> originalContents = messages.stream()
-                    .map(ChatMessage::getContent)
-                    .collect(Collectors.toList());
 
-            // 검색된 결과(예: 5개)만 번역하므로 매우 빠르고 비용이 적음
-            List<String> translatedContents = translationService.translateMessages(originalContents, targetLanguage);
+            // [변경] 외부 API 직접 호출(translationService) -> 캐싱 서비스(chatTranslationService) 사용
+            // 검색 결과가 5개라면, 5개 중 캐시 없는 것만 골라서 API 호출 후 저장까지 수행함
+            Map<Long, String> translatedMap = chatTranslationService.getTranslatedMessages(messages, targetLanguage);
 
-            List<ChatMessage> finalMessages = messages;
-            return IntStream.range(0, messages.size())
-                    .mapToObj(i -> {
-                        ChatMessage message = finalMessages.get(i);
-                        String translatedContent = translatedContents.get(i);
-                        return mapToResponse(message, translatedContent, profileMap); // 1단계의 mapToResponse 재사용
+            return messages.stream()
+                    .map(message -> {
+                        // ID로 번역된 내용 찾기 (Map 조회)
+                        String translatedContent = translatedMap.get(message.getId());
+                        return mapToResponse(message, translatedContent, profileMap);
                     })
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
+
         } else {
+            // 번역 미사용 시
             return messages.stream()
-                    .map(m -> mapToResponse(m, null, profileMap)) // 1단계의 mapToResponse 재사용
+                    .map(m -> mapToResponse(m, null, profileMap))
                     .sorted(Comparator.comparing(ChatMessageResponse::sentAt, Comparator.reverseOrder()))
                     .collect(Collectors.toList());
         }
     }
-    private List<String> getTranslatedMessages(List<ChatMessage> messages, ChatParticipant participant) {
-        if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null && !messages.isEmpty()) {
-            List<String> contents = messages.stream().map(ChatMessage::getContent).toList();
-            return translationService.translateMessages(contents, participant.getUser().getTranslateLanguage());
-        }
-        return Collections.emptyList();
-    }
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
         // 1. 참여자 조회
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
+        // 2. 메시지 조회 (이전 20개, 타겟, 이후 20개)
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
 
@@ -618,12 +606,23 @@ public class ChatMessageService {
         combined.add(target);
         combined.addAll(newer);
 
-        List<String> translatedTexts = getTranslatedMessages(combined, participant);
 
-        return IntStream.range(0, combined.size())
-                .mapToObj(i -> {
-                    String translated = translatedTexts.isEmpty() ? null : translatedTexts.get(i);
-                    return mapToResponse(combined.get(i), translated);
+        // 3. [수정됨] 번역 처리 (캐싱 서비스 적용)
+        // 구형 로직(getTranslatedMessages 호출) 삭제됨
+        Map<Long, String> translatedMap = Collections.emptyMap(); // 기본값 빈 맵
+
+        if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null) {
+            // chatTranslationService가 Redis -> DB -> API 순서로 체크하고 저장까지 수행
+            translatedMap = chatTranslationService.getTranslatedMessages(combined, participant.getUser().getTranslateLanguage());
+        }
+
+        // 4. 응답 변환
+        Map<Long, String> finalTranslatedMap = translatedMap;
+        return combined.stream()
+                .map(msg -> {
+                    String translated = finalTranslatedMap.get(msg.getId());
+                    // mapToResponse 메서드 시그니처에 맞춰 호출 (프로필 맵이 필요하다면 여기서 추가 로직 필요)
+                    return mapToResponse(msg, translated);
                 })
                 .collect(Collectors.toList());
     }
