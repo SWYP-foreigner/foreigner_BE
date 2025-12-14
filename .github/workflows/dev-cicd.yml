@@ -368,8 +368,7 @@ jobs:
             grep -n '^SMOKE_TOKEN=' .env | sed 's/=.*/=<redacted>/' || true
             echo "[debug] SMOKE_TOKEN length=${#SMOKE_TOKEN}"
   
-
-  GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
+            GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
             
             # 게이트웨이에서 Docker DNS에 등록되었는지 먼저 확인(최대 60초)
             for i in $(seq 1 60); do
