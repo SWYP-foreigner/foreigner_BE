@@ -400,34 +400,35 @@ jobs:
             
             for i in $(seq 1 "${SMOKE_RETRIES}"); do
               echo "Smoke attempt ${i}/${SMOKE_RETRIES}..."
-          
-            docker exec "${GW_ID}" sh -lc "
-              set -e
-              
-              apk add --no-cache curl >/dev/null 2>&1 || true
-              
-              SMOKE_URL='${SMOKE_URL}'
             
-              BODY_FILE='/tmp/smoke.body'
-              HTTP_CODE=''
-    
-              echo \"[smoke] request: \${SMOKE_URL}\"
-                  
-              HTTP_CODE=\$(curl -sS --max-time 10 \
-                -H \"X-Smoke-Token: \${SMOKE_TOKEN}\" \
-                -o \"\${BODY_FILE}\" \
-                -w \"%{http_code}\" \
-                \"\${SMOKE_URL}\" || true)
+            docker exec \
+              -e SMOKE_URL="${SMOKE_URL}" \
+              -e SMOKE_TOKEN="${SMOKE_TOKEN}" \
+              "${GW_ID}" sh -lc '
+                set -eu
                 
-              echo \"[smoke] http_code=\${HTTP_CODE}\"
-              echo \"[smoke] body:\"
-              cat \"\${BODY_FILE}\" 2>/dev/null || true
-                  
-              case \"\${HTTP_CODE}\" in
-                2??) exit 0 ;;
-                *)   exit 1 ;;
-              esac
-            " >/tmp/smoke.out 2>/tmp/smoke.err
+                apk add --no-cache curl >/dev/null 2>&1 || true
+                
+                BODY_FILE="/tmp/smoke.body"
+                
+                echo "[smoke] request: ${SMOKE_URL}"
+                
+                HTTP_CODE="$(curl -sS --max-time 10 \
+                  -H "X-Smoke-Token: ${SMOKE_TOKEN}" \
+                  -o "${BODY_FILE}" \
+                  -w "%{http_code}" \
+                  "${SMOKE_URL}" || true)"
+                
+                echo "[smoke] http_code=${HTTP_CODE}"
+                echo "[smoke] body:"
+                cat "${BODY_FILE}" 2>/dev/null || true
+                
+                case "${HTTP_CODE}" in
+                  2??) exit 0 ;;
+                  *)   exit 1 ;;
+                esac
+              ' >/tmp/smoke.out 2>/tmp/smoke.err
+
                 
               RC=$?
               if [ "${RC}" -eq 0 ]; then
