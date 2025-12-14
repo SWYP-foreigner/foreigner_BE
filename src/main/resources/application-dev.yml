@@ -220,7 +220,7 @@ sightengine:
 smoke:
   enabled: true
   token: ${SMOKE_TOKEN:}
-  base-url: ${SERVER_URL}
+  base-url: ${SMOKE_BASE_URL:http://localhost:8080}
   gate:
     - name: health
       method: GET

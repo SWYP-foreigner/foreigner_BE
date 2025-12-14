@@ -299,6 +299,8 @@ jobs:
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
             
+            echo "SMOKE_BASE_URL=http://localhost:8080" >> .env
+            
             cat > apple_key.pem <<PEM
             ${{ secrets.APPLE_PRIVATE_KEY_PEM }}
             PEM
@@ -355,7 +357,6 @@ jobs:
             export ACTIVE_SLOT NEXT_SLOT
             SMOKE_URL="http://app-${NEXT_SLOT}:8080/internal/smoke?mode=gate"
             echo "SMOKE_URL=$SMOKE_URL"
-            echo "SMOKE_RETRIES=$SMOKE_RETRIES, SMOKE_SLEEP=$SMOKE_SLEEP"
             
             echo "ACTIVE_SLOT=$ACTIVE_SLOT, NEXT_SLOT=$NEXT_SLOT"
             # -------------------------------------------------------------------------------
