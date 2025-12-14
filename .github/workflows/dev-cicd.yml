@@ -213,11 +213,6 @@ jobs:
     steps:
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          SMOKE_URL: https://dev.ko-ri.cloud/internal/smoke?mode=gate
-          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
-          SMOKE_RETRIES: ${{ secrets.SMOKE_RETRIES }}
-          SMOKE_SLEEP: ${{ secrets.SMOKE_SLEEP }}
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
@@ -226,13 +221,17 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
-          
-            # --- smoke 변수 보호 ------------------------------------------------------------
-            : "${SMOKE_URL:?SMOKE_URL is required}"
-            : "${SMOKE_TOKEN:?SMOKE_TOKEN is required}"
-            echo "SMOKE_URL=$SMOKE_URL"
-            echo "SMOKE_RETRIES=$SMOKE_RETRIES, SMOKE_SLEEP=$SMOKE_SLEEP"
             
+            SMOKE_URL="https://dev.ko-ri.cloud/internal/smoke?mode=gate"
+            SMOKE_TOKEN="${{ secrets.SMOKE_TOKEN }}"
+            SMOKE_RETRIES="${{ secrets.SMOKE_RETRIES || 20 }}"
+            SMOKE_SLEEP="${{ secrets.SMOKE_SLEEP || 3 }}"
+    
+            
+            echo "SMOKE_URL=$SMOKE_URL"
+            echo "SMOKE_RETRIES=${SMOKE_RETRIES:-<empty>} SMOKE_SLEEP=${SMOKE_SLEEP:-<empty>}"
+  
+  
             mkdir -p ~/foreigner
             cd ~/foreigner
             
