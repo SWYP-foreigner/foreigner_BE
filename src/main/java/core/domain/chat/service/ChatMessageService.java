@@ -74,7 +74,7 @@ public class ChatMessageService {
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatMetrics chatMetrics;
-
+    private final ChatTranslationService chatTranslationService;
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
@@ -114,7 +114,7 @@ public class ChatMessageService {
 
             // 5. [핵심] 병렬 번역 실행 (Parallel Translation)
             Map<String, String> translatedContentsMap = executeParallelTranslations(
-                    savedMessage.getContent(), recipientsByLang.keySet()
+                    savedMessage.getId(), savedMessage.getContent(), recipientsByLang.keySet()
             );
 
             // 6. [핵심] 그룹별 비동기 발송 (Async Dispatch)
@@ -173,7 +173,7 @@ public class ChatMessageService {
     /**
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
      */
-    private Map<String, String> executeParallelTranslations(String originalContent, Set<String> targetLanguages) {
+    private Map<String, String> executeParallelTranslations(Long messageId, String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
         List<String> languagesToTranslate = targetLanguages.stream()
@@ -183,9 +183,10 @@ public class ChatMessageService {
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
                     try {
-                        List<String> results = translationService.translateMessages(List.of(originalContent), lang);
-                        if (!results.isEmpty()) {
-                            resultMap.put(lang, results.get(0));
+                        String translatedText = chatTranslationService.translateAndCache(messageId, originalContent, lang).join();
+
+                        if (translatedText != null) {
+                            resultMap.put(lang, translatedText);
                         }
                     } catch (Exception e) {
                         log.error("Translation failed for lang: {}", lang, e);
