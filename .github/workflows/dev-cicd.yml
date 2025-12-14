@@ -393,13 +393,22 @@ jobs:
             set +e
             for i in $(seq 1 "$SMOKE_RETRIES"); do
               echo "Smoke attempt $i/$SMOKE_RETRIES..."
-              docker exec "$GW_ID" sh -lc \
-                "apk add --no-cache curl >/dev/null 2>&1 || true; \
-                 curl -sS --max-time 5 -f \
-                   -H \"X-Smoke-Token: ${SMOKE_TOKEN}\" \
-                   \"${SMOKE_URL}\"" \
-                >/tmp/smoke.out 2>/tmp/smoke.err
+              docker exec "$GW_ID" sh -lc '
+                apk add --no-cache curl >/dev/null 2>&1 || true
               
+                echo "[smoke] request: '"$SMOKE_URL"'"
+                HTTP_CODE="$(curl -sS --max-time 10 \
+                                         -H "X-Smoke-Token: '"$SMOKE_TOKEN"'" \
+                  -o /tmp/smoke.body \
+                  -w "%{http_code}" \
+                                         "'"$SMOKE_URL"'")"
+                
+                echo "[smoke] http_code=$HTTP_CODE"
+                echo "[smoke] body:"
+                cat /tmp/smoke.body || true
+                
+                [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
+                ' >/tmp/smoke.out 2>/tmp/smoke.err
               RC=$?
               if [ "$RC" -eq 0 ]; then
                 echo "✅ Smoke test passed."
