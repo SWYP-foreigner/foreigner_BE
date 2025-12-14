@@ -222,6 +222,16 @@ jobs:
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
             
+            SMOKE_URL="https://dev.ko-ri.cloud/internal/smoke?mode=gate"
+            SMOKE_TOKEN="${{ secrets.SMOKE_TOKEN }}"
+            SMOKE_RETRIES="${{ secrets.SMOKE_RETRIES || 20 }}"
+            SMOKE_SLEEP="${{ secrets.SMOKE_SLEEP || 3 }}"
+    
+            
+            echo "SMOKE_URL=$SMOKE_URL"
+            echo "SMOKE_RETRIES=${SMOKE_RETRIES:-<empty>} SMOKE_SLEEP=${SMOKE_SLEEP:-<empty>}"
+  
+  
             mkdir -p ~/foreigner
             cd ~/foreigner
             
@@ -376,6 +386,45 @@ jobs:
             
             # --- 2.5) (선택) 전환 검증: 현재 업스트림 확인 -----------------------------------
             docker exec "$GW_ID" sh -lc 'apk add --no-cache curl 2>/dev/null || true; curl -skI https://dev.ko-ri.cloud/ | grep -i x-upstream || true'
+            
+            # --- 2.6) Smoke test (앱 + 외부 API) ------------------------------------------------
+            echo "Running smoke test: $SMOKE_URL"
+            
+            set +e
+            for i in $(seq 1 "$SMOKE_RETRIES"); do
+              echo "Smoke attempt $i/$SMOKE_RETRIES..."
+              docker exec "$GW_ID" sh -lc "apk add --no-cache curl >/dev/null 2>&1 || true; curl -sk --max-time 5 -f -H \"X-Smoke-Token: ${SMOKE_TOKEN}\" \"${SMOKE_URL}\"" >/tmp/smoke.out 2>/tmp/smoke.err
+              RC=$?
+              if [ "$RC" -eq 0 ]; then
+                echo "✅ Smoke test passed."
+                cat /tmp/smoke.out || true
+                break
+              fi
+              echo "❌ Smoke failed (rc=$RC)."
+              cat /tmp/smoke.err || true
+              sleep "$SMOKE_SLEEP"
+            done
+            set -e
+            
+            if [ "${RC:-1}" -ne 0 ]; then
+              echo "🚨 Smoke test failed. Rolling back to ACTIVE_SLOT=$ACTIVE_SLOT"
+          
+              # 업스트림을 다시 ACTIVE_SLOT으로 원복
+              if [ "$ACTIVE_SLOT" = "blue" ]; then
+                sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-blue:8080;|' nginx/conf.d/default.conf
+              else
+                sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-green:8080;|' nginx/conf.d/default.conf
+              fi
+            
+              docker exec "$GW_ID" nginx -t
+              docker exec "$GW_ID" nginx -s reload
+            
+              # NEXT 슬롯 정리
+              docker compose -p foreigner -f "$COMPOSE_APP" stop "app-$NEXT_SLOT" || true
+              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-$NEXT_SLOT" || true
+            
+              exit 1
+            fi
             
             # --- 3) 활성 슬롯 기록 ------------------------------------------------------------
             echo "$NEXT_SLOT" > "$ACTIVE_FILE"
