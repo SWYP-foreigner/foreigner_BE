@@ -389,61 +389,78 @@ jobs:
             docker exec "$GW_ID" sh -lc 'apk add --no-cache curl 2>/dev/null || true; curl -skI https://dev.ko-ri.cloud/ | grep -i x-upstream || true'
             
             # --- 2.6) Smoke test (앱 + 외부 API) ------------------------------------------------
-            echo "Running smoke test: $SMOKE_URL"
+            echo "Running smoke test: ${SMOKE_URL}"
             
             set +e
-            for i in $(seq 1 "$SMOKE_RETRIES"); do
-              echo "Smoke attempt $i/$SMOKE_RETRIES..."
-              docker exec "$GW_ID" sh -lc '
-                apk add --no-cache curl >/dev/null 2>&1 || true
+            RC=1
+            
+            for i in $(seq 1 "${SMOKE_RETRIES}"); do
+              echo "Smoke attempt ${i}/${SMOKE_RETRIES}..."
+          
+            docker exec "${GW_ID}" sh -lc "
+              set -e
               
-                echo "[smoke] request: '"$SMOKE_URL"'"
-                HTTP_CODE=$(curl -sS --max-time 10 \
-                  -H "X-Smoke-Token: $SMOKE_TOKEN" \
-                  -o /tmp/smoke.body \
-                  -w "%{http_code}" \
-                  "$SMOKE_URL")
+              apk add --no-cache curl >/dev/null 2>&1 || true
+              
+              SMOKE_URL='${SMOKE_URL}'
+              SMOKE_TOKEN='${SMOKE_TOKEN}'
+              
+              BODY_FILE='/tmp/smoke.body'
+              HTTP_CODE=''
+    
+              echo \"[smoke] request: \${SMOKE_URL}\"
                   
-                if ! echo "$HTTP_CODE" | grep -Eq '^[0-9]{3}$'; then
-                  echo "[smoke] invalid http_code='$HTTP_CODE'"
-                  exit 1
-                fi
+              HTTP_CODE=\$(curl -sS --max-time 10 \
+                -H \"X-Smoke-Token: \${SMOKE_TOKEN}\" \
+                -o \"\${BODY_FILE}\" \
+                -w \"%{http_code}\" \
+                \"\${SMOKE_URL}\" || true)
                 
-                echo "[smoke] http_code=$HTTP_CODE"
-                echo "[smoke] body:"
-                cat /tmp/smoke.body || true
+              echo \"[smoke] http_code=\${HTTP_CODE}\"
+              echo \"[smoke] body:\"
+              cat \"\${BODY_FILE}\" 2>/dev/null || true
+                  
+              case \"\${HTTP_CODE}\" in
+                2??) exit 0 ;;
+                *)   exit 1 ;;
+              esac
+            " >/tmp/smoke.out 2>/tmp/smoke.err
                 
-                [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
-                ' >/tmp/smoke.out 2>/tmp/smoke.err
               RC=$?
-              if [ "$RC" -eq 0 ]; then
+              if [ "${RC}" -eq 0 ]; then
                 echo "✅ Smoke test passed."
                 cat /tmp/smoke.out || true
                 break
               fi
-              echo "❌ Smoke failed (rc=$RC)."
+                
+              echo "❌ Smoke failed (rc=${RC})."
+              echo "--- stdout ---"
+              cat /tmp/smoke.out || true
+              echo "--- stderr ---"
               cat /tmp/smoke.err || true
-              sleep "$SMOKE_SLEEP"
+                
+              sleep "${SMOKE_SLEEP}"
             done
+            
             set -e
             
-            if [ "${RC:-1}" -ne 0 ]; then
-              echo "🚨 Smoke test failed. Rolling back to ACTIVE_SLOT=$ACTIVE_SLOT"
+            if [ "${RC}" -ne 0 ]; then
+             echo "🚨 Smoke test failed. Rolling back to ACTIVE_SLOT=${ACTIVE_SLOT}"
           
-              # 업스트림을 다시 ACTIVE_SLOT으로 원복
-              if [ "$ACTIVE_SLOT" = "blue" ]; then
-                sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-blue:8080;|' nginx/conf.d/default.conf
-              else
-                sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-green:8080;|' nginx/conf.d/default.conf
-              fi
-            
-              docker exec "$GW_ID" nginx -t
-              docker exec "$GW_ID" nginx -s reload
-            
-              # NEXT 슬롯 정리
-              docker compose -p foreigner -f "$COMPOSE_APP" stop "app-$NEXT_SLOT" || true
-              docker compose -p foreigner -f "$COMPOSE_APP" rm -f "app-$NEXT_SLOT" || true
-            
+                # 업스트림을 다시 ACTIVE_SLOT으로 원복
+                if [ "${ACTIVE_SLOT}" = "blue" ]; then
+                  sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-blue:8080;|' nginx/conf.d/default.conf
+                else
+                  sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-green:8080;|' nginx/conf.d/default.conf
+                fi
+              
+                docker exec "${GW_ID}" nginx -t
+                docker exec "${GW_ID}" nginx -s reload
+          
+                # NEXT 슬롯 정리
+                docker compose -p foreigner -f "${COMPOSE_APP}" stop "app-${NEXT_SLOT}" || true
+                docker compose -p foreigner -f "${COMPOSE_APP}" rm -f "app-${NEXT_SLOT}" || true
+              
               exit 1
             fi
             
