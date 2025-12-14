@@ -222,9 +222,9 @@ jobs:
             command -v docker >/dev/null || (echo "docker not found" && exit 1)
             docker compose version || (echo "docker compose not found" && exit 1)
 
-            SMOKE_TOKEN='${{ secrets.SMOKE_TOKEN }}'
-            SMOKE_RETRIES='${{ secrets.SMOKE_RETRIES }}'
-            SMOKE_SLEEP='${{ secrets.SMOKE_SLEEP }}'
+            SMOKE_TOKEN="${{ secrets.SMOKE_TOKEN }}"
+            SMOKE_RETRIES="${{ secrets.SMOKE_RETRIES }}"
+            SMOKE_SLEEP="${{ secrets.SMOKE_SLEEP }}"
             
             : "${SMOKE_TOKEN:?SMOKE_TOKEN is required}"
             
@@ -299,6 +299,7 @@ jobs:
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
             
+            echo "SMOKE_TOKEN=${SMOKE_TOKEN}" >> .env
             echo "SMOKE_BASE_URL=http://localhost:8080" >> .env
             
             cat > apple_key.pem <<PEM
@@ -364,7 +365,11 @@ jobs:
             # --- 0) 다음 슬롯 기동 + 헬스 대기 ------------------------------------------------
             docker compose -p foreigner -f "$COMPOSE_APP" up -d "app-$NEXT_SLOT"
             
-            GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
+            grep -n '^SMOKE_TOKEN=' .env | sed 's/=.*/=<redacted>/' || true
+            echo "[debug] SMOKE_TOKEN length=${#SMOKE_TOKEN}"
+  
+
+  GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
             
             # 게이트웨이에서 Docker DNS에 등록되었는지 먼저 확인(최대 60초)
             for i in $(seq 1 60); do
@@ -403,8 +408,7 @@ jobs:
               apk add --no-cache curl >/dev/null 2>&1 || true
               
               SMOKE_URL='${SMOKE_URL}'
-              SMOKE_TOKEN='${SMOKE_TOKEN}'
-              
+            
               BODY_FILE='/tmp/smoke.body'
               HTTP_CODE=''
     
