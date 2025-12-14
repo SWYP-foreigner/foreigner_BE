@@ -27,7 +27,8 @@ public final class PermitAllPaths {
             "/admin/login",
             "/api/v1/member/admin/login",
             "/admin/test/send-message",
-            "/api/v1/app/**"
+            "/api/v1/app/**",
+            "/internal/smoke"
     );
 
     private PermitAllPaths() { }
