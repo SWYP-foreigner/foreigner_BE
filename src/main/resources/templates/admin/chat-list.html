@@ -37,7 +37,7 @@
 
 <div class="search-form">
     <form th:action="@{/admin/chats}" method="get" th:object="${searchRequest}">
-        <input type="text" name="roomName" th:value="*{roomName}" placeholder="채팅방 이름 검색">
+        <input type="text" name="keyword" th:value="*{keyword}" placeholder="방 이름, 참여자 이름, 이메일 검색">
         <button type="submit">검색</button>
     </form>
 </div>
@@ -72,16 +72,16 @@
 
 <div class="pagination" th:if="${chatRoomPage.totalPages > 1}">
     <a th:if="${chatRoomPage.hasPrevious()}"
-       th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, roomName=${searchRequest.roomName})}">이전</a>
+       th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">이전</a>
 
     <span th:each="pageNumber : ${#numbers.sequence(0, chatRoomPage.totalPages - 1)}">
-            <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, roomName=${searchRequest.roomName})}"
+            <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword})}"
                th:text="${pageNumber + 1}"
                th:classappend="${pageNumber == chatRoomPage.number} ? 'active'"></a>
         </span>
 
     <a th:if="${chatRoomPage.hasNext()}"
-       th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, roomName=${searchRequest.roomName})}">다음</a>
+       th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">다음</a>
 </div>
 
 </body>
