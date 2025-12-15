@@ -68,6 +68,9 @@
         </tr>
         </thead>
         <tbody>
+        <tr th:if="${participantPage.isEmpty()}">
+            <td colspan="4" style="text-align: center; color: #999; padding: 20px;">참여자가 없습니다.</td>
+        </tr>
         <tr th:each="p : ${participantPage.content}">
             <td th:text="${p.participantId}"></td>
             <td th:text="${p.userName}"></td>
@@ -76,12 +79,34 @@
         </tr>
         </tbody>
     </table>
-    <div class="pagination" th:if="${participantPage.totalPages > 1}">
-        <span th:each="pageNumber : ${#numbers.sequence(0, participantPage.totalPages - 1)}">
-            <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, msgPage=${param.msgPage})}"
-               th:text="${pageNumber + 1}"
-               th:classappend="${pageNumber == participantPage.number} ? 'active'"></a>
+
+    <div class="pagination" th:if="${participantPage.totalPages > 0}">
+        <a th:if="${!participantPage.first}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=0, msgPage=${param.msgPage})}">
+            &laquo;
+        </a>
+        <a th:if="${participantPage.hasPrevious()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number - 1}, msgPage=${param.msgPage})}">
+            &lt;
+        </a>
+
+        <span th:with="start=${T(java.lang.Math).max(0, participantPage.number - 4)},
+                        end=${T(java.lang.Math).min(participantPage.totalPages - 1, participantPage.number + 4)}">
+            <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, msgPage=${param.msgPage})}"
+                   th:text="${pageNumber + 1}"
+                   th:classappend="${pageNumber == participantPage.number} ? 'active'"></a>
+            </span>
         </span>
+
+        <a th:if="${participantPage.hasNext()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number + 1}, msgPage=${param.msgPage})}">
+            &gt;
+        </a>
+        <a th:if="${!participantPage.last}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.totalPages - 1}, msgPage=${param.msgPage})}">
+            &raquo;
+        </a>
     </div>
 
 
