@@ -254,7 +254,7 @@ public class ChatMessageService {
         });
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
