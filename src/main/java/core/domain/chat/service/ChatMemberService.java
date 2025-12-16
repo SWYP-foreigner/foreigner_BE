@@ -51,7 +51,6 @@ public class ChatMemberService {
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         List<ChatParticipant> participants = chatParticipantRepository.findByChatRoom(chatRoom);
-
         // TODO: 성능 최적화를 위해 이미지 조회를 In-Query로 변경하거나 배치 조회 권장 (현재는 N+1 발생 가능)
         return participants.stream()
                 .map(p -> {
@@ -97,19 +96,14 @@ public class ChatMemberService {
         if (targetUserId.equals(blockerId)) {
             throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
         }
-
         User blocker = userRepository.findById(blockerId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
         User blockedUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
         userRoleDetectService.isProfileSetUpUser(blocker);
-
         if (blockRepository.existsBlock(blocker.getId(), blockedUser.getId())) {
             throw new BusinessException(UserErrorCode.ALREADY_BLOCKED);
         }
-
         blockRepository.save(new BlockUser(blocker, blockedUser));
     }
 
@@ -118,20 +112,15 @@ public class ChatMemberService {
         if (chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId())) {
             throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
         }
-
         User reporterUser = userRepository.findById(reporterUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
         ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
-
         User reportedUser = reportedMessage.getSender();
         ChatRoom chatRoom = reportedMessage.getChatRoom();
-
         if (reportedUser.getId().equals(reporterUserId)) {
             throw new BusinessException(ChatErrorCode.CANNOT_REPORT_SELF);
         }
-
         ChatReport chatReport = new ChatReport(
                 reporterUser,
                 reportedUser,
@@ -150,7 +139,6 @@ public class ChatMemberService {
     public void toggleTranslation(Long roomId, Long userId, boolean enable) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
-
         participant.toggleTranslation(enable);
     }
 
@@ -158,7 +146,6 @@ public class ChatMemberService {
     public void toggleChatRoomNotifications(Long roomId, Long userId, boolean enabled) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-
         participant.setNotificationsEnabled(enabled);
     }
 
@@ -166,7 +153,6 @@ public class ChatMemberService {
     public ChatNotificationStatusResponse isNotificationsEnabled(Long roomId, Long userId) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-
         return new ChatNotificationStatusResponse(participant.isNotificationsEnabled());
     }
 }
