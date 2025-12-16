@@ -34,6 +34,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StopWatch;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -43,6 +44,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -210,36 +212,47 @@ public class ChatMessageService {
             ChatMessage savedMessage,
             String userImageUrl
     ) {
-        User sender = savedMessage.getSender();
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        // 1. 트랜잭션 안에서 데이터 미리 확보 (Lazy Loading 방지)
+        final Long messageId = savedMessage.getId();
+        final Long roomId = savedMessage.getChatRoom().getId();
+        final Long senderId = savedMessage.getSender().getId();
+        final String content = savedMessage.getContent();
+        final Instant sentAt = savedMessage.getSentAt();
+        final String senderFirstName = savedMessage.getSender().getFirstName();
+        final String senderLastName = savedMessage.getSender().getLastName();
+        final MessageType msgType = savedMessage.getMessageType();
 
-        for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
-            String targetLang = entry.getKey();
-            List<Long> recipientIds = entry.getValue();
-            if (recipientIds.isEmpty()) continue;
+        // 2. ★ 핵심 수정: 트랜잭션 커밋 후(After Commit)에 실행되도록 예약
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 이 블록은 DB 커밋이 끝난 뒤에 실행됩니다.
+                // 따라서 비동기 스레드가 DB를 조회할 때 "방금 저장한 메시지"가 무조건 보입니다.
 
-            String translatedText = translatedContentsMap.get(targetLang);
-            ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(),
-                    savedMessage.getChatRoom().getId(),
-                    sender.getId(),
-                    savedMessage.getContent(),
-                    translatedText,
-                    savedMessage.getSentAt(),
-                    sender.getFirstName(),
-                    sender.getLastName(),
-                    userImageUrl,
-                    savedMessage.getMessageType()
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+                for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
+                    String targetLang = entry.getKey();
+                    List<Long> recipientIds = entry.getValue();
+                    if (recipientIds.isEmpty()) continue;
+
+                    String translatedText = translatedContentsMap.get(targetLang);
+
+                    // DTO 생성
+                    ChatMessageResponse messageResponse = new ChatMessageResponse(
+                            messageId, roomId, senderId, content, translatedText,
+                            sentAt, senderFirstName, senderLastName, userImageUrl, msgType
                     );
 
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
-                    chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
-            );
-            futures.add(future);
-        }
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                    // 전송 로직 (기존과 동일)
+                    futures.add(CompletableFuture.runAsync(() ->
+                            chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
+                    ));
+                }
+                // Fire-and-Forget
+            }
+        });
     }
-
 
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
