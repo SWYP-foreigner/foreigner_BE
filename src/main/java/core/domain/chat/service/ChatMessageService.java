@@ -110,12 +110,14 @@ public class ChatMessageService {
             Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
-
             // 5. [핵심] 병렬 번역 실행 (Parallel Translation)
-            Map<String, String> translatedContentsMap = executeParallelTranslations(
-                    savedMessage.getId(), savedMessage.getContent(), recipientsByLang.keySet()
-            );
-
+            Map<String, String> translatedContentsMap = new HashMap<>();
+            if (savedMessage.getMessageType() == MessageType.TEXT) {
+                // ★ 핵심: 텍스트일 때만 번역기 가동
+                translatedContentsMap = executeParallelTranslations(
+                        savedMessage.getId(), savedMessage.getContent(), recipientsByLang.keySet()
+                );
+            }
             // 6. [핵심] 그룹별 비동기 발송 (Async Dispatch)
             executeParallelDispatch(
                     recipientsByLang, translatedContentsMap, savedMessage, userImageUrl
@@ -227,8 +229,8 @@ public class ChatMessageService {
                     sender.getFirstName(),
                     sender.getLastName(),
                     userImageUrl,
-                    MessageType.TEXT
-            );
+                    savedMessage.getMessageType()
+                    );
 
             CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
                     chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
@@ -277,15 +279,21 @@ public class ChatMessageService {
         final Map<Long, String> finalProfileMap = profileMap;
         if (needsTranslation && targetLanguage != null && !targetLanguage.isEmpty()) {
 
-            Map<Long, String> translatedMap = chatTranslationService.getTranslatedMessages(messages, targetLanguage);
+            List<ChatMessage> textMessages = messages.stream()
+                    .filter(msg -> msg.getMessageType() == MessageType.TEXT)
+                    .toList();
+
+            Map<Long, String> translatedMap = chatTranslationService.getTranslatedMessages(textMessages, targetLanguage);
 
             return messages.stream()
                     .map(message -> {
-                        String translatedContent = translatedMap.get(message.getId());
+                        String translatedContent = (message.getMessageType() == MessageType.TEXT)
+                                ? translatedMap.get(message.getId())
+                                : null;
+
                         return mapToResponse(message, translatedContent, finalProfileMap);
                     })
                     .collect(Collectors.toList());
-
         } else {
             return messages.stream()
                     .map(message -> mapToResponse(message, null, finalProfileMap))
