@@ -504,54 +504,6 @@ public class ChatMessageService {
     }
 
     @Transactional(readOnly = true)
-    public List<ChatMessageFirstResponse> getFirstMessages(Long roomId, Long userId) {
-        // 채팅방 존재 확인
-        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
-
-        // 참여 여부 확인
-        chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .filter(participant -> participant.getStatus() != ChatParticipantStatus.LEFT)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
-
-        // 최근 50개 조회
-        List<ChatMessage> messages = chatMessageRepository.findTop50ByChatRoomIdOrderBySentAtDesc(roomId);
-
-        // 차단 유저 제외
-        List<Long> blockedIds = getBlockedUserIds(userId);
-        if (!blockedIds.isEmpty()) {
-            messages = messages.stream()
-                    .filter(msg -> !blockedIds.contains(msg.getSender().getId()))
-                    .toList();
-        }
-
-        // 이미지 Bulk 조회
-        List<Long> senderIds = messages.stream().map(msg -> msg.getSender().getId()).distinct().toList();
-        Map<Long, String> senderImageUrlMap = new HashMap<>();
-
-        if (!senderIds.isEmpty()) {
-            List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, senderIds);
-            senderImageUrlMap = images.stream().collect(Collectors.toMap(
-                    Image::getRelatedId, Image::getUrl, (url1, url2) -> url1
-            ));
-        }
-
-        Map<Long, String> finalMap = senderImageUrlMap;
-        return messages.stream().map(message -> {
-            String finalContent = message.getContent();
-            MessageType finalType = message.getMessageType();
-
-            if ("BLOCKED_MEDIA".equals(finalContent)) {
-                finalContent = "관리자에 의해 삭제된 이미지입니다.";
-                finalType = MessageType.TEXT;
-            } else if (finalType == MessageType.IMAGE && !finalContent.startsWith("http")) {
-                finalContent = cdnBaseUrl + "/" + finalContent;
-            }
-            return ChatMessageFirstResponse.fromEntityWithContent(message, chatRoom, finalMap.get(message.getSender().getId()), finalContent, finalType);
-        }).collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
     public List<ChatMessageResponse> searchMessages(Long roomId, Long userId, String keyword) {
         // 1. 참여자 검증
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
