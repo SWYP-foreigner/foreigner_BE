@@ -560,7 +560,7 @@ public class ChatMessageService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
         // 1. 참여자 조회
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
