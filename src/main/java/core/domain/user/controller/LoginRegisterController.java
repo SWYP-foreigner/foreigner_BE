@@ -284,15 +284,6 @@ public class LoginRegisterController {
         return ResponseEntity.ok(userProfiles);
     }
 
-    @Operation(summary = "유저 프로필 조회", description = "userId를 통해 유저의 상세 프로필 정보를 조회합니다.")
-    @GetMapping("/{userId}/chat_profile")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @ImageErrorCodeDocs({ImageErrorCode.IMAGE_NOT_FOUND})
-    public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserChatProfile(@PathVariable Long userId) {
-        ChatUserProfileResponse response = userService.getUserChatProfile(userId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
 
     @Operation(summary = "애플 유저인지 판별", description = "사용자가 애플 유저인지, 그리고 이름 정보가 없는 재가입 유저인지 판별합니다.")
     @GetMapping("/{userId}/is-apple")
