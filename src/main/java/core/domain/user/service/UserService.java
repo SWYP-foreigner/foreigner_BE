@@ -131,6 +131,7 @@ public class UserService {
         Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
         User user = userRepository.getUserById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        log.info("---  사용자 ID: {} {} {}  ---", user.getId(),user.getFirstName(),user.getLastName());
 
         String storedRefreshToken = redisService.getRefreshToken(userId);
 
