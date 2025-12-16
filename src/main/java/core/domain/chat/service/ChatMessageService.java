@@ -489,7 +489,7 @@ public class ChatMessageService {
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
         if (lastMessageOpt.isPresent()) {
             MarkAsReadRequest req = new MarkAsReadRequest(roomId, readerId, lastMessageOpt.get().getId());
-            processMarkAsRead(req, readerId);
+           // processMarkAsRead(req, readerId);
         }
     }
 
