@@ -1,7 +1,7 @@
 package core.global.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -10,36 +10,62 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
+@Slf4j // 로깅을 위해 추가
 @Configuration
 @EnableAsync
 public class AsyncConfig implements AsyncConfigurer {
 
-    private final ThreadPoolTaskExecutor dispatchExecutor;
+    /**
+     * 1. 메인 비동기 실행기 (taskExecutor)
+     * - 에러 메시지에서 찾던 그 빈입니다.
+     * - @Async만 붙였을 때 기본으로 사용됩니다.
+     * - 채팅 번역, 알림 전송 등 일반적인 비동기 작업 처리
+     */
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);    // 평소 대기 스레드
+        executor.setMaxPoolSize(50);     // 바쁠 때 최대 스레드
+        executor.setQueueCapacity(200);  // 대기열 크기
+        executor.setThreadNamePrefix("Async-Default-");
+        executor.initialize();
+        return executor;
 
-    public AsyncConfig(@Qualifier("dispatchExecutor") ThreadPoolTaskExecutor dispatchExecutor) {
-        this.dispatchExecutor = dispatchExecutor;
     }
-
+    /**
+     * 2. AsyncConfigurer 인터페이스 구현
+     * - @Async 어노테이션이 사용할 기본 Executor를 지정합니다.
+     * - 위에서 만든 taskExecutor()를 리턴합니다.
+     */
     @Override
     public Executor getAsyncExecutor() {
-        return dispatchExecutor; // ✅ @Async 기본 실행기 지정
+        return taskExecutor();
     }
 
-    // 선택: 비동기 예외 로깅 커스터마이즈 가능
+    /**
+     * 3. 비동기 예외 처리기
+     * - 비동기 메서드(void 반환)에서 에러가 터지면 메인 스레드는 모릅니다.
+     * - 여기서 로그를 찍어줘야 에러 추적이 가능합니다.
+     */
     @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         return (ex, method, params) -> {
-            // log.warn("Async error in {}: {}", method, ex.getMessage(), ex);
+            log.error("💥 Async Method Error - Method: {}, Message: {}", method.getName(), ex.getMessage(), ex);
         };
     }
 
+    /**
+     * 4. 이미지 검열 전용 실행기 (moderationExecutor)
+     * - 기존에 작성하신 코드 유지
+     * - @Async("moderationExecutor") 라고 명시했을 때만 사용됨
+     */
     @Bean(name = "moderationExecutor")
     public Executor moderationExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(5);
         executor.setMaxPoolSize(20);
         executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("Moderation-");
+        executor.setThreadNamePrefix("Async-Moderation-");
         executor.initialize();
         return executor;
     }
