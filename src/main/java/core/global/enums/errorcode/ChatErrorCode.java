@@ -22,7 +22,8 @@ public enum ChatErrorCode implements AppError {
     REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 신고 내역입니다."),
     ALREADY_RECOMMENDED_TODAY(HttpStatus.BAD_REQUEST, "오늘 이미 추천을 받았습니다."),
     NO_RECOMMENDABLE_ROOM(HttpStatus.NOT_FOUND, "추천할 수 있는 채팅방이 없습니다."),
-    NO_MORE_RECOMMENDABLE_ROOM(HttpStatus.NOT_FOUND, "더 이상 추천할 채팅방이 없습니다.");
+    NO_MORE_RECOMMENDABLE_ROOM(HttpStatus.NOT_FOUND, "더 이상 추천할 채팅방이 없습니다."),
+    FILE_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "파일 업로드에 실패했습니다.");
     private final HttpStatus httpStatus;
     private final String message;
 
