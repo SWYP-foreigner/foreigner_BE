@@ -39,8 +39,9 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 .orderBy(user.createdAt.desc(), user.id.desc())
                 .fetch();
 
-        long total = queryFactory
-                .selectFrom(user)
+        Long total = queryFactory
+                .select(user.count())
+                .from(user)
                 .where(
                         emailContains(condition.email()),
                         nameContains(condition.name()),
@@ -48,7 +49,7 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
 
                         user.userRole.ne(Role.VISITOR)
                 )
-                .fetchCount();
+                .fetchOne();
 
         return new PageImpl<>(content, pageable, total);
     }
