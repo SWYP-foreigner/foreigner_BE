@@ -8,6 +8,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.service.ChatSummaryService;
 import core.domain.user.entity.User;
 import core.global.ai.client.AiClient;
+import core.global.ai.dto.MessageCreatedEvent;
 import core.global.ai.mapper.PromptMapper;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
@@ -46,7 +47,7 @@ public class AiChatUserService {
     private final ImageService imageService;
 
     @Transactional
-    public void processAiResponse(User aiUser, MessageSentEvent event) {
+    public void processAiResponse(User aiUser, MessageCreatedEvent event) {
         Long chatRoomId = event.messageResponse().roomId();
         String userMessage = event.messageResponse().originContent();
 

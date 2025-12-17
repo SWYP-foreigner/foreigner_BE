@@ -12,12 +12,12 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
+import core.global.ai.dto.MessageCreatedEvent;
 import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.impl.S3ImageStorageClient;
 import core.global.enums.ChatParticipantStatus;
-import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.MessageType;
 import core.global.enums.errorcode.ChatErrorCode;
@@ -37,7 +37,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.util.StopWatch;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -48,13 +47,10 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @Slf4j
@@ -122,6 +118,9 @@ public class ChatMessageService {
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
 
+            List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
+            ChatMessageResponse savedMessageResponse = buildBaseMessageResponse(savedMessage, userImageUrl);
+
             // 5. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
             Map<String, String> translatedContentsMap = new HashMap<>();
             if (savedMessage.getMessageType() == MessageType.TEXT) {
@@ -149,6 +148,9 @@ public class ChatMessageService {
                     executeParallelDispatchAfterCommit(
                             recipientsByLang, finalTranslations, savedMessage, userImageUrl
                     );
+
+                    //AI 및 공통 처리를 위한 단일 이벤트 발행 (딱 한 번!)
+                    eventPublisher.publishEvent(new MessageCreatedEvent(savedMessageResponse, allRecipientIds));
                 }
             });
 
@@ -172,6 +174,30 @@ public class ChatMessageService {
         return imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
                 .map(Image::getUrl)
                 .orElse(null);
+    }
+
+    private ChatMessageResponse buildBaseMessageResponse(ChatMessage message, String userImageUrl) {
+        User sender = message.getSender();
+        return new ChatMessageResponse(
+                message.getId(),
+                message.getChatRoom().getId(),
+                sender.getId(),
+                message.getContent(),
+                null, // 번역본은 필요 시 별도 세팅
+                message.getSentAt(),
+                sender.getFirstName(),
+                sender.getLastName(),
+                userImageUrl,
+                message.getMessageType(),
+                null, // 미디어 URL (텍스트 메시지 기준)
+                null  // 썸네일 URL
+        );
+    }
+
+    private List<Long> getAllRecipientIds(Map<String, List<Long>> recipientsByLang) {
+        return recipientsByLang.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
     }
 
 
@@ -515,7 +541,7 @@ public class ChatMessageService {
         List<Long> recipientIds = chatRoom.getParticipants().stream()
                 .map(ChatParticipant::getUser)
                 .filter(user -> !blockRepository.existsBlock(user.getId(), sender.getId())
-                        && !blockRepository.existsBlock(sender.getId(), user.getId())) // 양방향 체크
+                                && !blockRepository.existsBlock(sender.getId(), user.getId())) // 양방향 체크
                 .map(User::getId)
                 .toList();
 
@@ -563,7 +589,6 @@ public class ChatMessageService {
     }
 
 
-
     private void validateObjectStorageFile(String fileKey) {
         try {
             // S3 클라이언트로 파일 메타데이터 조회 (없으면 예외 발생)
@@ -598,7 +623,7 @@ public class ChatMessageService {
         Optional<ChatMessage> lastMessageOpt = chatMessageRepository.findTopByChatRoomIdOrderByIdDesc(roomId);
         if (lastMessageOpt.isPresent()) {
             MarkAsReadRequest req = new MarkAsReadRequest(roomId, readerId, lastMessageOpt.get().getId());
-           processMarkAsRead(req, readerId);
+            processMarkAsRead(req, readerId);
         }
     }
 
@@ -668,6 +693,7 @@ public class ChatMessageService {
                     .collect(Collectors.toList());
         }
     }
+
     @Transactional
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
         // 1. 참여자 조회 (권한 체크)
@@ -844,6 +870,7 @@ public class ChatMessageService {
                 .map(ChatParticipant::getLastReadMessageId).orElse(0L);
         return chatMessageRepository.countUnreadMessages(roomId, lastReadId, userId);
     }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
         ChatRoom room = chatRoomRepository.findById(roomId).orElseThrow();
