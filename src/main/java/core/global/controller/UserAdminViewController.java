@@ -5,6 +5,7 @@ import core.domain.comment.dto.RecentCommentDto;
 import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.user.dto.*;
 import core.domain.user.service.UserAdminService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +15,9 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/users")
@@ -111,6 +115,42 @@ public class UserAdminViewController {
     @PostMapping("/{userId}/delete")
     public String deleteUser(@PathVariable Long userId) {
         userAdminService.hardDeleteUser(userId);
+        return "redirect:/admin/users";
+    }
+
+    @GetMapping("/create-ai")
+    public String createAiUserPage(Model model) {
+        model.addAttribute("setupRequest", new UserSetupRequest(null, null, null, null, null, null, null, null, null, null, null));
+
+        List<String> purposes = Arrays.asList("Study", "Work", "Marriage", "Travel", "Business", "Family");
+        model.addAttribute("purposes", purposes);
+
+        List<String> hobbies = Arrays.asList(
+                "Music", "Movies", "Reading", "Anime", "Gaming",
+                "Drinking", "Exploring Cafes", "Traveling", "Board Games",
+                "Shopping", "Beauty", "Doing Nothing",
+                "Yoga", "Running", "Fitness", "Camping", "Dancing", "Hiking",
+                "Exhibition", "Singing", "Cooking", "Pets", "Career", "Photography",
+                "K-Pop Lover", "K-Drama Lover", "K-Food Lover"
+        );
+        model.addAttribute("hobbies", hobbies);
+
+        List<String> profileImages = Arrays.asList(
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_01.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_02.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_03.svg"
+        );
+        model.addAttribute("profileImages", profileImages);
+
+        return "admin/user-create-ai";
+    }
+
+    @PostMapping("/create-ai")
+    public String createAiUser(
+            @ModelAttribute @Valid UserSetupRequest request,
+            @RequestParam(value = "password", required = false) String password
+    ) {
+        userAdminService.createAiUser(request, password);
         return "redirect:/admin/users";
     }
 }
