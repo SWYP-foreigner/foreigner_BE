@@ -15,6 +15,7 @@ import core.domain.user.service.UserRoleDetectService;
 import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.impl.S3ImageStorageClient;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
@@ -51,6 +52,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -81,6 +83,7 @@ public class ChatMessageService {
     private final ChatTranslationService chatTranslationService;
     private final TranslationService translationService;
     private final S3Client s3Client;
+    private final S3ImageStorageClient s3ImageStorageClient;
 
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
@@ -594,45 +597,127 @@ public class ChatMessageService {
                     .collect(Collectors.toList());
         }
     }
-
-    @Transactional
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
-        // 1. 참여자 조회
+        // 1. 참여자 조회 (권한 체크)
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
-        // 2. 메시지 조회 (이전 20개, 타겟, 이후 20개)
+        // 2. 메시지 조회 (Cursor Paging)
+        // 2-1. 과거 메시지
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
 
+        // 2-2. 타겟 메시지
         ChatMessage target = chatMessageRepository.findById(targetMessageId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
+        // 2-3. 미래 메시지
         List<ChatMessage> newer = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
-        List<ChatMessage> combined = new ArrayList<>(older);
+        // 2-4. 리스트 합치기
+        List<ChatMessage> combined = new ArrayList<>();
+        combined.addAll(older);
         combined.add(target);
         combined.addAll(newer);
 
+        // 3. [N+1 방지] 보낸 사람 정보 일괄 조회 (Loop 사용)
+        Set<Long> senderIds = new HashSet<>();
+        for (ChatMessage msg : combined) {
+            // [수정] getSenderId() -> getSender().getId() 로 변경
+            if (msg.getSender() != null) {
+                senderIds.add(msg.getSender().getId());
+            }
+        }
 
-        // 3. [수정됨] 번역 처리 (캐싱 서비스 적용)
-        // 구형 로직(getTranslatedMessages 호출) 삭제됨
-        Map<Long, String> translatedMap = Collections.emptyMap(); // 기본값 빈 맵
+        List<User> users = userRepository.findAllById(senderIds);
+        Map<Long, User> senderMap = new HashMap<>();
+        for (User user : users) {
+            senderMap.put(user.getId(), user);
+        }
 
+        // 4. 번역 처리
+        Map<Long, String> translatedMap = Collections.emptyMap();
         if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null) {
-            // chatTranslationService가 Redis -> DB -> API 순서로 체크하고 저장까지 수행
             translatedMap = chatTranslationService.getTranslatedMessages(combined, participant.getUser().getTranslateLanguage());
         }
 
-        // 4. 응답 변환
-        Map<Long, String> finalTranslatedMap = translatedMap;
-        return combined.stream()
-                .map(msg -> {
-                    String translated = finalTranslatedMap.get(msg.getId());
-                    // mapToResponse 메서드 시그니처에 맞춰 호출 (프로필 맵이 필요하다면 여기서 추가 로직 필요)
-                    return mapToResponse(msg, translated);
-                })
-                .collect(Collectors.toList());
+        // 5. 응답 변환 (Loop 사용)
+        List<ChatMessageResponse> responseList = new ArrayList<>();
+
+        for (ChatMessage msg : combined) {
+            // 5-1. 사용자 정보 가져오기 ([수정] getSender().getId() 사용)
+            Long currentSenderId = (msg.getSender() != null) ? msg.getSender().getId() : null;
+            User sender = senderMap.get(currentSenderId);
+
+            // 5-2. 번역 정보 가져오기
+            String translated = translatedMap.get(msg.getId());
+
+            // 5-3. DTO 변환 및 리스트 추가
+            ChatMessageResponse response = mapToResponse(msg, sender, translated);
+            responseList.add(response);
+        }
+
+        return responseList;
+    }
+
+    /**
+     * [Helper] Entity -> Record DTO 변환
+     */
+    private ChatMessageResponse mapToResponse(ChatMessage msg, User sender, String translatedContent) {
+        String content = msg.getContent();
+        String mediaUrl = null;
+        String thumbnailUrl = null;
+
+        // --- 미디어(이미지/비디오) 처리 로직 ---
+        if (msg.getMessageType() == MessageType.IMAGE || msg.getMessageType() == MessageType.VIDEO) {
+            // 1. 원본 URL 생성
+            mediaUrl = s3ImageStorageClient.generatePublicUrl(msg.getContent());
+
+            // 2. 비디오라면 썸네일 URL 생성
+            if (msg.getMessageType() == MessageType.VIDEO) {
+                thumbnailUrl = s3ImageStorageClient.generateThumbnailUrl(msg.getContent());
+                content = "동영상"; // 클라이언트 표시용 대체 텍스트
+            } else {
+                content = "사진";   // 클라이언트 표시용 대체 텍스트
+            }
+        }
+
+        // --- 보낸 사람 정보 처리 (Null Safety) ---
+        String senderFirstName = "Unknown";
+        String senderLastName = "";
+        String senderImageUrl = null;
+
+        if (sender != null) {
+            senderFirstName = sender.getFirstName();
+            senderLastName = sender.getLastName();
+            senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                    .map(Image::getUrl).orElse(null);
+
+        }
+
+        // --- ID 추출 수정 ---
+        // msg.getSenderId() -> msg.getSender().getId()
+        Long msgSenderId = (msg.getSender() != null) ? msg.getSender().getId() : null;
+
+        // msg.getChatRoomId() -> msg.getChatRoom().getId()
+        // (만약 엔티티에 getChatRoom()만 있다면 아래처럼 호출해야 함)
+        Long msgRoomId = (msg.getChatRoom() != null) ? msg.getChatRoom().getId() : null;
+
+        // --- Record 생성 및 반환 ---
+        return new ChatMessageResponse(
+                msg.getId(),
+                msgRoomId,
+                msgSenderId,
+                content,            // originContent
+                translatedContent,  // targetContent
+                msg.getSentAt(),    // sentAt (Instant)
+                senderFirstName,
+                senderLastName,
+                senderImageUrl,
+                msg.getMessageType(), // messageType
+                mediaUrl,           // mediaUrl
+                thumbnailUrl        // thumbnailUrl
+        );
     }
 
     @Transactional
@@ -673,17 +758,6 @@ public class ChatMessageService {
     private List<Long> getBlockedUserIds(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return blockRepository.findByUser(user).stream().map(BlockUser::getBlocked).map(User::getId).toList();
-    }
-
-    private ChatMessageResponse mapToResponse(ChatMessage message, String translatedContent) {
-        User sender = message.getSender();
-        String senderImg = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                .map(Image::getUrl).orElse(null);
-        return new ChatMessageResponse(
-                message.getId(), message.getChatRoom().getId(), sender.getId(),
-                message.getContent(), translatedContent, message.getSentAt(),
-                sender.getFirstName(), sender.getLastName(), senderImg, message.getMessageType()
-        );
     }
 
     private int calculateUnreadCountForMessage(ChatMessage message, List<ChatParticipant> allParticipants) {
