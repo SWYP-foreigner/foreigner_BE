@@ -16,13 +16,13 @@ jobs:
         run: |
           test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "DOCKERHUB_USERNAME is empty" && exit 1)
           test -n "${{ secrets.DOCKERHUB_TOKEN }}"     || (echo "DOCKERHUB_TOKEN is empty" && exit 1)
-          test -n "${{ secrets.DEV_HOST }}"            || (echo "DEV_HOST is empty" && exit 1)
+          test -n "${{ secrets.TEST_HOST }}"            || (echo "TEST_HOST is empty" && exit 1)
           test -n "${{ secrets.DEV_USER }}"            || (echo "DEV_USER is empty" && exit 1)
           test -n "${{ secrets.DEV_SSH_KEY }}"         || (echo "DEV_SSH_KEY is empty" && exit 1)
           test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
           test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
-          test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
+          test -n "${{ secrets.TEST_JWT_SECRET }}"          || (echo "TEST_JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
@@ -184,7 +184,7 @@ jobs:
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEV_HOST }}
+          host: ${{ secrets.TEST_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
@@ -218,7 +218,7 @@ jobs:
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_SECRET=${{ secrets.TEST_JWT_SECRET }}
             
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
@@ -465,7 +465,7 @@ jobs:
       - name: Prune old images (keep 4 latest + any in-use)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEV_HOST }}
+          host: ${{ secrets.TEST_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
