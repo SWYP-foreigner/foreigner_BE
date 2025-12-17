@@ -3,6 +3,7 @@ package core.global.ai.listener;
 import core.domain.chat.dto.MessageSentEvent;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.ai.dto.MessageCreatedEvent;
 import core.global.ai.service.AiChatUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +31,7 @@ public class AiReplyEventListener {
 
     @Async
     @EventListener
-    public void handleMessageSent(MessageSentEvent event) {
+    public void handleMessageSent(MessageCreatedEvent event) {
         // 1. 이 채팅방의 '나를 제외한 모든 참여자' 찾기 (단톡방 대응)
         List<User> participants = userRepository.findPartnersByChatRoomId(
                 event.messageResponse().roomId(), // roomId 가져오는 방식 확인 필요 (event.roomSummary().roomId() or event.messageResponse().roomId())
