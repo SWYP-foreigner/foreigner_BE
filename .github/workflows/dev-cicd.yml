@@ -295,6 +295,7 @@ jobs:
             BASE_URL=${{ secrets.BASE_URL }}
             SIGHTENGINE_API_USER=${{secrets.SIGHTENGINE_API_USER}}
             SIGHTENGINE_API_SECRET=${{secrets.SIGHTENGINE_API_SECRET}}
+            OPEN_AI_KEY=${{secrets.OPEN_AI_KEY}}
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
