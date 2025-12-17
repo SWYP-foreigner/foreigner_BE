@@ -22,7 +22,7 @@ jobs:
           test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
           test -n "${{ secrets.DB_USER }}"             || (echo "DB_USER is empty" && exit 1)
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
-          test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
+          test -n "${{ secrets.TEST_JWT_SECRET }}"          || (echo "TEST_JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
           echo "All required secrets are set."
 
@@ -218,7 +218,7 @@ jobs:
             SPRING_DATA_REDIS_PORT=${{ secrets.REDIS_PORT }}
             SPRING_DATA_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_SECRET=${{ secrets.TEST_JWT_SECRET }}
             
             ANDROID_CLIENT_ID=${{ secrets.ANDROID_CLIENT_ID }}
             ANDROID_REDIRECT_URI=${{ secrets.ANDROID_REDIRECT_URI }}
