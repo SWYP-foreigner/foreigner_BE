@@ -6,6 +6,7 @@ import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.user.dto.UserSearchRequest;
 import core.domain.user.entity.User;
+import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -32,7 +33,9 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 .where(
                         emailContains(condition.email()),
                         nameContains(condition.name()),
-                        createdAtBetween(condition.startDate(), condition.endDate())
+                        createdAtBetween(condition.startDate(), condition.endDate()),
+
+                        user.userRole.ne(Role.VISITOR)
                 )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -44,7 +47,9 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 .where(
                         emailContains(condition.email()),
                         nameContains(condition.name()),
-                        createdAtBetween(condition.startDate(), condition.endDate())
+                        createdAtBetween(condition.startDate(), condition.endDate()),
+
+                        user.userRole.ne(Role.VISITOR)
                 )
                 .fetchCount();
 
