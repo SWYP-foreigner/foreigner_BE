@@ -124,16 +124,15 @@ public class ChatTranslationService {
         try {
             translationRepository.save(new ChatMessageTranslation(messageId, languageCode, content));
         } catch (DataIntegrityViolationException e) {
-            // 이미 저장되었거나(Duplicate Key), 부모 메시지가 없는 경우(FK Error)
-            // 로그만 남기고 무시 -> 메인 트랜잭션을 오염시키지 않음
-            log.warn("번역 저장 건너뜀 (중복 또는 참조 오류). messageId={}, lang={}, error={}",
-                    messageId, languageCode, e.getMessage());
+            // 에러 메시지를 확인해서 분기 처리
+            if (e.getMessage() != null && e.getMessage().contains("violates foreign key constraint")) {
+                log.error("번역 저장 실패: 부모 메시지가 존재하지 않음 (FK Violation). msgId={}", messageId);
+            } else {
+                log.warn("이미 저장된 번역입니다 (중복 저장). msgId={}, lang={}", messageId, languageCode);
+            }
         } catch (Exception e) {
-            log.error("번역 비동기 저장 중 알 수 없는 오류 발생", e);
+            log.error("번역 비동기 저장 중 알 수 없는 오류", e);
         }
-
-        // DB 저장 성공/실패 여부와 관계없이 캐시에는 남겨둘 수 있음 (선택 사항)
-        cacheToRedis(messageId, languageCode, content);
     }
 
     // Redis 저장은 트랜잭션이 필요 없으므로 private 메서드로 동기 처리해도 무방 (Redis 자체가 빠름)
