@@ -37,6 +37,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StopWatch;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -77,6 +80,8 @@ public class ChatMessageService {
     private final ChatMetrics chatMetrics;
     private final ChatTranslationService chatTranslationService;
     private final TranslationService translationService;
+    private final S3Client s3Client;
+
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
@@ -425,76 +430,93 @@ public class ChatMessageService {
 
     @Transactional
     public void processAndSendMediaMessage(SendMediaMessageRequest req) {
-        long startTime = System.currentTimeMillis();
+        // 1. [검증] 실제 스토리지에 파일이 존재하는지 확인 (보안)
+        validateObjectStorageFile(req.mediaKey());
+        if (req.messageType() == MessageType.VIDEO && req.thumbnailKey() != null) {
+            validateObjectStorageFile(req.thumbnailKey()); // 썸네일도 확인
+        }
 
+        ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 메시지 저장 (파일 Key 저장)
+        ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
+        chatMessageRepository.save(savedMessage);
+
+        // 3. Image 테이블 저장 (사진 및 동영상 썸네일)
+        saveMediaToImageTable(savedMessage, req);
+
+        // 4. 읽음 처리
+        chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
+                .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
+
+        // 5. 수신자 계산 (차단 로직 포함)
+        List<Long> recipientIds = chatRoom.getParticipants().stream()
+                .map(p -> p.getUser())
+                .filter(user -> !blockRepository.existsBlock(user.getId(), sender.getId())
+                        && !blockRepository.existsBlock(sender.getId(), user.getId())) // 양방향 체크
+                .map(User::getId)
+                .toList();
+
+        // 6. 응답 DTO 생성 (Full URL 변환)
+        String contentUrl = cdnBaseUrl + "/" + savedMessage.getContent();
+        String thumbnailUrl = (req.thumbnailKey() != null) ? cdnBaseUrl + "/" + req.thumbnailKey() : null;
+
+        // 프로필 이미지 조회 등은 성능을 위해 생략하거나 캐시 사용 권장
+        String senderProfileUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
+                .map(Image::getUrl).orElse(null);
+
+        ChatMessageResponse messageResponse = new ChatMessageResponse(
+                savedMessage.getId(), chatRoom.getId(), sender.getId(),
+                contentUrl, // 메인 콘텐츠 (사진/동영상)
+                thumbnailUrl, // 썸네일 (동영상일 때만)
+                savedMessage.getSentAt(), sender.getFirstName(), sender.getLastName(),
+                senderProfileUrl, savedMessage.getMessageType()
+        );
+
+        // 7. [비동기 전송] 트랜잭션 커밋 후 이벤트 발행
+        ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 별도 스레드에서 웹소켓 전송 (트랜잭션 물고 있지 않게 함)
+                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+            }
+        });
+    }
+
+
+
+    private void validateObjectStorageFile(String fileKey) {
         try {
-            long absoluteStartTime = System.currentTimeMillis();
-            ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
-                    .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
-            User sender = userRepository.findById(req.senderId())
-                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-            // 1. 메시지 저장 (동일)
-            ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
-            chatMessageRepository.save(savedMessage);
-
-            if (req.messageType() == MessageType.IMAGE) {
-                String fullMediaUrl = cdnBaseUrl + "/" + req.mediaKey();
-
-                Image chatImage = Image.of(
-                        ImageType.CHAT_MEDIA,
-                        savedMessage.getId(),
-                        fullMediaUrl,
-                        0,
-                        ImageModerationStatus.CLEAN,
-                        null
-                );
-                imageRepository.save(chatImage);
-
-                eventPublisher.publishEvent(new ImageModerationEvent(chatImage.getId(), req.mediaKey()));
-            }
-
-            chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
-                    .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
-
-            // 2. 수신자 목록 계산 (리팩토링)
-            // 기존의 반복문 안에서 바로 보내던 로직을 -> 받을 사람 ID만 수집하는 것으로 변경
-            List<Long> recipientIds = new ArrayList<>();
-
-            for (ChatParticipant participant : chatRoom.getParticipants()) {
-                User recipient = participant.getUser();
-
-                // 차단 체크
-                boolean isBlocked = blockRepository.existsBlock(recipient.getId(), sender.getId()) ||
-                        blockRepository.existsBlock(sender.getId(), recipient.getId());
-                if (isBlocked) continue;
-                recipientIds.add(recipient.getId());
-            }
-
-            String fullMediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
-            String senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                    .map(Image::getUrl).orElse(null);
-
-            ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    savedMessage.getId(), chatRoom.getId(), sender.getId(), fullMediaUrl, null,
-                    savedMessage.getSentAt(), sender.getFirstName(), sender.getLastName(), senderImageUrl, savedMessage.getMessageType()
-            );
-
-            // 채팅방 목록 갱신용 DTO (보내는 사람 기준으로 만들거나, 수신자별로 다르다면 null로 보내고 리스너에서 처리할 수도 있음. 여기선 단순화)
-            ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
-
-            // 4. [핵심 변경] 직접 전송하지 않고 이벤트만 던집니다.
-            eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
-
-            //chatMetrics.onMessageSent("media", true);
-            // chatMetrics.recordDelivery(startTime);
-        } catch (Exception e) {
-            // chatMetrics.onMessageSent("media", false);
-            // chatMetrics.recordDelivery(startTime);
-
-            throw e;
+            // S3 클라이언트로 파일 메타데이터 조회 (없으면 예외 발생)
+            s3Client.headObject(HeadObjectRequest.builder().bucket(bucketName).key(fileKey).build());
+        } catch (NoSuchKeyException e) {
+            throw new BusinessException(ChatErrorCode.FILE_UPLOAD_FAILED); // "파일이 없습니다"
         }
     }
+
+    private void saveMediaToImageTable(ChatMessage message, SendMediaMessageRequest req) {
+        if (req.messageType() == MessageType.IMAGE) {
+            String fullUrl = cdnBaseUrl + "/" + req.mediaKey();
+            Image image = Image.of(ImageType.CHAT_MEDIA, message.getId(), fullUrl, 0);
+            imageRepository.save(image);
+
+            // 이미지 검열 요청 (비동기)
+            eventPublisher.publishEvent(new ImageModerationEvent(image.getId(), req.mediaKey()));
+
+        } else if (req.messageType() == MessageType.VIDEO && req.thumbnailKey() != null) {
+            // 동영상은 썸네일을 Image 테이블에 저장
+            String thumbUrl = cdnBaseUrl + "/" + req.thumbnailKey();
+            // ImageType.CHAT_THUMBNAIL 등을 추가해서 구분하면 더 좋음 (없으면 CHAT_MEDIA 사용)
+            Image thumbnail = Image.of(ImageType.CHAT_MEDIA, message.getId(), thumbUrl, 0);
+            imageRepository.save(thumbnail);
+        }
+    }
+
     // --- 유틸리티 및 조회 ---
 
     @Transactional
