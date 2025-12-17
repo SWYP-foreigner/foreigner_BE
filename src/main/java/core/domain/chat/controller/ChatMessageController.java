@@ -58,27 +58,7 @@ public class ChatMessageController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
-    // [수정 2] List 반환 명시 (@ArraySchema)
-    @Operation(summary = "첫 채팅방 메시지 조회", description = "채팅방에 처음 입장 시 가장 최근 메시지 50개를 조회합니다.")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = ChatMessageFirstResponse.class)))
-            ),
-    })
-    @GetMapping("/rooms/{roomId}/first_messages")
-    @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT, ChatErrorCode.CHAT_ROOM_NOT_FOUND})
-    @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
-    public ResponseEntity<ApiResponse<List<ChatMessageFirstResponse>>> getFirstMessages(
-            @PathVariable Long roomId,
-            @AuthenticationPrincipal CustomUserDetails principal
-    ) {
-        Long userId = principal.getUserId();
-        List<ChatMessageFirstResponse> responses = chatService.getFirstMessages(roomId, userId);
-        featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(responses));
-    }
 
-    // [수정 3] List 반환 명시 (@ArraySchema)
     @Operation(summary = "메시지 키워드 검색", description = "메시지 내용을 키워드로 검색합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",

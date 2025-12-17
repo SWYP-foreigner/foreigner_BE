@@ -55,22 +55,7 @@ public class ChatMemberController {
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
-    @Operation(summary = "유저 프로필 조회", description = "userId를 통해 유저의 상세 프로필 정보와 이미지 URL을 조회합니다.")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
-                    content = @Content(schema = @Schema(implementation = ChatUserProfileResponse.class))
-            ),
-    })
-    @GetMapping("/users/{userId}/profile")
-    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
-    public ResponseEntity<ApiResponse<ChatUserProfileResponse>> getUserProfile(@PathVariable Long userId) {
-        ChatUserProfileResponse response = chatService.getUserProfile(userId);
-        featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(response));
-    }
 
-    // [수정 2] 리턴 타입 명확화 (<?> -> <String>)
     @Operation(summary = "특정 사용자 차단", description = "대화 상대를 차단합니다. 이미 차단되어 있거나 자기 자신은 차단할 수 없습니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "차단 성공"),
