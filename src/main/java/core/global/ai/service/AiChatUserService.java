@@ -110,7 +110,9 @@ public class AiChatUserService {
                 sender.getFirstName(),
                 sender.getLastName(),
                 senderImgUrl,
-                MessageType.TEXT
+                MessageType.TEXT,
+                null,
+                null
         );
 
         // 수신자 계산 (AI 제외한 나머지 참여자)
