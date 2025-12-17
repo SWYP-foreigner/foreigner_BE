@@ -13,10 +13,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.util.List;
 
 import static core.domain.user.entity.QUser.user;
@@ -69,12 +66,24 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
 
 
     private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) {
+        if (startDate == null && endDate == null) {
             return null;
         }
-        Instant startInstant = startDate.atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant endInstant = endDate.atTime(LocalTime.MAX).toInstant(ZoneOffset.UTC);
 
-        return user.createdAt.between(startInstant, endInstant);
+        ZoneId zoneId = ZoneId.of("Asia/Seoul");
+
+        if (startDate != null && endDate != null) {
+            Instant startInstant = startDate.atStartOfDay(zoneId).toInstant();
+            Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(zoneId).toInstant();
+            return user.createdAt.between(startInstant, endInstant);
+        }
+
+        if (startDate != null) {
+            Instant startInstant = startDate.atStartOfDay(zoneId).toInstant();
+            return user.createdAt.goe(startInstant);
+        }
+
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(zoneId).toInstant();
+        return user.createdAt.loe(endInstant);
     }
 }
