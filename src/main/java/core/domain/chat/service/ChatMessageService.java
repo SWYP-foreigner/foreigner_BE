@@ -106,6 +106,12 @@ public class ChatMessageService {
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
             User sender = savedMessage.getSender();
 
+            // =================================================================
+            // [NEW] 1:1 채팅(isGroup == false)이면 나간 사람 복구 (Rejoin)
+            // =================================================================
+            if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
+                reviveParticipantsIfDm(chatRoom);
+            }
             // 2. 비동기 스팸 체크 (Fire-and-Forget, 이건 상관없음)
             runSpamCheckAsync(savedMessage);
 
@@ -213,9 +219,11 @@ public class ChatMessageService {
             if (blockedUserIds.contains(recipient.getId())) continue;
 
             if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId); // (자동 업데이트)
+                p.setLastReadMessageId(messageId);
             }
-
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
+                continue;
+            }
 
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
@@ -225,7 +233,15 @@ public class ChatMessageService {
         }
         return recipientsByLang;
     }
+    private void reviveParticipantsIfDm(ChatRoom chatRoom) {
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                continue;
+            }
+            p.reJoin();
+        }
 
+    }
     /**
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
      */
