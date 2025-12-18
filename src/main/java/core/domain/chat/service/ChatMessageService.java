@@ -129,7 +129,6 @@ public class ChatMessageService {
             List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
             ChatMessageResponse savedMessageResponse = buildBaseMessageResponse(savedMessage, userImageUrl);
 
-            // 5. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
             // 6. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
             Map<String, String> translatedContentsMap = new HashMap<>();
             if (savedMessage.getMessageType() == MessageType.TEXT) {
@@ -581,7 +580,7 @@ public class ChatMessageService {
                 .orElse(null);
 
         // 6-3. 텍스트 대체 문구 설정
-        String originContentText = (req.messageType() == MessageType.IMAGE) ? "사진" : "동영상";
+        String originContentText = (req.messageType() == MessageType.IMAGE) ? "image" : "video";
 
         // 6-4. DTO 생성 (Record 순서 주의)
         ChatMessageResponse messageResponse = new ChatMessageResponse(
