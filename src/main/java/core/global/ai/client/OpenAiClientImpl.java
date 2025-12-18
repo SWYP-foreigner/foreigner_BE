@@ -35,46 +35,40 @@ public class OpenAiClientImpl implements AiClient {
 
             Map<String, Object> body = new HashMap<>();
             body.put("model", "gpt-5.1-codex-mini");
-
-            // [핵심 수정] 에러 메시지에 따라 'messages'를 'input'으로 변경합니다.
             body.put("input", messages);
 
-            body.put("max_output_tokens", 150);
+            // [핵심 수정 1] 추론 모델은 '생각'하는 데 토큰을 많이 씁니다.
+            // 최소 2000 이상으로 넉넉히 잡아야 실제 답변이 출력됩니다.
+            body.put("max_output_tokens", 2000);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.postForEntity(API_URL, request, Map.class);
 
             Map<String, Object> responseBody = response.getBody();
-            log.info("AI Response Body: {}", responseBody); // 구조 확인을 위한 로그
+            log.info("AI Response Body: {}", responseBody);
 
-            // [수정] Responses API 전용 파싱 로직
-            if (responseBody != null) {
-                // v1/responses는 보통 'output' 배열이나 객체 내부에 데이터를 담습니다.
-                if (responseBody.containsKey("output")) {
-                    Object outputObj = responseBody.get("output");
+            if (responseBody != null && responseBody.containsKey("output")) {
+                List<Map<String, Object>> outputs = (List<Map<String, Object>>) responseBody.get("output");
 
-                    // 리스트 형태인 경우 (최신 규격)
-                    if (outputObj instanceof List) {
-                        List<Map<String, Object>> outputList = (List<Map<String, Object>>) outputObj;
-                        if (!outputList.isEmpty()) {
-                            Map<String, Object> lastMsg = (Map<String, Object>) outputList.get(outputList.size() - 1);
-                            // 'content' 필드 추출 (구조에 따라 'message' 내부일 수 있음)
-                            if (lastMsg.containsKey("content")) return (String) lastMsg.get("content");
-                        }
+                // [핵심 수정 2] output 배열을 순회하며 type이 'text'인 블록의 content를 찾습니다.
+                for (Map<String, Object> out : outputs) {
+                    if ("text".equals(out.get("type")) && out.containsKey("content")) {
+                        return (String) out.get("content");
                     }
-                    // 단일 객체 형태인 경우
-                    else if (outputObj instanceof Map) {
-                        Map<String, Object> outputMap = (Map<String, Object>) outputObj;
-                        return (String) outputMap.get("content");
-                    }
+                }
+
+                // 만약 아직 답변이 안 나왔다면 상태 확인
+                if ("incomplete".equals(responseBody.get("status"))) {
+                    log.warn("AI가 추론 중에 끊겼습니다. 토큰을 더 늘려보세요.");
+                    return "아... 생각하다 까먹었어. 다시 말해줄래? ㅡㅡ";
                 }
             }
 
-            throw new RuntimeException("Unexpected response structure from Responses API");
+            throw new RuntimeException("Unexpected response structure or empty content");
 
         } catch (Exception e) {
             log.error("OpenAI v1/responses 호출 오류: {}", e.getMessage());
-            return "";
+            return "아 서버 진짜 개판이네 ㅋㅋㅋ 나중에 다시 해";
         }
     }
 }
