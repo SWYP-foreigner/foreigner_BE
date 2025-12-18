@@ -40,7 +40,7 @@ public class OpenAiClientImpl implements AiClient {
             body.put("input", messages);
 
             body.put("temperature", 0.8);
-            body.put("max_tokens", 150);
+            body.put("max_output_tokens", 150);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             ResponseEntity<Map> response = restTemplate.postForEntity(API_URL, request, Map.class);
