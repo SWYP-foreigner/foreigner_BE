@@ -104,6 +104,8 @@ public class ChatMemberController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Long userId = principal.getUserId();
+        log.info("👉 [API Request] 번역 설정 변경 요청 | RoomId: {}, UserId: {}, 요청값(Enable): {}",
+                roomId, userId, request.translateEnabled());
         chatService.toggleTranslation(roomId, userId, request.translateEnabled());
         return ResponseEntity.ok(ApiResponse.success(null));
     }

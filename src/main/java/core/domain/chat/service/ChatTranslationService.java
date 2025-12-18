@@ -128,7 +128,7 @@ public class ChatTranslationService {
             if (e.getMessage() != null && e.getMessage().contains("violates foreign key constraint")) {
                 log.error("번역 저장 실패: 부모 메시지가 존재하지 않음 (FK Violation). msgId={}", messageId);
             } else {
-                log.info("이미 저장된 번역입니다 (중복 저장). msgId={}, lang={}", messageId, languageCode);
+                log.warn("이미 저장된 번역입니다 (중복 저장). msgId={}, lang={}", messageId, languageCode);
             }
         } catch (Exception e) {
             log.error("번역 비동기 저장 중 알 수 없는 오류", e);

@@ -16,7 +16,9 @@ import java.util.Optional;
 
 public interface UserDeviceTokenRepository extends JpaRepository<UserDeviceToken, Long> {
 
-    List<UserDeviceToken> findByDeviceToken(String deviceToken);
+    Optional<UserDeviceToken> findByDeviceToken(String deviceToken);
+
+    List<UserDeviceToken> findAllByUserId(Long id);
     void deleteAllByUserId(Long userId);
     List<UserDeviceToken> findAllByUser(User user);
 

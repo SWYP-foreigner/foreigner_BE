@@ -9,7 +9,6 @@ import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.enums.DeviceType;
 import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
@@ -48,25 +47,20 @@ public class UserNotificationService {
     /**
      * FCM 기기 토큰을 등록하거나 갱신합니다. (람다 제거 버전)
      */
-    @Transactional // 삭제 로직이 들어가므로 트랜잭션 필수
     public void registerDeviceToken(Long userId, String deviceToken) {
         User user = findUserById(userId);
-        List<UserDeviceToken> tokens = userDeviceTokenRepository.findByDeviceToken(deviceToken);
 
-        if (tokens.isEmpty()) {
+        Optional<UserDeviceToken> optionalToken = userDeviceTokenRepository.findByDeviceToken(deviceToken);
+
+        if (optionalToken.isPresent()) {
+            UserDeviceToken existingToken = optionalToken.get();
+            existingToken.updateUser(user);
+        } else {
             UserDeviceToken newToken = new UserDeviceToken(user, deviceToken);
             userDeviceTokenRepository.save(newToken);
-
-        } else {
-            UserDeviceToken mainToken = tokens.get(0);
-            mainToken.updateUser(user);
-            if (tokens.size() > 1) {
-                for (int i = 1; i < tokens.size(); i++) {
-                    userDeviceTokenRepository.delete(tokens.get(i));
-                }
-            }
         }
     }
+
     /**
      * 사용자의 알림 설정 상태를 확인합니다. (이 메서드는 원래 람다를 사용하지 않았습니다)
      */
