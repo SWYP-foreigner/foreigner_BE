@@ -18,6 +18,7 @@ import java.time.ZoneId;
 public class ChatMessageDetailDto {
 
     private Long id;
+    private Long senderId;
     private String senderName;
     private String content;
     private MessageType messageType;
@@ -26,6 +27,7 @@ public class ChatMessageDetailDto {
     public static ChatMessageDetailDto from(ChatMessage message) {
         return ChatMessageDetailDto.builder()
                 .id(message.getId())
+                .senderId(message.getSender() != null ? message.getSender().getId() : null)
                 .senderName(resolveSenderName(message))
                 .content(message.getContent())
                 .messageType(message.getMessageType())
