@@ -29,6 +29,7 @@ public enum UserErrorCode implements AppError {
     BIRTHDAY_IN_FUTURE(HttpStatus.UNPROCESSABLE_ENTITY, "생년월일에 미래 날짜는 입력할 수 없습니다."),
     BIRTHDAY_OUT_OF_RANGE(HttpStatus.UNPROCESSABLE_ENTITY, "생년월일은 1900-01-01 이후여야 합니다."),
     CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
+    NOT_AI_USER(HttpStatus.BAD_REQUEST, "AI 유저만 초대할 수 있습니다."),
 
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),

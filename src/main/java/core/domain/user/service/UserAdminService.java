@@ -26,9 +26,11 @@ import core.global.apple.service.AppleWithdrawalService;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.ChatParticipantStatus;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.enums.Role;
+import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.userfeedback.UserFeedbackRepository;
@@ -315,5 +317,49 @@ public class UserAdminService {
             return normalized;
         }
         return "";
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> getAiUsers() {
+        return userRepository.findAllByUserRole(Role.AI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatRoom> getGroupChatRooms() {
+        return chatRoomRepository.findByIsGroupTrue();
+    }
+
+    @Transactional
+    public void addAiToChatRoom(Long userId, Long chatRoomId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getUserRole() != Role.AI) {
+            throw new BusinessException(UserErrorCode.NOT_AI_USER);
+        }
+
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        if (!chatRoom.getIsGroup()) {
+            throw new BusinessException(ChatErrorCode.CHAT_NOT_GROUP);
+        }
+
+        chatParticipantRepository.findByChatRoomIdAndUserId(chatRoomId, userId)
+                .ifPresentOrElse(
+                        participant -> {
+                            if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
+                                throw new BusinessException(ChatErrorCode.ALREADY_CHAT_PARTICIPANT, "이미 해당 채팅방에 참여 중입니다.");
+                            } else {
+                                participant.reJoin();
+                            }
+                        },
+                        () -> {
+                            ChatParticipant newParticipant = new ChatParticipant(chatRoom, user);
+
+                            chatRoom.addParticipant(newParticipant);
+                            chatParticipantRepository.save(newParticipant);
+                        }
+                );
     }
 }
