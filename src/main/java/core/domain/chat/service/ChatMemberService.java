@@ -139,7 +139,10 @@ public class ChatMemberService {
     public void toggleTranslation(Long roomId, Long userId, boolean enable) {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
+        boolean previousState = participant.isTranslateEnabled();
         participant.toggleTranslation(enable);
+        log.info("✅ [Service] 번역 기능 변경 완료 | RoomId: {}, UserId: {} | 상태변경: {} -> {}",
+                roomId, userId, previousState, enable);
     }
 
     @Transactional

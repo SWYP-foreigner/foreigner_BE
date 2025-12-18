@@ -23,13 +23,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+@Slf4j
 @Tag(name = "채팅 멤버 및 설정 API", description = "참여자 조회, 신고/차단, 알림/번역 설정 등")
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -103,6 +104,8 @@ public class ChatMemberController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Long userId = principal.getUserId();
+        log.info("👉 [API Request] 번역 설정 변경 요청 | RoomId: {}, UserId: {}, 요청값(Enable): {}",
+                roomId, userId, request.translateEnabled());
         chatService.toggleTranslation(roomId, userId, request.translateEnabled());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
