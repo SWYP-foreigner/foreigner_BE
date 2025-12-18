@@ -59,6 +59,7 @@ public class ChatParticipant {
         this.status = ChatParticipantStatus.ACTIVE;
         this.joinedAt = Instant.now();
         this.notificationsEnabled = true;
+        this.translateEnabled = true;
     }
     public void delete() {
         this.status = ChatParticipantStatus.LEFT;

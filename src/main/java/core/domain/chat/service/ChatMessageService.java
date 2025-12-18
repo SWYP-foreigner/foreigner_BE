@@ -17,7 +17,9 @@ import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.impl.S3ImageStorageClient;
+import core.global.entity.image.service.impl.S3ImageStorageClient;
 import core.global.enums.ChatParticipantStatus;
+import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.MessageType;
 import core.global.enums.errorcode.ChatErrorCode;
@@ -40,6 +42,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -47,10 +50,12 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @Slf4j
@@ -108,12 +113,15 @@ public class ChatMessageService {
 
             // 2. 비동기 스팸 체크 (Fire-and-Forget, 이건 상관없음)
             runSpamCheckAsync(savedMessage);
-
-            // 3. 부가 정보 조회
+            //3. 채팅방 1대1 채팅방이면 상대방 재참여 시킴
+            if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
+                reviveParticipantsIfDm(chatRoom);
+            }
+            // 4. 부가 정보 조회
             String userImageUrl = getUserProfileImage(sender.getId());
             List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            // 4. 수신자 그룹핑
+            // 5. 수신자 그룹핑
             Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
@@ -121,7 +129,7 @@ public class ChatMessageService {
             List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
             ChatMessageResponse savedMessageResponse = buildBaseMessageResponse(savedMessage, userImageUrl);
 
-            // 5. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
+            // 6. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
             Map<String, String> translatedContentsMap = new HashMap<>();
             if (savedMessage.getMessageType() == MessageType.TEXT) {
                 // 주의: 여기서 내부적으로 save를 호출하던 translateAndCache 대신,
@@ -131,7 +139,7 @@ public class ChatMessageService {
                 );
             }
 
-            // 6. [수정됨] 트랜잭션 커밋 후 실행 (저장 + 전송)
+            // 7. [수정됨] 트랜잭션 커밋 후 실행 (저장 + 전송)
             // 이 시점에 DB에는 message가 확실히 있습니다.
             final Long messageId = savedMessage.getId();
             final Map<String, String> finalTranslations = translatedContentsMap;
@@ -160,7 +168,18 @@ public class ChatMessageService {
         }
     }
 
-
+    /**
+     * 1:1 채팅방인 경우, 나간 상태(LEFT)인 참여자를 다시 참여(ACTIVE) 상태로 변경합니다.
+     * ChatParticipant 엔티티의 reJoin() 편의 메서드를 사용합니다.
+     */
+    private void reviveParticipantsIfDm(ChatRoom chatRoom) {
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                continue;
+            }
+            p.reJoin();
+        }
+    }
     private ChatRoom fetchChatRoomWithParticipants(Long roomId) {
         return chatRoomRepository.findChatRoomWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
@@ -212,8 +231,12 @@ public class ChatMessageService {
 
             if (blockedUserIds.contains(recipient.getId())) continue;
 
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
+                continue;
+            }
+
             if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId); // (자동 업데이트)
+                p.setLastReadMessageId(messageId);
             }
 
 
@@ -311,9 +334,8 @@ public class ChatMessageService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
-        // 1. 참여자 검증
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
@@ -558,7 +580,7 @@ public class ChatMessageService {
                 .orElse(null);
 
         // 6-3. 텍스트 대체 문구 설정
-        String originContentText = (req.messageType() == MessageType.IMAGE) ? "사진" : "동영상";
+        String originContentText = (req.messageType() == MessageType.IMAGE) ? "image" : "video";
 
         // 6-4. DTO 생성 (Record 순서 주의)
         ChatMessageResponse messageResponse = new ChatMessageResponse(
@@ -736,6 +758,7 @@ public class ChatMessageService {
         // 4. 번역 처리
         Map<Long, String> translatedMap = Collections.emptyMap();
         if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null) {
+            // chatTranslationService가 Redis -> DB -> API 순서로 체크하고 저장까지 수행
             translatedMap = chatTranslationService.getTranslatedMessages(combined, participant.getUser().getTranslateLanguage());
         }
 
