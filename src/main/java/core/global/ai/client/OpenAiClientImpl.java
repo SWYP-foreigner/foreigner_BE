@@ -39,7 +39,6 @@ public class OpenAiClientImpl implements AiClient {
             // [핵심 수정] 에러 메시지에 따라 'messages'를 'input'으로 변경합니다.
             body.put("input", messages);
 
-            body.put("temperature", 0.8);
             body.put("max_output_tokens", 150);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
