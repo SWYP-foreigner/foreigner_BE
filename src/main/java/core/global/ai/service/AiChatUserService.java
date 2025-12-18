@@ -1,5 +1,5 @@
 package core.global.ai.service;
-
+import core.global.enums.ChatParticipantStatus;
 import core.domain.chat.dto.ChatMessageResponse;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
@@ -111,12 +111,15 @@ public class AiChatUserService {
                 null
         );
 
-        // 수신자 계산 (AI 제외한 나머지 참여자)
         List<Long> recipientIds = chatRoom.getParticipants().stream()
+                .filter(p -> p.getStatus() == ChatParticipantStatus.ACTIVE)
                 .map(p -> p.getUser().getId())
                 .filter(id -> !id.equals(sender.getId()))
                 .toList();
 
+        if (recipientIds.isEmpty()) {
+            return;
+        }
         // 이벤트 발행
         chatSummaryService.sendSummaryToRecipientsInNewTx(response, recipientIds);
     }
