@@ -72,6 +72,7 @@ public class ChatEventListener {
 
             // B. 채팅방 목록 갱신 (ROOM_UPDATE) - 더미 카운트 사용 최적화
             if (commonSummary != null) {
+                int dummyUnreadCount = -1;
 
                 ChatRoomSummaryResponse fastSummary = new ChatRoomSummaryResponse(
                         commonSummary.roomId(),
@@ -79,7 +80,7 @@ public class ChatEventListener {
                         commonSummary.lastMessageContent(),
                         commonSummary.lastMessageTime(),
                         commonSummary.roomImageUrl(),
-                        commonSummary.unreadCount(),
+                        dummyUnreadCount,
                         commonSummary.participantCount()
                 );
 
