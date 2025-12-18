@@ -2,6 +2,7 @@ package core.global.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -30,8 +31,8 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("Async-Default-");
         executor.initialize();
         return executor;
-
     }
+
     /**
      * 2. AsyncConfigurer 인터페이스 구현
      * - @Async 어노테이션이 사용할 기본 Executor를 지정합니다.
