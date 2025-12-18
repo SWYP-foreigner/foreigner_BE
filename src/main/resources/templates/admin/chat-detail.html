@@ -24,6 +24,10 @@
         .btn-danger:hover { background-color: #e03131; }
         .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
 
+        /* [추가] 사용자 링크 스타일 */
+        .user-link { color: #228be6; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+        .user-link:hover { text-decoration: underline; color: #1864ab; }
+
         .media-preview img { max-width: 100%; max-height: 120px; border-radius: 4px; border: 1px solid #ddd; object-fit: contain; }
         .media-preview video { max-width: 100%; max-height: 120px; vertical-align: middle; }
 
@@ -73,7 +77,11 @@
         </tr>
         <tr th:each="p : ${participantPage.content}">
             <td th:text="${p.participantId}"></td>
-            <td th:text="${p.userName}"></td>
+            <td>
+                <a th:href="@{/admin/users/{id}(id=${p.userId})}"
+                   class="user-link"
+                   th:text="${p.userName}"></a>
+            </td>
             <td th:text="${#temporals.format(p.joinedAt, 'yyyy-MM-dd HH:mm')}"></td>
             <td th:text="${p.status}"></td>
         </tr>
@@ -143,7 +151,11 @@
                 <span th:if="${msg.messageType.name() == 'VIDEO'}" style="color: #e03131; font-weight: bold;">동영상</span>
             </td>
 
-            <td th:text="${msg.senderName}"></td>
+            <td>
+                <a th:href="@{/admin/users/{id}(id=${msg.senderId})}"
+                   class="user-link"
+                   th:text="${msg.senderName}"></a>
+            </td>
 
             <td style="text-align: left; padding-left: 15px;">
                 <span th:if="${msg.messageType.name() == 'TEXT'}" th:text="${msg.content}"></span>
