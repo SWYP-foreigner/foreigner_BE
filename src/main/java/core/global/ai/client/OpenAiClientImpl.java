@@ -50,17 +50,18 @@ public class OpenAiClientImpl implements AiClient {
             if (responseBody != null && responseBody.containsKey("output")) {
                 List<Map<String, Object>> outputs = (List<Map<String, Object>>) responseBody.get("output");
 
-                // [핵심 수정 2] output 배열을 순회하며 type이 'text'인 블록의 content를 찾습니다.
                 for (Map<String, Object> out : outputs) {
-                    if ("text".equals(out.get("type")) && out.containsKey("content")) {
-                        return (String) out.get("content");
-                    }
-                }
+                    // 1. type이 'message'인 블록 탐색
+                    if ("message".equals(out.get("type")) && out.containsKey("content")) {
+                        List<Map<String, Object>> contents = (List<Map<String, Object>>) out.get("content");
 
-                // 만약 아직 답변이 안 나왔다면 상태 확인
-                if ("incomplete".equals(responseBody.get("status"))) {
-                    log.warn("AI가 추론 중에 끊겼습니다. 토큰을 더 늘려보세요.");
-                    return "아... 생각하다 까먹었어. 다시 말해줄래? ㅡㅡ";
+                        for (Map<String, Object> c : contents) {
+                            // 2. 그 안에서 'output_text' 타입의 text 필드 추출
+                            if ("output_text".equals(c.get("type"))) {
+                                return (String) c.get("text");
+                            }
+                        }
+                    }
                 }
             }
 
