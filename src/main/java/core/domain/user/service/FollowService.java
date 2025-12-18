@@ -140,15 +140,9 @@ public class FollowService {
         FriendType currentRelation = determineFriendType(follower, targetUser);
 
         switch (currentRelation) {
-            case REQUESTED:
             case FOLLOWING:
             case FRIEND:
                 // 이미 내가 요청했거나 팔로우 중인 경우
-                throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-
-            case RECEIVED_REQUEST:
-                // 상대방이 나에게 이미 요청을 보낸 상태라면?
-                // 1. 에러를 던지거나 2. 여기서 바로 '맞팔로우(Accept)'로 처리하거나 기획에 따라 결정
                 throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
 
             case FOLLOWED:
@@ -190,14 +184,8 @@ public class FollowService {
         // 2. 내가 팔로우 중 (내가 보낸게 ACCEPTED)
         if (isAccepted(followFromMe)) return FriendType.FOLLOWING;
 
-        // 3. 내가 요청 중 (내가 보낸게 PENDING)
-        if (isPending(followFromMe)) return FriendType.REQUESTED;
-
         // 4. 상대가 나를 팔로우 중 (상대가 보낸게 ACCEPTED)
         if (isAccepted(followToMe)) return FriendType.FOLLOWED;
-
-        // 5. 상대가 나에게 요청 중 (상대가 보낸게 PENDING)
-        if (isPending(followToMe)) return FriendType.RECEIVED_REQUEST;
 
         return FriendType.NONE;
     }
@@ -273,22 +261,8 @@ public class FollowService {
                 break;
 
             case FOLLOWING:
-            case REQUESTED:
-                // 내가 팔로우 중이거나, 요청만 보낸 상태: 내 레코드만 삭제
-                followRepository.findByUserAndFollowing(me, target)
-                        .ifPresentOrElse(
-                                followRepository::delete,
-                                () -> { throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND); }
-                        );
-                logFollowActivity(me, target, FollowActionType.UNFOLLOW, "PROFILE");
-                break;
 
             case FOLLOWED:
-            case RECEIVED_REQUEST:
-                // 상대가 나를 팔로우 중이거나 요청한 상태:
-                // 일반적인 '언팔로우'는 내 입장에서의 관계를 끊는 것이므로 여기선 아무것도 안 하거나,
-                // 필요하다면 '팔로워 삭제' 로직을 별도로 타게 해야 함.
-                throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);
 
             case NONE:
                 throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);

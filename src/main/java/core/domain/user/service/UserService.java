@@ -899,23 +899,12 @@ public class UserService {
 
         // 2. 내가 보낸 요청이 대기 중 -> 요청 보냄 (버튼: '요청 취소' 등)
         if (myStatus == FollowStatus.PENDING) {
-            return FriendType.REQUESTED;
-        }
-
-        // 3. 나는 수락받았는데 상대는 아님 -> 팔로잉 (나는 상대를 보지만 상대는 나를 안 봄)
-        if (myStatus == FollowStatus.ACCEPTED) {
             return FriendType.FOLLOWING;
         }
 
         // 4. 상대가 나를 팔로우 중 (나는 안 함/거절/요청전) -> 나를 팔로우 함 (버튼: '맞팔하기')
         if (theirStatus == FollowStatus.ACCEPTED) {
             return FriendType.FOLLOWED;
-        }
-
-        // 5. 상대가 나에게 요청을 보낸 상태 (내 승인 대기 중) -> 요청 받음 (버튼: '수락/거절')
-        // *필요하다면 프로필 카드에 '요청이 왔습니다' 표시 가능
-        if (theirStatus == FollowStatus.PENDING) {
-            return FriendType.RECEIVED_REQUEST;
         }
 
         // 그 외 (둘 다 없거나, REJECTED 등)
