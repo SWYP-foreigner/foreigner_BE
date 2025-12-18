@@ -30,7 +30,8 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 .where(
                         emailContains(condition.email()),
                         nameContains(condition.name()),
-                        createdAtBetween(condition.startDate(), condition.endDate()),
+                        createdAtGoe(condition.startDate()),
+                        createdAtLoe(condition.endDate()),
 
                         user.userRole.ne(Role.VISITOR)
                 )
@@ -45,13 +46,14 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                 .where(
                         emailContains(condition.email()),
                         nameContains(condition.name()),
-                        createdAtBetween(condition.startDate(), condition.endDate()),
+                        createdAtGoe(condition.startDate()),
+                        createdAtLoe(condition.endDate()),
 
                         user.userRole.ne(Role.VISITOR)
                 )
                 .fetchOne();
 
-        return new PageImpl<>(content, pageable, total);
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }
 
     private BooleanExpression emailContains(String email) {
@@ -60,31 +62,25 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
 
     private BooleanExpression nameContains(String name) {
         if (!StringUtils.hasText(name)) return null;
-
         StringExpression fullName = Expressions.stringTemplate("concat({0}, ' ', {1})", user.firstName, user.lastName);
         return fullName.containsIgnoreCase(name);
     }
 
-
-    private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null && endDate == null) {
+    private BooleanExpression createdAtGoe(LocalDate startDate) {
+        if (startDate == null) {
             return null;
         }
 
-        ZoneId zoneId = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+        return user.createdAt.goe(startInstant);
+    }
 
-        if (startDate != null && endDate != null) {
-            Instant startInstant = startDate.atStartOfDay(zoneId).toInstant();
-            Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(zoneId).toInstant();
-            return user.createdAt.between(startInstant, endInstant);
+    private BooleanExpression createdAtLoe(LocalDate endDate) {
+        if (endDate == null) {
+            return null;
         }
 
-        if (startDate != null) {
-            Instant startInstant = startDate.atStartOfDay(zoneId).toInstant();
-            return user.createdAt.goe(startInstant);
-        }
-
-        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(zoneId).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(ZoneId.of("Asia/Seoul")).toInstant();
         return user.createdAt.loe(endInstant);
     }
 }
