@@ -238,3 +238,6 @@ smoke:
       path: /v3/api-docs
       expected-status: 200
     # 여기에 “전체 API”를 계속 추가
+
+openai:
+  api-key: ${OPEN_AI_KEY}
