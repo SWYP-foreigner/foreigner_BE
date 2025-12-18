@@ -296,7 +296,6 @@ public class ChatMessageService {
         String senderFirstName = savedMessage.getSender().getFirstName();
         String senderLastName = savedMessage.getSender().getLastName();
         MessageType msgType = savedMessage.getMessageType();
-
         // 2. 전송
         for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
             String targetLang = entry.getKey();
@@ -319,7 +318,23 @@ public class ChatMessageService {
                     null,               // [NEW] mediaUrl: 텍스트 메시지이므로 null
                     null                // [NEW] thumbnailUrl: 텍스트 메시지이므로 null
             );
+            List<Long> actualRecipients = new ArrayList<>();
 
+            for (Long userId : recipientIds) {
+                // ★ 중요: 여기서 DB를 한 번 더 조회해서 현재 상태를 확인 (디버깅용)
+                // 성능이 걱정된다면 로그 레벨을 확인하거나, 의심될 때만 주석 해제
+                ChatParticipant currentParticipant = chatParticipantRepository
+                        .findByChatRoomIdAndUserId(roomId, userId)
+                        .orElse(null);
+
+                if (currentParticipant != null && currentParticipant.getStatus() == ChatParticipantStatus.LEFT) {
+                    // 🚨 범인 검거!
+                    log.warn("🕵️ [Race Condition 감지] 메시지 발송 명단에는 있었으나, 전송 시점에 '나가기' 상태임! | RoomId: {}, UserId: {}", roomId, userId);
+                    // 실제 운영 코드라면 여기서 continue; 해서 전송을 막아야 함
+                } else {
+                    actualRecipients.add(userId);
+                }
+            }
             // 비동기 전송
             CompletableFuture.runAsync(() ->
                     chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
