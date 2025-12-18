@@ -143,6 +143,7 @@ public class ChatMemberService {
         participant.toggleTranslation(enable);
         log.info("✅ [Service] 번역 기능 변경 완료 | RoomId: {}, UserId: {} | 상태변경: {} -> {}",
                 roomId, userId, previousState, enable);
+        chatParticipantRepository.save(participant);
     }
 
     @Transactional
