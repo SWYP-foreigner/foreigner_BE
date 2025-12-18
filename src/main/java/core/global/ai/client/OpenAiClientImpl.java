@@ -33,7 +33,7 @@ public class OpenAiClientImpl implements AiClient {
             headers.setBearerAuth(apiKey);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("model", "gpt-4o-mini"); // [가성비 모델]
+            body.put("model", "gpt-5.1-codex-mini"); // [가성비 모델]
             body.put("messages", messages);
             body.put("temperature", 0.8);     // [창의성/공격성 증가]
             body.put("max_tokens", 150);      // [단답 유도]
