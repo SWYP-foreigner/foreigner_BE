@@ -866,19 +866,6 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    /**
-     * 단일 사용자 정보 조회 로직
-     */
-    public UserProfileResponse findUserProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-
-        String profileKey = imageService.getUserProfileKey(user.getId());
-
-        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
-    }
-
     public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
