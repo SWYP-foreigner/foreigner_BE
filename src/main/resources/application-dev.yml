@@ -59,7 +59,6 @@ spring:
       hibernate:
         format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        generate_statistics: true
 
 jwt:
   secret: ${JWT_SECRET}
