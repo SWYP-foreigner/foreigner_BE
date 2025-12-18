@@ -2,6 +2,7 @@ package core.global.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -66,6 +67,17 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(20);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("Async-Moderation-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "aiUserExecutor")
+    public Executor aiUserExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(50);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("AI-Worker-");
         executor.initialize();
         return executor;
     }

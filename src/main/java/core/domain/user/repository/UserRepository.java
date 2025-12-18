@@ -198,4 +198,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     long countUsersJoinedInPeriodAndActiveToday(@Param("start") Instant start, @Param("end") Instant end);
 
     List<User> findAllByUserRole(Role userRole);
+
+    @Query("SELECT cp.user FROM ChatParticipant cp " +
+           "WHERE cp.chatRoom.id = :chatRoomId AND cp.user.id != :senderId")
+    List<User> findPartnersByChatRoomId(@Param("chatRoomId") Long chatRoomId, @Param("senderId") Long senderId);
 }
