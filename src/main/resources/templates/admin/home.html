@@ -15,6 +15,7 @@
             padding: 40px 20px; text-decoration: none; color: #333; transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
             display: block;
+            cursor: pointer;
         }
         .menu-item:hover {
             transform: translateY(-5px);
@@ -48,24 +49,13 @@
             display: block;
         }
 
-        .admin-actions {
-            margin-top: 40px;
-        }
+        .admin-actions { margin-top: 40px; }
         .btn-create {
-            display: inline-block;
-            padding: 15px 30px;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block; padding: 15px 30px; color: white; text-decoration: none;
+            border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: background-color 0.2s, transform 0.1s;
         }
-        .btn-create:hover {
-            background-color: #138496 !important;
-            transform: translateY(-2px);
-        }
+        .btn-create:hover { background-color: #138496 !important; transform: translateY(-2px); }
     </style>
 </head>
 <body>
@@ -74,10 +64,16 @@
     <h1>관리자 페이지</h1>
 
     <div class="menu-grid">
-        <a th:href="@{/admin/users}" class="menu-item">
+
+        <div class="menu-item">
             <div class="icon">👥</div>
             <div class="title">사용자 관리</div>
-        </a>
+            <div class="dropdown-content">
+                <a th:href="@{/admin/users}">사용자 목록</a>
+                <a th:href="@{/admin/users/create-ai}" style="color: #007bff; font-weight: bold;">AI 유저 생성</a>
+                <a th:href="@{/admin/users/ai/invite}" style="color: #e03131; font-weight: bold;">AI 채팅 초대</a>
+            </div>
+        </div>
 
         <div class="menu-item">
             <div class="icon">📝</div>

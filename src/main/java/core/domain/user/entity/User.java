@@ -143,9 +143,10 @@ public class User {
      * [핵심 로직]
      * 프로필 필드 완성도에 따라 userRole을 VISITOR 또는 USER로 자동 변경합니다.
      * ADMIN 역할은 절대 변경하지 않습니다.
+     * AI의 역할 또한 변경하지 않도록 추가
      */
     private void updateRoleBasedOnProfile() {
-        if (this.userRole == Role.ADMIN) {
+        if (this.userRole == Role.ADMIN || this.userRole == Role.AI) {
             return;
         }
 

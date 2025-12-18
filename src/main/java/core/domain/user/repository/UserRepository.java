@@ -2,6 +2,7 @@ package core.domain.user.repository;
 
 
 import core.domain.user.entity.User;
+import core.global.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -195,6 +196,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
           AND last_seen_at >= NOW() - INTERVAL '24 hours'
     """, nativeQuery = true)
     long countUsersJoinedInPeriodAndActiveToday(@Param("start") Instant start, @Param("end") Instant end);
+
+    List<User> findAllByUserRole(Role userRole);
 
     @Query("SELECT cp.user FROM ChatParticipant cp " +
            "WHERE cp.chatRoom.id = :chatRoomId AND cp.user.id != :senderId")
