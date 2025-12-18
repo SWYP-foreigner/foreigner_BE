@@ -104,17 +104,20 @@ public class ChatMessageService {
 
             // 2. 비동기 스팸 체크 (Fire-and-Forget, 이건 상관없음)
             runSpamCheckAsync(savedMessage);
-
-            // 3. 부가 정보 조회
+            //3. 채팅방 1대1 채팅방이면 상대방 재참여 시킴
+            if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
+                reviveParticipantsIfDm(chatRoom);
+            }
+            // 4. 부가 정보 조회
             String userImageUrl = getUserProfileImage(sender.getId());
             List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            // 4. 수신자 그룹핑
+            // 5. 수신자 그룹핑
             Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
 
-            // 5. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
+            // 6. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
             Map<String, String> translatedContentsMap = new HashMap<>();
             if (savedMessage.getMessageType() == MessageType.TEXT) {
                 // 주의: 여기서 내부적으로 save를 호출하던 translateAndCache 대신,
@@ -124,7 +127,7 @@ public class ChatMessageService {
                 );
             }
 
-            // 6. [수정됨] 트랜잭션 커밋 후 실행 (저장 + 전송)
+            // 7. [수정됨] 트랜잭션 커밋 후 실행 (저장 + 전송)
             // 이 시점에 DB에는 message가 확실히 있습니다.
             final Long messageId = savedMessage.getId();
             final Map<String, String> finalTranslations = translatedContentsMap;
@@ -150,7 +153,18 @@ public class ChatMessageService {
         }
     }
 
-
+    /**
+     * 1:1 채팅방인 경우, 나간 상태(LEFT)인 참여자를 다시 참여(ACTIVE) 상태로 변경합니다.
+     * ChatParticipant 엔티티의 reJoin() 편의 메서드를 사용합니다.
+     */
+    private void reviveParticipantsIfDm(ChatRoom chatRoom) {
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                continue;
+            }
+            p.reJoin();
+        }
+    }
     private ChatRoom fetchChatRoomWithParticipants(Long roomId) {
         return chatRoomRepository.findChatRoomWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
@@ -178,10 +192,13 @@ public class ChatMessageService {
 
             if (blockedUserIds.contains(recipient.getId())) continue;
 
-            if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId); // (자동 업데이트)
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
+                continue;
             }
 
+            if (recipient.getId().equals(sender.getId())) {
+                p.setLastReadMessageId(messageId);
+            }
 
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
