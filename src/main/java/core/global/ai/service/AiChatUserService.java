@@ -79,7 +79,6 @@ public class AiChatUserService {
 
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
-            saveAndSendAiMessage(chatRoomId, aiUser, "아 귀찮아 나중에 함");
         }
     }
 
