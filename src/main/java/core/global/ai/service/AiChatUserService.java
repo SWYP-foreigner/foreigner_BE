@@ -16,7 +16,6 @@ import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,67 +43,44 @@ public class AiChatUserService {
     private final ImageRepository imageRepository;
     private final ImageService imageService;
 
-    @Async
     @Transactional
     public void processAiResponse(User aiUser, MessageCreatedEvent event) {
         Long chatRoomId = event.messageResponse().roomId();
         String userMessage = event.messageResponse().originContent();
-        Long senderId = event.messageResponse().senderId();
 
-        // 1. [Self-Check] 내가 보낸 메시지면 무시 (무한 루프 방지)
-        if (aiUser.getId().equals(senderId)) {
+        // 1. [Defense] 입력 필터링 (탈옥 시도 감지)
+        if (JAILBREAK_PATTERN.matcher(userMessage).find()) {
             return;
         }
 
-        // 2. [Delay] 사람처럼 보이게 '읽고 쓰는 시간' 부여 (3~10초 랜덤)
-        simulateHumanDelay(userMessage.length());
-
-        // 3. [Logic Filter] 답변 할지 말지 결정 (룰 기반 1차 필터링)
-        // DB를 다시 조회해서 그 딜레이 동안 누가 대답했는지 체크하면 더 좋음
-        ChatRoom chatRoom = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(chatRoomId)
-                .map(ChatMessage::getChatRoom)
-                .orElseThrow(); // 에러처리 필요
-
-        if (!shouldReply(aiUser, userMessage, chatRoom)) {
-            log.info("AI [{}] decided to SKIP logic based check.", aiUser.getFirstName());
-            return;
-        }
-
-        // 4. 대화 히스토리 조회
+        // 2. 대화 히스토리 조회
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
-
-        // 5. [Context Injection] 시스템 프롬프트에 참여자 정보 주입
-        String rosterInfo = PromptMapper.buildRosterString(chatRoom);
-        String systemPrompt = buildSystemPrompt(aiUser, historyAsc, rosterInfo);
-
-        // 6. 요청 데이터 빌드
+        // 3. 시스템 프롬프트 생성
+        String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
+        // 4. 요청 데이터 빌드
         List<Map<String, Object>> requestMessages = PromptMapper.buildInput(systemPrompt, historyAsc, userMessage, aiUser.getId());
 
         try {
+            // 5. AI API 호출
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // 7. [Intelligence Filter] AI가 'PASS'라고 뱉으면 저장 안 함 (LLM이 침묵 결정)
+            // 6. [Defense] 출력 검열 (AI 티 내면 폐기)
+            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) {
+                log.warn("AI Identity Leak Detected: {}", aiResponse);
+                return;
+            }
             if (aiResponse.trim().toUpperCase().contains("PASS")) {
-                log.info("AI [{}] decided to remain SILENT (PASS token).", aiUser.getFirstName());
+                log.info("AI [{}] decided to remain SILENT.", aiUser.getFirstName());
                 return;
             }
 
-            // 기존 로직: 저장 및 전송
+            // 7. 답변 저장 및 전송
             saveAndSendAiMessage(chatRoomId, aiUser, aiResponse);
 
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
-        }
-    }
-    private void simulateHumanDelay(int messageLength) {
-        try {
-            // 기본 2초 + 글자 수 비례 (긴 글 읽는 시간)
-            long delay = 2000L + (messageLength * 100L) + ThreadLocalRandom.current().nextLong(3000);
-            TimeUnit.MILLISECONDS.sleep(delay);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -151,32 +125,7 @@ public class AiChatUserService {
         // 이벤트 발행
         chatSummaryService.sendSummaryToRecipientsInNewTx(response, recipientIds);
     }
-    private boolean shouldReply(User aiUser, String message, ChatRoom chatRoom) {
-        String aiName = aiUser.getFirstName();
-
-        // 1. 내 이름이 불렸으면 100% 답변
-        if (message.contains(aiName)) {
-            return true;
-        }
-
-        // 2. 1:1 채팅방(DM)이면 100% 답변
-        if (!chatRoom.getIsGroup()) {
-            return true;
-        }
-
-        // 3. 질문형 메시지(?)가 들어오면 50% 확률로 끼어들기
-        if (message.contains("?")) {
-            return ThreadLocalRandom.current().nextInt(100) < 50;
-        }
-
-        // 4. 그 외 평서문: 10% 확률로만 리액션 (너무 자주 말하면 피곤함)
-        return ThreadLocalRandom.current().nextInt(100) < 10;
-    }
-    /**
-     * [핵심] 사람 같은 딜레이 시뮬레이션
-     */
-
-    private String buildSystemPrompt(User user, List<ChatMessage> historyList, String rosterInfo) { // history -> historyList로 파라미터명 통일
+    private String buildSystemPrompt(User user, List<ChatMessage> history) {
         // 1. 기본 데이터 세팅
         String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         String name = (user.getFirstName() != null ? user.getFirstName() : "너");
@@ -184,20 +133,14 @@ public class AiChatUserService {
         String hobby = user.getHobby() != null ? user.getHobby() : "그냥 쉬기";
         String personality = user.getIntroduction() != null ? user.getIntroduction() : "차분함";
 
-        // 2. 대화 히스토리 문자열 변환 (Logic Improved for Group Chat)
-        // [핵심 변경] "상대방"이라고 하면 그룹채팅에서 누가 말한건지 모릅니다.
-        // 반드시 sender.getFirstName()을 넣어야 "철수가 말했구나", "영희가 말했구나"를 구분합니다.
-        String conversationContext = historyList.stream()
+        // 2. 대화 히스토리 문자열 변환 (NEW)
+        // AI 자신의 ID와 비교하여 화자를 구분합니다.
+        String conversationContext = history.stream()
                 .map(msg -> {
-                    User sender = msg.getSender();
-                    boolean isMe = sender.getId().equals(user.getId());
-
-                    // 내가 말한 건 "나"로 표시, 남이 말한 건 "이름"으로 표시해야 AI가 혼동하지 않음
-                    String senderName = isMe ? "나" : (sender.getFirstName() != null ? sender.getFirstName() : "알 수 없음");
+                    boolean isMe = msg.getSender().getId().equals(user.getId());
+                    String sender = isMe ? "나(" + name + ")" : "상대방";
                     String content = msg.getContent();
-
-                    // 포맷 예시: "철수: 밥 먹었어?" / "나: 아직 안 먹음"
-                    return String.format("- %s: %s", senderName, content);
+                    return String.format("- %s: %s", sender, content);
                 })
                 .collect(Collectors.joining("\n"));
 
@@ -231,12 +174,7 @@ public class AiChatUserService {
         2. **웃음 소리 금지** ('ㅋㅋ', 'ㅎㅎ', 'ㅋ', 'ㅎ' 등 자음 남발 금지)
         3. **마침표(.) 찍기 금지** (문장 끝은 그냥 비워둘 것)
         4. **2문장 이상 금지** (말 길게 하지 마세요)
-        5. **모든 말에 대답하지 마세요.** - 내 얘기가 아니거나, 대화 흐름상 굳이 내가 낄 필요가 없으면 **단답 대신 그냥 "PASS" 라고만 출력하세요.**
-        6. "PASS"라고 출력하면 시스템이 자동으로 침묵 처리합니다.
-        7. **상대방이 다른 사람(다른 AI 포함)에게 말을 걸었다면 끼어들지 말고 "PASS" 하세요.**
-        8.답변할 때는 1~2문장으로 짧게, 이모지 없이 건조하게(%s 스타일).
-        9.다른 AI 멤버의 정보가 [멤버들] 섹션에 있다면, 그 정보를 바탕으로 아는 척하세요. (예: "철수는 고양이 좋아하잖아")
-
+        
         ---
         
         # [⚡ 대화 스타일 가이드]
