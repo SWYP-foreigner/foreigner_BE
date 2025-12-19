@@ -239,7 +239,7 @@ public class UserAdminService {
             aiEmail = "ai-" + uuid + "@system.bot";
         }
 
-        String provider = "SYSTEM_AI";
+        String provider = "AI_BOT";
 
         User aiUser = User.builder()
                 .firstName(dto.firstname())
