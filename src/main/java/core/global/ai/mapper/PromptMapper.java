@@ -1,11 +1,13 @@
 package core.global.ai.mapper;
 
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatRoom;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PromptMapper {
 
@@ -21,7 +23,17 @@ public class PromptMapper {
     public static Map<String, Object> assistantMessage(String content) {
         return Map.of("role", "assistant", "content", content);
     }
-
+    public static String buildRosterString(ChatRoom chatRoom) {
+        return chatRoom.getParticipants().stream()
+                .map(p -> {
+                    String role = p.getUser().getUserRole().name(); // AI인지 USER인지 구분
+                    String name = p.getUser().getFirstName();
+                    String info = p.getUser().getIntroduction();
+                    String hobby = p.getUser().getHobby();
+                    return String.format("- %s (%s): %s / 취미: %s", name, role, info, hobby);
+                })
+                .collect(Collectors.joining("\n"));
+    }
     /**
      * @param aiUserId : 히스토리에서 누가 AI(assistant)인지 구분하기 위해 필요함
      */
