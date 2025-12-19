@@ -54,41 +54,36 @@ public class AiChatUserService {
         String userMessage = event.messageResponse().originContent();
 
         // 1. [Defense] 입력 필터링
-        if (JAILBREAK_PATTERN.matcher(userMessage).find()) {
-            return;
-        }
+        if (JAILBREAK_PATTERN.matcher(userMessage).find()) return;
 
-        // 2. [Human-like] 랜덤 딜레이 (Virtual Threads 사용 시 블로킹 문제 없음)
+        // 2. [Human-like] 랜덤 딜레이 (조금 더 빠르게 반응하도록 최소값 줄임)
         long thinkingTime = calculateThinkingTime(userMessage);
         sleep(thinkingTime);
 
-        // 3. [Double Check] 자고 일어났는데, 그 사이에 누가 선수 쳤나? (핵심 로직 수정) ⭐️
+        // 3. [Double Check] 로직 완화 (AI 독점 체제) ⭐️
         ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(chatRoomId)
                 .orElse(null);
 
         if (lastMessage != null) {
             // A. 내가 방금 보낸 메시지면 패스 (중복 실행 방지)
             if (lastMessage.getContent().equals(userMessage)) {
-                // Pass
+                // Pass (정상 흐름)
             }
-            // B. [FIX] 최근 10초 내에 다른 사람이 말했으면 (Instant 타입 통일로 에러 해결)
-            else if (lastMessage.getSentAt().isAfter(Instant.now().minusSeconds(10))) {
-
-                // 내 이름이 언급된 게 아니라면 -> 닥치고 있기
-                if (!isMentioned(userMessage, aiUser.getFirstName())) {
-                    long diff = Duration.between(lastMessage.getSentAt(), Instant.now()).getSeconds();
-                    log.info("AI [{}] Shut up. Someone spoke just {} sec ago.", aiUser.getFirstName(), diff);
-                    return;
-                }
+            // B. [변경] 마지막 메시지가 '나(AI)'라면 연속으로 말하지 않고 참음 (도배 방지)
+            else if (lastMessage.getSender().getId().equals(aiUser.getId())) {
+                log.info("AI [{}] Skip responding. I just spoke.", aiUser.getFirstName());
+                return;
             }
+            // C. [제거됨] 기존의 '10초 침묵' 룰 제거 -> 다른 사람이 말했어도 적극적으로 대화 참여
         }
 
-        // 4. [Filtering] 답변 확률 계산 (티키타카 로직) ⭐️
-        // (이전 메시지 정보도 넘겨서 더 똑똑하게 판단 가능)
-        if (!shouldReply(userMessage, aiUser, lastMessage)) {
-            log.info("AI [{}] decided not to reply (Probability check).", aiUser.getFirstName());
+        // 4. [Filtering] 답변 확률 대폭 상향 ⭐️
+        if (!shouldReply(userMessage, aiUser)) {
+            log.info("AI [{}] decided to PASS (Probability).", aiUser.getFirstName());
             return;
         }
+
+        // ... (이하 히스토리 조회, 프롬프트 생성, API 호출 로직 동일) ...
 
         // 5. 대화 히스토리 조회
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
@@ -100,33 +95,23 @@ public class AiChatUserService {
         List<Map<String, Object>> requestMessages = PromptMapper.buildInput(systemPrompt, historyAsc, userMessage, aiUser.getId());
 
         try {
-            // 7. API 호출
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // 8. [Defense] 출력 검열 & PASS 토큰 확인
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
+            if (aiResponse.trim().toUpperCase().contains("PASS")) return;
 
-            // AI가 스스로 대답 안 하기로 결정한 경우 ("PASS")
-            if (aiResponse.trim().toUpperCase().contains("PASS")) {
-                log.info("AI [{}] decided to remain SILENT (LLM logic).", aiUser.getFirstName());
-                return;
-            }
-
-            // 9. 저장 및 전송
             saveAndSendAiMessage(chatRoomId, aiUser, aiResponse);
-
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
         }
     }
 
     private long calculateThinkingTime(String userMessage) {
-        long baseDelay = 2000; // 최소 2초
-        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초
-        long randomJitter = ThreadLocalRandom.current().nextLong(500, 3000); // 0.5 ~ 3초 랜덤
+        long baseDelay = 1500; // 2초 -> 1.5초로 단축
+        long typingDelay = userMessage.length() * 30L; // 글자당 0.03초
+        long randomJitter = ThreadLocalRandom.current().nextLong(100, 2000);
         return baseDelay + typingDelay + randomJitter;
     }
-
     private void sleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -136,22 +121,19 @@ public class AiChatUserService {
     }
 
     // [Updated] 확률 로직 개선
-    private boolean shouldReply(String message, User aiUser, ChatMessage lastMsg) {
+    private boolean shouldReply(String message, User aiUser) {
         // 1. 내 이름 부르면 무조건 대답 (100%)
         if (isMentioned(message, aiUser.getFirstName())) {
             return true;
         }
 
-        // 2. 다른 사람 이름이 포함되어 있으면 -> 끼어들지 않음 (5% 확률로 난입)
-        // (간단히 구현: 내 이름은 없는데 2글자 이상 다른 단어가 명확히 호칭같을 때...는 복잡하니 확률만 낮춤)
-
-        // 3. 질문형이면 대답할 확률 높음 (70%)
+        // 2. 질문형이면 60% 확률로 대답 (요청사항 반영) ⭐️
         if (message.contains("?") || message.endsWith("?")) {
-            return ThreadLocalRandom.current().nextInt(100) < 70;
+            return ThreadLocalRandom.current().nextInt(100) < 60;
         }
 
-        // 4. 평서문이면 대답할 확률 낮음 (30%) - 너무 시끄럽지 않게
-        return ThreadLocalRandom.current().nextInt(100) < 30;
+        // 3. 평서문이면 60% 확률로 대답 (수다쟁이 모드 유지)
+        return ThreadLocalRandom.current().nextInt(100) < 60;
     }
 
     private boolean isMentioned(String message, String name) {
