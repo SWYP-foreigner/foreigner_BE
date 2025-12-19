@@ -17,7 +17,7 @@
         .hobby-item { display: flex; align-items: center; font-size: 0.9rem; }
         .hobby-item input { width: auto; margin-right: 8px; cursor: pointer; }
 
-        .profile-grid { display: flex; gap: 15px; justify-content: start; flex-wrap: wrap; }
+        .profile-grid { display: flex; gap: 15px; justify-content: start; flex-wrap: wrap; margin-top: 10px;}
         .profile-option {
             border: 2px solid #ddd; border-radius: 50%; overflow: hidden;
             cursor: pointer; width: 80px; height: 80px; transition: all 0.2s; position: relative;
@@ -30,11 +30,20 @@
             color: #228be6; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 3px white;
         }
 
+        .upload-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px dashed #ced4da; margin-bottom: 15px; text-align: center; }
+        .preview-container { display: none; margin-top: 10px; flex-direction: column; align-items: center; }
+        .preview-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #228be6; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-cancel-upload { margin-top: 5px; font-size: 0.8rem; color: #fa5252; background: none; border: none; cursor: pointer; text-decoration: underline; }
+
         .btn-group { margin-top: 30px; text-align: center; }
         .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; color: white; }
         .btn-primary { background-color: #228be6; } .btn-primary:hover { background-color: #1c7ed6; }
         .btn-secondary { background-color: #868e96; margin-right: 10px; }
         .note { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .separator { display: flex; align-items: center; text-align: center; color: #868e96; font-size: 0.9rem; margin: 15px 0; }
+        .separator::before, .separator::after { content: ''; flex: 1; border-bottom: 1px solid #dee2e6; }
+        .separator:not(:empty)::before { margin-right: .5em; }
+        .separator:not(:empty)::after { margin-left: .5em; }
     </style>
 
     <script>
@@ -50,6 +59,33 @@
             document.querySelectorAll('.profile-option').forEach(el => el.classList.remove('selected'));
             element.classList.add('selected');
             document.getElementById('imageKey').value = imageUrl;
+
+            const fileInput = document.getElementById('profileFile');
+            fileInput.value = '';
+            document.getElementById('previewContainer').style.display = 'none';
+        }
+
+        function handleFileUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const previewImg = document.getElementById('previewImg');
+                    previewImg.src = e.target.result;
+                    document.getElementById('previewContainer').style.display = 'flex';
+
+                    document.querySelectorAll('.profile-option').forEach(el => el.classList.remove('selected'));
+                    document.getElementById('imageKey').value = '';
+                };
+
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function cancelUpload() {
+            const fileInput = document.getElementById('profileFile');
+            fileInput.value = '';
+            document.getElementById('previewContainer').style.display = 'none';
         }
     </script>
 </head>
@@ -58,7 +94,7 @@
 <div class="container">
     <h1>AI 유저 생성</h1>
 
-    <form th:action="@{/admin/users/create-ai}" method="post" th:object="${setupRequest}">
+    <form th:action="@{/admin/users/create-ai}" method="post" th:object="${setupRequest}" enctype="multipart/form-data">
 
         <div style="display: flex; gap: 15px;">
             <div class="form-group" style="flex: 1;">
@@ -131,9 +167,21 @@
         </div>
 
         <div class="form-group">
-            <label>프로필 이미지 선택</label>
-            <input type="hidden" id="imageKey" th:field="*{imageKey}" required>
+            <label>프로필 이미지</label>
+            <input type="hidden" id="imageKey" th:field="*{imageKey}"> <div class="upload-section">
+            <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #495057;">이미지 파일을 직접 업로드하세요</p>
+            <input type="file" id="profileFile" name="profileFile" accept="image/*" onchange="handleFileUpload(this)">
 
+            <div id="previewContainer" class="preview-container">
+                <img id="previewImg" class="preview-img" src="">
+                <button type="button" class="btn-cancel-upload" onclick="cancelUpload()">업로드 취소</button>
+                <span style="font-size: 0.8rem; color: #228be6; margin-top: 5px;">* 이 이미지가 사용됩니다.</span>
+            </div>
+        </div>
+
+            <div class="separator">또는</div>
+
+            <p style="margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; color: #495057;">기본 프로필 중 선택</p>
             <div class="profile-grid">
                 <div th:each="imgUrl : ${profileImages}"
                      class="profile-option"
@@ -141,7 +189,7 @@
                     <img th:src="${imgUrl}" alt="Profile Image">
                 </div>
             </div>
-            <p class="note">* 이미지를 클릭하여 선택해주세요.</p>
+            <p class="note">* 파일을 업로드하거나 위 목록 중 하나를 선택하세요.</p>
         </div>
 
         <div class="btn-group">

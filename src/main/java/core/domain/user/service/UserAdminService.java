@@ -25,6 +25,7 @@ import core.domain.usernotificationsetting.repository.UserNotificationSettingRep
 import core.global.apple.service.AppleWithdrawalService;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
+import core.global.entity.image.service.ProfileImageService;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.ChatParticipantStatus;
 import core.global.enums.FollowStatus;
@@ -41,6 +42,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.List;
@@ -72,6 +74,8 @@ public class UserAdminService {
     private final UserFeedbackRepository userFeedbackRepository;
     private final ImageService imageService;
     private final PasswordEncoder passwordEncoder;
+    private final ProfileImageService profileImageService;
+
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
         User user = userRepository.findById(userId)
@@ -227,7 +231,7 @@ public class UserAdminService {
     }
 
     @Transactional
-    public void createAiUser(UserSetupRequest dto, String password) {
+    public void createAiUser(UserSetupRequest dto, String password, MultipartFile profileFile) {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String aiEmail;
 
@@ -296,7 +300,10 @@ public class UserAdminService {
 
         userRepository.save(aiUser);
 
-        if (dto.imageKey() != null && !dto.imageKey().isBlank()) {
+        if (profileFile != null && !profileFile.isEmpty()) {
+            profileImageService.uploadUserProfileImage(aiUser.getId(), profileFile);
+        }
+        else if (dto.imageKey() != null && !dto.imageKey().isBlank()) {
             imageService.saveUserProfileImage(aiUser.getId(), dto.imageKey());
         }
     }

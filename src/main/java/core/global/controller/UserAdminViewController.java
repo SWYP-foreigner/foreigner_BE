@@ -17,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.Arrays;
@@ -151,9 +152,10 @@ public class UserAdminViewController {
     @PostMapping("/create-ai")
     public String createAiUser(
             @ModelAttribute @Valid UserSetupRequest request,
-            @RequestParam(value = "password", required = false) String password
+            @RequestParam(value = "password", required = false) String password,
+            @RequestParam(value = "profileFile", required = false) MultipartFile profileFile
     ) {
-        userAdminService.createAiUser(request, password);
+        userAdminService.createAiUser(request, password, profileFile);
         return "redirect:/admin/users";
     }
 
