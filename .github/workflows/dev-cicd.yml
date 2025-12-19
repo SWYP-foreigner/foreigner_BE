@@ -147,36 +147,6 @@ jobs:
             echo "--- redis logs (tail) ---"
             docker logs --tail 200 "$RD_CID" || true
           fi
-  
-
-#  sync-error-codes:
-#    needs: [ preflight, quality-tests ]
-#    runs-on: ubuntu-latest
-#    if: always()    # 테스트 실패해도 Notion 동기 돌리고 싶으면 유지, 성공시에만 돌리고 싶으면 `if: needs.quality-tests.result == 'success'`
-#    steps:
-#      - uses: actions/checkout@v4
-#
-#      - name: Setup JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          distribution: 'temurin'
-#          java-version: '17'
-#          cache: 'gradle'
-#
-#      - name: Sync error codes to Notion
-#        env:
-#          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-#          NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
-#        run: |
-#          if [ -z "$NOTION_TOKEN" ] || [ -z "$NOTION_DB_ID" ]; then
-#            echo "NOTION_TOKEN or NOTION_DB_ID is empty. Skip Notion sync."
-#            exit 0
-#          fi
-#
-#          echo "Running Notion sync (failures will NOT break CI)..."
-#          ./gradlew --no-daemon runNotionSync || {
-#            echo "⚠️ Notion sync failed (ignored for CI). Check logs above.";
-#          }
 
   build:
     needs: [ preflight, quality-tests ]
