@@ -122,6 +122,7 @@ public class LoginRegisterController {
 
     @GetMapping("/{userId}/info")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @Operation(summary = "유저 프로필 조회", description = "유저 프로필을 조회합니다.")
     public ResponseEntity<UserProfileCardResponse> getUserProfile(
             @PathVariable("userId") Long userId,
             @AuthenticationPrincipal CustomUserDetails userDetails
