@@ -50,7 +50,6 @@ public class AiChatUserService {
 
         // 1. [Defense] 입력 필터링 (탈옥 시도 감지)
         if (JAILBREAK_PATTERN.matcher(userMessage).find()) {
-            saveAndSendAiMessage(chatRoomId, aiUser, "??");
             return;
         }
 
@@ -70,7 +69,11 @@ public class AiChatUserService {
             // 6. [Defense] 출력 검열 (AI 티 내면 폐기)
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) {
                 log.warn("AI Identity Leak Detected: {}", aiResponse);
-                aiResponse = "ㅇㅇ";
+                return;
+            }
+            if (aiResponse.trim().toUpperCase().contains("PASS")) {
+                log.info("AI [{}] decided to remain SILENT.", aiUser.getFirstName());
+                return;
             }
 
             // 7. 답변 저장 및 전송
