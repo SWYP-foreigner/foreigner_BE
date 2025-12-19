@@ -7,6 +7,7 @@ import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.user.dto.*;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserAdminService;
+import core.global.ai.entity.AiPersona;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -139,9 +140,11 @@ public class UserAdminViewController {
     public String createAiUser(
             @ModelAttribute @Valid UserSetupRequest request,
             @RequestParam(value = "password", required = false) String password,
-            @RequestParam(value = "profileFile", required = false) MultipartFile profileFile
+            @RequestParam(value = "profileFile", required = false) MultipartFile profileFile,
+            @RequestParam(value = "instruction") String instruction,
+            @RequestParam(value = "backgroundInfo", required = false) String backgroundInfo
     ) {
-        userAdminService.createAiUser(request, password, profileFile);
+        userAdminService.createAiUser(request, password, profileFile, instruction, backgroundInfo);
         return "redirect:/admin/users";
     }
 
@@ -175,8 +178,13 @@ public class UserAdminViewController {
     @GetMapping("/{userId}/edit-ai")
     public String editAiUserPage(@PathVariable Long userId, Model model) {
         UserSetupRequest setupRequest = userAdminService.getAiUserForEdit(userId);
+        AiPersona persona = userAdminService.getAiPersona(userId);
+
         model.addAttribute("setupRequest", setupRequest);
         model.addAttribute("userId", userId);
+
+        model.addAttribute("instruction", persona != null ? persona.getInstruction() : "");
+        model.addAttribute("backgroundInfo", persona != null ? persona.getBackgroundInfo() : "");
 
         addAiFormAttributes(model);
 
@@ -190,12 +198,16 @@ public class UserAdminViewController {
             BindingResult bindingResult,
             @RequestParam(value = "password", required = false) String password,
             @RequestParam(value = "profileFile", required = false) MultipartFile profileFile,
+            @RequestParam(value = "instruction") String instruction,
+            @RequestParam(value = "backgroundInfo", required = false) String backgroundInfo,
             RedirectAttributes redirectAttributes,
             Model model
     ) {
         if (bindingResult.hasErrors()) {
             addAiFormAttributes(model);
             model.addAttribute("userId", userId);
+            model.addAttribute("instruction", instruction);
+            model.addAttribute("backgroundInfo", backgroundInfo);
 
             String errorMessage = bindingResult.getAllErrors().get(0).getDefaultMessage();
             model.addAttribute("errorMessage", "입력값 오류: " + errorMessage);
@@ -204,8 +216,8 @@ public class UserAdminViewController {
         }
 
         try {
-            userAdminService.updateAiUser(userId, request, password, profileFile);
-            redirectAttributes.addFlashAttribute("successMessage", "AI 유저 정보가 수정되었습니다.");
+            userAdminService.updateAiUser(userId, request, password, profileFile, instruction, backgroundInfo);
+            redirectAttributes.addFlashAttribute("successMessage", "AI 유저 및 페르소나 정보가 수정되었습니다.");
         } catch (Exception e) {
             e.printStackTrace();
             redirectAttributes.addFlashAttribute("errorMessage", "수정 실패: " + e.getMessage());

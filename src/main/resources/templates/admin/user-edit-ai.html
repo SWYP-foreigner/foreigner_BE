@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>AI 유저 정보 수정</title>
     <style>
-        /* 기존 스타일 그대로 사용 */
         body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; color: #333; background-color: #f8f9fa; }
         .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         h1 { margin-bottom: 25px; font-size: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 15px; }
@@ -55,7 +54,7 @@
 
             const fileInput = document.getElementById('profileFile');
             fileInput.value = '';
-            document.getElementById('previewImg').src = imageUrl; // 미리보기도 선택한 걸로 변경
+            document.getElementById('previewImg').src = imageUrl;
         }
 
         function handleFileUpload(input) {
@@ -152,6 +151,26 @@
         <div class="form-group">
             <label for="introduction">자기소개</label>
             <textarea id="introduction" th:field="*{introduction}" maxlength="70" required></textarea>
+        </div>
+
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #90caf9;">
+            <h3 style="margin-top: 0; color: #0d47a1; font-size: 1.1rem;">🤖 AI 페르소나 설정</h3>
+
+            <div class="form-group">
+                <label for="instruction" style="color: #1565c0;">시스템 프롬프트 (Instruction) *</label>
+                <textarea id="instruction" name="instruction" required
+                          placeholder="이 AI가 어떻게 행동해야 하는지 지시사항을 입력하세요. (예: 너는 친절한 한국어 선생님이야.)"
+                          style="height: 120px;"
+                          th:text="${instruction}"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="backgroundInfo" style="color: #1565c0;">배경 지식 (Background Info)</label>
+                <textarea id="backgroundInfo" name="backgroundInfo"
+                          placeholder="AI가 기억해야 할 설정이나 배경 지식을 입력하세요."
+                          style="height: 100px;"
+                          th:text="${backgroundInfo}"></textarea>
+            </div>
         </div>
 
         <div class="form-group">

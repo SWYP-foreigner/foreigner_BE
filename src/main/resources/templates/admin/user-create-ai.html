@@ -166,6 +166,24 @@
             <textarea id="introduction" th:field="*{introduction}" maxlength="70" placeholder="70자 이내로 AI의 성격을 묘사하세요." required></textarea>
         </div>
 
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #90caf9;">
+            <h3 style="margin-top: 0; color: #0d47a1; font-size: 1.1rem;">🤖 AI 페르소나 설정</h3>
+
+            <div class="form-group">
+                <label for="instruction" style="color: #1565c0;">시스템 프롬프트 (Instruction) *</label>
+                <textarea id="instruction" name="instruction" required
+                          placeholder="이 AI가 어떻게 행동해야 하는지 지시사항을 입력하세요. (예: 너는 친절한 한국어 선생님이야.)"
+                          style="height: 120px;"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="backgroundInfo" style="color: #1565c0;">배경 지식 (Background Info)</label>
+                <textarea id="backgroundInfo" name="backgroundInfo"
+                          placeholder="AI가 기억해야 할 설정이나 배경 지식을 입력하세요."
+                          style="height: 100px;"></textarea>
+            </div>
+        </div>
+
         <div class="form-group">
             <label>프로필 이미지</label>
             <input type="hidden" id="imageKey" th:field="*{imageKey}"> <div class="upload-section">

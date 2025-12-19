@@ -46,6 +46,11 @@ public class AiPersona {
         }
     }
 
+    public void updatePersona(String instruction, String backgroundInfo) {
+        this.instruction = instruction;
+        this.backgroundInfo = backgroundInfo;
+    }
+
     // 비활성화 편의 메서드
     public void deactivate() {
         this.isActive = false;

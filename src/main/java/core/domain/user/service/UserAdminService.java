@@ -22,7 +22,8 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.apple.service.AppleWithdrawalService;
+import core.global.ai.entity.AiPersona;
+import core.global.ai.repository.AiPersonaRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.image.service.ProfileImageService;
@@ -65,7 +66,6 @@ public class UserAdminService {
     private final ImageRepository imageRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final BlockPostRepository blockPostRepository;
-    private final AppleWithdrawalService appleWithdrawalService;
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
@@ -73,6 +73,7 @@ public class UserAdminService {
     private final ImageService imageService;
     private final PasswordEncoder passwordEncoder;
     private final ProfileImageService profileImageService;
+    private final AiPersonaRepository aiPersonaRepository;
 
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
@@ -206,6 +207,8 @@ public class UserAdminService {
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
         userFeedbackRepository.deleteAllByUserIdExplicit(userId);
+        aiPersonaRepository.deleteByUserId(userId);
+
         userRepository.delete(NowUser);
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
@@ -229,7 +232,8 @@ public class UserAdminService {
     }
 
     @Transactional
-    public void createAiUser(UserSetupRequest dto, String password, MultipartFile profileFile) {
+    public void createAiUser(UserSetupRequest dto, String password, MultipartFile profileFile,
+                             String instruction, String backgroundInfo) {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String aiEmail;
 
@@ -298,6 +302,15 @@ public class UserAdminService {
 
         userRepository.save(aiUser);
 
+        AiPersona persona = AiPersona.builder()
+                .userId(aiUser.getId())
+                .instruction(instruction)
+                .backgroundInfo(backgroundInfo)
+                .isActive(true)
+                .build();
+
+        aiPersonaRepository.save(persona);
+
         if (profileFile != null && !profileFile.isEmpty()) {
             profileImageService.uploadUserProfileImage(aiUser.getId(), profileFile);
         }
@@ -327,7 +340,8 @@ public class UserAdminService {
     }
 
     @Transactional
-    public void updateAiUser(Long userId, UserSetupRequest dto, String password, MultipartFile profileFile) {
+    public void updateAiUser(Long userId, UserSetupRequest dto, String password, MultipartFile profileFile,
+                             String instruction, String backgroundInfo) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
@@ -365,6 +379,21 @@ public class UserAdminService {
             user.updateHobby(hobbyStr);
         }
 
+        AiPersona persona = aiPersonaRepository.findByUserId(userId)
+                .orElse(null);
+
+        if (persona != null) {
+            persona.updatePersona(instruction, backgroundInfo);
+        } else {
+            AiPersona newPersona = AiPersona.builder()
+                    .userId(userId)
+                    .instruction(instruction)
+                    .backgroundInfo(backgroundInfo)
+                    .isActive(true)
+                    .build();
+            aiPersonaRepository.save(newPersona);
+        }
+
         if (profileFile != null && !profileFile.isEmpty()) {
             if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
                 profileImageService.deleteUserProfileImage(userId);
@@ -377,6 +406,13 @@ public class UserAdminService {
             profileImageService.updateUserProfileImage(userId, dto.imageKey());
         }
     }
+
+    @Transactional(readOnly = true)
+    public AiPersona getAiPersona(Long userId) {
+        return aiPersonaRepository.findByUserId(userId).orElse(null);
+    }
+
+
 
     private String normalizeLanguageCode(String rawLang) {
         if (rawLang == null) return "";
