@@ -3,6 +3,9 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
