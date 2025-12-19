@@ -16,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -89,6 +90,9 @@ public class UserAdminViewController {
         model.addAttribute("comments", comments);
         model.addAttribute("messages", messages);
 
+        boolean isAi = userAdminService.isAiUser(userId);
+        model.addAttribute("isAi", isAi);
+
         return "admin/user-detail";
     }
 
@@ -126,25 +130,7 @@ public class UserAdminViewController {
     public String createAiUserPage(Model model) {
         model.addAttribute("setupRequest", new UserSetupRequest(null, null, null, null, null, null, null, null, null, null, null));
 
-        List<String> purposes = Arrays.asList("Study", "Work", "Marriage", "Travel", "Business", "Family");
-        model.addAttribute("purposes", purposes);
-
-        List<String> hobbies = Arrays.asList(
-                "Music", "Movies", "Reading", "Anime", "Gaming",
-                "Drinking", "Exploring Cafes", "Traveling", "Board Games",
-                "Shopping", "Beauty", "Doing Nothing",
-                "Yoga", "Running", "Fitness", "Camping", "Dancing", "Hiking",
-                "Exhibition", "Singing", "Cooking", "Pets", "Career", "Photography",
-                "K-Pop Lover", "K-Drama Lover", "K-Food Lover"
-        );
-        model.addAttribute("hobbies", hobbies);
-
-        List<String> profileImages = Arrays.asList(
-                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_01.svg",
-                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_02.svg",
-                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_03.svg"
-        );
-        model.addAttribute("profileImages", profileImages);
+        addAiFormAttributes(model);
 
         return "admin/user-create-ai";
     }
@@ -184,5 +170,77 @@ public class UserAdminViewController {
         }
 
         return "redirect:/admin/users/ai/invite";
+    }
+
+    @GetMapping("/{userId}/edit-ai")
+    public String editAiUserPage(@PathVariable Long userId, Model model) {
+        UserSetupRequest setupRequest = userAdminService.getAiUserForEdit(userId);
+        model.addAttribute("setupRequest", setupRequest);
+        model.addAttribute("userId", userId);
+
+        addAiFormAttributes(model);
+
+        return "admin/user-edit-ai";
+    }
+
+    @PostMapping("/{userId}/edit-ai")
+    public String editAiUserProcess(
+            @PathVariable Long userId,
+            @ModelAttribute @Valid UserSetupRequest request,
+            BindingResult bindingResult,
+            @RequestParam(value = "password", required = false) String password,
+            @RequestParam(value = "profileFile", required = false) MultipartFile profileFile,
+            RedirectAttributes redirectAttributes,
+            Model model
+    ) {
+        if (bindingResult.hasErrors()) {
+            addAiFormAttributes(model);
+            model.addAttribute("userId", userId);
+
+            String errorMessage = bindingResult.getAllErrors().get(0).getDefaultMessage();
+            model.addAttribute("errorMessage", "입력값 오류: " + errorMessage);
+
+            return "admin/user-edit-ai";
+        }
+
+        try {
+            userAdminService.updateAiUser(userId, request, password, profileFile);
+            redirectAttributes.addFlashAttribute("successMessage", "AI 유저 정보가 수정되었습니다.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("errorMessage", "수정 실패: " + e.getMessage());
+        }
+
+        return "redirect:/admin/users/" + userId;
+    }
+
+    private void addAiFormAttributes(Model model) {
+        List<String> purposes = Arrays.asList("Study", "Work", "Marriage", "Travel", "Business", "Family");
+        model.addAttribute("purposes", purposes);
+
+        List<String> hobbies = Arrays.asList(
+                "Music", "Movies", "Reading", "Anime", "Gaming",
+                "Drinking", "Exploring Cafes", "Traveling", "Board Games",
+                "Shopping", "Beauty", "Doing Nothing",
+                "Yoga", "Running", "Fitness", "Camping", "Dancing", "Hiking",
+                "Exhibition", "Singing", "Cooking", "Pets", "Career", "Photography",
+                "K-Pop Lover", "K-Drama Lover", "K-Food Lover"
+        );
+        model.addAttribute("hobbies", hobbies);
+
+        List<String> profileImages = Arrays.asList(
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_01.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_02.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_03.svg"
+        );
+        model.addAttribute("profileImages", profileImages);
+    }
+
+    @GetMapping("/ai")
+    public String aiUserListPage(Model model) {
+        List<User> aiUsers = userAdminService.getAiUsers();
+
+        model.addAttribute("aiUsers", aiUsers);
+        return "admin/user-list-ai";
     }
 }

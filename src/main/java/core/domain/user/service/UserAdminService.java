@@ -42,13 +42,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -308,6 +306,78 @@ public class UserAdminService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public UserSetupRequest getAiUserForEdit(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        List<String> languages = Collections.emptyList();
+        if (StringUtils.hasText(user.getLanguage())) {
+            languages = Arrays.asList(user.getLanguage().split(","));
+        }
+
+        List<String> hobbies = Collections.emptyList();
+        if (StringUtils.hasText(user.getHobby())) {
+            hobbies = Arrays.asList(user.getHobby().split(","));
+        }
+
+        String currentImageUrl = profileImageService.getUserProfileKey(userId);
+
+        return new UserSetupRequest(user, languages, hobbies, currentImageUrl);
+    }
+
+    @Transactional
+    public void updateAiUser(Long userId, UserSetupRequest dto, String password, MultipartFile profileFile) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        user.updateFirstName(dto.firstname());
+        user.updateLastName(dto.lastname());
+        user.updateSex(dto.gender());
+        user.updateBirthdate(dto.birthday());
+        user.updateCountry(dto.country());
+        user.updatePurpose(dto.purpose());
+        user.updateIntroduction(dto.introduction());
+
+        if (StringUtils.hasText(password)) {
+            user.updatePassword(passwordEncoder.encode(password));
+        }
+
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> processedLanguages = dto.language().stream()
+                    .filter(StringUtils::hasText)
+                    .flatMap(s -> Arrays.stream(s.split(",")))
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .map(this::normalizeLanguageCode)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+
+            if (!processedLanguages.isEmpty()) {
+                String langStr = String.join(",", processedLanguages);
+                user.updateLanguage(langStr);
+            }
+        }
+
+        if (dto.hobby() != null && !dto.hobby().isEmpty()) {
+            String hobbyStr = String.join(",", dto.hobby());
+            user.updateHobby(hobbyStr);
+        }
+
+        if (profileFile != null && !profileFile.isEmpty()) {
+            if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
+                profileImageService.deleteUserProfileImage(userId);
+                imageRepository.flush();
+            }
+            profileImageService.uploadUserProfileImage(userId, profileFile);
+        }
+
+        else if (StringUtils.hasText(dto.imageKey())) {
+            profileImageService.updateUserProfileImage(userId, dto.imageKey());
+        }
+    }
+
     private String normalizeLanguageCode(String rawLang) {
         if (rawLang == null) return "";
         String normalized = rawLang.toLowerCase().trim();
@@ -368,5 +438,11 @@ public class UserAdminService {
                             chatParticipantRepository.save(newParticipant);
                         }
                 );
+    }
+
+    public boolean isAiUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return user.getUserRole() == Role.AI;
     }
 }

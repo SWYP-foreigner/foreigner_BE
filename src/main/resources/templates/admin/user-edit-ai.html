@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 유저 정보 수정</title>
+    <style>
+        /* 기존 스타일 그대로 사용 */
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 25px; font-size: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; }
+        input[type="text"], input[type="email"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        textarea { height: 100px; resize: vertical; }
+
+        .hobby-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; border: 1px solid #ddd; padding: 15px; border-radius: 4px; background-color: #fff; }
+        .hobby-item { display: flex; align-items: center; font-size: 0.9rem; }
+        .hobby-item input { width: auto; margin-right: 8px; cursor: pointer; }
+
+        .profile-grid { display: flex; gap: 15px; justify-content: start; flex-wrap: wrap; margin-top: 10px;}
+        .profile-option { border: 2px solid #ddd; border-radius: 50%; overflow: hidden; cursor: pointer; width: 80px; height: 80px; transition: all 0.2s; position: relative; }
+        .profile-option:hover { transform: scale(1.05); border-color: #228be6; }
+        .profile-option img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-option.selected { border: 3px solid #228be6; box-shadow: 0 0 10px rgba(34, 139, 230, 0.4); }
+        .profile-option.selected::after { content: '✔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #228be6; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 3px white; }
+
+        .upload-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px dashed #ced4da; margin-bottom: 15px; text-align: center; }
+        .preview-container { display: flex; margin-top: 10px; flex-direction: column; align-items: center; }
+        .preview-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #228be6; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-cancel-upload { margin-top: 5px; font-size: 0.8rem; color: #fa5252; background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+        .btn-group { margin-top: 30px; text-align: center; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; color: white; }
+        .btn-primary { background-color: #228be6; } .btn-primary:hover { background-color: #1c7ed6; }
+        .btn-secondary { background-color: #868e96; margin-right: 10px; }
+        .note { font-size: 0.85rem; color: #666; margin-top: 5px; }
+        .separator { display: flex; align-items: center; text-align: center; color: #868e96; font-size: 0.9rem; margin: 15px 0; }
+        .separator::before, .separator::after { content: ''; flex: 1; border-bottom: 1px solid #dee2e6; }
+    </style>
+
+    <script>
+        function checkHobbyLimit(checkbox) {
+            const checkboxes = document.querySelectorAll('input[name="hobby"]:checked');
+            if (checkboxes.length > 5) {
+                alert("취미는 최대 5개까지만 선택할 수 있습니다.");
+                checkbox.checked = false;
+            }
+        }
+
+        function selectProfileImage(element, imageUrl) {
+            document.querySelectorAll('.profile-option').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            document.getElementById('imageKey').value = imageUrl;
+
+            const fileInput = document.getElementById('profileFile');
+            fileInput.value = '';
+            document.getElementById('previewImg').src = imageUrl; // 미리보기도 선택한 걸로 변경
+        }
+
+        function handleFileUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewImg = document.getElementById('previewImg');
+                    previewImg.src = e.target.result;
+
+                    document.querySelectorAll('.profile-option').forEach(el => el.classList.remove('selected'));
+                    document.getElementById('imageKey').value = '';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <h1>AI 유저 정보 수정</h1>
+
+    <form th:action="@{/admin/users/{userId}/edit-ai(userId=${userId})}" method="post" th:object="${setupRequest}" enctype="multipart/form-data">
+
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="firstname">이름 (First Name)</label>
+                <input type="text" id="firstname" th:field="*{firstname}" required>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="lastname">성 (Last Name)</label>
+                <input type="text" id="lastname" th:field="*{lastname}" required>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px; background-color: #f1f3f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="email">이메일 (수정 불가)</label>
+                <input type="email" id="email" th:field="*{email}" readonly style="background-color: #e9ecef; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="password">비밀번호 변경</label>
+                <input type="text" id="password" name="password" placeholder="변경할 경우에만 입력">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="gender">성별</label>
+                <select id="gender" th:field="*{gender}">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="birthday">생년월일 (MM/DD/YYYY)</label>
+                <input type="text" id="birthday" th:field="*{birthday}" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="country">국가</label>
+            <input type="text" id="country" th:field="*{country}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="purpose">사용 목적</label>
+            <select id="purpose" th:field="*{purpose}">
+                <option th:each="p : ${purposes}" th:value="${p}" th:text="${p}"></option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="language">사용 언어</label>
+            <input type="text" id="language" name="language"
+                   th:value="${setupRequest.language != null ? #strings.listJoin(setupRequest.language, ',') : ''}"
+                   placeholder="예: Korean[ko], English[en]">
+            <p class="note">* 수정 시 콤마(,)로 구분하여 입력하세요.</p>
+        </div>
+
+        <div class="form-group">
+            <label>취미 (최대 5개)</label>
+            <div class="hobby-container">
+                <div th:each="h : ${hobbies}" class="hobby-item">
+                    <input type="checkbox" name="hobby" th:value="${h}" th:id="${'hobby_' + h}"
+                           onclick="checkHobbyLimit(this)"
+                           th:checked="${setupRequest.hobby != null and #lists.contains(setupRequest.hobby, h)}">
+                    <label th:for="${'hobby_' + h}" th:text="${h}"></label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="introduction">자기소개</label>
+            <textarea id="introduction" th:field="*{introduction}" maxlength="70" required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>프로필 이미지 수정</label>
+            <input type="hidden" id="imageKey" th:field="*{imageKey}">
+
+            <div class="upload-section">
+                <div id="previewContainer" class="preview-container">
+                    <span style="font-size:0.9rem; margin-bottom:5px; font-weight:bold;">현재(또는 변경할) 이미지</span>
+                    <img id="previewImg" class="preview-img"
+                         th:src="${setupRequest.imageKey != null ? setupRequest.imageKey : 'https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_01.svg'}"
+                         alt="Current Profile">
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #495057;">새 이미지 업로드</p>
+                    <input type="file" id="profileFile" name="profileFile" accept="image/*" onchange="handleFileUpload(this)">
+                </div>
+            </div>
+
+            <div class="separator">또는 기본 이미지 선택</div>
+
+            <div class="profile-grid">
+                <div th:each="imgUrl : ${profileImages}"
+                     class="profile-option"
+                     th:classappend="${imgUrl == setupRequest.imageKey} ? 'selected'"
+                     th:onclick="selectProfileImage(this, [[${imgUrl}]])">
+                    <img th:src="${imgUrl}" alt="Profile Image">
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <a th:href="@{/admin/users/{userId}(userId=${userId})}" class="btn btn-secondary">취소</a>
+            <button type="submit" class="btn btn-primary">수정 완료</button>
+        </div>
+    </form>
+</div>
+</body>
+</html>
