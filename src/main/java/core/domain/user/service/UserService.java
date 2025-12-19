@@ -2,6 +2,7 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.chat.dto.ChatUserProfileResponse;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
@@ -28,11 +29,11 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
 import core.global.enums.Ouathplatform;
 import core.global.enums.Role;
 import core.global.enums.errorcode.AuthErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
@@ -110,7 +111,6 @@ public class UserService {
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
-
     public void logout(String accessToken) {
         long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         redisService.blacklistAccessToken(accessToken, expiration);
@@ -131,7 +131,7 @@ public class UserService {
         Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
         User user = userRepository.getUserById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        log.info("---  사용자 ID: {} {} {}  ---", user.getId(), user.getFirstName(), user.getLastName());
+        log.info("---  사용자 ID: {} {} {}  ---", user.getId(),user.getFirstName(),user.getLastName());
 
         String storedRefreshToken = redisService.getRefreshToken(userId);
 
@@ -304,23 +304,21 @@ public class UserService {
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
     }
-
     /**
      * DTO의 필수 필드가 모두 채워졌는지 검사하는 메서드
      */
     private boolean isAllProfileFieldsFilled(UserSetupRequest dto) {
         return notBlank(dto.firstname()) &&
-               notBlank(dto.lastname()) &&
-               notBlank(dto.gender()) &&
-               notBlank(dto.birthday()) &&
-               notBlank(dto.country()) &&
-               notBlank(dto.introduction()) &&
-               notBlank(dto.purpose()) &&
-               notBlank(dto.imageKey()) && // 이미지도 필수
-               dto.language() != null && !dto.language().isEmpty() && // 언어도 1개 이상
-               dto.hobby() != null && !dto.hobby().isEmpty(); // 취미도 1개 이상
+                notBlank(dto.lastname()) &&
+                notBlank(dto.gender()) &&
+                notBlank(dto.birthday()) &&
+                notBlank(dto.country()) &&
+                notBlank(dto.introduction()) &&
+                notBlank(dto.purpose()) &&
+                notBlank(dto.imageKey()) && // 이미지도 필수
+                dto.language() != null && !dto.language().isEmpty() && // 언어도 1개 이상
+                dto.hobby() != null && !dto.hobby().isEmpty(); // 취미도 1개 이상
     }
-
     private boolean notBlank(String s) {
         return s != null && !s.isBlank();
     }
@@ -340,7 +338,6 @@ public class UserService {
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
-
     private String normalizeLanguageCode(String rawLang) {
         if (rawLang == null) return "";
 
@@ -365,7 +362,6 @@ public class UserService {
 
         return ""; // 그 외 알 수 없는 포맷은 무시
     }
-
     @Transactional
     public void deleteProfileImage() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -866,49 +862,43 @@ public class UserService {
         userRepository.delete(user);
     }
 
+    /**
+     * 단일 사용자 정보 조회 로직
+     */
+    public UserProfileResponse findUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+
+        String profileKey = imageService.getUserProfileKey(user.getId());
+
+        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
+    }
+
     public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         String profileKey = imageService.getUserProfileKey(user.getId());
-
-        Optional<Follow> myFollow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
-        // theirFollow: 상대가 나를 어떻게 하고 있는지
-        Optional<Follow> theirFollow = followRepository.findByUser_IdAndFollowing_Id(userId, currentUserId);
-
-        // 4. 상태 추출 (데이터가 없거나 REJECTED면 null 취급과 비슷하게 처리하기 위해 변수화)
-        FollowStatus myStatus = myFollow.map(Follow::getStatus).orElse(null);
-        FollowStatus theirStatus = theirFollow.map(Follow::getStatus).orElse(null);
-
-        FriendType relationshipLabel = calculateRelationship(myStatus, theirStatus);
+        String followStatus;
+        if (userId.equals(currentUserId)) {
+            followStatus = "SELF";
+        } else {
+            Optional<Follow> follow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
+            if (follow.isPresent()) {
+                followStatus = follow.get().getStatus().toString();
+            } else {
+                followStatus = "NOT_FOLLOWING";
+            }
+        }
 
         return new UserProfileCardResponse(
                 user,
                 stringToList(user.getTranslateLanguage()),
                 stringToList(user.getHobby()),
                 profileKey,
-                relationshipLabel
+                followStatus
         );
-    }
-
-    private FriendType calculateRelationship(FollowStatus myStatus, FollowStatus theirStatus) {
-        // 1. 서로 수락된 상태 -> 친구 (맞팔)
-        if (myStatus == FollowStatus.ACCEPTED && theirStatus == FollowStatus.ACCEPTED) {
-            return FriendType.FRIEND;
-        }
-
-        // 2. 내가 보낸 요청이 대기 중 -> 요청 보냄 (버튼: '요청 취소' 등)
-        if (myStatus == FollowStatus.PENDING) {
-            return FriendType.FOLLOWING;
-        }
-
-        // 4. 상대가 나를 팔로우 중 (나는 안 함/거절/요청전) -> 나를 팔로우 함 (버튼: '맞팔하기')
-        if (theirStatus == FollowStatus.ACCEPTED) {
-            return FriendType.FOLLOWED;
-        }
-
-        // 그 외 (둘 다 없거나, REJECTED 등)
-        return FriendType.NONE;
     }
 
     /**
