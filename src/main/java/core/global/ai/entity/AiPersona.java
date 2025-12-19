@@ -32,11 +32,22 @@ public class AiPersona {
     @Column(name = "background_info", columnDefinition = "TEXT")
     private String backgroundInfo; // AI가 기억해야 할 배경 지식
 
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 
     @Builder
-    public AiPersona(Long userId, String instruction, String backgroundInfo) {
+    public AiPersona(Long userId, String instruction, String backgroundInfo, Boolean isActive) {
         this.userId = userId;
         this.instruction = instruction;
         this.backgroundInfo = backgroundInfo;
+        // 빌더에서 값을 넣지 않으면 기본값 true 유지, 넣으면 그 값 사용
+        if (isActive != null) {
+            this.isActive = isActive;
+        }
+    }
+
+    // 비활성화 편의 메서드
+    public void deactivate() {
+        this.isActive = false;
     }
 }
