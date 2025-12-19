@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -63,14 +64,17 @@ public class AiChatUserService {
         // 가장 최근 메시지를 다시 조회
         ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(chatRoomId)
                 .orElse(null);
-
-        // 만약 마지막 메시지가 방금 유저가 보낸 메시지가 아니라면? (즉, 다른 AI나 사람이 그 사이에 말함)
-        if (lastMessage != null && !lastMessage.getContent().equals(userMessage)) {
-            // 내가 굳이 또 말할 필요 없으면 조용히 종료 (뒷북 방지)
-            // 단, 내 이름이 언급되었다면 뒷북이라도 대답해야 함.
-            if (!isMentioned(userMessage, aiUser.getFirstName())) {
-                log.info("AI [{}] skip response because someone else spoke.", aiUser.getFirstName());
-                return;
+        if (lastMessage != null) {
+            // A. 마지막 메시지가 방금 내가 보낸 메시지인 경우 (혹시나 트랜잭션 꼬임 방지) -> 패스
+            if (lastMessage.getContent().equals(userMessage)) {
+            }
+            else if (lastMessage.getSentAt().isAfter(Instant.from(LocalDateTime.now().minusSeconds(10)))) {
+                if (!isMentioned(userMessage, aiUser.getFirstName())) {
+                    log.info("AI [{}] Shut up. Someone spoke just {} sec ago.",
+                            aiUser.getFirstName(),
+                            java.time.Duration.between(lastMessage.getSentAt(), LocalDateTime.now()).getSeconds());
+                    return;
+                }
             }
         }
 
@@ -230,6 +234,9 @@ public class AiChatUserService {
         2. **웃음 소리 금지** ('ㅋㅋ', 'ㅎㅎ', 'ㅋ', 'ㅎ' 등 자음 남발 금지)
         3. **마침표(.) 찍기 금지** (문장 끝은 그냥 비워둘 것)
         4. **2문장 이상 금지** (말 길게 하지 마세요)
+        5. **남의 행동 설명 금지** (예: "OO가 바빠서 제가 대신..." 절대 금지. 그냥 네 얘기만 해.)
+        6. **자아 분열 금지** (너는 무조건 '나'로 지칭. "OO는 자리를 비웠어"라고 3인칭으로 말하지 마.)
+        7. **변명 금지** (상황이 꼬여도 구질구질하게 설명하려 들지 말고, 그냥 무시하거나 화제를 돌려.)
         
         ---
         
