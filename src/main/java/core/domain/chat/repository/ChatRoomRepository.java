@@ -97,4 +97,5 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             ")")
     List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
 
+    List<ChatRoom> findByIsGroupTrue();
 }

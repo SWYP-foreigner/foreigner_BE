@@ -2,87 +2,136 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>채팅방 관리</title>
+    <title>채팅방 목록</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
-        th { background-color: #f2f2f2; }
-        th a { text-decoration: none; color: black; display: block; width: 100%; }
-        th a.sorted { font-weight: bold; color: #007bff; }
-        .pagination { margin-top: 20px; text-align: center; }
-        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
-        .pagination .active { font-weight: bold; color: black; }
-        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
-        .search-form input { padding: 5px; margin-right: 10px; }
-        .search-form button { padding: 5px 10px; }
-        td a { text-decoration: none; color: #007bff; }
-        td a:hover { text-decoration: underline; }
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: auto; }
 
-        .btn-home {
-            display: inline-block;
-            margin-bottom: 15px;
-            padding: 8px 12px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 1.5rem; }
+
+        .search-container { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: flex-end; }
+        .search-form { display: flex; gap: 5px; }
+        .search-form input { padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; width: 250px; font-size: 0.9rem; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; table-layout: fixed; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; vertical-align: middle; word-wrap: break-word; }
+        th { background-color: #f1f3f5; font-weight: bold; text-align: center; }
+        td { text-align: center; }
+
+        .btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; text-decoration: none; display: inline-block; color: white; transition: background-color 0.2s; }
+        .btn-primary { background-color: #228be6; }
+        .btn-primary:hover { background-color: #1c7ed6; }
+
+        .btn-link { color: #228be6; text-decoration: none; font-weight: 500; margin-right: 5px; background: none; border: none; padding: 0; }
+        .btn-link:hover { text-decoration: underline; }
+
+        .btn-danger { background-color: #fa5252; color: white; }
+        .btn-danger:hover { background-color: #e03131; }
+        .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
+
+        .action-buttons { display: flex; justify-content: center; gap: 8px; align-items: center; }
+
+        .pagination { margin-top: 30px; text-align: center; }
+        .pagination a { margin: 0 4px; color: #495057; text-decoration: none; padding: 6px 12px; border: 1px solid #dee2e6; border-radius: 4px; display: inline-block; background-color: white; transition: all 0.2s; }
+        .pagination a.active { background-color: #228be6; color: white; border-color: #228be6; font-weight: bold; }
+        .pagination a:hover:not(.active) { background-color: #f1f3f5; border-color: #ced4da; }
     </style>
 </head>
 <body>
-<h1>채팅방 목록</h1>
+<div class="container">
 
-<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+    <div class="header-actions">
+        <h1>채팅방 목록</h1>
+        <a th:href="@{/admin/users/home}" class="btn btn-primary">어드민 홈</a>
+    </div>
 
-<div class="search-form">
-    <form th:action="@{/admin/chats}" method="get" th:object="${searchRequest}">
-        <input type="text" name="roomName" th:value="*{roomName}" placeholder="채팅방 이름 검색">
-        <button type="submit">검색</button>
-    </form>
-</div>
+    <div class="search-container">
+        <form th:action="@{/admin/chats}" method="get" th:object="${searchRequest}" class="search-form">
+            <input type="text" name="keyword" th:value="*{keyword}" placeholder="방 이름, 참여자, 이메일 검색">
+            <button type="submit" class="btn btn-primary">검색</button>
+        </form>
+    </div>
 
-<table>
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>방 이름</th>
-        <th>유형</th>
-        <th>참여자 수</th>
-        <th>생성일</th>
-        <th>관리</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr th:each="room : ${chatRoomPage.content}">
-        <td th:text="${room.chatRoomId}"></td>
-        <td th:text="${room.roomName}"></td>
-        <td th:text="${room.isGroup} ? '그룹' : '1:1'"></td>
-        <td th:text="${room.participantCount}"></td>
-        <td th:text="${#temporals.format(room.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
-        <td>
-            <a th:href="@{/admin/chats/{id}(id=${room.chatRoomId})}">참여자 보기</a>
-            <form th:action="@{/admin/chats/{id}/delete(id=${room.chatRoomId})}" method="post" onsubmit="return confirm('경고: 이 채팅방과 관련된 모든 메시지, 참여자 정보가 영구적으로 삭제됩니다. 정말 삭제하시겠습니까?');">
-                <button type="submit">삭제</button>
-            </form>
-        </td>
-    </tr>
-    </tbody>
-</table>
+    <table>
+        <colgroup>
+            <col style="width: 8%;">
+            <col style="width: 42%;">
+            <col style="width: 10%;">
+            <col style="width: 10%;">
+            <col style="width: 18%;">
+            <col style="width: 12%;">
+        </colgroup>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>방 이름</th>
+            <th>유형</th>
+            <th>참여자 수</th>
+            <th>생성일</th>
+            <th>관리</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${chatRoomPage.isEmpty()}">
+            <td colspan="6" style="text-align: center; color: #868e96; padding: 40px;">
+                검색된 채팅방이 없습니다.
+            </td>
+        </tr>
 
-<div class="pagination" th:if="${chatRoomPage.totalPages > 1}">
-    <a th:if="${chatRoomPage.hasPrevious()}"
-       th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, roomName=${searchRequest.roomName})}">이전</a>
+        <tr th:each="room : ${chatRoomPage.content}">
+            <td th:text="${room.chatRoomId}"></td>
+            <td th:text="${room.roomName}" style="text-align: left; padding-left: 15px; font-weight: 500;"></td>
+            <td>
+                <span th:if="${room.isGroup}" style="color: #228be6; font-weight: bold;">그룹</span>
+                <span th:unless="${room.isGroup}" style="color: #868e96;">1:1</span>
+            </td>
+            <td th:text="${room.participantCount} + '명'"></td>
+            <td th:text="${#temporals.format(room.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+            <td>
+                <div class="action-buttons">
+                    <a th:href="@{/admin/chats/{id}(id=${room.chatRoomId})}" class="btn-link">상세</a>
+                    <form th:action="@{/admin/chats/{id}/delete(id=${room.chatRoomId})}" method="post"
+                          onsubmit="return confirm('경고: 이 채팅방과 관련된 모든 메시지, 참여자 정보가 영구적으로 삭제됩니다. 정말 삭제하시겠습니까?');" style="margin: 0;">
+                        <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
 
-    <span th:each="pageNumber : ${#numbers.sequence(0, chatRoomPage.totalPages - 1)}">
-            <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, roomName=${searchRequest.roomName})}"
-               th:text="${pageNumber + 1}"
-               th:classappend="${pageNumber == chatRoomPage.number} ? 'active'"></a>
+    <div class="pagination" th:if="${chatRoomPage.totalPages > 0}">
+        <a th:if="${!chatRoomPage.first}"
+           th:href="@{/admin/chats(page=0, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+            &laquo;
+        </a>
+
+        <a th:if="${chatRoomPage.hasPrevious()}"
+           th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+            &lt;
+        </a>
+
+        <span th:with="start=${T(java.lang.Math).max(0, chatRoomPage.number - 4)},
+                        end=${T(java.lang.Math).min(chatRoomPage.totalPages - 1, chatRoomPage.number + 4)}">
+            <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword})}"
+                   th:text="${pageNumber + 1}"
+                   th:classappend="${pageNumber == chatRoomPage.number} ? 'active'"></a>
+            </span>
         </span>
 
-    <a th:if="${chatRoomPage.hasNext()}"
-       th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, roomName=${searchRequest.roomName})}">다음</a>
-</div>
+        <a th:if="${chatRoomPage.hasNext()}"
+           th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+            &gt;
+        </a>
 
+        <a th:if="${!chatRoomPage.last}"
+           th:href="@{/admin/chats(page=${chatRoomPage.totalPages - 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+            &raquo;
+        </a>
+    </div>
+
+</div>
 </body>
 </html>

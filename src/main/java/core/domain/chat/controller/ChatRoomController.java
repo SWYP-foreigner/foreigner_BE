@@ -106,11 +106,11 @@ public class ChatRoomController {
     @DeleteMapping("/rooms/{roomId}/leave")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     @ChatErrorDocs({ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND})
-    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId, @AuthenticationPrincipal CustomUserDetails principal) {
+    public ResponseEntity<ApiResponse<Boolean>> leaveChatRoom(@PathVariable Long roomId, @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
-        chatService.leaveRoom(roomId, userId);
+        boolean ret =chatService.leaveRoom(roomId, userId);
         featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.ok(ApiResponse.success(ret));
     }
 
     @Operation(summary = "그룹 채팅 참여")

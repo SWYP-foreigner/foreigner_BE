@@ -51,7 +51,6 @@ public class ChatAdminService {
                         room.createdAt()
                 );
             }
-
             return room;
         });
     }
