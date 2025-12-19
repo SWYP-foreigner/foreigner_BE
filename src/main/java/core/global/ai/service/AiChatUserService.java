@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -48,40 +49,95 @@ public class AiChatUserService {
         Long chatRoomId = event.messageResponse().roomId();
         String userMessage = event.messageResponse().originContent();
 
-        // 1. [Defense] 입력 필터링 (탈옥 시도 감지)
+        // 1. [Defense] 입력 필터링
         if (JAILBREAK_PATTERN.matcher(userMessage).find()) {
             return;
         }
 
-        // 2. 대화 히스토리 조회
+        // 2. [Human-like] 랜덤 딜레이 & 눈치 보기 (여기가 핵심!) ⭐️
+        // AI마다 2~6초 사이 랜덤하게 대기. (문장 길이에 비례)
+        long thinkingTime = calculateThinkingTime(userMessage);
+        sleep(thinkingTime);
+
+        // 3. [Double Check] 자고 일어났는데, 그 사이에 누가 선수 쳤나? ⭐️
+        // 가장 최근 메시지를 다시 조회
+        ChatMessage lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(chatRoomId)
+                .orElse(null);
+
+        // 만약 마지막 메시지가 방금 유저가 보낸 메시지가 아니라면? (즉, 다른 AI나 사람이 그 사이에 말함)
+        if (lastMessage != null && !lastMessage.getContent().equals(userMessage)) {
+            // 내가 굳이 또 말할 필요 없으면 조용히 종료 (뒷북 방지)
+            // 단, 내 이름이 언급되었다면 뒷북이라도 대답해야 함.
+            if (!isMentioned(userMessage, aiUser.getFirstName())) {
+                log.info("AI [{}] skip response because someone else spoke.", aiUser.getFirstName());
+                return;
+            }
+        }
+
+        // 4. [Filtering] 내가 대답할 차례인지 확률 계산 ⭐️
+        // (1:1 채팅이면 무조건 true, 그룹이면 이름 불렸거나 50% 확률)
+        if (!shouldReply(userMessage, aiUser)) {
+            log.info("AI [{}] decided not to reply (Probability check).", aiUser.getFirstName());
+            return;
+        }
+
+        // 5. 대화 히스토리 조회
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
-        // 3. 시스템 프롬프트 생성
+
+        // 6. 시스템 프롬프트 & 요청 빌드
         String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
-        // 4. 요청 데이터 빌드
         List<Map<String, Object>> requestMessages = PromptMapper.buildInput(systemPrompt, historyAsc, userMessage, aiUser.getId());
 
         try {
-            // 5. AI API 호출
+            // 7. API 호출
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // 6. [Defense] 출력 검열 (AI 티 내면 폐기)
-            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) {
-                log.warn("AI Identity Leak Detected: {}", aiResponse);
-                return;
-            }
+            // 8. [Defense] 출력 검열 & PASS 토큰 확인
+            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
+
+            // AI가 스스로 대답 안 하기로 결정한 경우 ("PASS")
             if (aiResponse.trim().toUpperCase().contains("PASS")) {
-                log.info("AI [{}] decided to remain SILENT.", aiUser.getFirstName());
+                log.info("AI [{}] decided to remain SILENT (LLM logic).", aiUser.getFirstName());
                 return;
             }
 
-            // 7. 답변 저장 및 전송
+            // 9. 저장 및 전송
             saveAndSendAiMessage(chatRoomId, aiUser, aiResponse);
 
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
         }
+    }
+    private long calculateThinkingTime(String userMessage) {
+        long baseDelay = 2000; // 최소 2초
+        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초
+        long randomJitter = ThreadLocalRandom.current().nextLong(500, 3000); // 0.5 ~ 3초 랜덤
+        return baseDelay + typingDelay + randomJitter;
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    private boolean shouldReply(String message, User aiUser) {
+        // 1. 내 이름 부르면 무조건 대답
+        if (isMentioned(message, aiUser.getFirstName())) {
+            return true;
+        }
+        // 2. 질문형이면 확률 높음 (70%)
+        if (message.contains("?") || message.endsWith("?")) {
+            return ThreadLocalRandom.current().nextInt(100) < 70;
+        }
+        // 3. 그 외 평서문이면 확률 낮음 (30%) - 너무 자주 끼어들지 않게
+        return ThreadLocalRandom.current().nextInt(100) < 30;
+    }
+    private boolean isMentioned(String message, String name) {
+        return name != null && message.contains(name);
     }
 
     private void saveAndSendAiMessage(Long chatRoomId, User sender, String content) {
