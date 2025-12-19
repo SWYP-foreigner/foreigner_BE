@@ -24,6 +24,10 @@
         .btn-danger:hover { background-color: #e03131; }
         .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
 
+        /* [추가] 사용자 링크 스타일 */
+        .user-link { color: #228be6; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+        .user-link:hover { text-decoration: underline; color: #1864ab; }
+
         .media-preview img { max-width: 100%; max-height: 120px; border-radius: 4px; border: 1px solid #ddd; object-fit: contain; }
         .media-preview video { max-width: 100%; max-height: 120px; vertical-align: middle; }
 
@@ -68,20 +72,49 @@
         </tr>
         </thead>
         <tbody>
+        <tr th:if="${participantPage.isEmpty()}">
+            <td colspan="4" style="text-align: center; color: #999; padding: 20px;">참여자가 없습니다.</td>
+        </tr>
         <tr th:each="p : ${participantPage.content}">
             <td th:text="${p.participantId}"></td>
-            <td th:text="${p.userName}"></td>
+            <td>
+                <a th:href="@{/admin/users/{id}(id=${p.userId})}"
+                   class="user-link"
+                   th:text="${p.userName}"></a>
+            </td>
             <td th:text="${#temporals.format(p.joinedAt, 'yyyy-MM-dd HH:mm')}"></td>
             <td th:text="${p.status}"></td>
         </tr>
         </tbody>
     </table>
-    <div class="pagination" th:if="${participantPage.totalPages > 1}">
-        <span th:each="pageNumber : ${#numbers.sequence(0, participantPage.totalPages - 1)}">
-            <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, msgPage=${param.msgPage})}"
-               th:text="${pageNumber + 1}"
-               th:classappend="${pageNumber == participantPage.number} ? 'active'"></a>
+
+    <div class="pagination" th:if="${participantPage.totalPages > 0}">
+        <a th:if="${!participantPage.first}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=0, msgPage=${param.msgPage})}">
+            &laquo;
+        </a>
+        <a th:if="${participantPage.hasPrevious()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number - 1}, msgPage=${param.msgPage})}">
+            &lt;
+        </a>
+
+        <span th:with="start=${T(java.lang.Math).max(0, participantPage.number - 4)},
+                        end=${T(java.lang.Math).min(participantPage.totalPages - 1, participantPage.number + 4)}">
+            <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${pageNumber}, msgPage=${param.msgPage})}"
+                   th:text="${pageNumber + 1}"
+                   th:classappend="${pageNumber == participantPage.number} ? 'active'"></a>
+            </span>
         </span>
+
+        <a th:if="${participantPage.hasNext()}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.number + 1}, msgPage=${param.msgPage})}">
+            &gt;
+        </a>
+        <a th:if="${!participantPage.last}"
+           th:href="@{/admin/chats/{roomId}(roomId=${chatRoom.id}, page=${participantPage.totalPages - 1}, msgPage=${param.msgPage})}">
+            &raquo;
+        </a>
     </div>
 
 
@@ -118,7 +151,11 @@
                 <span th:if="${msg.messageType.name() == 'VIDEO'}" style="color: #e03131; font-weight: bold;">동영상</span>
             </td>
 
-            <td th:text="${msg.senderName}"></td>
+            <td>
+                <a th:href="@{/admin/users/{id}(id=${msg.senderId})}"
+                   class="user-link"
+                   th:text="${msg.senderName}"></a>
+            </td>
 
             <td style="text-align: left; padding-left: 15px;">
                 <span th:if="${msg.messageType.name() == 'TEXT'}" th:text="${msg.content}"></span>

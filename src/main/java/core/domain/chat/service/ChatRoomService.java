@@ -23,6 +23,8 @@ import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -159,17 +161,48 @@ public class ChatRoomService {
 
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        userRoleDetectService.isProfileSetUpUser(user);
+        long startTime = System.currentTimeMillis();
+        log.info("🚪 [Leave 요청] 나가기 프로세스 시작 | RoomId: {}, UserId: {}", roomId, userId);
 
-        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-        participant.leave();
-        deleteRoomIfEmpty(roomId);
-        return true;
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+            userRoleDetectService.isProfileSetUpUser(user);
+
+            ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
+                    .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+
+            participant.leave();
+
+            chatParticipantRepository.flush();
+
+            deleteRoomIfEmpty(roomId);
+
+            return true;
+
+        } catch (PessimisticLockingFailureException | QueryTimeoutException e) {
+            // 🚨 DB 락 획득 실패 (데드락 또는 타임아웃)
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("💥 [Lock 실패] DB 락 획득 실패 (채팅량 과다 의심) | 소요시간: {}ms | RoomId: {}, UserId: {}", duration, roomId, userId);
+            throw e; // 예외는 다시 던져서 컨트롤러가 알게 함
+
+        } catch (Exception e) {
+            // 기타 에러
+            log.error("❌ [Leave 에러] 나가기 처리 중 오류 발생 | RoomId: {}, UserId: {}", roomId, userId, e);
+            throw e;
+
+        } finally {
+            // 5. 소요 시간 측정 및 Slow Query 경고
+            long duration = System.currentTimeMillis() - startTime;
+
+            if (duration > 1000) { // 1초 이상 걸리면 경고 (임계값 조절 가능)
+                log.warn("⏳ [Slow Logic] 나가기 처리가 지연됨 (Lock 경합 유력) | 소요시간: {}ms | RoomId: {}, UserId: {}", duration, roomId, userId);
+            } else {
+                log.info("✅ [Leave 완료] 정상 처리 | 소요시간: {}ms", duration);
+            }
+        }
     }
-
     @Transactional(readOnly = true)
     public boolean isChatRoomGroup(Long roomId) {
         return chatRoomRepository.findById(roomId)

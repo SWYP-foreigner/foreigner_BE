@@ -1,10 +1,13 @@
 package core.global.controller;
 
 import core.domain.chat.dto.RecentMessageDto;
+import core.domain.chat.entity.ChatRoom;
 import core.domain.comment.dto.RecentCommentDto;
 import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.user.dto.*;
+import core.domain.user.entity.User;
 import core.domain.user.service.UserAdminService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +17,10 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/users")
@@ -112,5 +119,68 @@ public class UserAdminViewController {
     public String deleteUser(@PathVariable Long userId) {
         userAdminService.hardDeleteUser(userId);
         return "redirect:/admin/users";
+    }
+
+    @GetMapping("/create-ai")
+    public String createAiUserPage(Model model) {
+        model.addAttribute("setupRequest", new UserSetupRequest(null, null, null, null, null, null, null, null, null, null, null));
+
+        List<String> purposes = Arrays.asList("Study", "Work", "Marriage", "Travel", "Business", "Family");
+        model.addAttribute("purposes", purposes);
+
+        List<String> hobbies = Arrays.asList(
+                "Music", "Movies", "Reading", "Anime", "Gaming",
+                "Drinking", "Exploring Cafes", "Traveling", "Board Games",
+                "Shopping", "Beauty", "Doing Nothing",
+                "Yoga", "Running", "Fitness", "Camping", "Dancing", "Hiking",
+                "Exhibition", "Singing", "Cooking", "Pets", "Career", "Photography",
+                "K-Pop Lover", "K-Drama Lover", "K-Food Lover"
+        );
+        model.addAttribute("hobbies", hobbies);
+
+        List<String> profileImages = Arrays.asList(
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_01.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_02.svg",
+                "https://kr.object.ncloudstorage.com/foreigner-bucket/default/character_03.svg"
+        );
+        model.addAttribute("profileImages", profileImages);
+
+        return "admin/user-create-ai";
+    }
+
+    @PostMapping("/create-ai")
+    public String createAiUser(
+            @ModelAttribute @Valid UserSetupRequest request,
+            @RequestParam(value = "password", required = false) String password
+    ) {
+        userAdminService.createAiUser(request, password);
+        return "redirect:/admin/users";
+    }
+
+    @GetMapping("/ai/invite")
+    public String inviteAiPage(Model model) {
+        List<User> aiUsers = userAdminService.getAiUsers();
+        List<ChatRoom> chatRooms = userAdminService.getGroupChatRooms();
+
+        model.addAttribute("aiUsers", aiUsers);
+        model.addAttribute("chatRooms", chatRooms);
+
+        return "admin/ai-invite";
+    }
+
+    @PostMapping("/ai/invite")
+    public String inviteAiProcess(
+            @RequestParam("userId") Long userId,
+            @RequestParam("chatRoomId") Long chatRoomId,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            userAdminService.addAiToChatRoom(userId, chatRoomId);
+            redirectAttributes.addFlashAttribute("message", "성공적으로 AI를 채팅방에 초대했습니다.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "초대 실패: " + e.getMessage());
+        }
+
+        return "redirect:/admin/users/ai/invite";
     }
 }

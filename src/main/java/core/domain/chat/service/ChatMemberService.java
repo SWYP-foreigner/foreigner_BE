@@ -140,6 +140,7 @@ public class ChatMemberService {
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
         participant.toggleTranslation(enable);
+        chatParticipantRepository.save(participant);
     }
 
     @Transactional
