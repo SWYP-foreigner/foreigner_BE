@@ -11,8 +11,11 @@
         h1 { margin: 0; font-size: 1.5rem; }
 
         .search-container { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: flex-end; }
-        .search-form { display: flex; gap: 5px; }
-        .search-form input { padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; width: 250px; font-size: 0.9rem; }
+        .search-form { display: flex; align-items: center; gap: 10px; }
+        .search-form input[type="text"] { padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; width: 250px; font-size: 0.9rem; }
+
+        .checkbox-label { display: flex; align-items: center; font-size: 0.9rem; cursor: pointer; user-select: none; }
+        .checkbox-label input { width: auto; margin-right: 5px; cursor: pointer; }
 
         table { width: 100%; border-collapse: collapse; font-size: 0.95rem; table-layout: fixed; }
         th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; vertical-align: middle; word-wrap: break-word; }
@@ -48,6 +51,10 @@
 
     <div class="search-container">
         <form th:action="@{/admin/chats}" method="get" th:object="${searchRequest}" class="search-form">
+            <label class="checkbox-label">
+                <input type="checkbox" name="onlyGroup" th:checked="*{onlyGroup}">
+                그룹 채팅만 보기
+            </label>
             <input type="text" name="keyword" th:value="*{keyword}" placeholder="방 이름, 참여자, 이메일 검색">
             <button type="submit" class="btn btn-primary">검색</button>
         </form>
@@ -103,31 +110,31 @@
 
     <div class="pagination" th:if="${chatRoomPage.totalPages > 0}">
         <a th:if="${!chatRoomPage.first}"
-           th:href="@{/admin/chats(page=0, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+           th:href="@{/admin/chats(page=0, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
             &laquo;
         </a>
 
         <a th:if="${chatRoomPage.hasPrevious()}"
-           th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
             &lt;
         </a>
 
         <span th:with="start=${T(java.lang.Math).max(0, chatRoomPage.number - 4)},
                         end=${T(java.lang.Math).min(chatRoomPage.totalPages - 1, chatRoomPage.number + 4)}">
             <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
-                <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword})}"
+                <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}"
                    th:text="${pageNumber + 1}"
                    th:classappend="${pageNumber == chatRoomPage.number} ? 'active'"></a>
             </span>
         </span>
 
         <a th:if="${chatRoomPage.hasNext()}"
-           th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
             &gt;
         </a>
 
         <a th:if="${!chatRoomPage.last}"
-           th:href="@{/admin/chats(page=${chatRoomPage.totalPages - 1}, sort=${param.sort}, keyword=${searchRequest.keyword})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.totalPages - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
             &raquo;
         </a>
     </div>

@@ -49,7 +49,8 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .leftJoin(chatRoom.participants, searchParticipant)
                 .leftJoin(searchParticipant.user, searchUser)
                 .where(
-                        keywordContains(condition.keyword(), searchUser)
+                        keywordContains(condition.keyword(), searchUser),
+                        isGroupOnly(condition.onlyGroup())
                 )
                 .groupBy(chatRoom.id)
                 .offset(pageable.getOffset())
@@ -63,7 +64,8 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .leftJoin(chatRoom.participants, searchParticipant)
                 .leftJoin(searchParticipant.user, searchUser)
                 .where(
-                        keywordContains(condition.keyword(), searchUser)
+                        keywordContains(condition.keyword(), searchUser),
+                        isGroupOnly(condition.onlyGroup())
                 )
                 .fetchOne();
 
@@ -79,5 +81,10 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .or(searchUser.lastName.containsIgnoreCase(keyword))
                 .or(searchUser.firstName.containsIgnoreCase(keyword))
                 .or(searchUser.email.containsIgnoreCase(keyword));
+    }
+
+    private BooleanExpression isGroupOnly(Boolean onlyGroup) {
+
+        return Boolean.TRUE.equals(onlyGroup) ? chatRoom.isGroup.isTrue() : null;
     }
 }
