@@ -12,17 +12,26 @@
 
         .search-container { background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: flex-end; }
         .search-form { display: flex; align-items: center; gap: 10px; }
-        .search-form input[type="text"] { padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; width: 250px; font-size: 0.9rem; }
 
-        .checkbox-label { display: flex; align-items: center; font-size: 0.9rem; cursor: pointer; user-select: none; }
-        .checkbox-label input { width: auto; margin-right: 5px; cursor: pointer; }
+        .search-form input[type="text"],
+        .search-form select {
+            padding: 8px 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background-color: white;
+            height: 38px; /* 높이 통일 */
+            box-sizing: border-box;
+        }
+
+        .search-form input[type="text"] { width: 220px; }
 
         table { width: 100%; border-collapse: collapse; font-size: 0.95rem; table-layout: fixed; }
         th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; vertical-align: middle; word-wrap: break-word; }
         th { background-color: #f1f3f5; font-weight: bold; text-align: center; }
         td { text-align: center; }
 
-        .btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; text-decoration: none; display: inline-block; color: white; transition: background-color 0.2s; }
+        .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; text-decoration: none; display: inline-block; color: white; transition: background-color 0.2s; height: 38px; line-height: 22px; box-sizing: border-box; }
         .btn-primary { background-color: #228be6; }
         .btn-primary:hover { background-color: #1c7ed6; }
 
@@ -31,7 +40,7 @@
 
         .btn-danger { background-color: #fa5252; color: white; }
         .btn-danger:hover { background-color: #e03131; }
-        .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
+        .btn-sm { font-size: 0.8rem; padding: 4px 8px; height: auto; line-height: normal; }
 
         .action-buttons { display: flex; justify-content: center; gap: 8px; align-items: center; }
 
@@ -51,10 +60,18 @@
 
     <div class="search-container">
         <form th:action="@{/admin/chats}" method="get" th:object="${searchRequest}" class="search-form">
-            <label class="checkbox-label">
-                <input type="checkbox" name="onlyGroup" th:checked="*{onlyGroup}">
-                그룹 채팅만 보기
-            </label>
+
+            <select name="type" onchange="this.form.submit()">
+                <option value="" th:selected="${searchRequest.type == null || searchRequest.type == ''}">전체 유형</option>
+                <option value="GROUP" th:selected="${searchRequest.type == 'GROUP'}">그룹 채팅</option>
+                <option value="PAIR" th:selected="${searchRequest.type == 'PAIR'}">1:1 채팅</option>
+            </select>
+
+            <select name="sort" onchange="this.form.submit()">
+                <option value="createdAt,desc" th:selected="${param.sort == null || #strings.contains(param.sort, 'createdAt')}">생성일순</option>
+                <option value="updatedAt,desc" th:selected="${param.sort != null && #strings.contains(param.sort, 'updatedAt')}">최신 활동순</option>
+            </select>
+
             <input type="text" name="keyword" th:value="*{keyword}" placeholder="방 이름, 참여자, 이메일 검색">
             <button type="submit" class="btn btn-primary">검색</button>
         </form>
@@ -110,31 +127,31 @@
 
     <div class="pagination" th:if="${chatRoomPage.totalPages > 0}">
         <a th:if="${!chatRoomPage.first}"
-           th:href="@{/admin/chats(page=0, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
+           th:href="@{/admin/chats(page=0, sort=${param.sort}, keyword=${searchRequest.keyword}, type=${searchRequest.type})}">
             &laquo;
         </a>
 
         <a th:if="${chatRoomPage.hasPrevious()}"
-           th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.number - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, type=${searchRequest.type})}">
             &lt;
         </a>
 
         <span th:with="start=${T(java.lang.Math).max(0, chatRoomPage.number - 4)},
                         end=${T(java.lang.Math).min(chatRoomPage.totalPages - 1, chatRoomPage.number + 4)}">
             <span th:each="pageNumber : ${#numbers.sequence(start, end)}">
-                <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}"
+                <a th:href="@{/admin/chats(page=${pageNumber}, sort=${param.sort}, keyword=${searchRequest.keyword}, type=${searchRequest.type})}"
                    th:text="${pageNumber + 1}"
                    th:classappend="${pageNumber == chatRoomPage.number} ? 'active'"></a>
             </span>
         </span>
 
         <a th:if="${chatRoomPage.hasNext()}"
-           th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.number + 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, type=${searchRequest.type})}">
             &gt;
         </a>
 
         <a th:if="${!chatRoomPage.last}"
-           th:href="@{/admin/chats(page=${chatRoomPage.totalPages - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, onlyGroup=${searchRequest.onlyGroup})}">
+           th:href="@{/admin/chats(page=${chatRoomPage.totalPages - 1}, sort=${param.sort}, keyword=${searchRequest.keyword}, type=${searchRequest.type})}">
             &raquo;
         </a>
     </div>

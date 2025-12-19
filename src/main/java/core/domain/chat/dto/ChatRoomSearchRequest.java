@@ -2,5 +2,5 @@ package core.domain.chat.dto;
 
 public record ChatRoomSearchRequest(
         String keyword,
-        Boolean onlyGroup
+        String type
 ) {}
