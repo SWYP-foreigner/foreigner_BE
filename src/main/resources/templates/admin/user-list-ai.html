@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 유저 목록</title>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border-bottom: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f1f3f5; font-weight: bold; color: #495057; }
+
+        tr.clickable-row { cursor: pointer; transition: background-color 0.2s; }
+        tr.clickable-row:hover { background-color: #e7f5ff; }
+
+        .badge-ai { background-color: #28a745; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+
+        .btn-create { background-color: #007bff; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9rem; }
+        .btn-create:hover { background-color: #0056b3; }
+
+        .empty-list { text-align: center; padding: 50px; color: #868e96; }
+
+        .btn-back { color: #495057; text-decoration: none; display: inline-block; margin-top: 20px; }
+        .btn-back:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>
+        <span>🤖 AI 유저 목록</span>
+        <a th:href="@{/admin/users/create-ai}" class="btn-create">+ AI 유저 생성</a>
+    </h1>
+
+    <div th:if="${#lists.isEmpty(aiUsers)}" class="empty-list">
+        <p>생성된 AI 유저가 없습니다.</p>
+    </div>
+
+    <table th:unless="${#lists.isEmpty(aiUsers)}">
+        <thead>
+        <tr>
+            <th style="width: 80px;">ID</th>
+            <th>이름</th>
+            <th>사용 목적</th>
+            <th>언어</th>
+            <th>가입일</th>
+            <th>상태</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="user : ${aiUsers}" class="clickable-row"
+            th:onclick="|location.href='@{/admin/users/{id}(id=${user.id})}'|">
+
+            <td th:text="${user.id}"></td>
+            <td>
+                <span th:text="${user.firstName + ' ' + user.lastName}" style="font-weight: bold;"></span>
+            </td>
+            <td th:text="${user.purpose}"></td>
+            <td th:text="${user.language}"></td>
+            <td th:text="${#temporals.format(user.createdAt, 'yyyy-MM-dd')}"></td>
+            <td><span class="badge-ai">AI Bot</span></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div style="text-align: center;">
+        <a th:href="@{/admin/users/home}" class="btn-back">← 관리자 홈으로</a>
+    </div>
+</div>
+
+</body>
+</html>

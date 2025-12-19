@@ -1,11 +1,16 @@
 package core.domain.chat.repository;
 
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.chat.dto.ChatRoomListResponse;
 import core.domain.chat.dto.ChatRoomSearchRequest;
+import core.domain.chat.entity.QChatMessage;
 import core.domain.chat.entity.QChatParticipant;
 import core.domain.user.entity.QUser;
 import core.global.enums.ChatParticipantStatus;
@@ -13,9 +18,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.List;
 
 import static core.domain.chat.entity.QChatParticipant.chatParticipant;
@@ -49,12 +56,17 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .leftJoin(chatRoom.participants, searchParticipant)
                 .leftJoin(searchParticipant.user, searchUser)
                 .where(
-                        keywordContains(condition.keyword(), searchUser)
+                        keywordContains(condition.keyword(), searchUser),
+                        filterByType(condition.type())
                 )
                 .groupBy(chatRoom.id)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
-                .orderBy(chatRoom.createdAt.desc())
+                .orderBy(
+                        getOrderSpecifier(pageable.getSort()),
+                        chatRoom.createdAt.desc(),
+                        chatRoom.id.desc()
+                )
                 .fetch();
 
         Long total = query
@@ -63,7 +75,8 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .leftJoin(chatRoom.participants, searchParticipant)
                 .leftJoin(searchParticipant.user, searchUser)
                 .where(
-                        keywordContains(condition.keyword(), searchUser)
+                        keywordContains(condition.keyword(), searchUser),
+                        filterByType(condition.type())
                 )
                 .fetchOne();
 
@@ -79,5 +92,48 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
                 .or(searchUser.lastName.containsIgnoreCase(keyword))
                 .or(searchUser.firstName.containsIgnoreCase(keyword))
                 .or(searchUser.email.containsIgnoreCase(keyword));
+    }
+
+    private BooleanExpression filterByType(String type) {
+        if ("GROUP".equals(type)) {
+            return chatRoom.isGroup.isTrue();
+        }
+        if ("PAIR".equals(type)) {
+            return chatRoom.isGroup.isFalse();
+        }
+        return null;
+    }
+
+    private OrderSpecifier<?> getOrderSpecifier(Sort sort) {
+        if (sort.isEmpty()) {
+            return chatRoom.createdAt.desc();
+        }
+
+        for (Sort.Order order : sort) {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+
+            if ("updatedAt".equals(order.getProperty())) {
+                QChatMessage subMessage = new QChatMessage("subMessage");
+
+                var latestMessageTime = JPAExpressions
+                        .select(subMessage.sentAt.max())
+                        .from(subMessage)
+                        .where(subMessage.chatRoom.id.eq(chatRoom.id));
+
+                return new OrderSpecifier<>(
+                        direction,
+                        new CaseBuilder()
+                                .when(latestMessageTime.isNull())
+                                .then(Expressions.constant(Instant.EPOCH))
+                                .otherwise(latestMessageTime)
+                );
+            }
+
+            if ("createdAt".equals(order.getProperty())) {
+                return new OrderSpecifier<>(direction, chatRoom.createdAt);
+            }
+        }
+
+        return chatRoom.createdAt.desc();
     }
 }
