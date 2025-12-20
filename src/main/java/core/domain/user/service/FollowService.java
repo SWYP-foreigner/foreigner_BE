@@ -158,6 +158,7 @@ public class FollowService {
                 }
             }
         }
+
         if (existingReverse != null) {
             switch (existingReverse.getStatus()) {
                 case PENDING -> {

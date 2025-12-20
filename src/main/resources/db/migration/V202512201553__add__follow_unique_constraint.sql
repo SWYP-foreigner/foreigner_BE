@@ -1,0 +1,1 @@
+ALTER TABLE follow ADD CONSTRAINT unique_user_following UNIQUE (user_id, following_id);
