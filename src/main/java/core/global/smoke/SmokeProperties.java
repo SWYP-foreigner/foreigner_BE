@@ -1,44 +1,35 @@
 package core.global.smoke;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
+@Getter
+@Setter
 @ConfigurationProperties(prefix = "smoke")
 public class SmokeProperties {
     private boolean enabled = false;
     private String token;
     private String baseUrl;
-    private List<Case> gate;
+    private List<Case> gate; // 배포용 핵심 체크
+    private List<Case> full; // 관리자용 전체 체크 (추가)
+    private AdminAuth admin;
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
-
-    public String getBaseUrl() { return baseUrl; }
-    public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
-
-    public List<Case> getGate() { return gate; }
-    public void setGate(List<Case> gate) { this.gate = gate; }
-
+    @Getter @Setter
     public static class Case {
         private String name;
+        private String type;
         private String method;
         private String path;
         private int expectedStatus = 200;
+    }
 
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-
-        public String getMethod() { return method; }
-        public void setMethod(String method) { this.method = method; }
-
-        public String getPath() { return path; }
-        public void setPath(String path) { this.path = path; }
-
-        public int getExpectedStatus() { return expectedStatus; }
-        public void setExpectedStatus(int expectedStatus) { this.expectedStatus = expectedStatus; }
+    @Getter @Setter
+    public static class AdminAuth {
+        private String email;
+        private String password;
+        private String loginPath; // 예: /api/v1/member/doLogin
     }
 }

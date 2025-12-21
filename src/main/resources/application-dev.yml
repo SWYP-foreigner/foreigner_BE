@@ -224,23 +224,105 @@ smoke:
   enabled: true
   token: ${SMOKE_TOKEN:}
   base-url: ${SMOKE_BASE_URL:http://localhost:8080}
+  admin:
+    email: ${SMOKE_ADMIN_EMAIL}
+    password: ${SMOKE_ADMIN_PW}
+    login-path: ${SMOKE_ADMIN_LOGIN_URL}
   gate:
     - name: health
+      type: "HEALTH"
       method: GET
       path: /actuator/health
       expected-status: 200
-
 
   full:
-    - name: health
-      method: GET
-      path: /actuator/health
-      expected-status: 200
-    - name: api-docs
-      method: GET
-      path: /v3/api-docs
-      expected-status: 200
-    # 여기에 “전체 API”를 계속 추가
+    # --- [2] 정적/기본 정보 조회 (네트워크 및 캐시 확인) ---
+    - name: "App-Version-Check"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/app/version"
+      expectedStatus: 200
+
+    - name: "My-Page-Support-Links"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/mypage/support-links"
+      expectedStatus: 200
+
+    # --- [3] 주요 데이터 조회 (DB 연결성 확인) ---
+    - name: "Get-User-Profile"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/members/infos"
+      expectedStatus: 200
+
+    - name: "Get-Follow-Lists"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/mypage/follows"
+      expectedStatus: 200
+
+    - name: "Get-Post-Lists"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/boards/1/posts" # 존재하는 ID 가정
+      expectedStatus: 200
+
+    - name: "Get-Post-Comments-Sample"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/posts/1/comments" # 존재하는 ID 가정
+      expectedStatus: 200
+
+    - name: "Get-My-Posts"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/boards/my/posts?size=20"
+      expectedStatus: 200
+
+    - name: "Get-My-Bookmarks"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/boards/my/bookmarks?size=20"
+      expectedStatus: 200
+
+    - name: "Get-Search-Posts"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/search/1/posts"
+      expectedStatus: 200
+
+    - name: "Get-Chat-Rooms-My-List"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/chat/rooms"
+      expectedStatus: 200
+
+    - name: "Friend-Recommend-Logic"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/commend/content-based"
+      expectedStatus: 200
+
+    # --- [5] 관리자/내부 도구 확인 ---
+    - name: "Admin-User-Basic-Info"
+      type: "ADMIN"
+      method: "GET"
+      path: "/api/admin/users/1/basic"
+      expectedStatus: 200
+
+    # --- 외부 의존성 API ---
+#    - name: "NCP-Object-Storage"
+#      type: "EXTERNAL"
+#      method: "GET"
+#      path: "https://kr.object.ncloudstorage.com"
+#      expectedStatus: 200
+#
+#    - name: "Clova-Studio-HCX"
+#      type: "EXTERNAL"
+#      method: "POST"
+#      path: "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003"
+#      expectedStatus: 401
 
 openai:
   api-key: ${OPEN_AI_KEY}

@@ -1,4 +1,4 @@
-package core.global.smoke;
+package core.global.smoke.dto;
 import java.util.List;
 
 public record SmokeResult(
