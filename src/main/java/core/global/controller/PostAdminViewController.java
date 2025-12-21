@@ -1,4 +1,4 @@
-package core.global.admin.controller;
+package core.global.controller;
 
 import core.domain.post.dto.admin.PostListForAdminResponse;
 import core.domain.post.dto.admin.PostReportDto;

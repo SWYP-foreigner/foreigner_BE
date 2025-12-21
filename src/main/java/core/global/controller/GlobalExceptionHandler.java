@@ -1,7 +1,8 @@
-package core.global.exception;
+package core.global.controller;
 
 
 import core.global.dto.ApiErrorResponse;
+import core.global.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
