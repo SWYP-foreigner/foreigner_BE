@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.board.dto.BoardCreateRequest;
 import core.domain.board.dto.BoardDto;
