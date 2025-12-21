@@ -49,7 +49,6 @@ public class ChatRoomService {
     private final SocialChatMetrics socialChatMetrics;
 
     @Transactional
-    @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
         // 1. 유저 검증 (이 부분은 트랜잭션 롤백과 무관하므로 try 밖이 깔끔합니다)
         User user = userRepository.findById(currentUserId)

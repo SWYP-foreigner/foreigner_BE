@@ -234,13 +234,18 @@ public class ChatMessageService {
         return recipientsByLang;
     }
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
-        for (ChatParticipant p : chatRoom.getParticipants()) {
-            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
-                continue;
-            }
-            p.reJoin();
+        if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
+            return;
         }
 
+        for (ChatParticipant participant : chatRoom.getParticipants()) {
+            if (participant.getStatus() == ChatParticipantStatus.LEFT) {
+                log.info("1:1 채팅 메시지 전송으로 인한 유저 복구(Rejoin). RoomId: {}, UserId: {}",
+                        chatRoom.getId(), participant.getUser().getId());
+
+                participant.reJoin();
+            }
+        }
     }
     /**
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
