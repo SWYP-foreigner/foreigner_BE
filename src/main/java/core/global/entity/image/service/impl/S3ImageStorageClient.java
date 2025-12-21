@@ -135,4 +135,35 @@ public class S3ImageStorageClient implements ImageStorageClient {
         String k = UrlUtil.trimSlashes(key);
         return k.startsWith("temp/");
     }
+
+    @Override
+    public String generatePublicUrl(String key) {
+        return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, key);
+    }
+
+    /**
+     * [NEW] 썸네일 URL 생성
+     * 규칙:
+     * 1. 이미지 파일인 경우 -> NCP/AWS Image Optimizer 쿼리 스트링 추가 (선택사항) 또는 원본 리턴
+     * 2. 비디오 파일인 경우 -> 확장자를 .jpg로 변경하여 리턴 (해당 파일이 S3에 존재해야 함)
+     */
+    @Override
+    public String generateThumbnailUrl(String key) {
+        if (key == null || key.isBlank()) return null;
+
+        String ext = extOf(key);
+
+        if (isVideoExtension(ext)) {
+            String thumbKey = key.substring(0, key.lastIndexOf('.')) + ".jpg";
+
+            return UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, thumbKey);
+        }
+        String originalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, key);
+        return originalUrl + "?type=f&w=300&h=300&ttype=jpg";
+    }
+
+    // 간단한 확장자 체크 헬퍼
+    private boolean isVideoExtension(String ext) {
+        return List.of("mp4", "mov", "avi", "wmv", "mkv").contains(ext.toLowerCase());
+    }
 }

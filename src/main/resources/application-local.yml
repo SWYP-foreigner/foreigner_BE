@@ -166,3 +166,7 @@ app:
 sightengine:
   api-user: ${SIGHTENGINE_API_USER}
   api-secret: ${SIGHTENGINE_API_SECRET}
+
+
+openai:
+  api-key: ${OPEN_AI_KEY}

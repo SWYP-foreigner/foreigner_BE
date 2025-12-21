@@ -27,7 +27,7 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "message", nullable = false, length = 255)
+    @Column(name = "message", nullable = false, length = 1000)
     private String message;
 
     @Column(name = "created_at", nullable = false, updatable = false)

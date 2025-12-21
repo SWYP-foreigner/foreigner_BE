@@ -20,4 +20,6 @@ public interface ImageStorageClient {
     boolean isDefaultUrlOrKey(String keyOrUrl);
 
     boolean isStagingKey(String key);
+    String generatePublicUrl(String key);
+    String generateThumbnailUrl(String key);
 }

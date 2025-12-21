@@ -22,12 +22,17 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.apple.service.AppleWithdrawalService;
+import core.global.ai.entity.AiPersona;
+import core.global.ai.repository.AiPersonaRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
+import core.global.entity.image.service.ProfileImageService;
 import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.ChatParticipantStatus;
 import core.global.enums.FollowStatus;
 import core.global.enums.ImageType;
+import core.global.enums.Role;
+import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.userfeedback.UserFeedbackRepository;
@@ -35,11 +40,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-import java.util.Optional;
+import java.time.Instant;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -58,12 +66,15 @@ public class UserAdminService {
     private final ImageRepository imageRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final BlockPostRepository blockPostRepository;
-    private final AppleWithdrawalService appleWithdrawalService;
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserFeedbackRepository userFeedbackRepository;
     private final ImageService imageService;
+    private final PasswordEncoder passwordEncoder;
+    private final ProfileImageService profileImageService;
+    private final AiPersonaRepository aiPersonaRepository;
+
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
         User user = userRepository.findById(userId)
@@ -196,6 +207,8 @@ public class UserAdminService {
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
         userFeedbackRepository.deleteAllByUserIdExplicit(userId);
+        aiPersonaRepository.deleteByUserId(userId);
+
         userRepository.delete(NowUser);
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
@@ -216,5 +229,256 @@ public class UserAdminService {
     public Page<RecentMessageDto> getRecentMessagesForUser(Long userId, Pageable pageable) {
         return chatMessageRepository.findBySenderId(userId, pageable)
                 .map(RecentMessageDto::from);
+    }
+
+    @Transactional
+    public void createAiUser(UserSetupRequest dto, String password, MultipartFile profileFile,
+                             String instruction, String backgroundInfo) {
+        String uuid = UUID.randomUUID().toString().substring(0, 8);
+        String aiEmail;
+
+        if (dto.email() != null && !dto.email().isBlank()) {
+            aiEmail = dto.email().trim();
+        } else {
+            aiEmail = "ai-" + uuid + "@system.bot";
+        }
+
+        String provider = "AI_BOT";
+
+        User aiUser = User.builder()
+                .firstName(dto.firstname())
+                .lastName(dto.lastname())
+                .email(aiEmail)
+                .provider(provider)
+                .socialId(uuid)
+                .sex(dto.gender())
+                .birthdate(dto.birthday())
+                .country(dto.country())
+                .purpose(dto.purpose())
+                .introduction(dto.introduction())
+                .createdAt(Instant.now())
+                .build();
+
+        if (password != null && !password.isBlank()) {
+            aiUser.updatePassword(passwordEncoder.encode(password));
+        }
+
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> rawLanguages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+
+            if (!rawLanguages.isEmpty()) {
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst()
+                        .map(s -> normalizeLanguageCode(s).toLowerCase())
+                        .orElse("");
+
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    aiUser.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toLowerCase())
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    aiUser.updateLanguage(String.join(",", normalizedLanguagesForCsv));
+                }
+            }
+        }
+
+        if (dto.hobby() != null && !dto.hobby().isEmpty()) {
+            aiUser.updateHobby(String.join(",", dto.hobby()));
+        }
+
+        aiUser.updateIsNewUser(false);
+        aiUser.changeUserRole(Role.AI);
+
+        userRepository.save(aiUser);
+
+        AiPersona persona = AiPersona.builder()
+                .userId(aiUser.getId())
+                .instruction(instruction)
+                .backgroundInfo(backgroundInfo)
+                .isActive(true)
+                .build();
+
+        aiPersonaRepository.save(persona);
+
+        if (profileFile != null && !profileFile.isEmpty()) {
+            profileImageService.uploadUserProfileImage(aiUser.getId(), profileFile);
+        }
+        else if (dto.imageKey() != null && !dto.imageKey().isBlank()) {
+            imageService.saveUserProfileImage(aiUser.getId(), dto.imageKey());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public UserSetupRequest getAiUserForEdit(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        List<String> languages = Collections.emptyList();
+        if (StringUtils.hasText(user.getLanguage())) {
+            languages = Arrays.asList(user.getLanguage().split(","));
+        }
+
+        List<String> hobbies = Collections.emptyList();
+        if (StringUtils.hasText(user.getHobby())) {
+            hobbies = Arrays.asList(user.getHobby().split(","));
+        }
+
+        String currentImageUrl = profileImageService.getUserProfileKey(userId);
+
+        return new UserSetupRequest(user, languages, hobbies, currentImageUrl);
+    }
+
+    @Transactional
+    public void updateAiUser(Long userId, UserSetupRequest dto, String password, MultipartFile profileFile,
+                             String instruction, String backgroundInfo) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        user.updateFirstName(dto.firstname());
+        user.updateLastName(dto.lastname());
+        user.updateSex(dto.gender());
+        user.updateBirthdate(dto.birthday());
+        user.updateCountry(dto.country());
+        user.updatePurpose(dto.purpose());
+        user.updateIntroduction(dto.introduction());
+
+        if (StringUtils.hasText(password)) {
+            user.updatePassword(passwordEncoder.encode(password));
+        }
+
+        if (dto.language() != null && !dto.language().isEmpty()) {
+            List<String> processedLanguages = dto.language().stream()
+                    .filter(StringUtils::hasText)
+                    .flatMap(s -> Arrays.stream(s.split(",")))
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .map(this::normalizeLanguageCode)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+
+            if (!processedLanguages.isEmpty()) {
+                String langStr = String.join(",", processedLanguages);
+                user.updateLanguage(langStr);
+            }
+        }
+
+        if (dto.hobby() != null && !dto.hobby().isEmpty()) {
+            String hobbyStr = String.join(",", dto.hobby());
+            user.updateHobby(hobbyStr);
+        }
+
+        AiPersona persona = aiPersonaRepository.findByUserId(userId)
+                .orElse(null);
+
+        if (persona != null) {
+            persona.updatePersona(instruction, backgroundInfo);
+        } else {
+            AiPersona newPersona = AiPersona.builder()
+                    .userId(userId)
+                    .instruction(instruction)
+                    .backgroundInfo(backgroundInfo)
+                    .isActive(true)
+                    .build();
+            aiPersonaRepository.save(newPersona);
+        }
+
+        if (profileFile != null && !profileFile.isEmpty()) {
+            if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
+                profileImageService.deleteUserProfileImage(userId);
+                imageRepository.flush();
+            }
+            profileImageService.uploadUserProfileImage(userId, profileFile);
+        }
+
+        else if (StringUtils.hasText(dto.imageKey())) {
+            profileImageService.updateUserProfileImage(userId, dto.imageKey());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public AiPersona getAiPersona(Long userId) {
+        return aiPersonaRepository.findByUserId(userId).orElse(null);
+    }
+
+
+
+    private String normalizeLanguageCode(String rawLang) {
+        if (rawLang == null) return "";
+        String normalized = rawLang.toLowerCase().trim();
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\[([a-zA-Z]{2,3})\\]");
+
+        java.util.regex.Matcher matcher = pattern.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        if (normalized.contains("-")) {
+            return normalized.split("-")[0].trim();
+        }
+        if (normalized.length() >= 2 && normalized.length() <= 5) {
+            return normalized;
+        }
+        return "";
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> getAiUsers() {
+        return userRepository.findAllByUserRole(Role.AI);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatRoom> getGroupChatRooms() {
+        return chatRoomRepository.findByIsGroupTrue();
+    }
+
+    @Transactional
+    public void addAiToChatRoom(Long userId, Long chatRoomId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getUserRole() != Role.AI) {
+            throw new BusinessException(UserErrorCode.NOT_AI_USER);
+        }
+
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        if (!chatRoom.getIsGroup()) {
+            throw new BusinessException(ChatErrorCode.CHAT_NOT_GROUP);
+        }
+
+        chatParticipantRepository.findByChatRoomIdAndUserId(chatRoomId, userId)
+                .ifPresentOrElse(
+                        participant -> {
+                            if (participant.getStatus() == ChatParticipantStatus.ACTIVE) {
+                                throw new BusinessException(ChatErrorCode.ALREADY_CHAT_PARTICIPANT, "이미 해당 채팅방에 참여 중입니다.");
+                            } else {
+                                participant.reJoin();
+                            }
+                        },
+                        () -> {
+                            ChatParticipant newParticipant = new ChatParticipant(chatRoom, user);
+
+                            chatRoom.addParticipant(newParticipant);
+                            chatParticipantRepository.save(newParticipant);
+                        }
+                );
+    }
+
+    public boolean isAiUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return user.getUserRole() == Role.AI;
     }
 }

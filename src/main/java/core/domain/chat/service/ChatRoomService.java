@@ -23,6 +23,9 @@ import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,21 +50,40 @@ public class ChatRoomService {
 
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
+        // 1. 유저 검증 (이 부분은 트랜잭션 롤백과 무관하므로 try 밖이 깔끔합니다)
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         userRoleDetectService.isProfileSetUpUser(user);
 
-        List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
-        List<ChatRoom> existingRooms = chatRoomRepository.findOneToOneRoomByParticipantIds(userIds);
+        try {
+            // 2. 기존 로직 시도
+            List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
+            List<ChatRoom> existingRooms = chatRoomRepository.findOneToOneRoomByParticipantIds(userIds);
 
-        if (!existingRooms.isEmpty()) {
-            if (existingRooms.size() > 1) {
-                log.warn("중복된 1:1 채팅방 발견. 사용자 ID: {}, {}. 첫 번째 방을 사용합니다.", currentUserId, otherUserId);
+            if (!existingRooms.isEmpty()) {
+                if (existingRooms.size() > 1) {
+                    log.warn("중복된 1:1 채팅방 발견. 사용자 ID: {}, {}. 첫 번째 방을 사용합니다.", currentUserId, otherUserId);
+                }
+                return handleExistingRoom(existingRooms.get(0), currentUserId);
+            } else {
+                // 여기서 동시에 들어오면 Insert 충돌 발생 가능 -> 예외 발생
+                return createNewOneToOneChatRoom(currentUserId, otherUserId);
             }
-            ChatRoom room = existingRooms.get(0);
-            return handleExistingRoom(room, currentUserId);
-        } else {
-            return createNewOneToOneChatRoom(currentUserId, otherUserId);
+
+        } catch (DataIntegrityViolationException e) {
+            // 3. 동시성 이슈 발생 시 처리 (이미 방이 만들어진 경우)
+            log.warn("1:1 채팅방 생성 중 동시성 충돌 발생. 기존 방을 조회하여 반환합니다. User: {}, Target: {}", currentUserId, otherUserId);
+
+            // 다시 조회해서 기존 방을 리턴 (Retry)
+            List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
+            return chatRoomRepository.findOneToOneRoomByParticipantIds(userIds)
+                    .stream()
+                    .findFirst()
+                    .map(room -> handleExistingRoom(room, currentUserId)) // 재입장 처리까지 수행
+                    .orElseThrow(() -> {
+                        log.error("채팅방 생성 충돌 후 재조회 실패. User: {}, Target: {}", currentUserId, otherUserId);
+                        return new BusinessException(ChatErrorCode.CHAT_ROOM_CREATION_FAILED);
+                    });
         }
     }
 
@@ -159,17 +181,48 @@ public class ChatRoomService {
 
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        userRoleDetectService.isProfileSetUpUser(user);
+        long startTime = System.currentTimeMillis();
+        log.info("🚪 [Leave 요청] 나가기 프로세스 시작 | RoomId: {}, UserId: {}", roomId, userId);
 
-        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-        participant.leave();
-        deleteRoomIfEmpty(roomId);
-        return true;
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+            userRoleDetectService.isProfileSetUpUser(user);
+
+            ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
+                    .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
+
+            participant.leave();
+
+            chatParticipantRepository.flush();
+
+            deleteRoomIfEmpty(roomId);
+
+            return true;
+
+        } catch (PessimisticLockingFailureException | QueryTimeoutException e) {
+            // 🚨 DB 락 획득 실패 (데드락 또는 타임아웃)
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("💥 [Lock 실패] DB 락 획득 실패 (채팅량 과다 의심) | 소요시간: {}ms | RoomId: {}, UserId: {}", duration, roomId, userId);
+            throw e; // 예외는 다시 던져서 컨트롤러가 알게 함
+
+        } catch (Exception e) {
+            // 기타 에러
+            log.error("❌ [Leave 에러] 나가기 처리 중 오류 발생 | RoomId: {}, UserId: {}", roomId, userId, e);
+            throw e;
+
+        } finally {
+            // 5. 소요 시간 측정 및 Slow Query 경고
+            long duration = System.currentTimeMillis() - startTime;
+
+            if (duration > 1000) { // 1초 이상 걸리면 경고 (임계값 조절 가능)
+                log.warn("⏳ [Slow Logic] 나가기 처리가 지연됨 (Lock 경합 유력) | 소요시간: {}ms | RoomId: {}, UserId: {}", duration, roomId, userId);
+            } else {
+                log.info("✅ [Leave 완료] 정상 처리 | 소요시간: {}ms", duration);
+            }
+        }
     }
-
     @Transactional(readOnly = true)
     public boolean isChatRoomGroup(Long roomId) {
         return chatRoomRepository.findById(roomId)
@@ -237,15 +290,27 @@ public class ChatRoomService {
     }
 
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
-        Optional<ChatParticipant> currentParticipant = room.getParticipants().stream()
+        List<ChatParticipant> participants = room.getParticipants();
+
+        participants.stream()
                 .filter(p -> p.getUser().getId().equals(currentUserId))
-                .findFirst();
-        if (currentParticipant.isPresent() && currentParticipant.get().getStatus() == ChatParticipantStatus.LEFT) {
-            currentParticipant.get().reJoin();
-        }
+                .findFirst()
+                .ifPresent(p -> {
+                    if (p.getStatus() == ChatParticipantStatus.LEFT) {
+                        p.reJoin();
+                    }
+                });
+
+        participants.stream()
+                .filter(p -> !p.getUser().getId().equals(currentUserId))
+                .forEach(p -> {
+                    if (p.getStatus() == ChatParticipantStatus.LEFT) {
+                        p.reJoin();
+                    }
+                });
+
         return room;
     }
-
 
     private ChatRoom createNewOneToOneChatRoom(Long userId1, Long userId2) {
         User currentUser = userRepository.findById(userId1)

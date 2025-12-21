@@ -3,6 +3,9 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
@@ -238,3 +241,6 @@ smoke:
       path: /v3/api-docs
       expected-status: 200
     # 여기에 “전체 API”를 계속 추가
+
+openai:
+  api-key: ${OPEN_AI_KEY}

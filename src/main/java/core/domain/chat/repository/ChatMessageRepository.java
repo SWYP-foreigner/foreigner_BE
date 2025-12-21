@@ -119,4 +119,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     Long countSendMessageUsersLast1Day();
 
     Page<ChatMessage> findAllByChatRoomId(Long chatRoomId, Pageable pageable);
+
+    List<ChatMessage> findTop20ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
 }
