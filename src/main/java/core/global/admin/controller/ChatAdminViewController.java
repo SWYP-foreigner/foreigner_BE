@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
