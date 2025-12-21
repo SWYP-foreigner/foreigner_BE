@@ -1,4 +1,4 @@
-package core.global.smoke;
+package core.global.smoke.utils;
 
 import lombok.Getter;
 import lombok.Setter;

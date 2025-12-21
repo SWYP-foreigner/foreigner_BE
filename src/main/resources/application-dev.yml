@@ -311,18 +311,59 @@ smoke:
       path: "/api/admin/users/1/basic"
       expectedStatus: 200
 
-    # --- 외부 의존성 API ---
-#    - name: "NCP-Object-Storage"
-#      type: "EXTERNAL"
-#      method: "GET"
-#      path: "https://kr.object.ncloudstorage.com"
-#      expectedStatus: 200
-#
-#    - name: "Clova-Studio-HCX"
-#      type: "EXTERNAL"
-#      method: "POST"
-#      path: "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-003"
-#      expectedStatus: 401
+    # --- 외부 의존성 확인 ---
+    # --- [1] 인프라 생존 확인 (Actuator) ---
+    - name: "Infra-Redis-Health"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/actuator/health/redis"
+      expectedStatus: 200
+
+    - name: "Infra-Naver-Mail-SMTP"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/actuator/health/mail"
+      expectedStatus: 200
+
+    # --- [2] NCP (Naver Cloud Platform) 의존성 ---
+    - name: "Ext-NCP-Object-Storage"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "${ncp.s3.end-point}" # S3Config의 endpoint 주소
+      expectedStatus: 200 # 인증 실패 시 403이 올 수 있으나 통로 확인용
+
+    - name: "Ext-NCP-Maps-API"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/getCoord"
+      expectedStatus: 401 # API Key 없이 찔렀을 때 401이면 NCP 연결 성공
+
+    # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
+    - name: "Ext-Apple-Auth-Keys"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://appleid.apple.com/auth/keys"
+      expectedStatus: 200
+
+    - name: "Ext-Firebase-FCM"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://fcm.googleapis.com"
+      expectedStatus: 200
+
+    - name: "Ext-Google-OAuth"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://www.googleapis.com/oauth2/v3/userinfo"
+      expectedStatus: 401
+
+    # --- [4] 기타 인프라 체크 ---
+    - name: "Infra-WebSocket-Endpoint"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/ws"
+      expectedStatus: 400 # WebSocket은 일반 GET으로 찌르면 400(Bad Request) 반환이 정상 생존 신호
+
 
 openai:
   api-key: ${OPEN_AI_KEY}

@@ -2,7 +2,6 @@ package core.global.security;
 
 import core.global.constants.AIOnlyPaths;
 import core.global.metrics.PresenceActivityFilter;
-import core.global.smoke.SmokeTokenFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;

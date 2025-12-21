@@ -1,6 +1,6 @@
 package core.global.smoke.runner;
 
-import core.global.smoke.SmokeProperties;
+import core.global.smoke.utils.SmokeProperties;
 import core.global.smoke.dto.SmokeItem;
 import core.global.smoke.dto.SmokeResult;
 import org.springframework.core.ParameterizedTypeReference;
@@ -26,10 +26,8 @@ public class SmokeGateRunner {
 
     public SmokeResult run(String mode) {
         long started = System.currentTimeMillis();
-
         String accessToken = null;
 
-        // 1. Full 모드일 경우 관리자 로그인 선행
         if ("full".equalsIgnoreCase(mode)) {
             try {
                 accessToken = fetchAdminToken();
@@ -44,21 +42,24 @@ public class SmokeGateRunner {
 
         if (cases == null) cases = List.of();
 
-        List<SmokeItem> items = new ArrayList<>();
+        // 성공/실패 리스트 분리
+        List<SmokeItem> passedItems = new ArrayList<>();
+        List<SmokeItem> failedItems = new ArrayList<>();
 
         int passed = 0;
         int failed = 0;
-
         Duration perRequestTimeout = Duration.ofSeconds(3);
 
         for (var c : cases) {
             long s = System.currentTimeMillis();
             try {
-                // 2. 요청 빌더 생성
-                var requestSpec = client.method(HttpMethod.valueOf(c.getMethod()))
-                        .uri(c.getType().equalsIgnoreCase("EXTERNAL") ? c.getPath() : props.getBaseUrl() + c.getPath());
+                String targetUrl = c.getType().equalsIgnoreCase("EXTERNAL")
+                        ? c.getPath()
+                        : props.getBaseUrl() + c.getPath();
 
-                // 3. 토큰 주입 (INTERNAL/ADMIN 타입이고 토큰이 존재할 때)
+                var requestSpec = client.method(HttpMethod.valueOf(c.getMethod().toUpperCase()))
+                        .uri(targetUrl);
+
                 if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL") && !c.getType().equalsIgnoreCase("HEALTH")) {
                     requestSpec.header("Authorization", "Bearer " + accessToken);
                 }
@@ -69,16 +70,39 @@ public class SmokeGateRunner {
                         .block();
 
                 boolean ok = (status == c.getExpectedStatus());
-                if (ok) passed++; else failed++;
 
-                items.add(new SmokeItem(c.getName(), c.getMethod(), c.getPath(), status, System.currentTimeMillis() - s, ok, null));
+                SmokeItem item = new SmokeItem(
+                        c.getName(), c.getMethod(), c.getPath(),
+                        status, System.currentTimeMillis() - s, ok, null
+                );
+
+                if (ok) {
+                    passed++;
+                    passedItems.add(item);
+                } else {
+                    failed++;
+                    failedItems.add(item);
+                }
             } catch (Exception e) {
                 failed++;
-                items.add(new SmokeItem(c.getName(), c.getMethod(), c.getPath(), null, System.currentTimeMillis() - s, false, e.getClass().getSimpleName() + ": " + safeMsg(e.getMessage())));
+                failedItems.add(new SmokeItem(
+                        c.getName(), c.getMethod(), c.getPath(),
+                        null, System.currentTimeMillis() - s, false,
+                        e.getClass().getSimpleName() + ": " + safeMsg(e.getMessage())
+                ));
             }
         }
 
-        return new SmokeResult(mode, (failed == 0), cases.size(), passed, failed, System.currentTimeMillis() - started, items);
+        return new SmokeResult(
+                mode,
+                (failed == 0),
+                cases.size(),
+                passed,
+                failed,
+                System.currentTimeMillis() - started,
+                passedItems,
+                failedItems
+        );
     }
 
     // 관리자 토큰 발급 로직
@@ -103,8 +127,17 @@ public class SmokeGateRunner {
     }
 
     private SmokeResult createLoginFailureResult(String mode, long started, Exception e) {
-        return new SmokeResult(mode, false, 0, 0, 0, System.currentTimeMillis() - started,
-                List.of(new SmokeItem("ADMIN_LOGIN", "POST", props.getAdmin().getLoginPath(), null, 0, false, "Login Failed: " + e.getMessage())));
+        SmokeItem loginError = new SmokeItem(
+                "ADMIN_LOGIN", "POST", props.getAdmin().getLoginPath(),
+                null, 0, false, "Login Failed: " + safeMsg(e.getMessage())
+        );
+
+        return new SmokeResult(
+                mode, false, 0, 0, 1,
+                System.currentTimeMillis() - started,
+                List.of(),           // passedItems (빈 리스트)
+                List.of(loginError)  // failedItems (로그인 에러 항목 포함)
+        );
     }
 
     private String safeMsg(String msg) {

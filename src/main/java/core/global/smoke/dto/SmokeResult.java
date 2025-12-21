@@ -3,12 +3,14 @@ import java.util.List;
 
 public record SmokeResult(
         String mode,
-        boolean ok,
-        int total,
-        int passed,
-        int failed,
-        long durationMs,
-        List<SmokeItem> items
-) {}
+        boolean success,
+        int totalCount,
+        int passedCount,
+        int failedCount,
+        long elapsedTimeMs,
+        List<SmokeItem> passedItems,
+        List<SmokeItem> failedItems
+) {
+}
 
 

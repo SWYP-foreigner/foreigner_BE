@@ -1,7 +1,7 @@
 package core.global.smoke.controller;
 
 import core.global.smoke.runner.SmokeGateRunner;
-import core.global.smoke.SmokeProperties;
+import core.global.smoke.utils.SmokeProperties;
 import core.global.smoke.dto.SmokeResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,7 +25,7 @@ public class SmokeController {
         }
 
         SmokeResult result = runner.run(mode);
-        return result.ok()
+        return result.success()
                 ? ResponseEntity.ok(result)
                 : ResponseEntity.status(500).body(result);
     }
