@@ -117,11 +117,19 @@ public class SmokeGateRunner {
                 .uri(props.getAdmin().getLoginPath())
                 .bodyValue(loginReq)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .map(res -> {
-                    // JSON 응답 구조에 따라 파싱 (예: data.accessToken)
-                    Map<String, Object> data = (Map<String, Object>) res.get("data");
-                    return (String) data.get("accessToken");
+                .toEntity(String.class)
+                .map(responseEntity -> {
+                    var cookies = responseEntity.getHeaders().get("Set-Cookie");
+                    if (cookies == null || cookies.isEmpty()) {
+                        throw new RuntimeException("No Set-Cookie header found in response");
+                    }
+
+                    // "accessToken=ey...; Path=/; ..." 형태에서 값만 추출
+                    return cookies.stream()
+                            .filter(cookie -> cookie.startsWith("accessToken="))
+                            .map(cookie -> cookie.split(";")[0].split("=")[1])
+                            .findFirst()
+                            .orElseThrow(() -> new RuntimeException("accessToken cookie not found"));
                 })
                 .block(Duration.ofSeconds(5));
     }
