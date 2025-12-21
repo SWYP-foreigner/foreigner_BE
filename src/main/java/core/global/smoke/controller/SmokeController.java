@@ -1,5 +1,8 @@
-package core.global.smoke;
+package core.global.smoke.controller;
 
+import core.global.smoke.runner.SmokeGateRunner;
+import core.global.smoke.utils.SmokeProperties;
+import core.global.smoke.dto.SmokeResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,9 +24,8 @@ public class SmokeController {
             return ResponseEntity.status(404).build();
         }
 
-        // 지금은 gate만
-        SmokeResult result = runner.runGate();
-        return result.ok()
+        SmokeResult result = runner.run(mode);
+        return result.success()
                 ? ResponseEntity.ok(result)
                 : ResponseEntity.status(500).body(result);
     }

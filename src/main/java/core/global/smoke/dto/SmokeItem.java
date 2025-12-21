@@ -1,4 +1,4 @@
-package core.global.smoke;
+package core.global.smoke.dto;
 
 public record SmokeItem(
         String name,

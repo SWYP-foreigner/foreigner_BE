@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.global.dto.AdminMetricsDto;
 import core.global.service.AdminMetricsService;
