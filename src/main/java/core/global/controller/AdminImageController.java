@@ -1,6 +1,7 @@
-package core.global.admin.controller;
+package core.global.controller;
 
 import core.global.entity.image.dto.SuspiciousImageResponse;
+import core.global.entity.image.entity.Image;
 import core.global.service.AdminImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;

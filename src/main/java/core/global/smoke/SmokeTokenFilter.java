@@ -1,4 +1,4 @@
-package core.global.security;
+package core.global.smoke;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
