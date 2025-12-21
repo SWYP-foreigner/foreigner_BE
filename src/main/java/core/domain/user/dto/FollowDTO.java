@@ -1,7 +1,6 @@
 package core.domain.user.dto;
 
 import core.domain.user.entity.User;
-import core.domain.user.service.FriendType;
 
 import java.util.List;
 
@@ -17,11 +16,10 @@ public record FollowDTO(
         String email,
         List<String> language,
         List<String> hobby,
-        String imageKey,
-        FriendType friendType
+        String imageKey
 ) {
 
-    public FollowDTO(User u, List<String> languages, List<String> hobbies, String imageKey, FriendType friendType) {
+    public FollowDTO(User u, List<String> languages, List<String> hobbies, String imageKey) {
         this(
                 u.getId(),
                 u.getFirstName(),
@@ -34,8 +32,7 @@ public record FollowDTO(
                 u.getEmail(),
                 languages,
                 hobbies,
-                imageKey,
-                friendType
+                imageKey
         );
     }
 

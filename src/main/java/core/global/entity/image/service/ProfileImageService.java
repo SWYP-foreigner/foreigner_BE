@@ -2,6 +2,7 @@ package core.global.entity.image.service;
 
 import core.global.entity.image.dto.ImageDto;
 import jakarta.transaction.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -34,4 +35,6 @@ public interface ProfileImageService {
     String getRoomImageUrl(Long roomId);
 
     List<ImageDto> findImagesForChatRooms(List<Long> roomIds);
+
+    void uploadUserProfileImage(Long userId, MultipartFile file);
 }

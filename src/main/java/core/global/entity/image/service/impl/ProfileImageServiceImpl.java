@@ -16,11 +16,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.MetadataDirective;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.util.Collections;
 import java.util.List;
@@ -263,6 +267,47 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         return images.stream()
                 .map(image -> new ImageDto(image.getId(), image.getRelatedId(), image.getUrl()))
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    @Override
+    public void uploadUserProfileImage(Long userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        if (file.getSize() > PROFILE_MAX_BYTES) {
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+
+        if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
+            throw new BusinessException(ImageErrorCode.USER_IMAGES_ALREADY_EXIST);
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        String ext = StringUtils.getFilenameExtension(originalFilename);
+        if (ext == null) ext = "jpg";
+
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+
+        String key = "users/%d/profile.%s.%s".formatted(userId, uuid, ext);
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentType(file.getContentType())
+                    .cacheControl("public, max-age=31536000, immutable")
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+
+        } catch (Exception e) {
+            log.error("Profile Image Direct Upload Failed userId={}", userId, e);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+
+        saveImageInDB(userId, ImageType.USER, key);
     }
 
 

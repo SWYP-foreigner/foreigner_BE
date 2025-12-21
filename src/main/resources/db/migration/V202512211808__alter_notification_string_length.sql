@@ -1,0 +1,2 @@
+ALTER TABLE notification
+ALTER COLUMN message TYPE VARCHAR(1000);

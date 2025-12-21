@@ -47,6 +47,7 @@ public class ChatRoomController {
     })
     @PostMapping("/rooms/oneToOne")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_CREATION_FAILED})
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
             @RequestBody CreateRoomRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
@@ -57,6 +58,7 @@ public class ChatRoomController {
     }
 
     @PostMapping("/rooms/oneTone")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_CREATION_FAILED})
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createOneRoom(
             @RequestBody CreateRoomRequest request,

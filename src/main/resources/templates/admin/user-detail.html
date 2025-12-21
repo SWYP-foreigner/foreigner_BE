@@ -28,6 +28,34 @@
         .btn-delete:hover { background-color: #c82333; }
         .link-chat { text-decoration: none; color: #007bff; font-weight: bold; }
         .link-chat:hover { text-decoration: underline; }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            color: white;
+            font-size: 0.9em;
+            text-align: center;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: 1px solid #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border: 1px solid #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
     </style>
 </head>
 <body>
@@ -43,6 +71,13 @@
             <p><strong>국가:</strong> <span th:text="*{country}"></span></p>
             <p><strong>가입일:</strong> <span th:text="*{#temporals.format(createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
             <p><strong>마지막 접속:</strong> <span th:text="*{lastSeenAt != null ? #temporals.format(lastSeenAt, 'yyyy-MM-dd HH:mm') : '기록 없음'}"></span></p>
+        </div>
+
+        <div class="action-buttons" style="margin-top: 20px;" th:if="${isAi}">
+            <a th:href="@{/admin/users/{userId}/edit-ai(userId=${user.userId})}"
+               class="btn btn-primary">
+                AI 정보 수정
+            </a>
         </div>
 
         <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
