@@ -33,7 +33,7 @@ public class RecommenderService {
         User me = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        return recommender.recommendForUser(me.getId(), limit);
+        return recommender.recommendForUser(me.getId(), 3);
     }
 
 
