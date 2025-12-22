@@ -240,7 +240,10 @@ smoke:
     - name: "App-Version-Check"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/app/version?os=ANDROID&version=1.0.0"
+      path: "/api/v1/app/version"
+      body:
+        os: "ANDROID"
+        version: "1.0.0"
       expectedStatus: 200
 
     - name: "My-Page-Support-Links"
@@ -254,6 +257,8 @@ smoke:
       type: "INTERNAL"
       method: "GET"
       path: "/api/v1/member/infos"
+      body:
+        userIds: [ 1117 ]
       expectedStatus: 200
 
     - name: "Get-Follow-Lists"
@@ -283,7 +288,7 @@ smoke:
     - name: "Get-My-Bookmarks"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/boards/my/bookmarks?size=20"
+      path: "/api/v1/my/bookmarks?size=20"
       expectedStatus: 200
 
     - name: "Get-Search-Posts"
@@ -336,7 +341,7 @@ smoke:
       type: "EXTERNAL"
       method: "GET"
       path: "https://maps.googleapis.com/maps/api/geocode/json"
-      expectedStatus: 405 # API Key 없이 찔렀을 때 401이면 NCP 연결 성공
+      expectedStatus: 401
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
     - name: "Ext-Apple-Auth-Keys"
@@ -349,7 +354,7 @@ smoke:
       type: "EXTERNAL"
       method: "GET"
       path: "https://fcm.googleapis.com/fcm/send"
-      expectedStatus: 200
+      expectedStatus: 405
 
     - name: "Ext-Google-OAuth"
       type: "EXTERNAL"

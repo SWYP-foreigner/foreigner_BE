@@ -5,6 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -23,7 +24,8 @@ public class SmokeProperties {
         private String type;
         private String method;
         private String path;
-        private int expectedStatus = 200;
+        private int expectedStatus;
+        private Map<String, Object> body;
     }
 
     @Getter @Setter
