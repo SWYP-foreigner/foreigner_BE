@@ -240,10 +240,7 @@ smoke:
     - name: "App-Version-Check"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/app/version"
-      body:
-        os: "ANDROID"
-        version: "1.0.0"
+      path: "/api/v1/app/version?os=ANDROID&version=1.0.0"
       expectedStatus: 200
 
     - name: "My-Page-Support-Links"
@@ -256,9 +253,7 @@ smoke:
     - name: "Get-User-Profile"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/member/infos"
-      body:
-        userIds: [ 1117 ]
+      path: "/api/v1/member/infos?userIds=1098"
       expectedStatus: 200
 
     - name: "Get-Follow-Lists"
@@ -341,7 +336,7 @@ smoke:
       type: "EXTERNAL"
       method: "GET"
       path: "https://maps.googleapis.com/maps/api/geocode/json"
-      expectedStatus: 401
+      expectedStatus: 400
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
     - name: "Ext-Apple-Auth-Keys"
@@ -352,9 +347,9 @@ smoke:
 
     - name: "Ext-Firebase-FCM"
       type: "EXTERNAL"
-      method: "GET"
+      method: "POST"
       path: "https://fcm.googleapis.com/fcm/send"
-      expectedStatus: 405
+      expectedStatus: 401
 
     - name: "Ext-Google-OAuth"
       type: "EXTERNAL"
