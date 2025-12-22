@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -28,9 +29,8 @@ public class ContentBasedRecommender {
     private final BlockRepository blockRepository;
     private final FollowRepository followRepository;
     private final ImageService imageService;
-
+    private final SecureRandom secureRandom = new SecureRandom();
     private static final double WEIGHT_ACTIVITY = 85.0;
-    // 최소한의 취향 (말은 통해야 하니까)
     private static final double WEIGHT_SIMILARITY = 10.0;
     // 랜덤 비중을 5로 축소 (활동적인 사람이 랜덤 운 때문에 밀려나지 않도록)
     private static final double WEIGHT_RANDOM = 5.0;
@@ -99,7 +99,7 @@ public class ContentBasedRecommender {
         double activityScore = calculateActivityScore(candidate);
         // [변경] 파라미터 변경
         double similarityScore = calculateSimilarityScore(candidate, myCountry, myHobbies);
-        double randomNoise = Math.random();
+        double randomNoise = secureRandom.nextDouble();
 
         return (activityScore * WEIGHT_ACTIVITY)
                 + (similarityScore * WEIGHT_SIMILARITY)
