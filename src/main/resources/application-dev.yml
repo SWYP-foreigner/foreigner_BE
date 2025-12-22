@@ -179,7 +179,7 @@ firebase:
 management:
   health:
     mail:
-      enabled: false
+      enabled: true
   endpoints:
     web:
       exposure:
@@ -240,7 +240,7 @@ smoke:
     - name: "App-Version-Check"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/app/version"
+      path: "/api/v1/app/version?os=ANDROID&version=1.0.0"
       expectedStatus: 200
 
     - name: "My-Page-Support-Links"
@@ -253,13 +253,13 @@ smoke:
     - name: "Get-User-Profile"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/members/infos"
+      path: "/api/v1/member/infos"
       expectedStatus: 200
 
     - name: "Get-Follow-Lists"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/mypage/follows"
+      path: "/api/v1/mypage/follows?status=PENDING"
       expectedStatus: 200
 
     - name: "Get-Post-Lists"
@@ -277,7 +277,7 @@ smoke:
     - name: "Get-My-Posts"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/boards/my/posts?size=20"
+      path: "/api/v1/my/posts?size=20"
       expectedStatus: 200
 
     - name: "Get-My-Bookmarks"
@@ -289,7 +289,7 @@ smoke:
     - name: "Get-Search-Posts"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/search/1/posts"
+      path: "/api/v1/search/1/posts?q=hi"
       expectedStatus: 200
 
     - name: "Get-Chat-Rooms-My-List"
@@ -329,14 +329,14 @@ smoke:
     - name: "Ext-NCP-Object-Storage"
       type: "EXTERNAL"
       method: "GET"
-      path: "${ncp.s3.end-point}" # S3Config의 endpoint 주소
+      path: "${ncp.s3.end-point}/${NCP_BUCKET_NAME}" # S3Config의 endpoint 주소
       expectedStatus: 200 # 인증 실패 시 403이 올 수 있으나 통로 확인용
 
-    - name: "Ext-NCP-Maps-API"
+    - name: "Ext-Google-Maps-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/getCoord"
-      expectedStatus: 401 # API Key 없이 찔렀을 때 401이면 NCP 연결 성공
+      path: "https://maps.googleapis.com/maps/api/geocode/json"
+      expectedStatus: 405 # API Key 없이 찔렀을 때 401이면 NCP 연결 성공
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
     - name: "Ext-Apple-Auth-Keys"
@@ -348,7 +348,7 @@ smoke:
     - name: "Ext-Firebase-FCM"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://fcm.googleapis.com"
+      path: "https://fcm.googleapis.com/fcm/send"
       expectedStatus: 200
 
     - name: "Ext-Google-OAuth"
