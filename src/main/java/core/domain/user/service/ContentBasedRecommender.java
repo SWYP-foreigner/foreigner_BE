@@ -29,13 +29,13 @@ public class ContentBasedRecommender {
     private final FollowRepository followRepository;
     private final ImageService imageService;
 
-    // 가중치 설정 (총합이 중요하기보다 비율이 중요함)
-    // 활동성(최우선) > 유사도(차순위) > 랜덤(매번 다르게)
-    private static final double WEIGHT_ACTIVITY = 70.0;   // 활동 점수 비중 (가장 큼)
-    private static final double WEIGHT_SIMILARITY = 10.0; // 언어/취미 일치 비중
-    private static final double WEIGHT_RANDOM = 20.0;     // 랜덤 노이즈 비중 (순위 섞기용)
-
-    private static final double ACTIVITY_HALF_LIFE_DAYS = 2.0; // 활동 점수가 절반이 되는 기간 (2일 지나면 점수 반토막)
+    private static final double WEIGHT_ACTIVITY = 85.0;
+    // 최소한의 취향 (말은 통해야 하니까)
+    private static final double WEIGHT_SIMILARITY = 10.0;
+    // 랜덤 비중을 5로 축소 (활동적인 사람이 랜덤 운 때문에 밀려나지 않도록)
+    private static final double WEIGHT_RANDOM = 5.0;
+    // [핵심] 반감기를 '1일'에서 '0.25일(6시간)' 또는 '0.1일(2.4시간)'으로 단축
+    private static final double ACTIVITY_HALF_LIFE_DAYS = 0.1;
 
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
@@ -53,10 +53,13 @@ public class ContentBasedRecommender {
         excludeIds.add(meId);
         if (excludeIds.isEmpty()) excludeIds.add(0L);
 
-        // 3. 후보군 조회 (프로필이 완성된 유저들)
-        // 성능 최적화: 후보가 너무 많다면 DB 레벨에서 최근 접속자 순으로 limit를 걸어 가져오는 것이 좋음
-        List<User> candidates = userRepository.findFullProfiledRecommendationCandidates(excludeIds);
+        Instant activeLimit = Instant.now().minus(3, ChronoUnit.DAYS);
 
+        List<User> candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
+        if (candidates.isEmpty()) {
+            activeLimit = Instant.now().minus(14, ChronoUnit.DAYS);
+            candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
+        }
         if (candidates.isEmpty()) {
             return List.of();
         }
