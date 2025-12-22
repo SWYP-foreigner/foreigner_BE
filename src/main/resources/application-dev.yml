@@ -330,7 +330,7 @@ smoke:
     - name: "Ext-Google-Translate-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://translation.googleapis.com/$discovery/rest?version=v2"
+      path: "https://translation.googleapis.com/language/translate/v2?key=${GCP_MAP_API_KEY}&q=hi&target=ko"
       expectedStatus: 200
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
@@ -352,10 +352,10 @@ smoke:
       path: "https://www.googleapis.com/oauth2/v3/userinfo"
       expectedStatus: 401
 
-    - name: "Ext-Google-Translate-API"
+    - name: "Ext-Google-MAPS-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://translation.googleapis.com/$discovery/rest?version=v2"
+      path: "https://maps.googleapis.com/maps/api/geocode/json?address=seoul&key=${GCP_MAP_API_KEY}"
       expectedStatus: 200
 
     # --- [4] 기타 인프라 체크 ---
