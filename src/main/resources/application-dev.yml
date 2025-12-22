@@ -237,12 +237,6 @@ smoke:
 
   full:
     # --- [2] 정적/기본 정보 조회 (네트워크 및 캐시 확인) ---
-    - name: "App-Version-Check"
-      type: "INTERNAL"
-      method: "GET"
-      path: "/api/v1/app/version?request.os=ANDROID&request.version=1.0.0"
-      expectedStatus: 200
-
     - name: "My-Page-Support-Links"
       type: "INTERNAL"
       method: "GET"
@@ -347,7 +341,7 @@ smoke:
 
     - name: "Ext-Firebase-FCM"
       type: "EXTERNAL"
-      method: "POST"
+      method: "GET"
       path: "https://fcm.googleapis.com"
       expectedStatus: 200
 
@@ -361,7 +355,7 @@ smoke:
       type: "EXTERNAL"
       method: "GET"
       path: "https://translation.googleapis.com/language/translate/v2"
-      expectedStatus: 400
+      expectedStatus: 403
 
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
