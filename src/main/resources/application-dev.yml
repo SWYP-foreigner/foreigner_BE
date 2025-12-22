@@ -329,8 +329,8 @@ smoke:
     - name: "Ext-Google-Maps-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://maps.googleapis.com/maps/api/geocode/json"
-      expectedStatus: 400
+      path: "https://www.googleapis.com/discovery/v1/apis/geocoding/v1/rest"
+      expectedStatus: 200
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
     - name: "Ext-Apple-Auth-Keys"
@@ -342,7 +342,7 @@ smoke:
     - name: "Ext-Firebase-FCM"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://fcm.googleapis.com"
+      path: "https://fcm.googleapis.com/$discovery/rest?version=v1"
       expectedStatus: 200
 
     - name: "Ext-Google-OAuth"
@@ -354,8 +354,8 @@ smoke:
     - name: "Ext-Google-Translate-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://translation.googleapis.com/language/translate/v2"
-      expectedStatus: 403
+      path: "https://translation.googleapis.com/$discovery/rest?version=v2"
+      expectedStatus: 200
 
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
