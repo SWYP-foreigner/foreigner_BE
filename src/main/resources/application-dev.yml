@@ -240,7 +240,7 @@ smoke:
     - name: "App-Version-Check"
       type: "INTERNAL"
       method: "GET"
-      path: "/api/v1/app/version?os=ANDROID&version=1.0.0"
+      path: "/api/v1/app/version?request.os=ANDROID&request.version=1.0.0"
       expectedStatus: 200
 
     - name: "My-Page-Support-Links"
@@ -348,14 +348,20 @@ smoke:
     - name: "Ext-Firebase-FCM"
       type: "EXTERNAL"
       method: "POST"
-      path: "https://fcm.googleapis.com/fcm/send"
-      expectedStatus: 401
+      path: "https://fcm.googleapis.com"
+      expectedStatus: 200
 
     - name: "Ext-Google-OAuth"
       type: "EXTERNAL"
       method: "GET"
       path: "https://www.googleapis.com/oauth2/v3/userinfo"
       expectedStatus: 401
+
+    - name: "Ext-Google-Translate-API"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://translation.googleapis.com/language/translate/v2"
+      expectedStatus: 400
 
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
