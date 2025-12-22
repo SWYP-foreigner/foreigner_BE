@@ -326,10 +326,11 @@ smoke:
       path: "${ncp.s3.end-point}/${NCP_BUCKET_NAME}" # S3Config의 endpoint 주소
       expectedStatus: 200 # 인증 실패 시 403이 올 수 있으나 통로 확인용
 
-    - name: "Ext-Google-Maps-API"
+    # 구글 번역 서비스 탐색 경로 (200 보장)
+    - name: "Ext-Google-Translate-API"
       type: "EXTERNAL"
       method: "GET"
-      path: "https://www.googleapis.com/discovery/v1/apis/geocoding/v1/rest"
+      path: "https://translation.googleapis.com/$discovery/rest?version=v2"
       expectedStatus: 200
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
