@@ -64,6 +64,11 @@ public class SmokeGateRunner {
                     requestSpec.header("Authorization", "Bearer " + accessToken);
                 }
 
+                if (c.getBody() != null) {
+                    requestSpec.header("Content-Type", "application/json")
+                            .bodyValue(c.getBody()); // 이 부분이 Body를 전송합니다.
+                }
+
                 int status = requestSpec
                         .exchangeToMono(resp -> resp.releaseBody().thenReturn(resp.statusCode().value()))
                         .timeout(perRequestTimeout)
