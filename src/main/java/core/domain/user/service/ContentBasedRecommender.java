@@ -65,35 +65,46 @@ public class ContentBasedRecommender {
         }
 
         // 4. 내 언어/취미 Set으로 변환 (비교 편의성)
-        Set<String> myLanguages = csvToSet(me.getLanguage());
+        String myCountry = me.getCountry();
         Set<String> myHobbies = csvToSet(me.getHobby());
 
         // 5. 점수 계산 및 정렬, 상위 3명 추출
-        return candidates.stream()
+        List<UserScore> scoredCandidates = candidates.stream()
                 .map(candidate -> {
-                    double score = calculateTotalScore(candidate, myLanguages, myHobbies);
+                    double score = calculateTotalScore(candidate, myCountry, myHobbies);
                     return new UserScore(candidate, score);
                 })
-                .sorted(Comparator.comparingDouble(UserScore::getScore).reversed()) // 점수 높은 순 정렬
-                .limit(limit) // 상위 N명 (여기서는 3명)
+                .sorted(Comparator.comparingDouble(UserScore::getScore).reversed()) // 1. 점수 내림차순 정렬
+                .collect(Collectors.toList());
+
+        // [핵심 변경] 상위 N명을 가져와서 섞음 (Shuffle)
+        // 이유: 활동성 점수가 워낙 강력해서 상위권이 고정되므로, 상위 20명 내에서 랜덤성을 부여
+        int poolSize = Math.min(scoredCandidates.size(), 20); // 상위 20명 (후보가 적으면 전체)
+
+        List<UserScore> topTierPool = new ArrayList<>(scoredCandidates.subList(0, poolSize));
+        Collections.shuffle(topTierPool); // 여기가 마법의 한 줄 (순서를 뒤섞음)
+
+        // 섞인 목록에서 3명 뽑기
+        return topTierPool.stream()
+                .limit(limit)
                 .map(us -> toDto(us.getUser()))
                 .collect(Collectors.toList());
     }
 
     /**
      * [총점 계산 로직]
-     * Total = (활동성 * 50) + (유사도 * 30) + (랜덤 * 20)
+     * Total = (활동성 * 85) + (유사도 * 10) + (랜덤 * 5)
      */
-    private double calculateTotalScore(User candidate, Set<String> myLanguages, Set<String> myHobbies) {
+    private double calculateTotalScore(User candidate, String myCountry, Set<String> myHobbies) {
         double activityScore = calculateActivityScore(candidate);
-        double similarityScore = calculateSimilarityScore(candidate, myLanguages, myHobbies);
-        double randomNoise = Math.random(); // 0.0 ~ 1.0 난수
+        // [변경] 파라미터 변경
+        double similarityScore = calculateSimilarityScore(candidate, myCountry, myHobbies);
+        double randomNoise = Math.random();
 
         return (activityScore * WEIGHT_ACTIVITY)
                 + (similarityScore * WEIGHT_SIMILARITY)
                 + (randomNoise * WEIGHT_RANDOM);
     }
-
     /**
      * [활동성 점수] 0.0 ~ 1.0
      * 최근 접속일수록 1.0에 가까움. 시간이 지날수록 지수적으로 감소.
@@ -113,30 +124,31 @@ public class ContentBasedRecommender {
 
     /**
      * [유사도 점수] 0.0 ~ 1.0
-     * 언어와 취미가 얼마나 겹치는지 계산
+     * 국적(2.0) + 취미(1.0) 가중치 적용
      */
-    private double calculateSimilarityScore(User candidate, Set<String> myLanguages, Set<String> myHobbies) {
-        Set<String> candidateLanguages = csvToSet(candidate.getLanguage());
+    private double calculateSimilarityScore(User candidate, String myCountry, Set<String> myHobbies) {
+        // 1. 국적 점수 계산 (가중치 2.0)
+        // 국적이 같으면 2점, 다르면 0점
+        double countryScore = 0.0;
+        if (myCountry != null && myCountry.equalsIgnoreCase(candidate.getCountry())) {
+            countryScore = 2.0;
+        }
+
+        // 2. 취미 점수 계산 (가중치 1.0)
+        // 일치하는 취미 개수 * 1.0
         Set<String> candidateHobbies = csvToSet(candidate.getHobby());
-
-        // 언어 일치 개수
-        long langMatchCount = candidateLanguages.stream()
-                .filter(myLanguages::contains).count();
-
-        // 취미 일치 개수
         long hobbyMatchCount = candidateHobbies.stream()
                 .filter(myHobbies::contains).count();
+        double hobbyScore = hobbyMatchCount * 1.0;
 
-        // 정규화: (일치 개수 / 전체 개수)로 하면 너무 점수가 작아지므로,
-        // 단순히 일치하는게 하나라도 있으면 점수를 후하게 주는 방식 사용 (Jaccard 유사도 변형)
+        // 3. 정규화 (0.0 ~ 1.0 사이 값으로 변환)
+        // 분모 = 국적 만점(2.0) + 내 취미 개수(다 맞았을 때)
+        double maxPossibleScore = 2.0 + Math.max(1, myHobbies.size());
 
-        double totalMatches = langMatchCount + hobbyMatchCount;
-        double maxPossibleMatches = Math.max(1, myLanguages.size() + myHobbies.size());
+        double totalScore = countryScore + hobbyScore;
 
-        // 최대 1.0을 넘지 않도록
-        return Math.min(1.0, totalMatches / maxPossibleMatches);
+        return Math.min(1.0, totalScore / maxPossibleScore);
     }
-
     // --- Helper Methods ---
 
     private Set<String> csvToSet(String csv) {
