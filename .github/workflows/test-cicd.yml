@@ -5,7 +5,7 @@ on:
     branches: [ test ]
 
 concurrency:
-  group: deploy-foreigner-test
+  group: deploy-foreigner-dev
   cancel-in-progress: true
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
         run: |
           test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "DOCKERHUB_USERNAME is empty" && exit 1)
           test -n "${{ secrets.DOCKERHUB_TOKEN }}"     || (echo "DOCKERHUB_TOKEN is empty" && exit 1)
-          test -n "${{ secrets.TEST_HOST }}"            || (echo "TEST_HOST is empty" && exit 1)
+          test -n "${{ secrets.DEV_HOST }}"            || (echo "DEV_HOST is empty" && exit 1)
           test -n "${{ secrets.DEV_USER }}"            || (echo "DEV_USER is empty" && exit 1)
           test -n "${{ secrets.DEV_SSH_KEY }}"         || (echo "DEV_SSH_KEY is empty" && exit 1)
           test -n "${{ secrets.DB_NAME }}"             || (echo "DB_NAME is empty" && exit 1)
@@ -184,7 +184,7 @@ jobs:
       - name: Deploy (Docker Compose, blue/green via gateway)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.TEST_HOST }}
+          host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
@@ -265,10 +265,6 @@ jobs:
             BASE_URL=${{ secrets.BASE_URL }}
             SIGHTENGINE_API_USER=${{secrets.SIGHTENGINE_API_USER}}
             SIGHTENGINE_API_SECRET=${{secrets.SIGHTENGINE_API_SECRET}}
-            OPEN_AI_KEY=${{secrets.OPEN_AI_KEY}}
-            SMOKE_ADMIN_EMAIL=${{secrets.SMOKE_ADMIN_EMAIL}}
-            SMOKE_ADMIN_PW=${{secrets.SMOKE_ADMIN_PW}}
-            SMOKE_ADMIN_LOGIN_URL=${{secrets.SMOKE_ADMIN_LOGIN_URL}}
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
@@ -469,7 +465,7 @@ jobs:
       - name: Prune old images (keep 4 latest + any in-use)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.TEST_HOST }}
+          host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
