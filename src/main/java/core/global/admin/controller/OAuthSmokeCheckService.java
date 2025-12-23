@@ -23,12 +23,18 @@ import java.util.Date;
 public class OAuthSmokeCheckService {
     private final WebClient.Builder webClientBuilder;
 
-    @Value("${oauth.google.web.client-id}") private String googleClientId;
-    @Value("${oauth.google.web.client-secret}") private String googleClientSecret;
-    @Value("${oauth.apple.client-id}") private String appleClientId;
-    @Value("${oauth.apple.team-id}") private String appleTeamId;
-    @Value("${oauth.apple.key-id}") private String appleKeyId;
-    @Value("${oauth.apple.private-key-pem}") private String applePrivateKeyPem;
+    @Value("${oauth.google.web.client-id}")
+    private String googleClientId;
+    @Value("${oauth.google.web.client-secret}")
+    private String googleClientSecret;
+    @Value("${oauth.apple.client-id}")
+    private String appleClientId;
+    @Value("${oauth.apple.team-id}")
+    private String appleTeamId;
+    @Value("${oauth.apple.key-id}")
+    private String appleKeyId;
+    @Value("${oauth.apple.private-key-pem}")
+    private String applePrivateKeyPem;
 
     public String googleChecker() {
         WebClient webClient = webClientBuilder.build();
@@ -81,20 +87,24 @@ public class OAuthSmokeCheckService {
     }
 
     private PrivateKey getApplePrivateKey() throws Exception {
-        // 1. 헤더, 푸터 제거 및 모든 공백(줄바꿈 포함) 제거
-        String pem = applePrivateKeyPem
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s", ""); // \\s+ 보다 \\s가 모든 종류의 공백을 더 잘 잡습니다.
-
         try {
-            byte[] encoded = Base64.getDecoder().decode(pem);
-            KeyFactory kf = KeyFactory.getInstance("EC"); // 애플 키는 Elliptic Curve 알고리즘입니다.
-            return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+            // 1. 전체가 Base64로 인코딩된 PEM 문자열을 먼저 디코딩
+            byte[] decodedBytes = Base64.getDecoder().decode(applePrivateKeyPem.trim());
+            String decodedPem = new String(decodedBytes);
+
+            // 2. PEM 헤더/푸터 및 모든 공백 제거
+            String pemBody = decodedPem
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s", "");
+
+            // 3. 바디를 다시 디코딩하여 PKCS#8 생성
+            byte[] pkcs8EncodedKey = Base64.getDecoder().decode(pemBody);
+            KeyFactory kf = KeyFactory.getInstance("EC");
+            return kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8EncodedKey));
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("애플 키 Base64 디코딩 실패: 키 문자열을 확인하세요.");
-        } catch (InvalidKeySpecException e) {
-            throw new RuntimeException("애플 키 포맷이 올바르지 않습니다 (PKCS#8 필요).");
+            log.error("Apple Private Key 디코딩 실패. 환경 변수 형식을 확인하세요.");
+            throw new RuntimeException("APPLE_KEY_DECODE_ERROR");
         }
     }
 }
