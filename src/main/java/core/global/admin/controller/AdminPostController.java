@@ -1,10 +1,9 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.post.service.PostService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
-import core.global.enums.BoardCategory;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
-
-import static core.global.enums.errorcode.UserErrorCode.USER_NOT_FOUND;
 
 @Slf4j
 @Controller

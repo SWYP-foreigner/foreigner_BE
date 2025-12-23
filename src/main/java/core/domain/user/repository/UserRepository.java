@@ -24,28 +24,13 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     boolean existsByEmail(String email);
 
-    @Query("SELECT u FROM User u " +
-            "WHERE u.id NOT IN :excludeIds " +
-            // [핵심] 최근 활동 시간 제한 (이게 있어야 답장률이 올라갑니다)
-            "AND u.lastSeenAt >= :limitTime " +
+    @Query("SELECT u FROM User u WHERE u.id NOT IN :excludeIds " +
+           "AND u.purpose IS NOT NULL AND u.purpose <> '' " +
+           "AND u.country IS NOT NULL AND u.country <> '' " +
+           "AND u.birthdate IS NOT NULL AND u.birthdate <> '' " +
+           "AND u.language IS NOT NULL AND u.language <> ''")
+    List<User> findFullProfiledRecommendationCandidates(@Param("excludeIds") Collection<Long> excludeIds);
 
-            // [프로필 완성 조건] (빈 문자열이나 null이 아닌 경우)
-            "AND u.purpose IS NOT NULL AND u.purpose <> '' " +
-            "AND u.country IS NOT NULL AND u.country <> '' " +
-            "AND u.birthdate IS NOT NULL AND u.birthdate <> '' " +
-            "AND u.language IS NOT NULL AND u.language <> '' " +
-
-            // [엔티티 기준 추가 보강] User 엔티티의 updateRoleBasedOnProfile 로직과 일치시킴
-            "AND u.introduction IS NOT NULL AND u.introduction <> '' " +
-            "AND u.hobby IS NOT NULL AND u.hobby <> '' " +
-            "AND u.sex IS NOT NULL AND u.sex <> '' " +
-
-            // (선택) 확실하게 하려면 Role까지 체크
-            "AND u.userRole = 'USER'")
-    List<User> findActiveCandidates(
-            @Param("excludeIds") Collection<Long> excludeIds,
-            @Param("limitTime") Instant limitTime
-    );
     @Query(value = """
             SELECT
               SUM(CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= NOW() - INTERVAL '24 hour' THEN 1 ELSE 0 END) AS h_0_24,

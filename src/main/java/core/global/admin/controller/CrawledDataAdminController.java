@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
