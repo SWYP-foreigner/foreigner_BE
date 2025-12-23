@@ -179,7 +179,7 @@ firebase:
 management:
   health:
     mail:
-      enabled: false
+      enabled: true
   endpoints:
     web:
       exposure:
@@ -224,23 +224,146 @@ smoke:
   enabled: true
   token: ${SMOKE_TOKEN:}
   base-url: ${SMOKE_BASE_URL:http://localhost:8080}
+  admin:
+    email: ${SMOKE_ADMIN_EMAIL}
+    password: ${SMOKE_ADMIN_PW}
+    login-path: ${SMOKE_ADMIN_LOGIN_URL}
   gate:
     - name: health
+      type: "HEALTH"
       method: GET
       path: /actuator/health
       expected-status: 200
-
 
   full:
-    - name: health
-      method: GET
-      path: /actuator/health
-      expected-status: 200
-    - name: api-docs
-      method: GET
-      path: /v3/api-docs
-      expected-status: 200
-    # 여기에 “전체 API”를 계속 추가
+    # --- [2] 정적/기본 정보 조회 (네트워크 및 캐시 확인) ---
+    - name: "My-Page-Support-Links"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/mypage/support-links"
+      expectedStatus: 200
+
+    # --- [3] 주요 데이터 조회 (DB 연결성 확인) ---
+    - name: "Get-User-Profile"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/member/infos?userIds=1098"
+      expectedStatus: 200
+
+    - name: "Get-Follow-Lists"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/mypage/follows?status=PENDING"
+      expectedStatus: 200
+
+    - name: "Get-Post-Lists"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/boards/1/posts" # 존재하는 ID 가정
+      expectedStatus: 200
+
+    - name: "Get-Post-Comments-Sample"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/posts/1/comments" # 존재하는 ID 가정
+      expectedStatus: 200
+
+    - name: "Get-My-Posts"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/my/posts?size=20"
+      expectedStatus: 200
+
+    - name: "Get-My-Bookmarks"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/my/bookmarks?size=20"
+      expectedStatus: 200
+
+    - name: "Get-Search-Posts"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/search/1/posts?q=hi"
+      expectedStatus: 200
+
+    - name: "Get-Chat-Rooms-My-List"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/chat/rooms"
+      expectedStatus: 200
+
+    - name: "Friend-Recommend-Logic"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/api/v1/commend/content-based"
+      expectedStatus: 200
+
+    # --- [5] 관리자/내부 도구 확인 ---
+    - name: "Admin-User-Basic-Info"
+      type: "ADMIN"
+      method: "GET"
+      path: "/api/admin/users/1/basic"
+      expectedStatus: 200
+
+    # --- 외부 의존성 확인 ---
+    # --- [1] 인프라 생존 확인 (Actuator) ---
+    - name: "Infra-Redis-Health"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/actuator/health/redis"
+      expectedStatus: 200
+
+    - name: "Infra-Naver-Mail-SMTP"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/actuator/health/mail"
+      expectedStatus: 200
+
+    # --- [2] NCP (Naver Cloud Platform) 의존성 ---
+    - name: "Ext-NCP-Object-Storage"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "${ncp.s3.end-point}/${NCP_BUCKET_NAME}" # S3Config의 endpoint 주소
+      expectedStatus: 200 # 인증 실패 시 403이 올 수 있으나 통로 확인용
+
+    # 구글 번역 서비스 탐색 경로 (200 보장)
+    - name: "Ext-Google-Translate-API"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://translation.googleapis.com/language/translate/v2?key=${GCP_MAP_API_KEY}&q=hi&target=ko"
+      expectedStatus: 200
+
+    # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
+    - name: "Deep-Check-Google-Secret"
+      type: "LOGIN"
+      method: "GET"
+      path: "/api/v1/admin/health-check/debug/oauth/google"
+      expectedStatus: 200
+    - name: "Deep-Check-Apple-Secret"
+      type: "LOGIN"
+      method: "GET"
+      path: "/api/v1/admin/health-check/debug/oauth/apple"
+      expectedStatus: 200
+
+    - name: "Ext-Firebase-FCM"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://fcm.googleapis.com/$discovery/rest?version=v1"
+      expectedStatus: 200
+
+    - name: "Ext-Google-MAPS-API"
+      type: "EXTERNAL"
+      method: "GET"
+      path: "https://maps.googleapis.com/maps/api/geocode/json?address=seoul&key=${GCP_MAP_API_KEY}"
+      expectedStatus: 200
+
+    # --- [4] 기타 인프라 체크 ---
+    - name: "Infra-WebSocket-Endpoint"
+      type: "INTERNAL"
+      method: "GET"
+      path: "/ws"
+      expectedStatus: 400 # WebSocket은 일반 GET으로 찌르면 400(Bad Request) 반환이 정상 생존 신호
+
 
 openai:
   api-key: ${OPEN_AI_KEY}
