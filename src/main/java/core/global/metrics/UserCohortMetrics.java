@@ -4,6 +4,8 @@ import core.domain.user.repository.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
 import io.micrometer.core.instrument.Tags;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,28 +16,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class UserCohortMetrics {
+    private final UserCohortService userCohortService; // 서비스 주입
+    private final MeterRegistry registry;
+    private MultiGauge cohortGauge;
 
-    private final UserRepository userRepository;
-    private final MultiGauge cohortGauge; // user_cohort_retention{cohort_week="YYYY-MM-DD"}
-
-    public UserCohortMetrics(UserRepository userRepository, MeterRegistry registry) {
-        this.userRepository = userRepository;
+    @PostConstruct
+    public void init() {
         this.cohortGauge = MultiGauge.builder("user_cohort_retention")
                 .description("30d retention by cohort week")
                 .register(registry);
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    public void warmup() { refresh(); }
+    public void warmup() {
+        refresh(); // 이제 호출 시 서비스의 @Transactional이 정상 작동함
+    }
 
     @Scheduled(fixedDelayString = "PT10M", initialDelayString = "PT1M")
-    @Transactional(readOnly = true)
     public void refresh() {
-        List<Object[]> rows = userRepository.cohortRetention30d();
+        List<Object[]> rows = userCohortService.getCohortData(); // 서비스 호출
         List<MultiGauge.Row<?>> out = new ArrayList<>();
+
         for (Object[] r : rows) {
-            String week = String.valueOf(r[0]);      // "2025-10-06"
+            String week = String.valueOf(r[0]);
             double total = ((Number) r[1]).doubleValue();
             double active = ((Number) r[2]).doubleValue();
             double rate = total > 0 ? active / total : 0.0;

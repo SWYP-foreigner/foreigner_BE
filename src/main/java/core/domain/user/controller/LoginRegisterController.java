@@ -68,11 +68,6 @@ public class LoginRegisterController {
     private final GeoService geoService;
     private final JwtTokenProvider jwtTokenProvider;
 
-    @GetMapping("/google/callback")
-    public String handleGoogleLogin(@RequestParam(required = false) String code,
-                                    @RequestParam(required = false) String state) {
-        return "Received code: " + code + ", state: " + state;
-    }
     @PostMapping("/doLogin")
     @Operation(summary = "일반 로그인")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.AUTHENTICATION_FAILED})
