@@ -18,6 +18,12 @@ public class AdminHealthCheckController {
     private final SmokeGateRunner runner;
     private final OAuthSmokeCheckService oAuthSmokeCheckService;
 
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public String healthCheckPage() {
+        return "admin/health-check"; // templates/admin/health-check.html 파일
+    }
+
     @PostMapping("/full-check")
     @PreAuthorize("hasRole('ADMIN')") // 관리자만 가능
     public ResponseEntity<SmokeResult> runFullCheck() {
