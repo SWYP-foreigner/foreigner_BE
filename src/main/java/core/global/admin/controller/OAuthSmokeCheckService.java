@@ -12,6 +12,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
@@ -80,9 +81,20 @@ public class OAuthSmokeCheckService {
     }
 
     private PrivateKey getApplePrivateKey() throws Exception {
-        String pem = applePrivateKeyPem.replace("-----BEGIN PRIVATE KEY-----", "")
+        // 1. 헤더, 푸터 제거 및 모든 공백(줄바꿈 포함) 제거
+        String pem = applePrivateKeyPem
+                .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s+", "");
-        return KeyFactory.getInstance("EC").generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pem)));
+                .replaceAll("\\s", ""); // \\s+ 보다 \\s가 모든 종류의 공백을 더 잘 잡습니다.
+
+        try {
+            byte[] encoded = Base64.getDecoder().decode(pem);
+            KeyFactory kf = KeyFactory.getInstance("EC"); // 애플 키는 Elliptic Curve 알고리즘입니다.
+            return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("애플 키 Base64 디코딩 실패: 키 문자열을 확인하세요.");
+        } catch (InvalidKeySpecException e) {
+            throw new RuntimeException("애플 키 포맷이 올바르지 않습니다 (PKCS#8 필요).");
+        }
     }
 }
