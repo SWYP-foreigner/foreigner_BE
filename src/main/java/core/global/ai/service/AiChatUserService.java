@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -185,15 +186,23 @@ public class AiChatUserService {
         String personality = user.getIntroduction() != null ? user.getIntroduction() : "차분함";
 
         // [Updated] 대화 히스토리: "상대방" 대신 실제 이름 사용 (그룹챗 구분용) ⭐️
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+// 만약 날짜가 바뀌는 대화까지 포함한다면 "MM-dd HH:mm:ss" 추천
+
         String conversationContext = history.stream()
                 .map(msg -> {
                     boolean isMe = msg.getSender().getId().equals(user.getId());
                     // 내가 아니면 실제 이름을, 나면 "나"를 표시
                     String senderName = isMe ? "나(" + name + ")" : msg.getSender().getFirstName();
-                    return String.format("- %s: %s", senderName, msg.getContent());
+
+                    // 시간 추출 (Null 체크가 필요할 수도 있음)
+                    String timeStr = msg.getSentAt()
+                            .atZone(ZoneId.systemDefault())
+                            .format(formatter);
+                    // 요청하신 포맷: 시간,보낸사람:내용
+                    return String.format("%s,%s:%s", timeStr, senderName, msg.getContent());
                 })
                 .collect(Collectors.joining("\n"));
-
         if (conversationContext.isEmpty()) {
             conversationContext = "(아직 대화 내역 없음)";
         }
