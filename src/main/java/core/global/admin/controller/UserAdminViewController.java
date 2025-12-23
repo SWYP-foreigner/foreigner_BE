@@ -10,6 +10,7 @@ import core.domain.user.service.UserAdminService;
 import core.global.ai.entity.AiPersona;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Controller
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
@@ -219,7 +221,7 @@ public class UserAdminViewController {
             userAdminService.updateAiUser(userId, request, password, profileFile, instruction, backgroundInfo);
             redirectAttributes.addFlashAttribute("successMessage", "AI 유저 및 페르소나 정보가 수정되었습니다.");
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("AI 유저 수정 중 오류 발생 - UserId: {}", userId, e);
             redirectAttributes.addFlashAttribute("errorMessage", "수정 실패: " + e.getMessage());
         }
 
