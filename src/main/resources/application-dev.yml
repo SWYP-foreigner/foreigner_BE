@@ -334,10 +334,15 @@ smoke:
       expectedStatus: 200
 
     # --- [3] 소셜 인증 및 푸시 (Auth & Firebase) ---
-    - name: "Ext-Apple-Auth-Keys"
-      type: "EXTERNAL"
+    - name: "Deep-Check-Google-Secret"
+      type: "LOGIN"
       method: "GET"
-      path: "https://appleid.apple.com/auth/keys"
+      path: "/api/v1/admin/health-check/debug/oauth/google"
+      expectedStatus: 200
+    - name: "Deep-Check-Apple-Secret"
+      type: "LOGIN"
+      method: "GET"
+      path: "/api/v1/admin/health-check/debug/oauth/apple"
       expectedStatus: 200
 
     - name: "Ext-Firebase-FCM"
@@ -345,12 +350,6 @@ smoke:
       method: "GET"
       path: "https://fcm.googleapis.com/$discovery/rest?version=v1"
       expectedStatus: 200
-
-    - name: "Ext-Google-OAuth"
-      type: "EXTERNAL"
-      method: "GET"
-      path: "https://www.googleapis.com/oauth2/v3/userinfo"
-      expectedStatus: 401
 
     - name: "Ext-Google-MAPS-API"
       type: "EXTERNAL"

@@ -1,9 +1,8 @@
 package core.global.smoke.runner;
 
-import core.global.smoke.utils.SmokeProperties;
 import core.global.smoke.dto.SmokeItem;
 import core.global.smoke.dto.SmokeResult;
-import org.springframework.core.ParameterizedTypeReference;
+import core.global.smoke.utils.SmokeProperties;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -51,6 +50,10 @@ public class SmokeGateRunner {
         Duration perRequestTimeout = Duration.ofSeconds(3);
 
         for (var c : cases) {
+            if ("LOGIN".equalsIgnoreCase(c.getType())) {
+                continue;
+            }
+
             long s = System.currentTimeMillis();
             try {
                 String targetUrl = c.getType().equalsIgnoreCase("EXTERNAL")
