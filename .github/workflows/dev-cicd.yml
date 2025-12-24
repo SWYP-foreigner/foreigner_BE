@@ -266,6 +266,9 @@ jobs:
             SIGHTENGINE_API_USER=${{secrets.SIGHTENGINE_API_USER}}
             SIGHTENGINE_API_SECRET=${{secrets.SIGHTENGINE_API_SECRET}}
             OPEN_AI_KEY=${{secrets.OPEN_AI_KEY}}
+            SMOKE_ADMIN_EMAIL=${{secrets.SMOKE_ADMIN_EMAIL}}
+            SMOKE_ADMIN_PW=${{secrets.SMOKE_ADMIN_PW}}
+            SMOKE_ADMIN_LOGIN_URL=${{secrets.SMOKE_ADMIN_LOGIN_URL}}
             SPRING_PROFILES_ACTIVE=dev
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF

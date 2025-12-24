@@ -1,4 +1,4 @@
-package core.domain.user.controller;
+package core.global.admin.controller;
 
 import core.domain.user.dto.UserBasicInfoDto;
 import core.domain.user.dto.UserListResponse;
