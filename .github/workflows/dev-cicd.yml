@@ -154,7 +154,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Java 환경 세팅 (Gradle 캐시 활용)
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
@@ -162,18 +161,18 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      # 2. Runner 호스트에서 직접 JAR 빌드 (Docker 외부에서 실행)
-      # 이렇게 하면 네트워크 타임아웃 없이 안전하게 빌드됩니다.
       - name: Build JAR
         run: ./gradlew clean bootJar -x test --no-daemon
 
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 3. Docker 이미지 빌드 및 푸시
       - name: Build & Push
         uses: docker/build-push-action@v6
         with:
