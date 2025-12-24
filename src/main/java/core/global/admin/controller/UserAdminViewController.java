@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -256,5 +257,11 @@ public class UserAdminViewController {
 
         model.addAttribute("aiUsers", aiUsers);
         return "admin/user-list-ai";
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public String healthCheckPage() {
+        return "admin/health-check"; // templates/admin/health-check.html 파일
     }
 }
