@@ -259,7 +259,7 @@ public class UserAdminViewController {
         return "admin/user-list-ai";
     }
 
-    @GetMapping
+    @GetMapping("/health-check")
     @PreAuthorize("hasRole('ADMIN')")
     public String healthCheckPage() {
         return "admin/health-check"; // templates/admin/health-check.html 파일
