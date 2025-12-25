@@ -9,6 +9,8 @@ import core.domain.chat.service.ChatMessageService;
 import core.domain.chat.service.ChatRoomService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.service.ImageService;
 import core.global.enums.MessageType;
 import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AiOnboardingService {
 
+    private final ImageService imageService;
+    private final UserRoleDetectService userRoleDetectService;
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageService chatMessageService;
@@ -48,6 +52,9 @@ public class AiOnboardingService {
     }
 
     private void processUserOnboarding(User user, List<User> allAiCharacters, Instant now) {
+        if (!this.isProfileComplete(user)) {
+            return;
+        }
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
 
         // 10분이 아직 안 지났으면 패스
@@ -115,5 +122,18 @@ public class AiOnboardingService {
                 "Hi, I'm from Korea! Where are you from?"
         };
         return greetings[secureRandom.nextInt(greetings.length)];
+    }
+
+    public boolean isProfileComplete(User user) {
+        String userProfileKey = imageService.getUserProfileKey(user.getId());
+        return user.getBirthdate() != null
+                && user.getLastName() != null
+                && user.getFirstName() != null
+                && user.getPurpose() != null
+                && user.getIntroduction() != null
+                && user.getLanguage() != null
+                && user.getHobby() != null
+                && user.getSex() != null
+                && userProfileKey != null;
     }
 }
