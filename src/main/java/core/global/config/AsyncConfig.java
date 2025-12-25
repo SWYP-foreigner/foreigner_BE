@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.concurrent.Executor;
 
@@ -70,15 +71,12 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.initialize();
         return executor;
     }
-
-    @Bean(name = "aiUserExecutor")
-    public Executor aiUserExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(50);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("AI-Worker-");
-        executor.initialize();
-        return executor;
+    @Bean
+    public ThreadPoolTaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(10); // 동시에 예약 걸릴 수 있는 작업 수
+        scheduler.setThreadNamePrefix("Scheduled-Task-"); // 로그에 찍힐 이름
+        scheduler.initialize();
+        return scheduler;
     }
 }
