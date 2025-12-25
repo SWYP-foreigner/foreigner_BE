@@ -40,11 +40,7 @@ public class AiOnboardingService {
     public void sendWelcomeMessagesToNewUsers() {
         Instant now = Instant.now();
         Instant timeLimit = now.minus(Duration.ofMinutes(ONBOARDING_WINDOW_MINUTES));
-
-        // 1. 최근 가입한 신규 유저 조회 (Role.USER, 가입 2시간 이내)
         List<User> newUsers = userRepository.findByUserRoleAndCreatedAtAfter(Role.USER, timeLimit);
-
-        // 2. 모든 AI 캐릭터 로드 (Role.AI)
         List<User> allAiCharacters = userRepository.findByUserRole(Role.AI);
         if (allAiCharacters.isEmpty()) return;
 
@@ -54,47 +50,27 @@ public class AiOnboardingService {
     }
 
     private void processUserOnboarding(User user, List<User> allAiCharacters, Instant now) {
-        // 가입 후 경과 시간 (분)
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
-
-        // 10분이 아직 안 지났으면 패스
         if (minutesSinceJoined < MESSAGE_INTERVAL_MINUTES) return;
-
-        // 보내야 할 총 AI 수 계산 (예: 25분 경과 -> 2명에게 받았어야 함)
-        // (10분: 1명, 20분: 2명, 30분: 3명...)
         long expectedAiCount = minutesSinceJoined / MESSAGE_INTERVAL_MINUTES;
-
-        // 현재 이 유저와 대화 중인 AI 수 조회 (이미 채팅방이 있는 AI 수)
         long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
-
-        // 이미 충분히 받았다면 스킵
         if (currentAiCount >= expectedAiCount) return;
-        if (currentAiCount >= allAiCharacters.size()) return; // AI 고갈
-
-        // --- 새로운 AI 매칭 및 발송 ---
-
-        // 1. 아직 대화 안 한 AI 찾기
+        if (currentAiCount >= allAiCharacters.size()) return;
         User selectedAi = findUnusedAi(user, allAiCharacters);
 
         if (selectedAi != null) {
-            // 2. 채팅방 생성 및 선톡 발송
             createRoomAndSendFirstMessage(user, selectedAi);
             log.info("✅ Sent onboarding message: AI[{}] -> User[{}]", selectedAi.getFirstName(), user.getFirstName());
         }
     }
 
     private User findUnusedAi(User user, List<User> allAiCharacters) {
-        // 유저가 이미 참여 중인 채팅방들의 상대방 ID 목록 조회
         List<Long> metAiIds = chatRoomRepository.findPartnerIdsByUserId(user.getId());
-
-        // 아직 안 만난 AI 필터링
         List<User> availableAis = allAiCharacters.stream()
                 .filter(ai -> !metAiIds.contains(ai.getId()))
                 .toList();
 
         if (availableAis.isEmpty()) return null;
-
-        // 랜덤으로 한 명 선택 (자연스러움을 위해)
         return availableAis.get(ThreadLocalRandom.current().nextInt(availableAis.size()));
     }
 
@@ -107,8 +83,6 @@ public class AiOnboardingService {
                 firstMessageContent,
                 MessageType.TEXT
         );
-
-        // 4. ChatService에 전송 위임 (저장 + 번역 + 전송 + 알림 다 해줌)
         try {
             chatMessageService.processAndSendChatMessage(request);
             log.info("✅ AI Onboarding Message Sent via Pipeline: Room[{}] AI[{}] -> User[{}]",

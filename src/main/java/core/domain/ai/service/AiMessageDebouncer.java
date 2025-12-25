@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 public class AiMessageDebouncer {
 
     private final AiChatUserService aiChatUserService;
-    private final ThreadPoolTaskScheduler taskScheduler; // AppConfig에 등록 필요
+    private final ThreadPoolTaskScheduler taskScheduler;
 
     // 채팅방 ID 별로 (마지막 메시지 시간, 누적된 메시지 내용, 예약된 작업) 관리
     private final Map<Long, StringBuffer> messageBuffer = new ConcurrentHashMap<>();
@@ -34,32 +34,20 @@ public class AiMessageDebouncer {
         Long roomId = event.messageResponse().roomId();
         String content = event.messageResponse().originContent();
 
-        // 1. 기존에 예약된 AI 응답 취소 (말이 이어지는 중이므로)
         if (scheduledTasks.containsKey(roomId)) {
             scheduledTasks.get(roomId).cancel(false);
         }
-
-        // 2. 메시지 내용 누적 (공백으로 이어붙이기)
         messageBuffer.computeIfAbsent(roomId, k -> new StringBuffer()).append(content).append(" ");
-
-        // 3. 마지막 이벤트 정보 갱신 (Sender 정보 등 유지를 위해)
         lastEvents.put(roomId, event);
-
-        // 4. 새로운 스케줄 예약 (3초 뒤 실행)
         ScheduledFuture<?> task = taskScheduler.schedule(() -> {
             try {
-                // 누적된 메시지 꺼내기
                 StringBuffer fullContent = messageBuffer.remove(roomId);
                 MessageCreatedEvent lastEvent = lastEvents.remove(roomId);
                 scheduledTasks.remove(roomId);
 
                 if (fullContent != null && lastEvent != null) {
-                    // 원본 이벤트의 content를 합쳐진 내용으로 교체하여 전달
                     String combinedMessage = fullContent.toString().trim();
                     log.info("🧩 [Debounce] Merged Message: {}", combinedMessage);
-
-                    // 기존 이벤트를 기반으로 내용만 바꿔서 처리
-                    // (Record는 불변이므로 실제로는 aiChatUserService에 넘길 때 문자열을 따로 넘기거나 DTO 재생성)
                     aiChatUserService.processAiResponse(aiUser, lastEvent, combinedMessage);
                 }
             } catch (Exception e) {
