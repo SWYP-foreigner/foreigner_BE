@@ -174,7 +174,6 @@ public class ChatRoomService {
                         },
                         () -> {
                             ChatParticipant newParticipant = new ChatParticipant(room, user);
-                            room.addParticipant(newParticipant);
                             chatParticipantRepository.save(newParticipant);
                         }
                 );
