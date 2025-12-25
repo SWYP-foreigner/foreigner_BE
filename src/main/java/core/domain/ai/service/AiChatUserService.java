@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -30,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,7 +46,7 @@ public class AiChatUserService {
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final AiClient aiClient;
-
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
      * AI 응답 처리 메인 로직
@@ -124,9 +124,9 @@ public class AiChatUserService {
         }
 
         if (message.contains("?") || message.endsWith("?")) {
-            return ThreadLocalRandom.current().nextInt(100) < 30;
+            return secureRandom.nextInt(100) < 30;
         }
-        return ThreadLocalRandom.current().nextInt(100) < 5;
+        return secureRandom.nextInt(100) < 5;
     }
 
     private boolean isMentioned(String message, String name) {
@@ -136,7 +136,7 @@ public class AiChatUserService {
     private long calculateThinkingTime(String userMessage) {
         long baseDelay = 500;
         long typingDelay = userMessage.length() * 100L; // 글자당 0.05초
-        long randomJitter = ThreadLocalRandom.current().nextLong(100, 1000);
+        long randomJitter = secureRandom.nextLong(100, 1000);
         return baseDelay + typingDelay + randomJitter;
     }
 
