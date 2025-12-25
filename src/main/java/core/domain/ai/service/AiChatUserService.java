@@ -6,9 +6,11 @@ import core.domain.ai.entity.AiPersona;
 import core.domain.ai.mapper.PromptMapper;
 import core.domain.ai.repository.AiPersonaRepository;
 import core.domain.chat.dto.ChatMessageResponse;
+import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.service.ChatMessageService;
 import core.domain.chat.service.ChatSummaryService;
 import core.domain.user.entity.User;
 import core.global.entity.image.service.ImageService;
@@ -37,16 +39,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiChatUserService {
 
-    // [방어 기제] AI 자백 금지어 패턴
-    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(?i)(gpt|openai|ai|language model|인공지능|언어 모델)");
-    // [방어 기제] 탈옥/무시 패턴
-    private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(?i)(ignore|instruction|system|override|무시해|명령)");
 
+    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(?i)(gpt|openai|ai|language model|인공지능|언어 모델)");
+    private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(?i)(ignore|instruction|system|override|무시해|명령)");
+    private final ChatMessageService chatMessageService;
+    private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final AiClient aiClient;
-    private final ChatSummaryService chatSummaryService;
-    private final AiPersonaRepository aiPersonaRepository;
-    private final ImageService imageService;
+
 
     /**
      * AI 응답 처리 메인 로직
@@ -102,15 +102,19 @@ public class AiChatUserService {
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
             if (aiResponse.trim().toUpperCase().contains("PASS")) return;
 
-            saveAndSendAiMessage(chatRoom, aiUser, aiResponse);
+            SendMessageRequest request = new SendMessageRequest(
+                    chatRoom.getId(),
+                    aiUser.getId(),
+                    aiResponse,
+                    MessageType.TEXT
+            );
+            chatMessageService.processAndSendChatMessage(request);
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
         }
     }
 
     private boolean shouldReply(String message, User aiUser, boolean isGroupChat, long activeHumanCount) {
-
-
         if (isMentioned(message, aiUser.getFirstName())) {
             return true;
         }
@@ -131,7 +135,7 @@ public class AiChatUserService {
 
     private long calculateThinkingTime(String userMessage) {
         long baseDelay = 500;
-        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초
+        long typingDelay = userMessage.length() * 100L; // 글자당 0.05초
         long randomJitter = ThreadLocalRandom.current().nextLong(100, 1000);
         return baseDelay + typingDelay + randomJitter;
     }
@@ -144,37 +148,7 @@ public class AiChatUserService {
         }
     }
 
-    private void saveAndSendAiMessage(ChatRoom chatRoom, User sender, String content) {
-        ChatMessage aiMessage = new ChatMessage(chatRoom, sender, content);
-        chatMessageRepository.save(aiMessage);
 
-        String senderImgUrl = imageService.getUserProfileKey(sender.getId());
-
-        ChatMessageResponse response = new ChatMessageResponse(
-                aiMessage.getId(),
-                chatRoom.getId(),
-                sender.getId(),
-                aiMessage.getContent(),
-                null,
-                aiMessage.getSentAt(),
-                sender.getFirstName(),
-                sender.getLastName(),
-                senderImgUrl,
-                MessageType.TEXT,
-                null,
-                null
-        );
-
-        List<Long> recipientIds = chatRoom.getParticipants().stream()
-                .filter(p -> p.getStatus() == ChatParticipantStatus.ACTIVE)
-                .map(p -> p.getUser().getId())
-                .filter(id -> !id.equals(sender.getId()))
-                .toList();
-
-        if (recipientIds.isEmpty()) return;
-
-        chatSummaryService.sendSummaryToRecipientsInNewTx(response, recipientIds);
-    }
 
     private String buildSystemPrompt(User user, List<ChatMessage> history) {
 
