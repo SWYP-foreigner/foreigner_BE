@@ -246,4 +246,12 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
             @Param("periodEnd") Instant periodEnd,
             @Param("activeThreshold") Instant activeThreshold
     );
+
+    @Query("SELECT DISTINCT u.country FROM User u WHERE u.country IS NOT NULL AND u.country <> '' ORDER BY u.country")
+    List<String> findDistinctCountries();
+
+    @Query("SELECT t.deviceToken FROM UserDeviceToken t JOIN t.user u WHERE u.country = :country AND u.agreedToPushNotification = true")
+    List<String> findDeviceTokensByCountry(@Param("country") String country);
+
+
 }
