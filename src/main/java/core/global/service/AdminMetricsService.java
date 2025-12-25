@@ -1,6 +1,7 @@
 package core.global.service;
 
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.user.dto.StringCountDto;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.*;
 import lombok.RequiredArgsConstructor;
@@ -30,14 +31,22 @@ public class AdminMetricsService {
             int validJoinDays,
             int validActiveDays
     ) {
-
         InactiveUserStatsDto userStats = fetchInactiveUserStats();
         UserActivityBucketsDto activityBuckets = fetchUserActivityBuckets();
         List<WeeklyCohortDto> weeklyCohorts = fetchWeeklyCohorts();
-
         AdvancedMetricsDto advancedMetrics = fetchAdvancedMetrics(joinStartDate, joinEndDate, validJoinDays, validActiveDays);
 
-        return new AdminMetricsDto(userStats, activityBuckets, weeklyCohorts, advancedMetrics);
+        List<StringCountDto> countryStats = userRepository.countUsersByCountry();
+        List<StringCountDto> languageStats = userRepository.countUsersByLanguage();
+
+        return new AdminMetricsDto(
+                userStats,
+                activityBuckets,
+                weeklyCohorts,
+                advancedMetrics,
+                countryStats,
+                languageStats
+        );
     }
 
     private AdvancedMetricsDto fetchAdvancedMetrics(

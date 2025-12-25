@@ -1,6 +1,7 @@
 package core.domain.user.repository;
 
 
+import core.domain.user.dto.StringCountDto;
 import core.domain.user.entity.User;
 import core.global.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -217,4 +218,18 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     @Query("SELECT cp.user FROM ChatParticipant cp " +
            "WHERE cp.chatRoom.id = :chatRoomId AND cp.user.id != :senderId")
     List<User> findPartnersByChatRoomId(@Param("chatRoomId") Long chatRoomId, @Param("senderId") Long senderId);
+
+    @Query("SELECT new core.domain.user.dto.StringCountDto(u.country, COUNT(u)) " +
+            "FROM User u " +
+            "WHERE u.country IS NOT NULL AND u.country != '' " +
+            "GROUP BY u.country " +
+            "ORDER BY COUNT(u) DESC")
+    List<StringCountDto> countUsersByCountry();
+
+    @Query("SELECT new core.domain.user.dto.StringCountDto(u.language, COUNT(u)) " +
+            "FROM User u " +
+            "WHERE u.language IS NOT NULL AND u.language != '' " +
+            "GROUP BY u.language " +
+            "ORDER BY COUNT(u) DESC")
+    List<StringCountDto> countUsersByLanguage();
 }
