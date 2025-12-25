@@ -1,5 +1,6 @@
 package core.global.dto;
 
+import core.domain.user.dto.CountryRetentionDto;
 import core.domain.user.dto.StringCountDto;
 
 import java.util.List;
@@ -10,5 +11,6 @@ public record AdminMetricsDto(
         List<WeeklyCohortDto> weeklyCohorts,
         AdvancedMetricsDto advancedMetrics,
         List<StringCountDto> countryStats,
-        List<StringCountDto> languageStats
+        List<StringCountDto> languageStats,
+        List<CountryRetentionDto> countryRetentions
 ) {}

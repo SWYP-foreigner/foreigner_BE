@@ -232,4 +232,18 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
             "GROUP BY u.language " +
             "ORDER BY COUNT(u) DESC")
     List<StringCountDto> countUsersByLanguage();
+
+    @Query("SELECT u.country, COUNT(u), " +
+            "SUM(CASE WHEN u.lastSeenAt >= :activeThreshold THEN 1 ELSE 0 END) " +
+            "FROM User u " +
+            "WHERE u.createdAt BETWEEN :periodStart AND :periodEnd " +
+            "AND u.country IS NOT NULL AND u.country != '' " +
+            "GROUP BY u.country " +
+            "HAVING COUNT(u) > 0 " +
+            "ORDER BY COUNT(u) DESC")
+    List<Object[]> aggregateCountryRetention(
+            @Param("periodStart") Instant periodStart,
+            @Param("periodEnd") Instant periodEnd,
+            @Param("activeThreshold") Instant activeThreshold
+    );
 }

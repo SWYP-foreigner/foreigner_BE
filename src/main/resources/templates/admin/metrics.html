@@ -40,6 +40,10 @@
         .table-scroll-wrapper::-webkit-scrollbar { width: 6px; }
         .table-scroll-wrapper::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 3px; }
         .table-scroll-wrapper::-webkit-scrollbar-track { background-color: #f1f1f1; }
+
+        .progress-bg { background-color: #eee; border-radius: 4px; height: 8px; width: 60px; display: inline-block; vertical-align: middle; margin-left: 5px; }
+        .progress-fill { background-color: #28a745; height: 100%; border-radius: 4px; }
+        .progress-text { font-size: 0.85em; color: #28a745; font-weight: bold; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -132,6 +136,41 @@
                     </tr>
                     <tr th:if="${#lists.isEmpty(metrics.languageStats)}">
                         <td colspan="3" class="text-center text-gray">데이터 없음</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔥 국가별 리텐션 (기간 내 가입자 기준)</h2>
+            <div class="table-scroll-wrapper">
+                <table class="mini-table" style="margin-top: 0;">
+                    <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                    <tr>
+                        <th>국가</th>
+                        <th class="text-right">가입</th>
+                        <th class="text-right">생존</th>
+                        <th style="width: 100px;">생존율</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="item : ${metrics.countryRetentions}">
+                        <td th:text="${item.countryName}"></td>
+                        <td class="text-right" th:text="${item.totalSignups}"></td>
+                        <td class="text-right" th:text="${item.retainedUsers}"></td>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <div class="progress-bg">
+                                    <div class="progress-fill"
+                                         th:style="'width: ' + ${item.retentionRate} + '%'"></div>
+                                </div>
+                                <span class="progress-text" th:text="${item.retentionRate} + '%'"></span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(metrics.countryRetentions)}">
+                        <td colspan="4" class="text-center text-gray">데이터 없음</td>
                     </tr>
                     </tbody>
                 </table>

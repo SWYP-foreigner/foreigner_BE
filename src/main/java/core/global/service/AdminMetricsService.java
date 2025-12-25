@@ -1,6 +1,7 @@
 package core.global.service;
 
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.user.dto.CountryRetentionDto;
 import core.domain.user.dto.StringCountDto;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.*;
@@ -38,6 +39,7 @@ public class AdminMetricsService {
 
         List<StringCountDto> countryStats = userRepository.countUsersByCountry();
         List<StringCountDto> languageStats = userRepository.countUsersByLanguage();
+        List<CountryRetentionDto> countryRetentions = fetchCountryRetentions(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -45,8 +47,37 @@ public class AdminMetricsService {
                 weeklyCohorts,
                 advancedMetrics,
                 countryStats,
-                languageStats
+                languageStats,
+                countryRetentions
         );
+    }
+
+    private List<CountryRetentionDto> fetchCountryRetentions(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        Instant activeThreshold = Instant.now().minus(24, java.time.temporal.ChronoUnit.HOURS);
+
+        List<Object[]> results = userRepository.aggregateCountryRetention(startInstant, endInstant, activeThreshold);
+
+        return results.stream()
+                .map(row -> {
+                    String country = (String) row[0];
+                    long total = ((Number) row[1]).longValue();
+                    long retained = ((Number) row[2]).longValue();
+
+                    double rate = (total == 0) ? 0.0 : ((double) retained / total) * 100.0;
+
+                    return new CountryRetentionDto(
+                            country,
+                            total,
+                            retained,
+                            Math.round(rate * 10) / 10.0
+                    );
+                })
+                .collect(Collectors.toList());
     }
 
     private AdvancedMetricsDto fetchAdvancedMetrics(
