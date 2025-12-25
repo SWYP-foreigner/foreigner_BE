@@ -57,4 +57,8 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     @Query("SELECT u.firstName FROM ChatParticipant cp JOIN cp.user u WHERE cp.chatRoom.id = :roomId")
     List<String> findParticipantNamesByRoomId(@Param("roomId") Long roomId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId")
+    void deleteByChatRoomId(@Param("roomId") Long roomId);
 }
