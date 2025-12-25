@@ -37,6 +37,7 @@ public class ContentBasedRecommender {
     // [핵심] 반감기를 '1일'에서 '0.25일(6시간)' 또는 '0.1일(2.4시간)'으로 단축
     private static final double ACTIVITY_HALF_LIFE_DAYS = 0.1;
 
+
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
         // 1. 내 정보 조회

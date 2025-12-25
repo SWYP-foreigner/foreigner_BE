@@ -26,6 +26,7 @@ import core.global.exception.BusinessException;
 import core.global.metrics.ChatMetrics;
 import core.global.service.PerspectiveService;
 import core.global.service.TranslationService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -726,85 +727,100 @@ public class ChatMessageService {
                     .collect(Collectors.toList());
         }
     }
-
-    @Transactional
+    @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesAround(Long roomId, Long userId, Long targetMessageId) {
-        // 1. 참여자 조회 (권한 체크)
+        // 1. 참여자 검증
         ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
 
         // 2. 메시지 조회 (Cursor Paging)
-        // 2-1. 과거 메시지
         List<ChatMessage> older = chatMessageRepository.findTop20ByChatRoomIdAndIdLessThanOrderByIdDesc(roomId, targetMessageId);
         Collections.reverse(older);
 
-        // 2-2. 타겟 메시지
         ChatMessage target = chatMessageRepository.findById(targetMessageId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
-        // 2-3. 미래 메시지
         List<ChatMessage> newer = chatMessageRepository.findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(roomId, targetMessageId);
 
-        // 2-4. 리스트 합치기
         List<ChatMessage> combined = new ArrayList<>();
         combined.addAll(older);
         combined.add(target);
         combined.addAll(newer);
 
-        // 3. [N+1 방지] 보낸 사람 정보 일괄 조회 (Loop 사용)
+        // 3. [안전 장치] 데이터 추출 (삭제된 유저 방어 로직)
         Set<Long> senderIds = new HashSet<>();
         for (ChatMessage msg : combined) {
-            // [수정] getSenderId() -> getSender().getId() 로 변경
-            if (msg.getSender() != null) {
-                senderIds.add(msg.getSender().getId());
+            try {
+                // 🚨 핵심: 여기서 삭제된 유저의 프록시를 건드리면 EntityNotFound 발생
+                // 예외를 잡아서 서버가 죽지 않게 방어함
+                User sender = msg.getSender();
+                if (sender != null) {
+                    senderIds.add(sender.getId()); // ID 접근 시 실제 DB 확인
+                }
+            } catch (EntityNotFoundException e) {
+                // 삭제된 유저(고아 데이터)입니다. 로그만 남기고 무시합니다.
+                // senderIds에 추가되지 않으므로 아래 로직에서 'Unknown' 처리됩니다.
             }
         }
 
-        List<User> users = userRepository.findAllById(senderIds);
+        // 4. [성능 최적화] 유저 및 프로필 이미지 일괄 조회 (N+1 방지)
         Map<Long, User> senderMap = new HashMap<>();
-        for (User user : users) {
-            senderMap.put(user.getId(), user);
+        Map<Long, String> profileImageMap = new HashMap<>();
+
+        if (!senderIds.isEmpty()) {
+            // 유저 조회
+            List<User> users = userRepository.findAllById(senderIds);
+            for (User u : users) {
+                senderMap.put(u.getId(), u);
+            }
+
+            // 프로필 이미지 조회 (Bulk)
+            List<Image> images = imageRepository.findAllByImageTypeAndRelatedIdInOrderByOrderIndexAsc(ImageType.USER, new ArrayList<>(senderIds));
+            for (Image img : images) {
+                profileImageMap.putIfAbsent(img.getRelatedId(), img.getUrl());
+            }
         }
 
-        // 4. 번역 처리
+        // 5. 번역 처리
         Map<Long, String> translatedMap = Collections.emptyMap();
         if (participant.isTranslateEnabled() && participant.getUser().getTranslateLanguage() != null) {
             translatedMap = chatTranslationService.getTranslatedMessages(combined, participant.getUser().getTranslateLanguage());
         }
 
-        // 5. 응답 변환 (Loop 사용)
+        // 6. 응답 변환
         List<ChatMessageResponse> responseList = new ArrayList<>();
-
         for (ChatMessage msg : combined) {
-            // 5-1. 사용자 정보 가져오기 ([수정] getSender().getId() 사용)
-            Long currentSenderId = (msg.getSender() != null) ? msg.getSender().getId() : null;
-            User sender = senderMap.get(currentSenderId);
+            Long senderId = null;
+            try {
+                // 여기서도 getSender() 호출 시 에러 날 수 있으므로 방어
+                if (msg.getSender() != null) {
+                    senderId = msg.getSender().getId();
+                }
+            } catch (EntityNotFoundException e) {
+            }
 
-            // 5-2. 번역 정보 가져오기
+            User sender = (senderId != null) ? senderMap.get(senderId) : null;
+            String profileUrl = (senderId != null) ? profileImageMap.get(senderId) : null;
             String translated = translatedMap.get(msg.getId());
 
-            // 5-3. DTO 변환 및 리스트 추가
-            ChatMessageResponse response = mapToResponse(msg, sender, translated);
-            responseList.add(response);
+            responseList.add(mapToResponse(msg, sender, profileUrl, translated));
         }
 
         return responseList;
     }
 
     /**
-     * [Helper] Entity -> Record DTO 변환
+     * [Helper] 안전한 DTO 변환기
+     * - 이제 이 안에서는 DB 조회를 하지 않습니다.
      */
-    private ChatMessageResponse mapToResponse(ChatMessage msg, User sender, String translatedContent) {
+    private ChatMessageResponse mapToResponse(ChatMessage msg, User sender, String profileImageUrl, String translatedContent) {
         String content = msg.getContent();
         String mediaUrl = null;
         String thumbnailUrl = null;
 
-        // --- 미디어(이미지/비디오) 처리 로직 ---
+        // --- 미디어 처리 ---
         if (msg.getMessageType() == MessageType.IMAGE || msg.getMessageType() == MessageType.VIDEO) {
-            // 1. 원본 URL 생성
             mediaUrl = s3ImageStorageClient.generatePublicUrl(msg.getContent());
-
-            // 2. 비디오라면 썸네일 URL 생성
             if (msg.getMessageType() == MessageType.VIDEO) {
                 thumbnailUrl = s3ImageStorageClient.generateThumbnailUrl(msg.getContent());
                 content = "video";
@@ -813,41 +829,36 @@ public class ChatMessageService {
             }
         }
 
-        // --- 보낸 사람 정보 처리 (Null Safety) ---
-        String senderFirstName = "Unknown";
+        // --- 보낸 사람 정보 (기본값 설정) ---
+        String senderFirstName = "Unknown"; // 기본값: 알 수 없음
         String senderLastName = "";
-        String senderImageUrl = null;
 
         if (sender != null) {
             senderFirstName = sender.getFirstName();
             senderLastName = sender.getLastName();
-            senderImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                    .map(Image::getUrl).orElse(null);
-
         }
 
-        // --- ID 추출 수정 ---
-        // msg.getSenderId() -> msg.getSender().getId()
-        Long msgSenderId = (msg.getSender() != null) ? msg.getSender().getId() : null;
+        // --- ID 안전 추출 ---
+        Long msgSenderId = null;
+        Long msgRoomId = msg.getChatRoom().getId();
 
-        // msg.getChatRoomId() -> msg.getChatRoom().getId()
-        // (만약 엔티티에 getChatRoom()만 있다면 아래처럼 호출해야 함)
-        Long msgRoomId = (msg.getChatRoom() != null) ? msg.getChatRoom().getId() : null;
+        try {
+            if (sender != null) msgSenderId = sender.getId();
+        } catch (Exception e) { /* 무시 */ }
 
-        // --- Record 생성 및 반환 ---
         return new ChatMessageResponse(
                 msg.getId(),
                 msgRoomId,
                 msgSenderId,
-                content,            // originContent
-                translatedContent,  // targetContent
-                msg.getSentAt(),    // sentAt (Instant)
+                content,
+                translatedContent,
+                msg.getSentAt(),
                 senderFirstName,
                 senderLastName,
-                senderImageUrl,
-                msg.getMessageType(), // messageType
-                mediaUrl,           // mediaUrl
-                thumbnailUrl        // thumbnailUrl
+                profileImageUrl, // 미리 조회한 URL 사용
+                msg.getMessageType(),
+                mediaUrl,
+                thumbnailUrl
         );
     }
 

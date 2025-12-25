@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatRoom;
@@ -10,11 +10,13 @@ import core.domain.user.service.UserAdminService;
 import core.domain.ai.entity.AiPersona;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -25,6 +27,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Controller
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
@@ -219,7 +222,7 @@ public class UserAdminViewController {
             userAdminService.updateAiUser(userId, request, password, profileFile, instruction, backgroundInfo);
             redirectAttributes.addFlashAttribute("successMessage", "AI 유저 및 페르소나 정보가 수정되었습니다.");
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("AI 유저 수정 중 오류 발생 - UserId: {}", userId, e);
             redirectAttributes.addFlashAttribute("errorMessage", "수정 실패: " + e.getMessage());
         }
 
@@ -254,5 +257,11 @@ public class UserAdminViewController {
 
         model.addAttribute("aiUsers", aiUsers);
         return "admin/user-list-ai";
+    }
+
+    @GetMapping("/health")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String healthCheckPage() {
+        return "admin/health-check"; // templates/admin/health-check.html 파일
     }
 }

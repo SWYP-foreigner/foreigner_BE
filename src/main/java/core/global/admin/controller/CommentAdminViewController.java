@@ -1,4 +1,4 @@
-package core.global.controller;
+package core.global.admin.controller;
 
 import core.domain.comment.dto.CommentListResponse;
 import core.domain.comment.dto.CommentSearchRequest;
