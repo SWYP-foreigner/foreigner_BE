@@ -27,26 +27,15 @@ public class AiReplyEventListener {
     public void handleMessageSent(MessageCreatedEvent event) {
         Long roomId = event.messageResponse().roomId();
         Long senderId = event.messageResponse().senderId();
-
-        // 1. 이 채팅방의 참여자 중 '상대방(Partners)' 조회
-        // (쿼리에서 이미 senderId는 제외해서 가져온다고 가정)
         List<User> participants = userRepository.findPartnersByChatRoomId(roomId, senderId);
 
         if (participants == null || participants.isEmpty()) {
             return;
         }
 
-        // 2. 참여자 중 AI 봇만 골라내서 처리
         for (User receiver : participants) {
 
-            // AI 판별 (provider가 AI_BOT 인 경우만)
             if ("AI_BOT".equals(receiver.getProvider())) {
-
-                // [핵심 변경 사항]
-                // 기존: 여기서 바로 스케줄러 돌려서 sleep -> processAiResponse 호출
-                // 변경: Debouncer에게 "일단 킵해둬"라고 전달.
-                //      -> Debouncer가 3초 기다렸다가 끊어 보낸 메시지 합쳐서 AiService 호출함.
-
                 log.info("👂 AI [ID:{}, {}] 듣는 중... (버퍼링 시작)", receiver.getId(), receiver.getFirstName());
                 aiMessageDebouncer.bufferMessage(receiver, event);
             }
