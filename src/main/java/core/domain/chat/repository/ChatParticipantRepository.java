@@ -23,7 +23,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 
     @Query("SELECT cp FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :userId")
-    Optional<ChatParticipant> findByChatRoomIdAndUserId(@Param("roomId") Long roomId, @Param("userId") Long userId)
+    Optional<ChatParticipant> findByChatRoomIdAndUserId(@Param("roomId") Long roomId, @Param("userId") Long userId);
 
 
 
