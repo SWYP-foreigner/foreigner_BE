@@ -7,7 +7,7 @@ import core.domain.post.dto.admin.RecentPostDto;
 import core.domain.user.dto.*;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserAdminService;
-import core.global.ai.entity.AiPersona;
+import core.domain.ai.entity.AiPersona;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
