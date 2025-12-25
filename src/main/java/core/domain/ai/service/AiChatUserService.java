@@ -40,8 +40,14 @@ import java.util.stream.Collectors;
 public class AiChatUserService {
 
 
-    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(?i)(gpt|openai|ai|language model|인공지능|언어 모델)");
-    private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(?i)(ignore|instruction|system|override|무시해|명령)");
+    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile(
+            "(gpt|openai|ai|language model|인공지능|언어 모델)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
+    );
+    private static final Pattern JAILBREAK_PATTERN = Pattern.compile(
+            "(ignore|instruction|system|override|무시해|명령)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
+    );
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
