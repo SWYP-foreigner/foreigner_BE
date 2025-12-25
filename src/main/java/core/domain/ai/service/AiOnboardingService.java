@@ -1,4 +1,5 @@
 package core.domain.ai.service;
+
 import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
@@ -15,10 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom; // ✅ 변경됨 (ThreadLocalRandom 삭제)
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
@@ -27,13 +28,10 @@ public class AiOnboardingService {
 
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
-    private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageService chatMessageService;
     private final ChatRoomService chatRoomService;
-
-    // 신규 유저 관리 기간 (가입 후 2시간 동안만 10분마다 말 걸기)
+    private static final SecureRandom secureRandom = new SecureRandom();
     private static final int ONBOARDING_WINDOW_MINUTES = 120;
-    // 메시지 발송 간격 (10분)
     private static final int MESSAGE_INTERVAL_MINUTES = 10;
 
     @Transactional
@@ -51,27 +49,41 @@ public class AiOnboardingService {
 
     private void processUserOnboarding(User user, List<User> allAiCharacters, Instant now) {
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
+
+        // 10분이 아직 안 지났으면 패스
         if (minutesSinceJoined < MESSAGE_INTERVAL_MINUTES) return;
+
+        // 보내야 할 총 AI 수 계산 (예: 25분 경과 -> 2명에게 받았어야 함)
         long expectedAiCount = minutesSinceJoined / MESSAGE_INTERVAL_MINUTES;
+
+        // 현재 이 유저와 대화 중인 AI 수 조회
         long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
+
+        // 이미 충분히 받았다면 스킵
         if (currentAiCount >= expectedAiCount) return;
-        if (currentAiCount >= allAiCharacters.size()) return;
+        if (currentAiCount >= allAiCharacters.size()) return; // AI 고갈
         User selectedAi = findUnusedAi(user, allAiCharacters);
 
         if (selectedAi != null) {
+            // 2. 채팅방 생성 및 선톡 발송
             createRoomAndSendFirstMessage(user, selectedAi);
             log.info("✅ Sent onboarding message: AI[{}] -> User[{}]", selectedAi.getFirstName(), user.getFirstName());
         }
     }
 
     private User findUnusedAi(User user, List<User> allAiCharacters) {
+        // 유저가 이미 참여 중인 채팅방들의 상대방 ID 목록 조회
         List<Long> metAiIds = chatRoomRepository.findPartnerIdsByUserId(user.getId());
+
+        // 아직 안 만난 AI 필터링
         List<User> availableAis = allAiCharacters.stream()
                 .filter(ai -> !metAiIds.contains(ai.getId()))
                 .toList();
 
         if (availableAis.isEmpty()) return null;
-        return availableAis.get(ThreadLocalRandom.current().nextInt(availableAis.size()));
+
+        // ✅ SecureRandom 사용 (랜덤으로 한 명 선택)
+        return availableAis.get(secureRandom.nextInt(availableAis.size()));
     }
 
     private void createRoomAndSendFirstMessage(User user, User ai) {
@@ -83,6 +95,7 @@ public class AiOnboardingService {
                 firstMessageContent,
                 MessageType.TEXT
         );
+
         try {
             chatMessageService.processAndSendChatMessage(request);
             log.info("✅ AI Onboarding Message Sent via Pipeline: Room[{}] AI[{}] -> User[{}]",
@@ -92,7 +105,6 @@ public class AiOnboardingService {
         }
     }
 
-    // AI의 페르소나에 맞는 첫마디 생성
     private String generateWelcomeMessage() {
         String[] greetings = {
                 "Hi! Just bored so I thought I'd say hello lol",
@@ -102,6 +114,6 @@ public class AiOnboardingService {
                 "Hi there! How is your day going?",
                 "Hi, I'm from Korea! Where are you from?"
         };
-        return greetings[ThreadLocalRandom.current().nextInt(greetings.length)];
+        return greetings[secureRandom.nextInt(greetings.length)];
     }
 }
