@@ -1,4 +1,4 @@
-package core.global.ai.entity;
+package core.domain.ai.entity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

@@ -1,6 +1,6 @@
-package core.global.ai.repository;
+package core.domain.ai.repository;
 
-import core.global.ai.entity.AiPersona;
+import core.domain.ai.entity.AiPersona;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
