@@ -12,7 +12,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.global.ai.dto.MessageCreatedEvent;
+import core.domain.ai.dto.MessageCreatedEvent;
 import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
@@ -142,7 +142,7 @@ public class ChatMessageService {
             // 이 시점에 DB에는 message가 확실히 있습니다.
             final Long messageId = savedMessage.getId();
             final Map<String, String> finalTranslations = translatedContentsMap;
-
+            eventPublisher.publishEvent(new MessageCreatedEvent(savedMessageResponse, allRecipientIds));
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
@@ -155,9 +155,6 @@ public class ChatMessageService {
                     executeParallelDispatchAfterCommit(
                             recipientsByLang, finalTranslations, savedMessage, userImageUrl
                     );
-
-                    //AI 및 공통 처리를 위한 단일 이벤트 발행 (딱 한 번!)
-                    eventPublisher.publishEvent(new MessageCreatedEvent(savedMessageResponse, allRecipientIds));
                 }
             });
 
