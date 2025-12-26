@@ -177,7 +177,7 @@ firebase:
 management:
   health:
     mail:
-      enabled: false
+      enabled: true
   endpoints:
     web:
       exposure:
@@ -187,8 +187,17 @@ management:
       enabled: true
     health:
       cache:
-        time-to-live: 1m
+        time-to-live: 5m
       show-details: always
+      group:
+        # [수정] 배포 검증용: 메일 체크 제외
+        liveness:
+          exclude: mail
+          show-details: never
+        # [수정] 관리자 상세 점검용: 모든 항목 포함
+        readiness:
+          include: "*"
+          show-details: always
 
   metrics:
     tags:
@@ -230,7 +239,7 @@ smoke:
     - name: health
       type: "HEALTH"
       method: GET
-      path: /actuator/health
+      path: /actuator/health/liveness
       expected-status: 200
 
   full:
