@@ -603,43 +603,51 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .otherwise(expr);
     }
 
-    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
+        QImage uSub = new QImage("uSub");
+
         return JPAExpressions
-                .select(u.url)
+                .select(u.url.min())
                 .from(u)
                 .where(
-                        u.imageType.eq(IMAGE_TYPE_USER)
-                                .and(u.relatedId.eq(user.id))
-                )
-                .orderBy(u.id.desc())
-                .limit(1);
+                        u.imageType.eq(IMAGE_TYPE_USER),
+                        u.relatedId.eq(user.id),
+                        u.id.eq(
+                                JPAExpressions
+                                        .select(uSub.id.max()) // 가장 최근에 등록된 이미지 ID
+                                        .from(uSub)
+                                        .where(
+                                                uSub.imageType.eq(IMAGE_TYPE_USER),
+                                                uSub.relatedId.eq(user.id)
+                                        )
+                        )
+                );
     }
 
-    /* todo :
-        기존코드 by:용준
-        return JPAExpressions
-        .select(pi.url)
-        .from(pi)
-        .where(pi.imageType.eq(IMAGE_TYPE_POST), pi.relatedId.eq(post.id))
-        .orderBy(pi.orderIndex.asc(), pi.id.asc())
-        .limit(1);
-    *
-    *
-    * */
+
     private Expression<String> firstPostImageUrlExpr() {
         QImage pi = new QImage("pi");
-
+        QImage piSub = new QImage("piSub");
 
         return JPAExpressions
-                .select(pi.url.min())
+                .select(pi.url.min()) // 최소 order_index가 중복될 경우를 대비한 안전장치(Scalar 보장)
                 .from(pi)
                 .where(
                         pi.imageType.eq(IMAGE_TYPE_POST),
-                        pi.relatedId.eq(post.id)
+                        pi.relatedId.eq(post.id),
+                        pi.orderIndex.eq(
+                                JPAExpressions
+                                        .select(piSub.orderIndex.min()) // 가장 작은 순서 번호를 찾음
+                                        .from(piSub)
+                                        .where(
+                                                piSub.imageType.eq(IMAGE_TYPE_POST),
+                                                piSub.relatedId.eq(post.id)
+                                        )
+                        )
                 );
     }
+
     private Expression<Long> commentCountExpr() {
         return JPAExpressions.select(comment.count())
                 .from(comment)
