@@ -1,9 +1,7 @@
 package core.domain.ai.service;
 
 import core.domain.chat.dto.SendMessageRequest;
-import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.chat.service.ChatRoomService;
@@ -16,12 +14,13 @@ import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+// import org.springframework.transaction.annotation.Transactional; // 성능을 위해 제거 (필요시 개별 메서드에 적용)
 
-import java.security.SecureRandom; // ✅ 변경됨 (ThreadLocalRandom 삭제)
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Random; // ✅ 랜덤 간격 계산용 추가
 
 @Slf4j
 @Service
@@ -34,20 +33,33 @@ public class AiOnboardingService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageService chatMessageService;
     private final ChatRoomService chatRoomService;
-    private static final SecureRandom secureRandom = new SecureRandom();
-    private static final int ONBOARDING_WINDOW_MINUTES = 120;
-    private static final int MESSAGE_INTERVAL_MINUTES = 10;
 
-    @Transactional
+    // 메시지 문구 랜덤 선택용 (보안 강도 높음)
+    private static final SecureRandom secureRandom = new SecureRandom();
+
+    // ✅ [설정 변경] 가입 후 24시간(1440분) 동안 동작
+    private static final int ONBOARDING_WINDOW_MINUTES = 1440;
+
+    /**
+     * 주기적으로 실행되어 신규 유저에게 AI가 선톡을 보냄
+     * (전체 트랜잭션 제거하여 DB 잠금 최소화)
+     */
     public void sendWelcomeMessagesToNewUsers() {
         Instant now = Instant.now();
         Instant timeLimit = now.minus(Duration.ofMinutes(ONBOARDING_WINDOW_MINUTES));
+
+        // 가입한 지 24시간 이내인 유저 조회
         List<User> newUsers = userRepository.findByUserRoleAndCreatedAtAfter(Role.USER, timeLimit);
         List<User> allAiCharacters = userRepository.findByUserRole(Role.AI);
+
         if (allAiCharacters.isEmpty()) return;
 
         for (User user : newUsers) {
-            processUserOnboarding(user, allAiCharacters, now);
+            try {
+                processUserOnboarding(user, allAiCharacters, now);
+            } catch (Exception e) {
+                log.error("Failed onboarding for user: {}", user.getId(), e);
+            }
         }
     }
 
@@ -55,41 +67,66 @@ public class AiOnboardingService {
         if (!this.isProfileComplete(user)) {
             return;
         }
+
+        // 가입 후 흐른 시간 (분)
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
 
-        // 10분이 아직 안 지났으면 패스
-        if (minutesSinceJoined < MESSAGE_INTERVAL_MINUTES) return;
+        // ---------------------------------------------------------------
+        // ✅ [핵심 로직 변경] 유저별 고유 랜덤 스케줄 계산 (5~15분 간격)
+        // ---------------------------------------------------------------
+        int expectedAiCount = 0;
+        long accumulatedTime = 0;
 
-        // 보내야 할 총 AI 수 계산 (예: 25분 경과 -> 2명에게 받았어야 함)
-        long expectedAiCount = minutesSinceJoined / MESSAGE_INTERVAL_MINUTES;
+        // "현재 시간까지 이 유저에게 몇 명의 AI가 말을 걸었어야 정상인가?"를 계산
+        while (true) {
+            // Seed를 고정하여, 서버가 재시작되거나 스케줄러가 다시 돌아도
+            // '이 유저의 N번째 AI 도착 시간'은 항상 똑같이 계산됨 (Deterministic Random)
+            long seed = user.getId() + (expectedAiCount * 997L);
+            Random seededRandom = new Random(seed);
+
+            // 5분 ~ 15분 사이 랜덤 값 추출 (5 + 0~10)
+            long nextInterval = 5 + seededRandom.nextInt(11);
+
+            accumulatedTime += nextInterval;
+
+            // 누적 시간이 가입 후 흐른 시간을 넘어서면, 아직 보낼 때가 아님 -> 루프 종료
+            if (accumulatedTime > minutesSinceJoined) {
+                break;
+            }
+
+            // 보낼 시간이 지났으면 카운트 증가
+            expectedAiCount++;
+        }
+        // ---------------------------------------------------------------
 
         // 현재 이 유저와 대화 중인 AI 수 조회
         long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
 
         // 이미 충분히 받았다면 스킵
         if (currentAiCount >= expectedAiCount) return;
-        if (currentAiCount >= allAiCharacters.size()) return; // AI 고갈
+
+        // 보유한 AI 캐릭터 수보다 더 많이 보낼 순 없음
+        if (currentAiCount >= allAiCharacters.size()) return;
+
+        // 안 만난 AI 찾아서 매칭
         User selectedAi = findUnusedAi(user, allAiCharacters);
 
         if (selectedAi != null) {
-            // 2. 채팅방 생성 및 선톡 발송
             createRoomAndSendFirstMessage(user, selectedAi);
-            log.info("✅ Sent onboarding message: AI[{}] -> User[{}]", selectedAi.getFirstName(), user.getFirstName());
+            log.info("✅ Onboarding Msg Sent: AI[{}] -> User[{}] (Joined: {}m, Target: {}th)",
+                    selectedAi.getFirstName(), user.getFirstName(), minutesSinceJoined, expectedAiCount);
         }
     }
 
     private User findUnusedAi(User user, List<User> allAiCharacters) {
-        // 유저가 이미 참여 중인 채팅방들의 상대방 ID 목록 조회
         List<Long> metAiIds = chatRoomRepository.findPartnerIdsByUserId(user.getId());
 
-        // 아직 안 만난 AI 필터링
         List<User> availableAis = allAiCharacters.stream()
                 .filter(ai -> !metAiIds.contains(ai.getId()))
                 .toList();
 
         if (availableAis.isEmpty()) return null;
 
-        // ✅ SecureRandom 사용 (랜덤으로 한 명 선택)
         return availableAis.get(secureRandom.nextInt(availableAis.size()));
     }
 
@@ -105,16 +142,14 @@ public class AiOnboardingService {
 
         try {
             chatMessageService.processAndSendChatMessage(request);
-            log.info("✅ AI Onboarding Message Sent via Pipeline: Room[{}] AI[{}] -> User[{}]",
-                    chatRoom.getId(), ai.getFirstName(), user.getFirstName());
         } catch (Exception e) {
-            log.error("❌ Failed to send AI onboarding message", e);
+            log.error("❌ Failed to send AI onboarding message via pipeline", e);
         }
     }
 
     private String generateWelcomeMessage() {
         String[] greetings = {
-                // 기존 목록
+                // 기존 문구
                 "Hi! Just bored so I thought I'd say hello lol",
                 "Your profile looks cool! Nice to meet you.",
                 "Are you studying Korean? We can practice together.",
@@ -122,7 +157,7 @@ public class AiOnboardingService {
                 "Hi there! How is your day going?",
                 "Hi, I'm from Korea! Where are you from?",
 
-                // 추가 목록 (인사 & 안부)
+                // 추가된 문구
                 "Hey! How's it going?",
                 "Hi! Hope you're having a good week.",
                 "Hello! Just wanted to say hi.",
@@ -133,8 +168,6 @@ public class AiOnboardingService {
                 "It's nice to meet you.",
                 "What time is it over there?",
                 "Hello from Seoul!",
-
-                // 취미 & 관심사
                 "Do you like watching K-dramas?",
                 "What kind of music do you listen to?",
                 "Do you like Korean food?",
@@ -145,8 +178,6 @@ public class AiOnboardingService {
                 "Do you like coffee or tea?",
                 "What's your favorite song these days?",
                 "Do you like animals?",
-
-                // 프로필 & 언어 교환
                 "I like your photos!",
                 "You seem like a fun person.",
                 "I'm looking for a language exchange partner.",
@@ -155,8 +186,6 @@ public class AiOnboardingService {
                 "Do you know any Korean words?",
                 "I'm looking for global friends.",
                 "Your style looks great!",
-
-                // 가벼운 잡담
                 "Do you use this app often?",
                 "The weather is so nice today.",
                 "Do you have any plans for the weekend?",
