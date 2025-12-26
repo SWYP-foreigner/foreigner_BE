@@ -19,6 +19,7 @@ public class Board {
     @Column(name = "board_id")
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "board_category", nullable = false)
     private BoardCategory category;
 
