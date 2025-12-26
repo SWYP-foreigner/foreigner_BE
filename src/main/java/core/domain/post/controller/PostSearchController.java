@@ -58,6 +58,7 @@ public class PostSearchController {
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
+        recentService.log(q);
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(

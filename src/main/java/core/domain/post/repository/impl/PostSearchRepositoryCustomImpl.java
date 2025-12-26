@@ -13,6 +13,7 @@ import core.domain.comment.entity.QComment;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostSearchRepositoryCustom;
+import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.user.entity.QUser;
 import core.global.entity.image.entity.QImage;
 import core.global.entity.like.entity.QLike;
@@ -53,8 +54,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
      * - 쿼리 escape: pgroonga.query_escape(q)
      */
     @Override
-    public List<SearchResultView> search(String q, Long userId, Long boardId, List<Long> blockedIds,
-                                         Instant afterTime, Long afterId, int limit) {
+    public List<SearchResultView> search(PostSearchRequest request) {
         QPost p = post;
         QUser user = QUser.user;
         QImage uimg = new QImage("uimg_ps");   // 프로필 이미지
@@ -62,12 +62,12 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         QImage pi2 = new QImage("pi2_ps");    // 첫 본문 이미지 url
         QImage pic = new QImage("pic_ps");    // 이미지 개수
         QComment c = QComment.comment;        // 댓글
-        QLike l = like;              // 좋아요
+        QLike l = like;                       // 좋아요
 
         // --- PGroonga 매치/점수(Double) ---
         var match = Expressions.booleanTemplate(
                 "function('pgroonga_match', {0}, {1}) = true",
-                p.content, Expressions.constant(q)
+                p.content, Expressions.constant(request.q()) // request에서 추출
         );
         NumberExpression<Double> score = Expressions.numberTemplate(
                 Double.class,
@@ -77,20 +77,19 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
 
         // WHERE
         var where = new BooleanBuilder().and(match);
-        if (boardId != null) where.and(p.board.id.eq(boardId));
-        if (blockedIds != null && !blockedIds.isEmpty()) where.and(p.author.id.notIn(blockedIds));
+        if (request.boardId() != null) {
+            where.and(p.board.id.eq(request.boardId()));
+        }
+        if (request.blockedIds() != null && !request.blockedIds().isEmpty()) {
+            where.and(p.author.id.notIn(request.blockedIds()));
+        }
 
-        // ---- 키셋 커서 ----
-        if (afterTime != null && afterId != null) {
-            NumberExpression<Double> curScore = Expressions.numberTemplate(
-                    Double.class,
-                    "function('pgroonga_score_of', {0})",
-                    Expressions.constant(afterId)
-            );
+        // ---- 키셋 커서 (객체에서 추출하여 비교) ----
+        if (request.afterScore() != null && request.afterTime() != null && request.afterId() != null) {
             where.and(
-                    score.lt(curScore)
-                            .or(score.eq(curScore).and(p.createdAt.lt(afterTime)))
-                            .or(score.eq(curScore).and(p.createdAt.eq(afterTime)).and(p.id.lt(afterId)))
+                    score.lt(request.afterScore())
+                            .or(score.eq(request.afterScore()).and(p.createdAt.lt(request.afterTime())))
+                            .or(score.eq(request.afterScore()).and(p.createdAt.eq(request.afterTime())).and(p.id.lt(request.afterId())))
             );
         }
 
@@ -111,94 +110,69 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                 .when(p.anonymous.isTrue()).then(Expressions.nullExpression(Long.class))
                 .otherwise(p.author.id);
 
-        // 프로필 이미지 URL (익명이면 null)
+        // 프로필 이미지 URL
         Expression<String> userImageUrlExpr = new CaseBuilder()
                 .when(p.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
                 .otherwise(
                         JPAExpressions.select(uimg.url)
                                 .from(uimg)
-                                .where(
-                                        uimg.imageType.eq(ImageType.USER)
-                                                .and(uimg.relatedId.eq(p.author.id))
-                                )
+                                .where(uimg.imageType.eq(ImageType.USER).and(uimg.relatedId.eq(p.author.id)))
                 );
 
-        // 본문 첫 이미지 URL (최소 id)
+        // 본문 첫 이미지 URL
         Expression<String> contentThumbUrlExpr =
-                JPAExpressions
-                        .select(pi2.url)
+                JPAExpressions.select(pi2.url)
                         .from(pi2)
                         .where(
                                 pi2.imageType.eq(ImageType.POST),
                                 pi2.relatedId.eq(p.id),
                                 pi2.id.eq(
-                                        JPAExpressions
-                                                .select(pi1.id.min())
+                                        JPAExpressions.select(pi1.id.min())
                                                 .from(pi1)
-                                                .where(
-                                                        pi1.imageType.eq(ImageType.POST),
-                                                        pi1.relatedId.eq(p.id)
-                                                )
+                                                .where(pi1.imageType.eq(ImageType.POST), pi1.relatedId.eq(p.id))
                                 )
                         );
 
         // 이미지 개수
         Expression<Integer> imageCountExpr =
-                JPAExpressions
-                        .select(pic.id.countDistinct().intValue())
+                JPAExpressions.select(pic.id.countDistinct().intValue())
                         .from(pic)
-                        .where(
-                                pic.imageType.eq(ImageType.POST)
-                                        .and(pic.relatedId.eq(p.id))
-                        );
+                        .where(pic.imageType.eq(ImageType.POST).and(pic.relatedId.eq(p.id)));
 
-        // likeCount / commentCount 실제 집계
+        // 집계 및 좋아요 여부
         Expression<Long> likeCountExpr =
                 JPAExpressions.select(l.count())
                         .from(l)
-                        .where(
-                                l.type.eq(LikeType.POST)
-                                        .and(l.relatedId.eq(p.id))
-                        );
+                        .where(l.type.eq(LikeType.POST).and(l.relatedId.eq(p.id)));
 
-        Expression<Boolean> likedByMe = likedByViewerId(userId);
+        // request에서 userId 추출
+        Expression<Boolean> likedByMe = likedByViewerId(request.userId());
 
         Expression<Long> commentCountExpr =
                 JPAExpressions.select(c.count())
                         .from(c)
                         .where(c.post.eq(p));
 
-        // BoardItem.score(Long)용 반올림 점수(Long)
+        // 반올림 점수
         NumberExpression<Long> scoreRounded =
                 Expressions.numberTemplate(Long.class, "cast(round({0}, 0) as long)", score);
 
         return jpaQueryFactory
                 .select(Projections.constructor(SearchResultView.class,
                         Projections.constructor(core.domain.board.dto.BoardItem.class,
-                                // ★ BoardItem 생성자 시그니처 순서에 맞춰 실제 값 전달 ★
-                                p.id,                 // id
-                                preview200,           // preview
-                                authorIdExpr,         // authorId (익명시 null)
-                                authorNameExpr,       // authorName (익명시 "Anonymity")
-                                p.board.category,     // category
-                                p.createdAt,          // createdAt
-                                p.anonymous,
-                                likedByMe,
-                                bookmarkedByViewerId(userId),
-                                likeCountExpr,        // likeCount (실제)
-                                commentCountExpr,     // commentCount (실제)
-                                p.checkCount,         // viewCount (실제)
-                                userImageUrlExpr,     // userImageUrl (익명시 null)
-                                contentThumbUrlExpr,  // contentThumbnailUrl (실제)
-                                imageCountExpr,       // imageCount (실제)
-                                scoreRounded          // score(Long, 실제)
+                                p.id, preview200, authorIdExpr, authorNameExpr,
+                                p.board.category, p.createdAt, p.anonymous, likedByMe,
+                                bookmarkedByViewerId(request.userId()), // request에서 추출
+                                likeCountExpr, commentCountExpr, p.checkCount,
+                                userImageUrlExpr, contentThumbUrlExpr, imageCountExpr,
+                                scoreRounded
                         ),
-                        score // SearchResultView(item, score(Double 원본))
+                        score
                 ))
                 .from(p)
                 .where(where)
                 .orderBy(score.desc(), p.createdAt.desc(), p.id.desc())
-                .limit(limit)
+                .limit(request.limit()) // request에서 추출
                 .fetch();
     }
 
