@@ -617,20 +617,29 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .limit(1);
     }
 
+    /* todo :
+        기존코드 by:용준
+        return JPAExpressions
+        .select(pi.url)
+        .from(pi)
+        .where(pi.imageType.eq(IMAGE_TYPE_POST), pi.relatedId.eq(post.id))
+        .orderBy(pi.orderIndex.asc(), pi.id.asc())
+        .limit(1);
+    *
+    *
+    * */
     private Expression<String> firstPostImageUrlExpr() {
         QImage pi = new QImage("pi");
 
+
         return JPAExpressions
-                .select(pi.url)
+                .select(pi.url.min())
                 .from(pi)
                 .where(
                         pi.imageType.eq(IMAGE_TYPE_POST),
                         pi.relatedId.eq(post.id)
-                )
-                .orderBy(pi.orderIndex.asc(), pi.id.asc())
-                .limit(1); // 첫 번째 이미지 1장만
+                );
     }
-
     private Expression<Long> commentCountExpr() {
         return JPAExpressions.select(comment.count())
                 .from(comment)
