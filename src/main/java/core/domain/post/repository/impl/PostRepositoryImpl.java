@@ -261,7 +261,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                                 .and(userImage.relatedId.eq(user.id))
                                 )
                                 .orderBy(userImage.id.desc())
-                                .limit(1)
+                                .limit(1L)
                 );
 
         QImage image = QImage.image;
@@ -614,7 +614,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 .and(u.relatedId.eq(user.id))
                 )
                 .orderBy(u.id.desc())
-                .limit(1);
+                .limit(1L);
     }
 
     private Expression<String> firstPostImageUrlExpr() {
@@ -628,7 +628,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         pi.relatedId.eq(post.id)
                 )
                 .orderBy(pi.orderIndex.asc(), pi.id.asc())
-                .limit(1); // 첫 번째 이미지 1장만
+                .limit(1L); // 첫 번째 이미지 1장만
     }
 
     private Expression<Long> commentCountExpr() {
