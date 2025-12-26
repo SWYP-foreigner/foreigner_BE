@@ -9,19 +9,20 @@ import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
-import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.exception.BusinessException;
 import core.global.pagination.CursorPageResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PostSearchService {
@@ -29,6 +30,8 @@ public class PostSearchService {
     private static final int LIMIT = 7;
     private static final int FAST_FIRST_MAX = 4;   // 메모리 최대
     private static final int DB_FALLBACK_MAX = 3;  // DB 최대
+    private static final ObjectMapper mapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
     private final PostSearchRepositoryCustom searchRepository;
     private final BoardRepository boardRepository;
     private final BlockRepository blockRepository;
@@ -42,7 +45,7 @@ public class PostSearchService {
             String cursor,
             int size
     ) {
-        final int pageSize = Math.min(Math.max(size, 1), 50);
+        final int pageSize = Math.min(Math.max(size, 1), 20);
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
         if (resolvedBoardId != null && !boardRepository.existsById(resolvedBoardId)) {
@@ -55,11 +58,15 @@ public class PostSearchService {
                 .stream().map(User::getId).toList();
 
         Map<String, Object> c = safeDecode(cursor);
-        Instant afterTime = (c.get("t") instanceof String s) ? Instant.parse(s) : (Instant) c.get("t");
-        Long afterId = (c.get("id") == null) ? null : ((Number) c.get("id")).longValue();
 
-        List<SearchResultView> rowsPlusOne =
-                searchRepository.search(q, user.getId(), resolvedBoardId, blockedIds, afterTime, afterId, pageSize + 1);
+        Instant afterTime = parseInstant(c.get("t"));
+        Long afterId = (c.get("id") instanceof Number n) ? n.longValue() : null;
+        Double afterScore = (c.get("sc") instanceof Number n) ? n.doubleValue() : null; // score 추가
+
+        List<SearchResultView> rowsPlusOne = searchRepository.search(
+                q, user.getId(), resolvedBoardId, blockedIds,
+                afterScore, afterTime, afterId, pageSize + 1
+        );
 
         boolean hasNext = rowsPlusOne.size() > pageSize;
         List<SearchResultView> items = hasNext ? rowsPlusOne.subList(0, pageSize) : rowsPlusOne;
@@ -68,12 +75,23 @@ public class PostSearchService {
         if (hasNext) {
             var last = items.get(items.size() - 1);
             nextCursor = safeEncode(Map.of(
+                    "sc", last.score(),
                     "t", last.item().createdAt(),
                     "id", last.item().postId()
             ));
         }
 
         return new CursorPageResponse<>(items, hasNext, nextCursor);
+    }
+
+    private Instant parseInstant(Object obj) {
+        if (obj instanceof String s) return Instant.parse(s);
+        if (obj instanceof Number n) {
+            long sec = n.longValue();
+            int nano = (int) ((n.doubleValue() - sec) * 1_000_000_000);
+            return Instant.ofEpochSecond(sec, nano);
+        }
+        return null;
     }
 
     @Transactional(readOnly = true, timeout = 1)
@@ -116,24 +134,25 @@ public class PostSearchService {
     private Map<String, Object> safeDecode(String cursor) {
         if (cursor == null || cursor.isBlank()) return Map.of();
         try {
-            String json = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            return new ObjectMapper()
-                    .registerModule(new JavaTimeModule())
-                    .readValue(json, new TypeReference<Map<String, Object>>() {
-                    });
+            byte[] decoded = Base64.getUrlDecoder().decode(cursor);
+            // 매번 new 하지 않고 static mapper 사용
+            return mapper.readValue(decoded, new TypeReference<Map<String, Object>>() {
+            });
         } catch (Exception e) {
-            return Map.of(); // 깨진 커서는 첫 페이지로 취급
+            return Map.of();
         }
     }
 
     private String safeEncode(Map<String, Object> m) {
+        if (m == null || m.isEmpty()) return null;
         try {
-            String json = new ObjectMapper()
-                    .registerModule(new JavaTimeModule())
-                    .writeValueAsString(m);
+            // 1. 이미 생성된 MAPPER 재사용
+            byte[] jsonBytes = mapper.writeValueAsBytes(m);
+            // 2. 바이트 배열로 바로 인코딩 (속도 향상)
             return Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(json.getBytes(StandardCharsets.UTF_8));
+                    .encodeToString(jsonBytes);
         } catch (Exception e) {
+            log.error("Cursor encoding error", e);
             return null;
         }
     }
