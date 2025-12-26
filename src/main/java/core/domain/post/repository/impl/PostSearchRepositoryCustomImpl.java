@@ -54,7 +54,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
      */
     @Override
     public List<SearchResultView> search(String q, Long userId, Long boardId, List<Long> blockedIds,
-                                         Instant afterTime, Long afterId, int limit) {
+                                         Double afterScore, Instant afterTime, Long afterId, int limit) {
         QPost p = post;
         QUser user = QUser.user;
         QImage uimg = new QImage("uimg_ps");   // 프로필 이미지
@@ -81,16 +81,11 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         if (blockedIds != null && !blockedIds.isEmpty()) where.and(p.author.id.notIn(blockedIds));
 
         // ---- 키셋 커서 ----
-        if (afterTime != null && afterId != null) {
-            NumberExpression<Double> curScore = Expressions.numberTemplate(
-                    Double.class,
-                    "function('pgroonga_score_of', {0})",
-                    Expressions.constant(afterId)
-            );
+        if (afterScore != null && afterTime != null && afterId != null) {
             where.and(
-                    score.lt(curScore)
-                            .or(score.eq(curScore).and(p.createdAt.lt(afterTime)))
-                            .or(score.eq(curScore).and(p.createdAt.eq(afterTime)).and(p.id.lt(afterId)))
+                    score.lt(afterScore)
+                            .or(score.eq(afterScore).and(p.createdAt.lt(afterTime)))
+                            .or(score.eq(afterScore).and(p.createdAt.eq(afterTime)).and(p.id.lt(afterId)))
             );
         }
 
