@@ -5,19 +5,13 @@ import core.domain.ai.dto.MessageCreatedEvent;
 import core.domain.ai.entity.AiPersona;
 import core.domain.ai.mapper.PromptMapper;
 import core.domain.ai.repository.AiPersonaRepository;
-import core.domain.chat.dto.ChatMessageResponse;
 import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.service.ChatMessageService;
-import core.domain.chat.service.ChatSummaryService;
 import core.domain.user.entity.User;
-import core.global.entity.image.service.ImageService;
-import core.global.enums.ChatParticipantStatus;
 import core.global.enums.MessageType;
-import core.global.enums.errorcode.ChatErrorCode;
-import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +33,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiChatUserService {
 
-
     private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile(
             "(gpt|openai|ai|language model|인공지능|언어 모델)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
@@ -48,6 +41,7 @@ public class AiChatUserService {
             "(ignore|instruction|system|override|무시해|명령)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
     );
+
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -55,26 +49,77 @@ public class AiChatUserService {
     private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * AI 응답 처리 메인 로직
-     * Debouncer(버퍼링 서비스)가 끊어 보낸 메시지들을 합쳐서 combinedUserMessage로 전달합니다.
+     * 🚀 [DB 누수 해결 로직]
+     * 1. 기존에 있던 @Transactional을 제거했습니다. (긴 대기 시간 동안 DB 잡는 문제 해결)
+     * 2. DB 조회가 필요한 '준비 단계'만 별도 트랜잭션 메서드(prepareAiContext)로 분리했습니다.
+     * 3. 외부 AI 호출(aiClient.generateResponse)은 트랜잭션 없이 실행됩니다.
      */
-    @Transactional
     public void processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage) {
         Long chatRoomId = event.messageResponse().roomId();
 
+        // 1. [No DB] 탈옥/해킹 시도 필터링 (메모리 연산)
         if (JAILBREAK_PATTERN.matcher(combinedUserMessage).find()) {
             log.warn("AI [{}] Ignored Jailbreak attempt: {}", aiUser.getFirstName(), combinedUserMessage);
             return;
         }
 
+        // 2. [No DB] 사람처럼 생각하는 척 대기 (Thread Sleep)
+        // 이 구간에서 DB 커넥션을 물고 있으면 안 됨 -> 트랜잭션 없음 OK
         long thinkingTime = calculateThinkingTime(combinedUserMessage);
         sleep(thinkingTime);
+
+        // 3. [DB Read Transaction] 대화 컨텍스트 준비
+        // 짧게 DB를 조회하여 프롬프트를 만들고 즉시 커넥션을 반환합니다.
+        List<Map<String, Object>> requestMessages = prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
+
+        // 대답할 필요가 없거나(SKIP), 오류가 있었다면 중단
+        if (requestMessages == null || requestMessages.isEmpty()) {
+            return;
+        }
+
+        try {
+            // 4. [No DB] 외부 AI API 호출 (가장 오래 걸리는 구간 - 수 초 소요)
+            // 여기서는 트랜잭션이 없으므로 DB 커넥션 풀이 안전합니다.
+            String aiResponse = aiClient.generateResponse(requestMessages);
+
+            // 필터링
+            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
+            if (aiResponse.trim().toUpperCase().contains("PASS")) return;
+
+            // 5. [DB Write Transaction] 결과 전송 및 저장
+            // chatMessageService 내부에서 새로운 트랜잭션이 시작되어 안전하게 저장됩니다.
+            SendMessageRequest request = new SendMessageRequest(
+                    chatRoomId,
+                    aiUser.getId(),
+                    aiResponse,
+                    MessageType.TEXT
+            );
+            chatMessageService.processAndSendChatMessage(request);
+
+        } catch (Exception e) {
+            log.error("AI API Call Failed", e);
+        }
+    }
+
+    /**
+     * 🔒 [DB Read Transaction]
+     * 대화 내역 조회, 페르소나 조회, 프롬프트 빌드까지만 수행하고 트랜잭션을 종료합니다.
+     */
+    @Transactional(readOnly = true)
+    protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage) {
+        // 1. 최근 대화 내역 조회
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
-        if (historyDesc.isEmpty()) return;
+        if (historyDesc.isEmpty()) return null;
 
         ChatMessage lastMessage = historyDesc.get(0);
         ChatRoom chatRoom = lastMessage.getChatRoom();
         boolean isGroupChat = Boolean.TRUE.equals(chatRoom.getIsGroup());
+
+        // 2. 내가 마지막으로 말했으면 스킵 (그룹챗)
+        if (lastMessage.getSender().getId().equals(aiUser.getId()) && isGroupChat) {
+            log.info("AI [{}] Skip: I spoke last in Group Chat.", aiUser.getFirstName());
+            return null;
+        }
 
         long activeHumanCount = historyDesc.stream()
                 .limit(10)
@@ -83,52 +128,32 @@ public class AiChatUserService {
                 .distinct()
                 .count();
 
-
-        if (lastMessage.getSender().getId().equals(aiUser.getId())) {
-            if (isGroupChat) {
-                log.info("AI [{}] Skip: I spoke last in Group Chat.", aiUser.getFirstName());
-                return;
-            }
-        }
-
+        // 3. 대답 여부 확률 계산
         if (!shouldReply(combinedUserMessage, aiUser, isGroupChat, activeHumanCount)) {
             log.info("AI [{}] PASS (Mode: {}, ActiveHumans: {})",
                     aiUser.getFirstName(), isGroupChat ? "Group" : "1:1", activeHumanCount);
-            return;
+            return null;
         }
 
+        // 4. 프롬프트 조립 (Persona 조회 포함)
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
 
         String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
-        List<Map<String, Object>> requestMessages = PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
 
-        try {
-            String aiResponse = aiClient.generateResponse(requestMessages);
-            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
-            if (aiResponse.trim().toUpperCase().contains("PASS")) return;
-
-            SendMessageRequest request = new SendMessageRequest(
-                    chatRoom.getId(),
-                    aiUser.getId(),
-                    aiResponse,
-                    MessageType.TEXT
-            );
-            chatMessageService.processAndSendChatMessage(request);
-        } catch (Exception e) {
-            log.error("AI API Call Failed", e);
-        }
+        // 최종 메시지 리스트 반환
+        return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
+
+    // --- Helper Methods (DB 접근 없음) ---
 
     private boolean shouldReply(String message, User aiUser, boolean isGroupChat, long activeHumanCount) {
         if (isMentioned(message, aiUser.getFirstName())) {
             return true;
         }
-
         if (!isGroupChat || activeHumanCount <= 1) {
             return true;
         }
-
         if (message.contains("?") || message.endsWith("?")) {
             return secureRandom.nextInt(100) < 30;
         }
@@ -141,7 +166,7 @@ public class AiChatUserService {
 
     private long calculateThinkingTime(String userMessage) {
         long baseDelay = 500;
-        long typingDelay = userMessage.length() * 100L; // 글자당 0.05초
+        long typingDelay = userMessage.length() * 100L; // 글자당 0.1초
         long randomJitter = secureRandom.nextLong(100, 1000);
         return baseDelay + typingDelay + randomJitter;
     }
@@ -154,10 +179,8 @@ public class AiChatUserService {
         }
     }
 
-
-
+    // 이 메서드는 prepareAiContext(트랜잭션 안)에서 호출되므로 Lazy Loading 안전함
     private String buildSystemPrompt(User user, List<ChatMessage> history) {
-
         String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         String name = (user.getFirstName() != null ? user.getFirstName() : "너");
 
@@ -180,8 +203,8 @@ public class AiChatUserService {
             conversationContext = "(아직 대화 내역 없음)";
         }
 
-        AiPersona persona = aiPersonaRepository.findByUserId(user.getId())
-                .orElse(null);
+        // DB 조회
+        AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
 
         String instructionTemplate;
         String backgroundInfoStr;
@@ -194,17 +217,15 @@ public class AiChatUserService {
             backgroundInfoStr = "";
         }
 
-        // 4. 🔄 키워드 치환 (Replacement)
         return instructionTemplate
-                .replace("{name}", name)                  // 이름
-                .replace("{info}", basicInfo)             // 기본정보
-                .replace("{hobby}", hobby)                // 취미
-                .replace("{time}", currentTime)           // 현재 시간
-                .replace("{background}", backgroundInfoStr) // 배경지식
-                .replace("{context}", conversationContext); // 대화 내역
+                .replace("{name}", name)
+                .replace("{info}", basicInfo)
+                .replace("{hobby}", hobby)
+                .replace("{time}", currentTime)
+                .replace("{background}", backgroundInfoStr)
+                .replace("{context}", conversationContext);
     }
 
-    // [비상용] DB가 비었을 때 사용할 기본 템플릿
     private String getDefaultPromptTemplate() {
         return """
                 # [SYSTEM: Real-Human Messenger Mode (Dry Style)]
