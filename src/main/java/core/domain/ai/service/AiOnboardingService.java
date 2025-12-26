@@ -114,12 +114,55 @@ public class AiOnboardingService {
 
     private String generateWelcomeMessage() {
         String[] greetings = {
+                // 기존 목록
                 "Hi! Just bored so I thought I'd say hello lol",
                 "Your profile looks cool! Nice to meet you.",
                 "Are you studying Korean? We can practice together.",
                 "Do you like K-pop? Who's your favorite group?",
                 "Hi there! How is your day going?",
-                "Hi, I'm from Korea! Where are you from?"
+                "Hi, I'm from Korea! Where are you from?",
+
+                // 추가 목록 (인사 & 안부)
+                "Hey! How's it going?",
+                "Hi! Hope you're having a good week.",
+                "Hello! Just wanted to say hi.",
+                "Hi, nice to connect with you!",
+                "What are you up to right now?",
+                "Did you have a good lunch?",
+                "Hi! How was your day today?",
+                "It's nice to meet you.",
+                "What time is it over there?",
+                "Hello from Seoul!",
+
+                // 취미 & 관심사
+                "Do you like watching K-dramas?",
+                "What kind of music do you listen to?",
+                "Do you like Korean food?",
+                "Any movie recommendations?",
+                "Do you like traveling?",
+                "What do you usually do for fun?",
+                "Do you play any video games?",
+                "Do you like coffee or tea?",
+                "What's your favorite song these days?",
+                "Do you like animals?",
+
+                // 프로필 & 언어 교환
+                "I like your photos!",
+                "You seem like a fun person.",
+                "I'm looking for a language exchange partner.",
+                "I want to improve my English. Can you help?",
+                "Have you ever visited Korea?",
+                "Do you know any Korean words?",
+                "I'm looking for global friends.",
+                "Your style looks great!",
+
+                // 가벼운 잡담
+                "Do you use this app often?",
+                "The weather is so nice today.",
+                "Do you have any plans for the weekend?",
+                "I'm bored too, want to chat?",
+                "Are you a student or working?",
+                "What's your MBTI?"
         };
         return greetings[secureRandom.nextInt(greetings.length)];
     }
