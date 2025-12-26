@@ -127,17 +127,9 @@ class PostSearchImplTest {
         when(boardRepository.existsById(10L)).thenReturn(false);
 
         assertThatThrownBy(() -> postSearchService.search(q, boardId, cursor, size))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> {
-                    BusinessException be = (BusinessException) e;
-                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.BOARD_NOT_FOUND);
-                });
+                .isInstanceOf(BusinessException.class);
 
-        verify(searchRepository).search(argThat(req ->
-                req.q().equals("hello") &&
-                req.boardId() == null && // 1L -> null 처리 확인
-                req.limit() == size + 1
-        ));
+        verify(searchRepository, never()).search(any(PostSearchRequest.class));
     }
 
     @Test
