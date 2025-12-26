@@ -260,6 +260,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                         userImage.imageType.eq(IMAGE_TYPE_USER)
                                                 .and(userImage.relatedId.eq(user.id))
                                 )
+                                .orderBy(userImage.id.desc())
+                                .limit(1)
                 );
 
         QImage image = QImage.image;
@@ -610,29 +612,23 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .where(
                         u.imageType.eq(IMAGE_TYPE_USER)
                                 .and(u.relatedId.eq(user.id))
-                );
+                )
+                .orderBy(u.id.desc())
+                .limit(1);
     }
 
     private Expression<String> firstPostImageUrlExpr() {
-        QImage pi1 = new QImage("pi1");
-        QImage pi2 = new QImage("pi2");
+        QImage pi = new QImage("pi");
 
         return JPAExpressions
-                .select(pi2.url)
-                .from(pi2)
+                .select(pi.url)
+                .from(pi)
                 .where(
-                        pi2.imageType.eq(IMAGE_TYPE_POST),
-                        pi2.relatedId.eq(post.id),
-                        pi2.id.eq(
-                                JPAExpressions
-                                        .select(pi1.id.min())
-                                        .from(pi1)
-                                        .where(
-                                                pi1.imageType.eq(IMAGE_TYPE_POST),
-                                                pi1.relatedId.eq(post.id)
-                                        )
-                        )
-                );
+                        pi.imageType.eq(IMAGE_TYPE_POST),
+                        pi.relatedId.eq(post.id)
+                )
+                .orderBy(pi.orderIndex.asc(), pi.id.asc())
+                .limit(1); // 첫 번째 이미지 1장만
     }
 
     private Expression<Long> commentCountExpr() {
