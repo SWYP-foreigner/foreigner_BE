@@ -78,8 +78,6 @@ cloud:
           readTimeout: ${FEIGN_READ_TIMEOUT}
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
-
-
 oauth:
   google:
     android:
@@ -179,7 +177,7 @@ firebase:
 management:
   health:
     mail:
-      enabled: true
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -189,7 +187,7 @@ management:
       enabled: true
     health:
       cache:
-        time-to-live: 10s
+        time-to-live: 1m
       show-details: always
 
   metrics:
