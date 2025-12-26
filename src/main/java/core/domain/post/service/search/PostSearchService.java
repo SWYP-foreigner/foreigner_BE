@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import core.domain.board.repository.BoardRepository;
+import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.user.entity.User;
@@ -63,7 +64,7 @@ public class PostSearchService {
         Long afterId = (c.get("id") instanceof Number n) ? n.longValue() : null;
         Double afterScore = (c.get("sc") instanceof Number n) ? n.doubleValue() : null; // score 추가
 
-        List<SearchResultView> rowsPlusOne = searchRepository.search(request);
+        List<SearchResultView> rowsPlusOne = searchRepository.search(new PostSearchRequest(q, user.getId(), boardId, blockedIds, afterScore, afterTime, afterId, pageSize));
 
         boolean hasNext = rowsPlusOne.size() > pageSize;
         List<SearchResultView> items = hasNext ? rowsPlusOne.subList(0, pageSize) : rowsPlusOne;
