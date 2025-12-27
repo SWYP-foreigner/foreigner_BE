@@ -7,20 +7,18 @@ import core.domain.chat.service.ChatMessageService;
 import core.domain.chat.service.ChatRoomService;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.domain.user.service.UserRoleDetectService;
 import core.global.entity.image.service.ImageService;
 import core.global.enums.MessageType;
 import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-// import org.springframework.transaction.annotation.Transactional; // 성능을 위해 제거 (필요시 개별 메서드에 적용)
 
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Random; // ✅ 랜덤 간격 계산용 추가
+import java.util.Random;
 
 @Slf4j
 @Service
@@ -28,93 +26,118 @@ import java.util.Random; // ✅ 랜덤 간격 계산용 추가
 public class AiOnboardingService {
 
     private final ImageService imageService;
-    private final UserRoleDetectService userRoleDetectService;
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageService chatMessageService;
     private final ChatRoomService chatRoomService;
 
-    // 메시지 문구 랜덤 선택용 (보안 강도 높음)
+    // 메시지 문구 랜덤 선택용
     private static final SecureRandom secureRandom = new SecureRandom();
 
-    // ✅ [설정 변경] 가입 후 24시간(1440분) 동안 동작
-    private static final int ONBOARDING_WINDOW_MINUTES = 1440;
+    // 1. 초기 온보딩 기간: 가입 후 48시간 (2880분)
+    private static final int INITIAL_ONBOARDING_MINUTES = 48 * 60; // 2880분
+
+    // 2. 확장 참여 유도 기간: 가입 후 3주 (21일)
+    private static final int EXTENDED_WINDOW_DAYS = 21;
+
+    // 3. 활동 유저 기준: 최근 1주일 (7일) 내 접속
+    private static final int ACTIVE_USER_THRESHOLD_DAYS = 7;
+
+    // 4. 확장 기간 중 메시지 발송 간격: 2시간 (120분)
+    private static final int EXTENDED_INTERVAL_MINUTES = 120;
 
     /**
-     * 주기적으로 실행되어 신규 유저에게 AI가 선톡을 보냄
-     * (전체 트랜잭션 제거하여 DB 잠금 최소화)
+     * 주기적으로 실행되어 조건에 맞는 유저에게 AI가 선톡을 보냄
      */
     public void sendWelcomeMessagesToNewUsers() {
         Instant now = Instant.now();
-        Instant timeLimit = now.minus(Duration.ofMinutes(ONBOARDING_WINDOW_MINUTES));
 
-        // 가입한 지 24시간 이내인 유저 조회
-        List<User> newUsers = userRepository.findByUserRoleAndCreatedAtAfter(Role.USER, timeLimit);
+        // 검색 범위: 가입한 지 3주(21일) 이내인 유저 전체 조회
+        Instant joinTimeLimit = now.minus(Duration.ofDays(EXTENDED_WINDOW_DAYS));
+
+        // 쿼리 최적화: Role이 USER이고, createdAt이 3주 이내인 사람만 fetch
+        List<User> targetUsers = userRepository.findByUserRoleAndCreatedAtAfter(Role.USER, joinTimeLimit);
         List<User> allAiCharacters = userRepository.findByUserRole(Role.AI);
 
         if (allAiCharacters.isEmpty()) return;
 
-        for (User user : newUsers) {
+        for (User user : targetUsers) {
             try {
                 processUserOnboarding(user, allAiCharacters, now);
             } catch (Exception e) {
-                log.error("Failed onboarding for user: {}", user.getId(), e);
+                log.error("Failed onboarding process for user: {}", user.getId(), e);
             }
         }
     }
 
     private void processUserOnboarding(User user, List<User> allAiCharacters, Instant now) {
-        if (!this.isProfileComplete(user)) {
-            return;
-        }
+        // 1. 프로필 미완성 유저는 제외
+        if (!this.isProfileComplete(user)) return;
 
-        // 가입 후 흐른 시간 (분)
+        // 2. 가입 후 흐른 시간 (분)
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
 
+        // 3. 최근 활동 여부 체크 (가입 48시간 이후인 유저에게만 적용)
+        if (minutesSinceJoined > INITIAL_ONBOARDING_MINUTES) {
+            Instant activeThreshold = now.minus(Duration.ofDays(ACTIVE_USER_THRESHOLD_DAYS));
+            // lastLoginAt이 없거나(null), 1주일보다 오래전이면 스킵
+            if (user.getLastSeenAt() == null || user.getLastSeenAt().isBefore(activeThreshold)) {
+                return;
+            }
+        }
+
         // ---------------------------------------------------------------
-        // ✅ [핵심 로직 변경] 유저별 고유 랜덤 스케줄 계산 (5~15분 간격)
+        // ✅ [통합 스케줄링 시뮬레이션]
+        // 가입 시점부터 현재까지 타임라인을 돌려보며 "지금까지 총 몇 명의 AI가 말을 걸었어야 하는지" 계산
         // ---------------------------------------------------------------
         int expectedAiCount = 0;
-        long accumulatedTime = 0;
+        long simulatedTime = 0; // 가입 직후(0분)부터 시작
 
-        // "현재 시간까지 이 유저에게 몇 명의 AI가 말을 걸었어야 정상인가?"를 계산
         while (true) {
-            // Seed를 고정하여, 서버가 재시작되거나 스케줄러가 다시 돌아도
-            // '이 유저의 N번째 AI 도착 시간'은 항상 똑같이 계산됨 (Deterministic Random)
-            long seed = user.getId() + (expectedAiCount * 997L);
-            Random seededRandom = new Random(seed);
+            long interval;
 
-            // 5분 ~ 15분 사이 랜덤 값 추출 (5 + 0~10)
-            long nextInterval = 5 + seededRandom.nextInt(11);
+            if (simulatedTime < INITIAL_ONBOARDING_MINUTES) {
+                // [Phase 1] 초기 48시간: 5~15분 간격 (랜덤)
+                // Seed를 고정하여 서버가 언제 돌든 유저별로 동일한 패턴 유지
+                long seed = user.getId() + (expectedAiCount * 997L);
+                Random seededRandom = new Random(seed);
+                interval = 5 + seededRandom.nextInt(11);
+            } else {
+                // [Phase 2] 48시간 이후 ~ 3주: 2시간(120분) 고정 간격
+                interval = EXTENDED_INTERVAL_MINUTES;
+            }
 
-            accumulatedTime += nextInterval;
+            simulatedTime += interval;
 
-            // 누적 시간이 가입 후 흐른 시간을 넘어서면, 아직 보낼 때가 아님 -> 루프 종료
-            if (accumulatedTime > minutesSinceJoined) {
+            // 시뮬레이션 시간이 실제 흐른 시간을 넘어서면 루프 종료
+            if (simulatedTime > minutesSinceJoined) {
                 break;
             }
 
-            // 보낼 시간이 지났으면 카운트 증가
+            // 이 시점까지는 메시지를 보냈어야 함 -> 카운트 증가
             expectedAiCount++;
         }
         // ---------------------------------------------------------------
 
-        // 현재 이 유저와 대화 중인 AI 수 조회
+        // 현재 이 유저와 대화 중인(방이 만들어진) AI 수 조회
         long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
 
-        // 이미 충분히 받았다면 스킵
-        if (currentAiCount >= expectedAiCount) return;
+        // 로직상 보내야 할 AI 수보다, 실제로 만난 AI 수가 적다면 -> "새로운 AI 출동!"
+        if (currentAiCount < expectedAiCount) {
 
-        // 보유한 AI 캐릭터 수보다 더 많이 보낼 순 없음
-        if (currentAiCount >= allAiCharacters.size()) return;
+            // 모든 AI를 다 만났으면 더 이상 못 보냄
+            if (currentAiCount >= allAiCharacters.size()) return;
 
-        // 안 만난 AI 찾아서 매칭
-        User selectedAi = findUnusedAi(user, allAiCharacters);
+            // 아직 대화 안 해본 AI 찾기
+            User selectedAi = findUnusedAi(user, allAiCharacters);
 
-        if (selectedAi != null) {
-            createRoomAndSendFirstMessage(user, selectedAi);
-            log.info("✅ Onboarding Msg Sent: AI[{}] -> User[{}] (Joined: {}m, Target: {}th)",
-                    selectedAi.getFirstName(), user.getFirstName(), minutesSinceJoined, expectedAiCount);
+            if (selectedAi != null) {
+                createRoomAndSendFirstMessage(user, selectedAi);
+                log.info("✅ Auto Msg Sent: AI[{}] -> User[{}] (Joined: {}m, Phase: {})",
+                        selectedAi.getFirstName(), user.getFirstName(),
+                        minutesSinceJoined,
+                        (minutesSinceJoined <= INITIAL_ONBOARDING_MINUTES) ? "Initial(48h)" : "Extended(3w)");
+            }
         }
     }
 
@@ -143,21 +166,18 @@ public class AiOnboardingService {
         try {
             chatMessageService.processAndSendChatMessage(request);
         } catch (Exception e) {
-            log.error("❌ Failed to send AI onboarding message via pipeline", e);
+            log.error("❌ Failed to send AI onboarding message", e);
         }
     }
 
     private String generateWelcomeMessage() {
         String[] greetings = {
-                // 기존 문구
                 "Hi! Just bored so I thought I'd say hello lol",
                 "Your profile looks cool! Nice to meet you.",
                 "Are you studying Korean? We can practice together.",
                 "Do you like K-pop? Who's your favorite group?",
                 "Hi there! How is your day going?",
                 "Hi, I'm from Korea! Where are you from?",
-
-                // 추가된 문구
                 "Hey! How's it going?",
                 "Hi! Hope you're having a good week.",
                 "Hello! Just wanted to say hi.",

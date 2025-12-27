@@ -123,4 +123,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     List<ChatRoom> findByIsGroupTrue();
     @Query("SELECT c.isGroup FROM ChatRoom c WHERE c.id = :roomId")
     boolean isGroupChat(@Param("roomId") Long roomId);
+
+    @Query("SELECT COUNT(c) FROM ChatRoom c WHERE c.id = :userId AND c.lastSenderId != :userId")
+    long countUnrepliedAiRooms(@Param("userId") Long userId);
 }
