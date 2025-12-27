@@ -216,8 +216,8 @@ public class AiChatUserService {
 
             if (cleanMessage.contains(target)) return true;
 
-            if (target.length() >= 3) {
-                if (containsFuzzyMatch(cleanMessage, target)) return true;
+            if (target.length() >= 3 && containsFuzzyMatch(cleanMessage, target)) {
+                return true;
             }
         }
         return false;

@@ -70,25 +70,42 @@ public class AiOnboardingService {
         }
     }
 
+    // [Refactored] 메인 메서드: 흐름이 한눈에 보이도록 단순화 (복잡도 대폭 감소)
     private void processUserOnboarding(User user, List<User> allAiCharacters, Instant now) {
-        // 1. 프로필 미완성 유저는 제외
-        if (!this.isProfileComplete(user)) return;
-
-        // 2. 가입 후 흐른 시간 (분)
         long minutesSinceJoined = Duration.between(user.getCreatedAt(), now).toMinutes();
 
-        // 3. 최근 활동 여부 체크 (가입 48시간 이후인 유저에게만 적용)
-        if (minutesSinceJoined > INITIAL_ONBOARDING_MINUTES) {
-            Instant activeThreshold = now.minus(Duration.ofDays(ACTIVE_USER_THRESHOLD_DAYS));
-            // lastLoginAt이 없거나(null), 1주일보다 오래전이면 스킵
-            if (user.getLastSeenAt() == null || user.getLastSeenAt().isBefore(activeThreshold)) {
-                return;
-            }
+        // 1. 유효성 검사 (프로필, 최근 활동)
+        if (!isValidUserForOnboarding(user, minutesSinceJoined, now)) {
+            return;
         }
 
-        // ---------------------------------------------------------------
-        // ✅ [통합 스케줄링 시뮬레이션]
-        // ---------------------------------------------------------------
+        // 2. 시뮬레이션: 지금까지 몇 명의 AI가 말을 걸었어야 하는지 계산
+        int expectedAiCount = calculateExpectedAiCount(user, minutesSinceJoined);
+        long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
+
+        // 3. 메시지 전송 시도 (조건 충족 시)
+        if (currentAiCount < expectedAiCount) {
+            trySendNewAiMessage(user, allAiCharacters, currentAiCount, minutesSinceJoined);
+        }
+    }
+
+    // [Sub-Method 1] 유저가 메시지를 받을 자격이 있는지 검사
+    private boolean isValidUserForOnboarding(User user, long minutesSinceJoined, Instant now) {
+        if (!this.isProfileComplete(user)) {
+            return false;
+        }
+
+        // 가입 48시간 이후인 경우, 최근 활동(1주일 이내)이 있어야 함
+        if (minutesSinceJoined > INITIAL_ONBOARDING_MINUTES) {
+            Instant activeThreshold = now.minus(Duration.ofDays(ACTIVE_USER_THRESHOLD_DAYS));
+            return user.getLastSeenAt() != null && !user.getLastSeenAt().isBefore(activeThreshold);
+        }
+
+        return true;
+    }
+
+    // [Sub-Method 2] 복잡했던 while 루프 계산 로직 분리
+    private int calculateExpectedAiCount(User user, long minutesSinceJoined) {
         int expectedAiCount = 0;
         long simulatedTime = 0;
 
@@ -97,11 +114,11 @@ public class AiOnboardingService {
 
             if (simulatedTime < INITIAL_ONBOARDING_MINUTES) {
                 // [Phase 1] 초기 48시간
-                long seed = user.getId() + ((long) expectedAiCount * 997L);
+                long seed = user.getId() + (expectedAiCount * 997L);
                 Random seededRandom = new Random(seed);
-                interval = 5 + seededRandom.nextInt(11);
+                interval = 5L + seededRandom.nextInt(11);
             } else {
-                // [Phase 2] 48시간 이후 ~ 3주
+                // [Phase 2] 48시간 이후
                 interval = EXTENDED_INTERVAL_MINUTES;
             }
 
@@ -112,36 +129,31 @@ public class AiOnboardingService {
             }
             expectedAiCount++;
         }
-        // ---------------------------------------------------------------
+        return expectedAiCount;
+    }
 
-        // 현재 이 유저와 대화 중인(방이 만들어진) AI 수 조회
-        long currentAiCount = chatRoomRepository.countAiChatRoomsByUser(user.getId());
+    // [Sub-Method 3] 스팸 검사 및 실제 메시지 전송 로직 분리
+    private void trySendNewAiMessage(User user, List<User> allAiCharacters, long currentAiCount, long minutesSinceJoined) {
+        // 🚨 스팸 방지: 답장 안 한 방이 5개 이상이면 중단
+        long unrepliedRoomCount = chatRoomRepository.countUnrepliedAiRooms(user.getId());
+        if (unrepliedRoomCount >= 5) {
+            log.info("🚫 User[{}] ignores too many AIs ({}). Skip onboarding.", user.getId(), unrepliedRoomCount);
+            return;
+        }
 
-        // 로직상 보내야 할 AI 수보다, 실제로 만난 AI 수가 적다면 -> "새로운 AI 출동!"
-        if (currentAiCount < expectedAiCount) {
+        // 모든 AI 소진 체크
+        if (currentAiCount >= allAiCharacters.size()) {
+            return;
+        }
 
-            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼ [여기 추가하세요] ▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-            // 🚨 스팸 방지: 유저가 답장 안 한 방이 5개 이상이면, 타이밍이 맞아도 안 보냄
-            long unrepliedRoomCount = chatRoomRepository.countUnrepliedAiRooms(user.getId());
-            if (unrepliedRoomCount >= 5) {
-                log.info("🚫 User[{}] ignores too many AIs ({}). Skip onboarding.", user.getId(), unrepliedRoomCount);
-                return; // 여기서 함수 종료 (이번 턴은 쉽니다)
-            }
-            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-            // 모든 AI를 다 만났으면 더 이상 못 보냄
-            if (currentAiCount >= allAiCharacters.size()) return;
-
-            // 아직 대화 안 해본 AI 찾기
-            User selectedAi = findUnusedAi(user, allAiCharacters);
-
-            if (selectedAi != null) {
-                createRoomAndSendFirstMessage(user, selectedAi);
-                log.info("✅ Auto Msg Sent: AI[{}] -> User[{}] (Joined: {}m, Phase: {})",
-                        selectedAi.getFirstName(), user.getFirstName(),
-                        minutesSinceJoined,
-                        (minutesSinceJoined <= INITIAL_ONBOARDING_MINUTES) ? "Initial(48h)" : "Extended(3w)");
-            }
+        // 안 만난 AI 찾기 및 전송
+        User selectedAi = findUnusedAi(user, allAiCharacters);
+        if (selectedAi != null) {
+            createRoomAndSendFirstMessage(user, selectedAi);
+            log.info("✅ Auto Msg Sent: AI[{}] -> User[{}] (Joined: {}m, Phase: {})",
+                    selectedAi.getFirstName(), user.getFirstName(),
+                    minutesSinceJoined,
+                    (minutesSinceJoined <= INITIAL_ONBOARDING_MINUTES) ? "Initial(48h)" : "Extended(3w)");
         }
     }
 
