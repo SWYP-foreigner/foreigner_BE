@@ -124,6 +124,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     @Query("SELECT c.isGroup FROM ChatRoom c WHERE c.id = :roomId")
     boolean isGroupChat(@Param("roomId") Long roomId);
 
-    @Query("SELECT COUNT(c) FROM ChatRoom c WHERE c.id = :userId AND c.lastSenderId != :userId")
+    @Query("SELECT COUNT(c) FROM ChatRoom c " +
+            "JOIN c.participants p " +
+            "WHERE p.user.id = :userId " +
+            "AND c.isGroup = false " +
+            "AND (SELECT COUNT(m) FROM ChatMessage m WHERE m.chatRoom = c AND m.sender.id = :userId) = 0")
     long countUnrepliedAiRooms(@Param("userId") Long userId);
 }

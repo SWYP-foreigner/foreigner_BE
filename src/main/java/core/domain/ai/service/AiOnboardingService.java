@@ -88,33 +88,28 @@ public class AiOnboardingService {
 
         // ---------------------------------------------------------------
         // ✅ [통합 스케줄링 시뮬레이션]
-        // 가입 시점부터 현재까지 타임라인을 돌려보며 "지금까지 총 몇 명의 AI가 말을 걸었어야 하는지" 계산
         // ---------------------------------------------------------------
         int expectedAiCount = 0;
-        long simulatedTime = 0; // 가입 직후(0분)부터 시작
+        long simulatedTime = 0;
 
         while (true) {
             long interval;
 
             if (simulatedTime < INITIAL_ONBOARDING_MINUTES) {
-                // [Phase 1] 초기 48시간: 5~15분 간격 (랜덤)
-                // Seed를 고정하여 서버가 언제 돌든 유저별로 동일한 패턴 유지
+                // [Phase 1] 초기 48시간
                 long seed = user.getId() + (expectedAiCount * 997L);
                 Random seededRandom = new Random(seed);
                 interval = 5 + seededRandom.nextInt(11);
             } else {
-                // [Phase 2] 48시간 이후 ~ 3주: 2시간(120분) 고정 간격
+                // [Phase 2] 48시간 이후 ~ 3주
                 interval = EXTENDED_INTERVAL_MINUTES;
             }
 
             simulatedTime += interval;
 
-            // 시뮬레이션 시간이 실제 흐른 시간을 넘어서면 루프 종료
             if (simulatedTime > minutesSinceJoined) {
                 break;
             }
-
-            // 이 시점까지는 메시지를 보냈어야 함 -> 카운트 증가
             expectedAiCount++;
         }
         // ---------------------------------------------------------------
@@ -124,6 +119,15 @@ public class AiOnboardingService {
 
         // 로직상 보내야 할 AI 수보다, 실제로 만난 AI 수가 적다면 -> "새로운 AI 출동!"
         if (currentAiCount < expectedAiCount) {
+
+            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼ [여기 추가하세요] ▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+            // 🚨 스팸 방지: 유저가 답장 안 한 방이 5개 이상이면, 타이밍이 맞아도 안 보냄
+            long unrepliedRoomCount = chatRoomRepository.countUnrepliedAiRooms(user.getId());
+            if (unrepliedRoomCount >= 5) {
+                log.info("🚫 User[{}] ignores too many AIs ({}). Skip onboarding.", user.getId(), unrepliedRoomCount);
+                return; // 여기서 함수 종료 (이번 턴은 쉽니다)
+            }
+            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
             // 모든 AI를 다 만났으면 더 이상 못 보냄
             if (currentAiCount >= allAiCharacters.size()) return;
