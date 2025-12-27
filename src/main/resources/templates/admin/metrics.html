@@ -410,6 +410,26 @@
                 </div>
             </div>
         </div>
+
+        <div class="card" th:object="${metrics.replyTimeStats}">
+            <h2>⚡ 1:1 첫 메시지 반응 속도 (FRT)</h2>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <span class="data" style="font-size: 2.5rem;" th:text="*{formattedTime}"></span>
+                <p class="sub-data" style="margin-top: 5px;">
+                    (분석된 신규 대화: <span th:text="*{totalReplyCount}"></span>건)
+                </p>
+            </div>
+
+            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; font-size: 0.9em; border-left: 5px solid #2196f3;">
+                <p style="margin: 0; color: #0d47a1;">
+                    <strong>💡 Insight</strong><br>
+                    첫 마디를 건네고 상대방이 답장하기까지
+                    <strong th:text="*{formattedTime}"></strong> 걸립니다.
+                    <br>(*24시간 이상 걸린 지연 응답도 모두 포함된 평균입니다)
+                </p>
+            </div>
+        </div>
     </div>
 
     <h2 class="section-title">📅 주차별 가입 및 활동 현황 (코호트)</h2>

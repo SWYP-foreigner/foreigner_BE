@@ -127,4 +127,39 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
             "WHERE cm.sentAt BETWEEN :start AND :end " +
             "GROUP BY cm.chatRoom.isGroup")
     List<Object[]> countMessagesByRoomType(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        WITH RoomMessageStats AS (
+            SELECT
+                cm.chatroom_id,
+                cm.sender_id,
+                cm.sent_at,
+                FIRST_VALUE(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as first_sender_id,
+                FIRST_VALUE(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as first_sent_at
+            FROM chat_message cm
+            JOIN chat_room cr ON cm.chatroom_id = cr.chatroom_id
+            WHERE cr.is_group = false
+        ),
+        FirstReplies AS (
+            SELECT
+                chatroom_id,
+                first_sent_at,
+                MIN(sent_at) as first_reply_at
+            FROM RoomMessageStats
+            WHERE sender_id != first_sender_id
+            GROUP BY chatroom_id, first_sent_at
+        )
+        SELECT
+            COALESCE(AVG(EXTRACT(EPOCH FROM (reply_at - first_sent_at))), 0),
+            COUNT(*)
+        FROM (
+            SELECT
+                fr.chatroom_id,
+                fr.first_sent_at,
+                fr.first_reply_at as reply_at
+            FROM FirstReplies fr
+            WHERE fr.first_sent_at BETWEEN :start AND :end
+        ) final_data
+    """, nativeQuery = true)
+    List<Object[]> calculateFirstResponseTime(@Param("start") Instant start, @Param("end") Instant end);
 }

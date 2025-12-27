@@ -48,6 +48,7 @@ public class AdminMetricsService {
         FirstMessageTimeDto firstMessageTimeStats = fetchFirstMessageTimeStats(joinStartDate, joinEndDate);
         DemographicsDto demographics = fetchDemographics(joinStartDate, joinEndDate);
         GhostUserStatsDto ghostUserStats = fetchGhostUserStats(joinStartDate, joinEndDate);
+        ReplyTimeStatsDto replyTimeStats = fetchFirstResponseTimeStats(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -61,8 +62,27 @@ public class AdminMetricsService {
                 profilePhotoStats,
                 firstMessageTimeStats,
                 demographics,
-                ghostUserStats
+                ghostUserStats,
+                replyTimeStats
         );
+    }
+
+    private ReplyTimeStatsDto fetchFirstResponseTimeStats(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        List<Object[]> result = chatMessageRepository.calculateFirstResponseTime(startInstant, endInstant);
+
+        if (result == null || result.isEmpty()) {
+            return new ReplyTimeStatsDto(0, 0);
+        }
+
+        Object[] row = result.get(0);
+        double avgSecondsDouble = (row[0] != null) ? ((Number) row[0]).doubleValue() : 0.0;
+        long count = (row[1] != null) ? ((Number) row[1]).longValue() : 0L;
+
+        return new ReplyTimeStatsDto((long) avgSecondsDouble, count);
     }
 
     private GhostUserStatsDto fetchGhostUserStats(LocalDate startDate, LocalDate endDate) {

@@ -17,5 +17,6 @@ public record AdminMetricsDto(
         ProfilePhotoStatsDto profilePhotoStats,
         FirstMessageTimeDto firstMessageTimeStats,
         DemographicsDto demographics,
-        GhostUserStatsDto ghostUserStats
+        GhostUserStatsDto ghostUserStats,
+        ReplyTimeStatsDto replyTimeStats
 ) {}
