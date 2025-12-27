@@ -9,6 +9,7 @@ import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
 import core.global.enums.MessageType;
@@ -45,6 +46,7 @@ public class AiChatUserService {
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final AiClient aiClient;
     private static final SecureRandom secureRandom = new SecureRandom();
 
@@ -65,7 +67,8 @@ public class AiChatUserService {
 
         // 2. [No DB] 사람처럼 생각하는 척 대기 (Thread Sleep)
         // 이 구간에서 DB 커넥션을 물고 있으면 안 됨 -> 트랜잭션 없음 OK
-        long thinkingTime = calculateThinkingTime(combinedUserMessage);
+        boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
+        long thinkingTime = calculateThinkingTime(combinedUserMessage,isGroupChat);
         sleep(thinkingTime);
 
         // 3. [DB Read Transaction] 대화 컨텍스트 준비
@@ -174,6 +177,7 @@ public class AiChatUserService {
 
         // 5. 일반 평서문일 때 확률 상향 (5% -> 15%)
         // 너무 높으면 AI끼리만 떠들 수 있으니 적당히 올림
+
         return secureRandom.nextInt(100) < 15;
     }
     /**
