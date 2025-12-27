@@ -64,7 +64,7 @@ public class PostSearchService {
         Long afterId = (c.get("id") instanceof Number n) ? n.longValue() : null;
         Double afterScore = (c.get("sc") instanceof Number n) ? n.doubleValue() : null; // score 추가
 
-        List<SearchResultView> rowsPlusOne = searchRepository.search(new PostSearchRequest(q, user.getId(), boardId, blockedIds, afterScore, afterTime, afterId, pageSize));
+        List<SearchResultView> rowsPlusOne = searchRepository.search(new PostSearchRequest(q, user.getId(), resolvedBoardId, blockedIds, afterScore, afterTime, afterId, pageSize));
 
         boolean hasNext = rowsPlusOne.size() > pageSize;
         List<SearchResultView> items = hasNext ? rowsPlusOne.subList(0, pageSize) : rowsPlusOne;
