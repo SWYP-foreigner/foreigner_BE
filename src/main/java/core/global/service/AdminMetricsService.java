@@ -40,6 +40,7 @@ public class AdminMetricsService {
         List<StringCountDto> countryStats = userRepository.countUsersByCountry();
         List<StringCountDto> languageStats = userRepository.countUsersByLanguage();
         List<CountryRetentionDto> countryRetentions = fetchCountryRetentions(joinStartDate, joinEndDate);
+        MessageTypeRatioDto messageTypeRatio = fetchMessageTypeRatio(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -48,8 +49,37 @@ public class AdminMetricsService {
                 advancedMetrics,
                 countryStats,
                 languageStats,
-                countryRetentions
+                countryRetentions,
+                messageTypeRatio
         );
+    }
+
+    private MessageTypeRatioDto fetchMessageTypeRatio(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        List<Object[]> results = chatMessageRepository.countMessagesByRoomType(startInstant, endInstant);
+
+        long groupCount = 0;
+        long privateCount = 0;
+
+        for (Object[] row : results) {
+            boolean isGroup = (boolean) row[0];
+            long count = ((Number) row[1]).longValue();
+
+            if (isGroup) groupCount = count;
+            else privateCount = count;
+        }
+
+        long total = groupCount + privateCount;
+        double groupRatio = (total == 0) ? 0.0 : ((double) groupCount / total) * 100.0;
+        double privateRatio = (total == 0) ? 0.0 : ((double) privateCount / total) * 100.0;
+
+        groupRatio = Math.round(groupRatio * 10) / 10.0;
+        privateRatio = Math.round(privateRatio * 10) / 10.0;
+
+        return new MessageTypeRatioDto(groupCount, privateCount, total, groupRatio, privateRatio);
     }
 
     private List<CountryRetentionDto> fetchCountryRetentions(LocalDate startDate, LocalDate endDate) {

@@ -121,4 +121,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     Page<ChatMessage> findAllByChatRoomId(Long chatRoomId, Pageable pageable);
     @Query("SELECT m FROM ChatMessage m JOIN FETCH m.chatRoom WHERE m.chatRoom.id = :chatRoomId ORDER BY m.sentAt DESC")
     List<ChatMessage> findTop20ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
+    @Query("SELECT cm.chatRoom.isGroup, COUNT(cm) " +
+            "FROM ChatMessage cm " +
+            "WHERE cm.sentAt BETWEEN :start AND :end " +
+            "GROUP BY cm.chatRoom.isGroup")
+    List<Object[]> countMessagesByRoomType(@Param("start") Instant start, @Param("end") Instant end);
 }
