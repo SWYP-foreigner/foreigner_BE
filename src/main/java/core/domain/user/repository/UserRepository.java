@@ -23,6 +23,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     Optional<User> getUserById(Long id);
 
+    List<User> findByUserRoleAndCreatedAtAfter(Role userRole, Instant createdAt);
+    List<User> findByUserRole(Role userRole);
     boolean existsByEmail(String email);
 
     @Query("SELECT u FROM User u " +

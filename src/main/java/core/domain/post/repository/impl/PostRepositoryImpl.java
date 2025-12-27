@@ -260,6 +260,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                         userImage.imageType.eq(IMAGE_TYPE_USER)
                                                 .and(userImage.relatedId.eq(user.id))
                                 )
+                                .orderBy(userImage.id.desc())
+                                .limit(1)
                 );
 
         QImage image = QImage.image;
@@ -601,35 +603,46 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .otherwise(expr);
     }
 
-    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
+        QImage uSub = new QImage("uSub");
+
         return JPAExpressions
-                .select(u.url)
+                .select(u.url.min())
                 .from(u)
                 .where(
-                        u.imageType.eq(IMAGE_TYPE_USER)
-                                .and(u.relatedId.eq(user.id))
+                        u.imageType.eq(IMAGE_TYPE_USER),
+                        u.relatedId.eq(user.id),
+                        u.id.eq(
+                                JPAExpressions
+                                        .select(uSub.id.max()) // 가장 최근에 등록된 이미지 ID
+                                        .from(uSub)
+                                        .where(
+                                                uSub.imageType.eq(IMAGE_TYPE_USER),
+                                                uSub.relatedId.eq(user.id)
+                                        )
+                        )
                 );
     }
 
+
     private Expression<String> firstPostImageUrlExpr() {
-        QImage pi1 = new QImage("pi1");
-        QImage pi2 = new QImage("pi2");
+        QImage pi = new QImage("pi");
+        QImage piSub = new QImage("piSub");
 
         return JPAExpressions
-                .select(pi2.url)
-                .from(pi2)
+                .select(pi.url.min()) // 최소 order_index가 중복될 경우를 대비한 안전장치(Scalar 보장)
+                .from(pi)
                 .where(
-                        pi2.imageType.eq(IMAGE_TYPE_POST),
-                        pi2.relatedId.eq(post.id),
-                        pi2.id.eq(
+                        pi.imageType.eq(IMAGE_TYPE_POST),
+                        pi.relatedId.eq(post.id),
+                        pi.orderIndex.eq(
                                 JPAExpressions
-                                        .select(pi1.id.min())
-                                        .from(pi1)
+                                        .select(piSub.orderIndex.min()) // 가장 작은 순서 번호를 찾음
+                                        .from(piSub)
                                         .where(
-                                                pi1.imageType.eq(IMAGE_TYPE_POST),
-                                                pi1.relatedId.eq(post.id)
+                                                piSub.imageType.eq(IMAGE_TYPE_POST),
+                                                piSub.relatedId.eq(post.id)
                                         )
                         )
                 );

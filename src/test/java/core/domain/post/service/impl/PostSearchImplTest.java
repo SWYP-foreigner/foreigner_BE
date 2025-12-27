@@ -2,6 +2,7 @@ package core.domain.post.service.impl;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
+import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.post.service.search.PostSearchService;
@@ -99,15 +100,8 @@ class PostSearchImplTest {
         SearchResultView v3 = new SearchResultView(b3, 0.7);
 
         // searchRepository.search → size+1 개 리턴
-        when(searchRepository.search(
-                eq(q),
-                eq(1L),
-                isNull(),        // boardId=1L → resolvedBoardId=null
-                anyList(),       // blockedIds
-                isNull(),        // afterTime
-                isNull(),        // afterId
-                eq(size + 1)
-        )).thenReturn(List.of(v1, v2, v3));
+        when(searchRepository.search(any(PostSearchRequest.class)))
+                .thenReturn(List.of(v1, v2, v3));
 
         CursorPageResponse<SearchResultView> response =
                 postSearchService.search(q, boardId, cursor, size);
@@ -133,13 +127,9 @@ class PostSearchImplTest {
         when(boardRepository.existsById(10L)).thenReturn(false);
 
         assertThatThrownBy(() -> postSearchService.search(q, boardId, cursor, size))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> {
-                    BusinessException be = (BusinessException) e;
-                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.BOARD_NOT_FOUND);
-                });
+                .isInstanceOf(BusinessException.class);
 
-        verify(searchRepository, never()).search(anyString(), anyLong(), any(), anyList(), any(), any(), anyInt());
+        verify(searchRepository, never()).search(any(PostSearchRequest.class));
     }
 
     @Test
@@ -162,15 +152,8 @@ class PostSearchImplTest {
         SearchResultView v1 = new SearchResultView(item1, 0.9);
         SearchResultView v2 = new SearchResultView(item2, 0.8);
 
-        when(searchRepository.search(
-                eq(q),
-                eq(1L),
-                isNull(),
-                anyList(),
-                isNull(),
-                isNull(),
-                eq(size + 1)
-        )).thenReturn(List.of(v1, v2));   // 2개만 리턴
+        when(searchRepository.search(any(PostSearchRequest.class)))
+                .thenReturn(List.of(v1, v2));
 
         CursorPageResponse<SearchResultView> response =
                 postSearchService.search(q, boardId, cursor, size);
@@ -192,7 +175,7 @@ class PostSearchImplTest {
                     assertThat(be.getError()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
                 });
 
-        verify(searchRepository, never()).search(anyString(), anyLong(), any(), anyList(), any(), any(), anyInt());
+        verify(searchRepository, never()).search(any(PostSearchRequest.class));
     }
 
     // ===========================

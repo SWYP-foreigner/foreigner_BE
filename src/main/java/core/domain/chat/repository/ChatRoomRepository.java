@@ -97,5 +97,37 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             ")")
     List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
 
+    /**
+     * [스케줄러용] 특정 유저(userId)와 대화한 적 있는 '상대방 유저 ID' 목록 조회
+     * 동작 원리:
+     * 1. ChatRoom(c)을 기준으로
+     * 2. p1(나)이 참여해 있고
+     * 3. p2(상대방)도 참여해 있는 방을 찾아서
+     * 4. p2의 ID만 싹 긁어옴 (DISTINCT로 중복 제거)
+     */
+    @Query("SELECT DISTINCT p2.user.id FROM ChatRoom c " +
+            "JOIN c.participants p1 " +
+            "JOIN c.participants p2 " +
+            "WHERE p1.user.id = :userId " +
+            "AND p2.user.id != :userId")
+    List<Long> findPartnerIdsByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT COUNT(DISTINCT c) FROM ChatRoom c " +
+            "JOIN c.participants p1 " +
+            "JOIN c.participants p2 " +
+            "WHERE p1.user.id = :userId " +
+            "AND p2.user.userRole = 'AI' " +
+            "AND c.isGroup = false")
+    long countAiChatRoomsByUser(@Param("userId") Long userId);
+
     List<ChatRoom> findByIsGroupTrue();
+    @Query("SELECT c.isGroup FROM ChatRoom c WHERE c.id = :roomId")
+    boolean isGroupChat(@Param("roomId") Long roomId);
+
+    @Query("SELECT COUNT(c) FROM ChatRoom c " +
+            "JOIN c.participants p " +
+            "WHERE p.user.id = :userId " +
+            "AND c.isGroup = false " +
+            "AND (SELECT COUNT(m) FROM ChatMessage m WHERE m.chatRoom = c AND m.sender.id = :userId) = 0")
+    long countUnrepliedAiRooms(@Param("userId") Long userId);
 }

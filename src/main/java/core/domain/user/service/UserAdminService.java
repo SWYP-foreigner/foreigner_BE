@@ -22,8 +22,8 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.ai.entity.AiPersona;
-import core.global.ai.repository.AiPersonaRepository;
+import core.domain.ai.entity.AiPersona;
+import core.domain.ai.repository.AiPersonaRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.image.service.ProfileImageService;
@@ -167,41 +167,55 @@ public class UserAdminService {
      */
     @Transactional
     public void hardDeleteUser(Long userId) {
-        Optional<User> user =userRepository.findById(userId);
-        User NowUser = new User();
-        if(user.isPresent()) {
-            NowUser = user.get();
-        }
-        List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
+        // 1. 유저 조회 (없으면 바로 종료 or 예외 처리)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
+        // 2. 채팅방 방장 위임 처리
+        List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
         for (ChatRoom chatRoom : ownedChatRooms) {
+            // 방장 제외 다른 참여자 조회
             List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
 
             if (!participants.isEmpty()) {
                 User newOwner = participants.get(0).getUser();
                 chatRoom.changeOwner(newOwner);
-                chatRoomRepository.save(chatRoom);
             } else {
+                // 참여자가 없으면 방 폭파 (연관된 메시지, 참여자 정보도 같이 삭제되어야 함)
+                // Cascade 설정이 안 되어 있다면 아래처럼 수동 삭제 필요
+                chatMessageRepository.deleteByChatRoomId(chatRoom.getId());
+                chatParticipantRepository.deleteByChatRoomId(chatRoom.getId());
                 chatRoomRepository.delete(chatRoom);
             }
         }
-        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
+
+        // 3. 연관 데이터 삭제 (순서 중요: 자식 -> 부모)
+
+        // 게시글 관련
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
-        if (userPosts != null && !userPosts.isEmpty()) {
+        if (!userPosts.isEmpty()) {
             commentRepository.deleteAllByPostIn(userPosts);
             bookmarkRepository.deleteAllByPostIn(userPosts);
             postRepository.deleteAll(userPosts);
         }
 
+        // 나머지 단순 삭제들 (반드시 Repository에 @Modifying @Query 적용 권장)
+        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
         likeRepository.deleteAllByUserId(userId);
+
+        // [중요] 메시지를 먼저 지우고 참여 정보를 지우는 것이 FK 관점에서 안전
+        chatMessageRepository.deleteAllBySenderId(userId);
+        chatParticipantRepository.deleteAllByUserId(userId);
+
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
         imageService.deleteUserProfileImage(userId);
-        blockRepository.deleteAllByUserOrBlocked(NowUser);
-        chatParticipantRepository.deleteAllByUserId(userId);
-        chatMessageRepository.deleteAllBySenderId(userId);
+
+        // 차단 목록은 User 객체가 필요하므로 여기서 처리
+        blockRepository.deleteAllByUserOrBlocked(user);
+
         userNotificationSettingRepository.deleteAllByUserId(userId);
         userDeviceTokenRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
@@ -209,7 +223,9 @@ public class UserAdminService {
         userFeedbackRepository.deleteAllByUserIdExplicit(userId);
         aiPersonaRepository.deleteByUserId(userId);
 
-        userRepository.delete(NowUser);
+        // 4. 마지막으로 유저 삭제
+        userRepository.delete(user);
+
         log.info(">>>> Deleted user entity for userId: {}", userId);
     }
 

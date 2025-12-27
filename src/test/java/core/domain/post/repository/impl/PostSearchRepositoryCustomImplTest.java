@@ -2,6 +2,7 @@ package core.domain.post.repository.impl;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.dto.comunity.PostWriteRequest;
 import core.domain.post.entity.Post;
@@ -111,13 +112,13 @@ class PostSearchRepositoryCustomImplTest {
     @Test
     @DisplayName("search - 기본 검색 결과가 나오고 likedByMe/이미지/작성자 정보가 채워진다")
     void search_success_basicProjection() {
-        List<SearchResultView> result = repo.search(
+        List<SearchResultView> result = repo.search(new PostSearchRequest(
                 "korea",
                 viewer.getId(),
                 board.getId(),
                 List.of(),
-                null, null, 10
-        );
+                null, null, null, 10
+        ));
 
         assertThat(result).isNotEmpty();
 
@@ -148,13 +149,13 @@ class PostSearchRepositoryCustomImplTest {
     @Test
     @DisplayName("search - 익명 글은 authorId/userImageUrl이 null로 내려온다(익명 보호)")
     void search_anonymous_masking() {
-        List<SearchResultView> result = repo.search(
+        List<SearchResultView> result = repo.search(new PostSearchRequest(
                 "korea",
                 viewer.getId(),
                 board.getId(),
                 List.of(),
-                null, null, 10
-        );
+                null, null, null, 10
+        ));
 
         var anon = result.stream()
                 .filter(r -> r.item().postId().equals(p3Anonymous.getId()))
@@ -170,13 +171,13 @@ class PostSearchRepositoryCustomImplTest {
     @Test
     @DisplayName("search - blockedIds가 적용되어 차단된 작성자의 글은 나오지 않는다")
     void search_blockedIds_filter() {
-        List<SearchResultView> result = repo.search(
+        List<SearchResultView> result = repo.search(new PostSearchRequest(
                 "korea",
                 viewer.getId(),
                 board.getId(),
                 List.of(author2.getId()),
-                null, null, 10
-        );
+                null, null, null, 10
+        ));
 
         // author2가 쓴 p2는 제외 기대
         assertThat(result)
@@ -190,27 +191,28 @@ class PostSearchRepositoryCustomImplTest {
     @Test
     @DisplayName("search - 커서(afterTime/afterId)로 다음 페이지에서 중복 재등장 방지")
     void search_cursor_paging() {
-        List<SearchResultView> first = repo.search(
+        List<SearchResultView> first = repo.search(new PostSearchRequest(
                 "korea",
                 viewer.getId(),
                 board.getId(),
                 List.of(),
-                null, null, 2
-        );
+                null, null, null, 2
+        ));
 
         assertThat(first).isNotEmpty();
 
         var last = first.get(first.size() - 1);
+        Double afterScore = last.score();
         Instant afterTime = last.item().createdAt();
         Long afterId = last.item().postId();
 
-        List<SearchResultView> second = repo.search(
+        List<SearchResultView> second = repo.search(new PostSearchRequest(
                 "korea",
                 viewer.getId(),
                 board.getId(),
                 List.of(),
-                afterTime, afterId, 10
-        );
+                afterScore, afterTime, afterId, 10
+        ));
 
         assertThat(second)
                 .noneMatch(r -> r.item().postId().equals(afterId));

@@ -8,8 +8,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j // 로깅을 위해 추가
 @Configuration
@@ -25,10 +27,14 @@ public class AsyncConfig implements AsyncConfigurer {
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);    // 평소 대기 스레드
-        executor.setMaxPoolSize(50);     // 바쁠 때 최대 스레드
-        executor.setQueueCapacity(200);  // 대기열 크기
-        executor.setThreadNamePrefix("Async-Default-");
+        executor.setCorePoolSize(20);
+        executor.setMaxPoolSize(100);
+        executor.setQueueCapacity(500);
+
+        executor.setThreadNamePrefix("Async-Executor-");
+
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
         executor.initialize();
         return executor;
     }
@@ -70,15 +76,12 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.initialize();
         return executor;
     }
-
-    @Bean(name = "aiUserExecutor")
-    public Executor aiUserExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(50);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("AI-Worker-");
-        executor.initialize();
-        return executor;
+    @Bean
+    public ThreadPoolTaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(10); // 동시에 예약 걸릴 수 있는 작업 수
+        scheduler.setThreadNamePrefix("Scheduled-Task-"); // 로그에 찍힐 이름
+        scheduler.initialize();
+        return scheduler;
     }
 }

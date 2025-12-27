@@ -78,8 +78,6 @@ cloud:
           readTimeout: ${FEIGN_READ_TIMEOUT}
           loggerLevel: ${FEIGN_LOGGER_LEVEL}
 
-
-
 oauth:
   google:
     android:
@@ -179,18 +177,25 @@ firebase:
 management:
   health:
     mail:
-      enabled: true
+      enabled: true # 수동 체크를 위해 켜둠
   endpoints:
     web:
       exposure:
         include: prometheus, health, metrics, info, loggers
   endpoint:
-    prometheus:
-      enabled: true
     health:
       cache:
-        time-to-live: 10s
-      show-details: always
+        time-to-live: 1m
+      show-components: always
+      show-details: when-authorized # 기본 경로는 상세 정보 숨김
+      group:
+        liveness:
+          exclude: mail
+        readiness:
+          exclude: mail
+        manual-check: # Smoke Test용 경로
+          include: mail
+          show-details: always
 
   metrics:
     tags:
@@ -232,7 +237,7 @@ smoke:
     - name: health
       type: "HEALTH"
       method: GET
-      path: /actuator/health
+      path: /actuator/health/liveness
       expected-status: 200
 
   full:
@@ -313,10 +318,10 @@ smoke:
       path: "/actuator/health/redis"
       expectedStatus: 200
 
-    - name: "Infra-Naver-Mail-SMTP"
+    - name: "Infra-Google-Mail-SMTP"
       type: "INTERNAL"
       method: "GET"
-      path: "/actuator/health/mail"
+      path: "/actuator/health/manual-check"
       expectedStatus: 200
 
     # --- [2] NCP (Naver Cloud Platform) 의존성 ---

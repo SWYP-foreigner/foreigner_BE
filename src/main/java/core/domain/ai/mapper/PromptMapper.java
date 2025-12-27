@@ -1,4 +1,4 @@
-package core.global.ai.mapper;
+package core.domain.ai.mapper;
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
