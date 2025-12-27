@@ -9,6 +9,7 @@ import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
 import core.global.enums.MessageType;
@@ -45,6 +46,7 @@ public class AiChatUserService {
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final AiClient aiClient;
     private static final SecureRandom secureRandom = new SecureRandom();
 
@@ -65,7 +67,8 @@ public class AiChatUserService {
 
         // 2. [No DB] 사람처럼 생각하는 척 대기 (Thread Sleep)
         // 이 구간에서 DB 커넥션을 물고 있으면 안 됨 -> 트랜잭션 없음 OK
-        long thinkingTime = calculateThinkingTime(combinedUserMessage);
+        boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
+        long thinkingTime = calculateThinkingTime(combinedUserMessage,isGroupChat);
         sleep(thinkingTime);
 
         // 3. [DB Read Transaction] 대화 컨텍스트 준비
@@ -148,27 +151,150 @@ public class AiChatUserService {
     // --- Helper Methods (DB 접근 없음) ---
 
     private boolean shouldReply(String message, User aiUser, boolean isGroupChat, long activeHumanCount) {
-        if (isMentioned(message, aiUser.getFirstName())) {
+        // 1. 이름이 불리면 무조건 대답 (100%)
+        if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             return true;
         }
+
+        // 2. 1:1 채팅이거나, 그룹방인데 말하는 사람이 1명뿐이면 (사실상 1:1) 무조건 대답
         if (!isGroupChat || activeHumanCount <= 1) {
             return true;
         }
-        if (message.contains("?") || message.endsWith("?")) {
-            return secureRandom.nextInt(100) < 30;
+
+        // 3. [NEW] 내 취미(Hobby) 관련 키워드가 나오면 높은 확률로 끼어듦 (85%)
+        // 예: 취미가 "영화"인데 "영화 볼래?" 하면 거의 무조건 반응
+        String hobby = aiUser.getHobby();
+        if (hobby != null && !hobby.isBlank() && message.contains(hobby)) {
+            log.info("AI [{}] Interest Triggered! Keyword: {}", aiUser.getFirstName(), hobby);
+            return secureRandom.nextInt(100) < 85;
         }
-        return secureRandom.nextInt(100) < 5;
+
+        // 4. 질문형 메시지일 때 확률 대폭 상향 (30% -> 60%)
+        // 그룹챗이어도 질문에는 절반 이상 반응해줘야 '티키타카'가 됨
+        if (message.contains("?") || message.endsWith("?")) {
+            return secureRandom.nextInt(100) < 60;
+        }
+
+        // 5. 일반 평서문일 때 확률 상향 (5% -> 15%)
+        // 너무 높으면 AI끼리만 떠들 수 있으니 적당히 올림
+
+        return secureRandom.nextInt(100) < 15;
+    }
+    /**
+     * 🕵️‍♂️ 강력한 멘션 감지 메서드
+     * 1. 성(Last), 이름(First), 전체 이름(Full) 모두 체크
+     * 2. 대소문자 구분 없음 (Doehyn == doehyn)
+     * 3. 오타 허용 (Levenshtein Distance: 도혅 -> 도현 인식)
+     * 4. 한국어/영어 혼용 대응을 위해 닉네임 필드 활용 권장
+     */
+    /**
+     * 🕵️‍♂️ 강력한 멘션 감지 메서드 (닉네임 제외)
+     * 1. 성(Last), 이름(First), 전체 이름(Full) 조합 체크
+     * 2. 대소문자 구분 없음
+     * 3. 오타 허용 (Fuzzy Match)
+     */
+    private boolean isMentioned(String message, String firstName, String lastName) {
+        if (message == null || message.isBlank()) return false;
+
+        // 1. 비교할 이름 후보군 생성
+        List<String> nameCandidates = new ArrayList<>();
+
+        if (hasText(firstName)) nameCandidates.add(firstName);
+        if (hasText(lastName)) nameCandidates.add(lastName);
+
+        if (hasText(firstName) && hasText(lastName)) {
+            nameCandidates.add(firstName + lastName);
+            nameCandidates.add(firstName + " " + lastName);
+            nameCandidates.add(lastName + firstName);
+            nameCandidates.add(lastName + " " + firstName);
+        }
+
+        String cleanMessage = message.toLowerCase().replaceAll("\\s+", " ");
+
+        for (String candidate : nameCandidates) {
+            String target = candidate.toLowerCase();
+
+            if (cleanMessage.contains(target)) return true;
+
+            if (target.length() >= 3 && containsFuzzyMatch(cleanMessage, target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private boolean isMentioned(String message, String name) {
-        return name != null && message.contains(name);
+    private boolean hasText(String str) {
+        return str != null && !str.isBlank();
     }
 
-    private long calculateThinkingTime(String userMessage) {
+    /**
+     * 메시지 내의 단어들을 쪼개서 이름과 '비슷한지' 검사 (오타 허용)
+     */
+    private boolean containsFuzzyMatch(String message, String targetName) {
+        String[] words = message.split(" ");
+
+        for (String word : words) {
+            String strippedWord = stripKoreanParticles(word);
+            int distance = getLevenshteinDistance(strippedWord, targetName);
+            int threshold = (targetName.length() > 5) ? 2 : 1;
+
+            if (distance <= threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 한국어 조사 제거 (아/야/님/이/가 등)
+     * 예: "도현아" -> "도현", "도현님" -> "도현"
+     */
+    private String stripKoreanParticles(String word) {
+        if (word == null || word.length() < 2) return word;
+        // 끝글자가 조사인지 확인하고 자름
+        if (word.endsWith("아") || word.endsWith("야") || word.endsWith("님") || word.endsWith("이")) {
+            return word.substring(0, word.length() - 1);
+        }
+        return word;
+    }
+
+    /**
+     * 레벤슈타인 거리 알고리즘 (두 문자열의 차이 계산)
+     * - 외부 라이브러리(Apache Commons) 없이 구현
+     */
+    private int getLevenshteinDistance(String s1, String s2) {
+        int[] costs = new int[s2.length() + 1];
+        for (int j = 0; j < costs.length; j++) costs[j] = j;
+        for (int i = 1; i <= s1.length(); i++) {
+            costs[0] = i;
+            int nw = i - 1;
+            for (int j = 1; j <= s2.length(); j++) {
+                int cj = Math.min(1 + Math.min(costs[j], costs[j - 1]),
+                        s1.charAt(i - 1) == s2.charAt(j - 1) ? nw : nw + 1);
+                nw = costs[j];
+                costs[j] = cj;
+            }
+        }
+        return costs[s2.length()];
+    }
+
+    /**
+     * ⏱️ 생각하는 시간 계산
+     * - 1:1 채팅: 빠릿하게 반응 (0.5 ~ 1.5초)
+     * - 그룹 채팅: 서로 겹치지 않게 텀을 길게 둠 (2초 ~ 12초 랜덤)
+     */
+    private long calculateThinkingTime(String userMessage, boolean isGroupChat) {
         long baseDelay = 500;
-        long typingDelay = userMessage.length() * 100L; // 글자당 0.1초
-        long randomJitter = secureRandom.nextLong(100, 1000);
-        return baseDelay + typingDelay + randomJitter;
+        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초 (조금 더 빠르게)
+
+        if (isGroupChat) {
+            long randomDelay = secureRandom.nextLong(2000, 12000);
+            return baseDelay + typingDelay + randomDelay;
+        } else {
+
+            long randomJitter = secureRandom.nextLong(100, 1000);
+            return baseDelay + typingDelay + randomJitter;
+        }
     }
 
     private void sleep(long millis) {

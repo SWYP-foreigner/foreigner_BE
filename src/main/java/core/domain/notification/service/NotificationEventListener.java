@@ -136,7 +136,10 @@ public class NotificationEventListener {
     @Async
     @EventListener
     public void handleBulkNotification(NotificationBulkEvent event) {
+        String safeMessage = truncate(event.content(), 100);
+
         User senderProxy = entityManager.getReference(User.class, event.senderId());
+
         List<Notification> notifications = event.recipientIds().stream()
                 .map(targetId -> {
                     User receiverProxy = entityManager.getReference(User.class, targetId);
@@ -144,12 +147,13 @@ public class NotificationEventListener {
                     try {
                         referenceId = Long.parseLong(String.valueOf(event.roomId()));
                     } catch (NumberFormatException e) {
+                        // ignore
                     }
 
                     return Notification.builder()
                             .user(receiverProxy)
                             .actor(senderProxy)
-                            .message(event.content())
+                            .message(safeMessage)
                             .notificationType(event.type())
                             .referenceId(referenceId)
                             .subReferenceId(null)
@@ -157,10 +161,14 @@ public class NotificationEventListener {
                 })
                 .toList();
 
-
         notificationRepository.saveAll(notifications);
+        pushNotificationService.sendGroupPush(event.recipientIds(),safeMessage, String.valueOf(event.roomId()), event.roomName(), event.senderId());
+    }
+    private String truncate(String input, int maxLength) {
+        if (input == null) return null;
+        if (input.length() <= maxLength) return input;
 
-
-        pushNotificationService.sendGroupPush(event.recipientIds(), event.content(), String.valueOf(event.roomId()), event.roomName(), event.senderId());
+        // 3글자("...") 공간을 확보하기 위해 -3
+        return input.substring(0, maxLength - 3) + "...";
     }
 }
