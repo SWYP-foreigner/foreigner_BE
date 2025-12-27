@@ -264,4 +264,23 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
               AND i.url NOT LIKE '%/default/character%'
             """, nativeQuery = true)
     long countUsersWithCustomProfile(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            COUNT(CASE WHEN diff_seconds <= 60 THEN 1 END) as within_1min,
+            COUNT(CASE WHEN diff_seconds > 60 AND diff_seconds <= 3600 THEN 1 END) as within_1hour,
+            COUNT(CASE WHEN diff_seconds > 3600 THEN 1 END) as after_1hour,
+            COUNT(CASE WHEN first_msg_time IS NULL THEN 1 END) as never
+        FROM (
+            SELECT
+                u.user_id,
+                MIN(cm.sent_at) as first_msg_time,
+                EXTRACT(EPOCH FROM (MIN(cm.sent_at) - u.created_at)) as diff_seconds
+            FROM users u
+            LEFT JOIN chat_message cm ON u.user_id = cm.sender_id
+            WHERE u.created_at BETWEEN :start AND :end
+            GROUP BY u.user_id
+        ) sub
+    """, nativeQuery = true)
+    Object[] analyzeFirstMessageTime(@Param("start") Instant start, @Param("end") Instant end);
 }

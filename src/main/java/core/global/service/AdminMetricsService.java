@@ -42,6 +42,7 @@ public class AdminMetricsService {
         List<CountryRetentionDto> countryRetentions = fetchCountryRetentions(joinStartDate, joinEndDate);
         MessageTypeRatioDto messageTypeRatio = fetchMessageTypeRatio(joinStartDate, joinEndDate);
         ProfilePhotoStatsDto profilePhotoStats = fetchProfilePhotoStats(joinStartDate, joinEndDate);
+        FirstMessageTimeDto firstMessageTimeStats = fetchFirstMessageTimeStats(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -52,8 +53,36 @@ public class AdminMetricsService {
                 languageStats,
                 countryRetentions,
                 messageTypeRatio,
-                profilePhotoStats
+                profilePhotoStats,
+                firstMessageTimeStats
         );
+    }
+
+    private FirstMessageTimeDto fetchFirstMessageTimeStats(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        Object[] result = userRepository.analyzeFirstMessageTime(startInstant, endInstant);
+
+        Object[] row = (result != null && result.length > 0) ? (Object[]) result[0] : new Object[]{0L, 0L, 0L, 0L};
+
+        if (result instanceof Object[] && result.length > 0 && result[0] instanceof Object[]) {
+            row = (Object[]) result[0];
+        } else if (result instanceof Object[]) {
+            row = (Object[]) result;
+        }
+
+        long within1Min = ((Number) row[0]).longValue();
+        long within1Hour = ((Number) row[1]).longValue();
+        long after1Hour = ((Number) row[2]).longValue();
+        long never = ((Number) row[3]).longValue();
+
+        long total = within1Min + within1Hour + after1Hour + never;
+        double quickRatio = (total == 0) ? 0.0 : ((double) within1Min / total) * 100.0;
+        quickRatio = Math.round(quickRatio * 10) / 10.0;
+
+        return new FirstMessageTimeDto(within1Min, within1Hour, after1Hour, never, total, quickRatio);
     }
 
     private ProfilePhotoStatsDto fetchProfilePhotoStats(LocalDate startDate, LocalDate endDate) {

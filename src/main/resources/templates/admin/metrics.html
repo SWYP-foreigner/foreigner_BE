@@ -83,36 +83,6 @@
             <p>비활성(7일): <span th:text="*{inactiveLast7Days}"></span>명</p>
         </div>
 
-        <div class="card" th:object="${metrics.profilePhotoStats}">
-            <h2>📸 프로필 사진 등록률</h2>
-
-            <div style="text-align: center; margin: 20px 0;">
-                <span style="font-size: 3rem; font-weight: bold; color: #6f42c1;" th:text="*{ratio} + '%'"></span>
-                <p class="sub-data">가입 유저 중 직접 사진 등록</p>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px;">
-                    <span>기본 캐릭터</span>
-                    <span>커스텀 사진</span>
-                </div>
-                <div style="height: 12px; background-color: #eee; border-radius: 6px; overflow: hidden;">
-                    <div th:style="'width:' + *{ratio} + '%; background-color: #6f42c1; height: 100%; border-radius: 6px;'"></div>
-                </div>
-            </div>
-
-            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 0.9em;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <span style="color: #666;">전체 가입자</span>
-                    <strong th:text="*{totalSignups} + '명'"></strong>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #6f42c1; font-weight: bold;">📸 사진 등록</span>
-                    <strong style="color: #6f42c1;" th:text="*{customPhotoCount} + '명'"></strong>
-                </div>
-            </div>
-        </div>
-
         <div class="card" th:object="${metrics.activityBuckets}">
             <h2>⏰ 접속 시간대별 활동</h2>
             <p>최근 24시간: <span class="data" th:text="*{activeLast24h}"></span>명</p>
@@ -173,6 +143,97 @@
                     </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2 class="section-title">🚀 초기 안착 및 활동성</h2>
+    <div class="card-container">
+        <div class="card" th:object="${metrics.profilePhotoStats}">
+            <h2>📸 프로필 사진 등록률</h2>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <span style="font-size: 3rem; font-weight: bold; color: #6f42c1;" th:text="*{ratio} + '%'"></span>
+                <p class="sub-data">가입 유저 중 직접 사진 등록</p>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px;">
+                    <span>기본 캐릭터</span>
+                    <span>커스텀 사진</span>
+                </div>
+                <div style="height: 12px; background-color: #eee; border-radius: 6px; overflow: hidden;">
+                    <div th:style="'width:' + *{ratio} + '%; background-color: #6f42c1; height: 100%; border-radius: 6px;'"></div>
+                </div>
+            </div>
+
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 0.9em;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">전체 가입자</span>
+                    <strong th:text="*{totalSignups} + '명'"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #6f42c1; font-weight: bold;">📸 사진 등록</span>
+                    <strong style="color: #6f42c1;" th:text="*{customPhotoCount} + '명'"></strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" th:object="${metrics.firstMessageTimeStats}">
+            <h2>⏱️ 첫 메시지 발송 시간</h2>
+
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 5px 0;">
+                    <strong>1분 내 발송률:</strong>
+                    <span class="data highlight" th:text="*{quickRatio} + '%'"></span>
+                </p>
+                <p class="sub-data">
+                    (대상 가입자: <span th:text="*{total}"></span>명)
+                </p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 3px;">
+                        <span>⚡ 1분 이내 (즉시 활동)</span>
+                        <span th:text="*{within1Min} + '명'"></span>
+                    </div>
+                    <div style="background: #eee; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div th:style="'width:' + (*{total} > 0 ? (*{within1Min} * 100.0 / *{total}) : 0) + '%; background: #dc3545; height: 100%;'"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 3px;">
+                        <span>🕐 1시간 이내</span>
+                        <span th:text="*{within1Hour} + '명'"></span>
+                    </div>
+                    <div style="background: #eee; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div th:style="'width:' + (*{total} > 0 ? (*{within1Hour} * 100.0 / *{total}) : 0) + '%; background: #ffc107; height: 100%;'"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 3px;">
+                        <span>🐢 1시간 이후</span>
+                        <span th:text="*{after1Hour} + '명'"></span>
+                    </div>
+                    <div style="background: #eee; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div th:style="'width:' + (*{total} > 0 ? (*{after1Hour} * 100.0 / *{total}) : 0) + '%; background: #17a2b8; height: 100%;'"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 3px;">
+                        <span style="color: #6c757d;">👻 발송 기록 없음</span>
+                        <span th:text="*{never} + '명'"></span>
+                    </div>
+                    <div style="background: #eee; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div th:style="'width:' + (*{total} > 0 ? (*{never} * 100.0 / *{total}) : 0) + '%; background: #6c757d; height: 100%;'"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
