@@ -177,7 +177,7 @@ firebase:
 management:
   health:
     mail:
-      enabled: false
+      enabled: true
   endpoints:
     web:
       exposure:
