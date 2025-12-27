@@ -186,6 +186,7 @@ management:
     health:
       cache:
         time-to-live: 1m
+      show-components: always
       show-details: when-authorized # 기본 경로는 상세 정보 숨김
       group:
         liveness:
