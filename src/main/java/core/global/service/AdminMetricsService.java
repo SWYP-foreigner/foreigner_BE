@@ -47,6 +47,7 @@ public class AdminMetricsService {
         ProfilePhotoStatsDto profilePhotoStats = fetchProfilePhotoStats(joinStartDate, joinEndDate);
         FirstMessageTimeDto firstMessageTimeStats = fetchFirstMessageTimeStats(joinStartDate, joinEndDate);
         DemographicsDto demographics = fetchDemographics(joinStartDate, joinEndDate);
+        GhostUserStatsDto ghostUserStats = fetchGhostUserStats(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -59,8 +60,24 @@ public class AdminMetricsService {
                 messageTypeRatio,
                 profilePhotoStats,
                 firstMessageTimeStats,
-                demographics
+                demographics,
+                ghostUserStats
         );
+    }
+
+    private GhostUserStatsDto fetchGhostUserStats(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        long totalSignups = userRepository.countUsersJoinedInPeriod(startInstant, endInstant);
+
+        long ghostCount = userRepository.countGhostUsers(startInstant, endInstant);
+
+        double ratio = (totalSignups == 0) ? 0.0 : ((double) ghostCount / totalSignups) * 100.0;
+        ratio = Math.round(ratio * 10) / 10.0;
+
+        return new GhostUserStatsDto(totalSignups, ghostCount, ratio);
     }
 
     private DemographicsDto fetchDemographics(LocalDate startDate, LocalDate endDate) {

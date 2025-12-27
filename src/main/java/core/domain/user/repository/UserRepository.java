@@ -302,4 +302,16 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
         ORDER BY age_group
     """, nativeQuery = true)
     List<Object[]> countAgeGroupByPeriod(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT COUNT(*)
+        FROM users u
+        WHERE u.created_at BETWEEN :start AND :end
+          AND NOT EXISTS (SELECT 1 FROM chat_message cm WHERE cm.sender_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM comment c WHERE c.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM post p WHERE p.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM chat_room cr WHERE cr.owner_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM chat_participant cp WHERE cp.user_id = u.user_id)
+    """, nativeQuery = true)
+    long countGhostUsers(@Param("start") Instant start, @Param("end") Instant end);
 }

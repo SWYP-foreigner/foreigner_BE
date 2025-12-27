@@ -261,6 +261,37 @@
                 </div>
             </div>
         </div>
+
+        <div class="card" th:object="${metrics.ghostUserStats}">
+            <h2>👻 유령 유저 비율 (Ghost Users)</h2>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <span style="font-size: 3rem; font-weight: bold; color: #dc3545;" th:text="*{ghostRate} + '%'"></span>
+                <p class="sub-data" style="color: #dc3545;">가입 후 활동(채팅/글/방생성 등) 0회</p>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px;">
+                    <span>활동 유저</span>
+                    <span style="color: #dc3545;">유령 유저</span>
+                </div>
+                <div style="height: 12px; background-color: #28a745; border-radius: 6px; overflow: hidden; display: flex;">
+                    <div style="flex-grow: 1; background-color: #28a745;"></div>
+                    <div th:style="'width:' + *{ghostRate} + '%; background-color: #dc3545;'"></div>
+                </div>
+            </div>
+
+            <div style="background-color: #fff5f5; padding: 10px; border-radius: 6px; font-size: 0.9em; border: 1px solid #ffc9c9;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">전체 가입자</span>
+                    <strong th:text="*{totalSignups} + '명'"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #dc3545; font-weight: bold;">👻 이탈/눈팅</span>
+                    <strong style="color: #dc3545;" th:text="*{ghostCount} + '명'"></strong>
+                </div>
+            </div>
+        </div>
     </div>
 
     <hr class="section-divider">
