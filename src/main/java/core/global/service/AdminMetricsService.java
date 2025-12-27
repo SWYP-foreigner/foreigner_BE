@@ -15,7 +15,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +46,7 @@ public class AdminMetricsService {
         MessageTypeRatioDto messageTypeRatio = fetchMessageTypeRatio(joinStartDate, joinEndDate);
         ProfilePhotoStatsDto profilePhotoStats = fetchProfilePhotoStats(joinStartDate, joinEndDate);
         FirstMessageTimeDto firstMessageTimeStats = fetchFirstMessageTimeStats(joinStartDate, joinEndDate);
+        DemographicsDto demographics = fetchDemographics(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -54,8 +58,56 @@ public class AdminMetricsService {
                 countryRetentions,
                 messageTypeRatio,
                 profilePhotoStats,
-                firstMessageTimeStats
+                firstMessageTimeStats,
+                demographics
         );
+    }
+
+    private DemographicsDto fetchDemographics(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        List<Object[]> genderResult = userRepository.countGenderByPeriod(startInstant, endInstant);
+        Map<String, Long> genderMap = new HashMap<>();
+        long totalGenderCount = 0;
+
+        for (Object[] row : genderResult) {
+            String sex = (String) row[0];
+            long count = ((Number) row[1]).longValue();
+
+            String label = (sex == null || sex.isBlank()) ? "Unknown" : sex;
+
+            if ("M".equalsIgnoreCase(label) || "Male".equalsIgnoreCase(label)) label = "남성";
+            else if ("F".equalsIgnoreCase(label) || "Female".equalsIgnoreCase(label)) label = "여성";
+
+            genderMap.put(label, count);
+            totalGenderCount += count;
+        }
+
+        List<Object[]> ageResult = userRepository.countAgeGroupByPeriod(startInstant, endInstant);
+        Map<String, Long> ageMap = new LinkedHashMap<>();
+
+        ageMap.put("10대", 0L);
+        ageMap.put("20대", 0L);
+        ageMap.put("30대", 0L);
+        ageMap.put("40대", 0L);
+        ageMap.put("50대+", 0L);
+
+        for (Object[] row : ageResult) {
+            double ageGroupDouble = ((Number) row[0]).doubleValue();
+            long count = ((Number) row[1]).longValue();
+            int ageGroup = (int) ageGroupDouble;
+
+            String key;
+            if (ageGroup < 10) key = "10대 미만";
+            else if (ageGroup >= 50) key = "50대+";
+            else key = ageGroup + "대";
+
+            ageMap.put(key, ageMap.getOrDefault(key, 0L) + count);
+        }
+
+        return new DemographicsDto(genderMap, ageMap, totalGenderCount);
     }
 
     private FirstMessageTimeDto fetchFirstMessageTimeStats(LocalDate startDate, LocalDate endDate) {

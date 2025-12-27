@@ -15,5 +15,6 @@ public record AdminMetricsDto(
         List<CountryRetentionDto> countryRetentions,
         MessageTypeRatioDto messageTypeRatio,
         ProfilePhotoStatsDto profilePhotoStats,
-        FirstMessageTimeDto firstMessageTimeStats
+        FirstMessageTimeDto firstMessageTimeStats,
+        DemographicsDto demographics
 ) {}

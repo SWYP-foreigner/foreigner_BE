@@ -283,4 +283,23 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
         ) sub
     """, nativeQuery = true)
     Object[] analyzeFirstMessageTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT u.sex, COUNT(u) " +
+            "FROM User u " +
+            "WHERE u.createdAt BETWEEN :start AND :end " +
+            "GROUP BY u.sex")
+    List<Object[]> countGenderByPeriod(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            FLOOR((EXTRACT(YEAR FROM CURRENT_DATE) - CAST(SPLIT_PART(u.birth_date, '/', 3) AS INTEGER)) / 10) * 10 as age_group,
+            COUNT(*)
+        FROM users u
+        WHERE u.created_at BETWEEN :start AND :end
+          AND u.birth_date IS NOT NULL 
+          AND u.birth_date LIKE '%/%/%' -- 형식이 MM/DD/YYYY 인 데이터만 안전하게 포함
+        GROUP BY age_group
+        ORDER BY age_group
+    """, nativeQuery = true)
+    List<Object[]> countAgeGroupByPeriod(@Param("start") Instant start, @Param("end") Instant end);
 }
