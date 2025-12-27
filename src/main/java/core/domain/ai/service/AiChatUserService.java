@@ -274,11 +274,23 @@ public class AiChatUserService {
         return costs[s2.length()];
     }
 
-    private long calculateThinkingTime(String userMessage) {
+    /**
+     * ⏱️ 생각하는 시간 계산
+     * - 1:1 채팅: 빠릿하게 반응 (0.5 ~ 1.5초)
+     * - 그룹 채팅: 서로 겹치지 않게 텀을 길게 둠 (2초 ~ 12초 랜덤)
+     */
+    private long calculateThinkingTime(String userMessage, boolean isGroupChat) {
         long baseDelay = 500;
-        long typingDelay = userMessage.length() * 100L; // 글자당 0.1초
-        long randomJitter = secureRandom.nextLong(100, 1000);
-        return baseDelay + typingDelay + randomJitter;
+        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초 (조금 더 빠르게)
+
+        if (isGroupChat) {
+            long randomDelay = secureRandom.nextLong(2000, 12000);
+            return baseDelay + typingDelay + randomDelay;
+        } else {
+
+            long randomJitter = secureRandom.nextLong(100, 1000);
+            return baseDelay + typingDelay + randomJitter;
+        }
     }
 
     private void sleep(long millis) {
