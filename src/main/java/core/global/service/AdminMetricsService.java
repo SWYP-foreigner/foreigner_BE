@@ -41,6 +41,7 @@ public class AdminMetricsService {
         List<StringCountDto> languageStats = userRepository.countUsersByLanguage();
         List<CountryRetentionDto> countryRetentions = fetchCountryRetentions(joinStartDate, joinEndDate);
         MessageTypeRatioDto messageTypeRatio = fetchMessageTypeRatio(joinStartDate, joinEndDate);
+        ProfilePhotoStatsDto profilePhotoStats = fetchProfilePhotoStats(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -50,8 +51,24 @@ public class AdminMetricsService {
                 countryStats,
                 languageStats,
                 countryRetentions,
-                messageTypeRatio
+                messageTypeRatio,
+                profilePhotoStats
         );
+    }
+
+    private ProfilePhotoStatsDto fetchProfilePhotoStats(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        long totalSignups = userRepository.countUsersJoinedInPeriod(startInstant, endInstant);
+
+        long customPhotoCount = userRepository.countUsersWithCustomProfile(startInstant, endInstant);
+
+        double ratio = (totalSignups == 0) ? 0.0 : ((double) customPhotoCount / totalSignups) * 100.0;
+        ratio = Math.round(ratio * 10) / 10.0;
+
+        return new ProfilePhotoStatsDto(totalSignups, customPhotoCount, ratio);
     }
 
     private MessageTypeRatioDto fetchMessageTypeRatio(LocalDate startDate, LocalDate endDate) {

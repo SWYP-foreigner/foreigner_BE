@@ -255,5 +255,13 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     @Query("SELECT t.deviceToken FROM UserDeviceToken t JOIN t.user u WHERE u.country = :country AND u.agreedToPushNotification = true")
     List<String> findDeviceTokensByCountry(@Param("country") String country);
 
-
+    @Query(value = """
+            SELECT COUNT(DISTINCT u.user_id)
+            FROM users u
+            INNER JOIN image i ON u.user_id = i.related_id
+            WHERE u.created_at BETWEEN :start AND :end
+              AND i.image_type = 'USER'
+              AND i.url NOT LIKE '%/default/character%'
+            """, nativeQuery = true)
+    long countUsersWithCustomProfile(@Param("start") Instant start, @Param("end") Instant end);
 }

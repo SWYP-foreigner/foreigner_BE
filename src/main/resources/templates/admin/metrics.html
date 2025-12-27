@@ -83,6 +83,36 @@
             <p>비활성(7일): <span th:text="*{inactiveLast7Days}"></span>명</p>
         </div>
 
+        <div class="card" th:object="${metrics.profilePhotoStats}">
+            <h2>📸 프로필 사진 등록률</h2>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <span style="font-size: 3rem; font-weight: bold; color: #6f42c1;" th:text="*{ratio} + '%'"></span>
+                <p class="sub-data">가입 유저 중 직접 사진 등록</p>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px;">
+                    <span>기본 캐릭터</span>
+                    <span>커스텀 사진</span>
+                </div>
+                <div style="height: 12px; background-color: #eee; border-radius: 6px; overflow: hidden;">
+                    <div th:style="'width:' + *{ratio} + '%; background-color: #6f42c1; height: 100%; border-radius: 6px;'"></div>
+                </div>
+            </div>
+
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 6px; font-size: 0.9em;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">전체 가입자</span>
+                    <strong th:text="*{totalSignups} + '명'"></strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #6f42c1; font-weight: bold;">📸 사진 등록</span>
+                    <strong style="color: #6f42c1;" th:text="*{customPhotoCount} + '명'"></strong>
+                </div>
+            </div>
+        </div>
+
         <div class="card" th:object="${metrics.activityBuckets}">
             <h2>⏰ 접속 시간대별 활동</h2>
             <p>최근 24시간: <span class="data" th:text="*{activeLast24h}"></span>명</p>

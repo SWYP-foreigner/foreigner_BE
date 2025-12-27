@@ -13,5 +13,6 @@ public record AdminMetricsDto(
         List<StringCountDto> countryStats,
         List<StringCountDto> languageStats,
         List<CountryRetentionDto> countryRetentions,
-        MessageTypeRatioDto messageTypeRatio
+        MessageTypeRatioDto messageTypeRatio,
+        ProfilePhotoStatsDto profilePhotoStats
 ) {}
