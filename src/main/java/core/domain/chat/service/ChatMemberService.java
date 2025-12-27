@@ -106,23 +106,38 @@ public class ChatMemberService {
         }
         blockRepository.save(new BlockUser(blocker, blockedUser));
     }
-
     @Transactional
     public void reportChat(Long reporterUserId, ChatReportRequest request) {
-        if (chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId())) {
-            throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
+
+        User reporterUser = null;
+
+        // 1. [수정] 신고자가 사람(User)일 때만 유효성 검사 수행
+        if (reporterUserId != null) {
+            // 중복 신고 체크
+            if (chatReportRepository.existsByReporterUserIdAndMessageId(reporterUserId, request.messageId())) {
+                throw new BusinessException(ChatErrorCode.DUPLICATE_REPORT);
+            }
+
+            // 신고자 조회
+            reporterUser = userRepository.findById(reporterUserId)
+                    .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         }
-        User reporterUser = userRepository.findById(reporterUserId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 신고 대상 메시지 조회
         ChatMessage reportedMessage = chatMessageRepository.findById(request.messageId())
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
+
         User reportedUser = reportedMessage.getSender();
         ChatRoom chatRoom = reportedMessage.getChatRoom();
-        if (reportedUser.getId().equals(reporterUserId)) {
+
+        // 3. [수정] 자진 신고 방지 (신고자가 있을 때만 체크)
+        if (reporterUserId != null && reportedUser.getId().equals(reporterUserId)) {
             throw new BusinessException(ChatErrorCode.CANNOT_REPORT_SELF);
         }
+
+        // 4. 리포트 생성 (reporterUser가 null이면 시스템 신고로 저장)
         ChatReport chatReport = new ChatReport(
-                reporterUser,
+                reporterUser, // 여기가 null이어도 들어가도록 허용
                 reportedUser,
                 chatRoom,
                 request.messageId(),
@@ -130,9 +145,9 @@ public class ChatMemberService {
                 request.reasonCategory(),
                 request.reasonDetail()
         );
+
         chatReportRepository.save(chatReport);
     }
-
     // --- 설정 (번역, 알림) ---
 
     @Transactional

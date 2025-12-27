@@ -50,7 +50,7 @@ spring:
         enabled: false
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -156,6 +156,9 @@ management:
   metrics:
     tags:
       application: my-service
+  health:
+    mail:
+          enabled: false
 
 app:
   mail:
