@@ -97,7 +97,7 @@ public class AiOnboardingService {
 
             if (simulatedTime < INITIAL_ONBOARDING_MINUTES) {
                 // [Phase 1] 초기 48시간
-                long seed = user.getId() + (expectedAiCount * 997L);
+                long seed = user.getId() + ((long) expectedAiCount * 997L);
                 Random seededRandom = new Random(seed);
                 interval = 5 + seededRandom.nextInt(11);
             } else {
