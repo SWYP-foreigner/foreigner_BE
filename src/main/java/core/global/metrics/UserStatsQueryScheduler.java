@@ -28,8 +28,6 @@ public class UserStatsQueryScheduler {
 
             // ACU/MCU는 아직 별도 로직 없으니 0으로 유지 (나중에 presence 기반으로 채워도 됨)
             userMetrics.update(dau, wau, mau, 0, 0);
-
-            log.info("[UserStats] DAU={}, WAU={}, MAU={}", dau, wau, mau);
         } catch (Exception e) {
             log.error("[UserStats] refreshUserMetrics failed", e);
         }
