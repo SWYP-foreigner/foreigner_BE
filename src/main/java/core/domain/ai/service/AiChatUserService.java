@@ -123,12 +123,11 @@ public class AiChatUserService {
             return null;
         }
 
-        // -------------------------------------------------------------
-        // 🛑 [과열 방지 시스템] AI끼리 무한 루프 방지
-        // 최근 1분 동안 메시지가 15개 이상 쏟아졌다면, AI들은 잠시 휴식
-        // -------------------------------------------------------------
+        LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
+        Instant compareTime = oneMinuteAgo.atZone(ZoneId.systemDefault()).toInstant();
+
         long recentMessageCount = historyDesc.stream()
-                .filter(msg -> msg.getSentAt().isAfter(Instant.from(LocalDateTime.now().minusMinutes(1))))
+                .filter(msg -> msg.getSentAt().isAfter(compareTime))
                 .count();
 
         if (recentMessageCount >= 15) {
