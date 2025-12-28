@@ -3,13 +3,19 @@ package core.domain.post.service.search;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
+import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.dto.search.PostSearchProjection;
 import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -22,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -36,7 +43,11 @@ public class PostSearchService {
     private final PostSearchRepositoryCustom searchRepository;
     private final BoardRepository boardRepository;
     private final BlockRepository blockRepository;
+    private final CommentRepository commentRepository;
+    private final LikeRepository likeRepository;
+    private final ImageRepository imageRepository;
     private final UserRepository userRepository;
+    private final BookmarkRepository bookmarkRepository;
     private final SuggestMemoryIndex memoryIndex;
 
     @Transactional(readOnly = true)
@@ -46,6 +57,7 @@ public class PostSearchService {
             String cursor,
             int size
     ) {
+        // 1. 사전 준비 및 유저/차단 정보 조회
         final int pageSize = Math.min(Math.max(size, 1), 20);
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
 
@@ -58,19 +70,59 @@ public class PostSearchService {
         List<Long> blockedIds = blockRepository.getBlockUsersByUserEmail(email)
                 .stream().map(User::getId).toList();
 
+        // 2. 커서 디코딩
         Map<String, Object> c = safeDecode(cursor);
-
         Instant afterTime = parseInstant(c.get("t"));
         Long afterId = (c.get("id") instanceof Number n) ? n.longValue() : null;
         Double afterScore = (c.get("sc") instanceof Number n) ? n.doubleValue() : null; // score 추가
 
-        List<SearchResultView> rowsPlusOne = searchRepository.search(new PostSearchRequest(q, user.getId(), resolvedBoardId, blockedIds, afterScore, afterTime, afterId, pageSize));
+        // 3. 레포지토리 호출 (Projection 리스트 조회)
+        List<PostSearchProjection> allProjections = searchRepository.search(
+                new PostSearchRequest(q, user.getId(), resolvedBoardId, blockedIds, afterScore, afterTime, afterId, pageSize));
 
-        boolean hasNext = rowsPlusOne.size() > pageSize;
-        List<SearchResultView> items = hasNext ? rowsPlusOne.subList(0, pageSize) : rowsPlusOne;
+        // 4. 페이징 처리 (hasNext 여부 확인 후 데이터 절단)
+        boolean hasNext = allProjections.size() > pageSize;
+        List<PostSearchProjection> contentProjections = hasNext ? allProjections.subList(0, pageSize) : allProjections;
 
+        // 5. 벌크 조회를 위한 ID 추출
+        List<Long> postIds = contentProjections.stream().map(PostSearchProjection::postId).toList();
+        List<Long> authorIds = contentProjections.stream()
+                .map(PostSearchProjection::authorId)
+                .filter(Objects::nonNull) // 익명은 프로필 이미지 필요 없음
+                .distinct().toList();
+
+
+        // 6. 벌크 데이터 조회 (Map/Set 변환)
+        Map<Long, Long> likeCounts = convertToMap(likeRepository.countByPostIds(postIds));
+        Map<Long, Long> commentCounts = convertToMap(commentRepository.countByPostIds(postIds));
+        Map<Long, String> userImageUrls = convertToStringMap(imageRepository.findProfileImagesByUserIds(authorIds));
+        Map<Long, String> contentThumbnails = convertToStringMap(imageRepository.findFirstUrlsByPostIds(postIds));
+        Map<Long, Integer> contentImageCounts = convertToIntegerMap(imageRepository.countImageByPostIds(postIds));
+
+        Set<Long> likedPostIds = new HashSet<>(likeRepository.findLikedPostIdsByUserId(user.getId(), postIds));
+        Set<Long> bookmarkedPostIds = new HashSet<>(bookmarkRepository.findBookmarkedPostIdsByUserId(user.getId(), postIds));
+
+        // 7. 최종 DTO 조립
+        List<SearchResultView> items = contentProjections.stream().map(p -> {
+            BoardItem boardItem = new BoardItem(
+                    p.postId(), p.contentPreview(), p.authorId(), p.authorName(),
+                    p.category(), p.createdAt(), p.isAnonymous(),
+                    likedPostIds.contains(p.postId()),
+                    bookmarkedPostIds.contains(p.postId()),
+                    likeCounts.getOrDefault(p.postId(), 0L),
+                    commentCounts.getOrDefault(p.postId(), 0L),
+                    p.viewCount(),
+                    userImageUrls.get(p.authorId()),
+                    contentThumbnails.get(p.postId()),
+                    contentImageCounts.getOrDefault(p.postId(), 0),
+                    p.scoreRounded()
+            );
+            return new SearchResultView(boardItem, p.rawScore());
+        }).toList();
+
+        // 8. 다음 커서 생성
         String nextCursor = null;
-        if (hasNext) {
+        if (hasNext && !items.isEmpty()) {
             var last = items.get(items.size() - 1);
             nextCursor = safeEncode(Map.of(
                     "sc", last.score(),
@@ -80,6 +132,16 @@ public class PostSearchService {
         }
 
         return new CursorPageResponse<>(items, hasNext, nextCursor);
+    }
+
+    private Map<Long, Long> convertToMap(List<Object[]> result) {
+        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> (Long)r[1], (v1, v2) -> v1));
+    }
+    private Map<Long, String> convertToStringMap(List<Object[]> result) {
+        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> (String)r[1], (v1, v2) -> v1));
+    }
+    private Map<Long, Integer> convertToIntegerMap(List<Object[]> result) {
+        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> ((Number)r[1]).intValue(), (v1, v2) -> v1));
     }
 
     private Instant parseInstant(Object obj) {

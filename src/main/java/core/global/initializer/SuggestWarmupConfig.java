@@ -1,12 +1,13 @@
 package core.global.initializer;
 
-import core.domain.post.repository.PostSearchRepositoryCustom;
+import core.domain.post.entity.HotKeyword;
+import core.domain.post.repository.HotKeywordRepository;
 import core.domain.post.service.search.SuggestMemoryIndex;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
@@ -15,25 +16,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SuggestWarmupConfig {
 
-    private final PostSearchRepositoryCustom searchRepository;
+    private final HotKeywordRepository hotKeywordRepository;
     private final SuggestMemoryIndex memoryIndex;
 
     @Bean
     ApplicationRunner suggestWarmupRunner() {
-    log.info("runner start");
         return args -> {
-            int topN = 2000;
-            List<String> hotKeys = searchRepository.findHotKeywordsOrTitles(topN);
-            // --- 확인 로그 ---
-            System.out.println("[Warmup] hotKeys size = " + (hotKeys == null ? 0 : hotKeys.size()));
-            hotKeys.stream().limit(10).forEach(k -> System.out.println("[Warmup] sample=" + k));
+            log.info("[Warmup] Starting Warmup from hot_keywords table...");
 
-            for (String k : hotKeys) {
-                memoryIndex.upsert(k, 1);
+            // 90일치 게시글 뒤지는 대신, 미리 저장된 테이블만 조회 (매우 빠름)
+            List<HotKeyword> savedKeywords = hotKeywordRepository.findAll();
+
+            for (HotKeyword hk : savedKeywords) {
+                memoryIndex.upsert(hk.getKeyword(), 1);
             }
-            // memoryIndex 내부 카운트/크기 노출용 임시 메서드가 없다면 추가 권장
-            System.out.println("[Warmup] memoryIndex loaded.");
-        };
 
+            log.info("[Warmup] Loaded {} keywords into MemoryIndex.", savedKeywords.size());
+        };
     }
 }

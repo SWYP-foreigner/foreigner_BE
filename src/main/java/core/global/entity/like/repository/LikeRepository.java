@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface LikeRepository extends JpaRepository<Like, Long> {
@@ -55,4 +56,10 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     void deleteAllByUserId(@Param("userId") Long userId);
 
     void deleteAllByTypeAndRelatedIdIn(LikeType type, List<Long> postIds);
+
+    @Query("SELECT l.relatedId, COUNT(l) FROM Like l WHERE l.relatedId IN :postIds AND l.type = 'POST' GROUP BY l.relatedId")
+    List<Object[]> countByPostIds(@Param("postIds") List<Long> postIds);
+
+    @Query("SELECT l.relatedId FROM Like l WHERE l.user.id = :userId AND l.relatedId IN :postIds AND l.type = 'POST'")
+    List<Long> findLikedPostIdsByUserId(@Param("userId") Long userId, @Param("postIds") List<Long> postIds);
 }
