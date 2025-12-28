@@ -5,10 +5,10 @@ import core.domain.board.repository.BoardRepository;
 import core.domain.post.dto.crawling.CrawledDataDto;
 import core.domain.post.dto.crawling.MergedCrawledDataDto;
 import core.domain.post.entity.CrawledData;
-import core.domain.post.entity.MainPageContent;
+import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.CrawledDataRepository;
-import core.domain.mainpage.repository.KoreanNewsRepository;
+import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -60,7 +60,7 @@ public class CrawledDataAdminService {
 
     private final CrawledDataRepository crawledDataRepository;
     private final PostRepository postRepository;
-    private final KoreanNewsRepository koreanNewsRepository;
+    private final MainContentRepository mainContentRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
@@ -133,7 +133,7 @@ public class CrawledDataAdminService {
                     .title(title).htmlContent(content)
                     .originalUrl(sourceDataList.get(0).getOriginalUrl())
                     .publisher(adminUser).build();
-            MainPageContent savedContent = koreanNewsRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -180,7 +180,7 @@ public class CrawledDataAdminService {
             MainPageContent newContent = MainPageContent.builder()
                     .title(crawledData.getTitle()).htmlContent(content)
                     .originalUrl(crawledData.getOriginalUrl()).publisher(adminUser).build();
-            MainPageContent savedContent = koreanNewsRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
