@@ -93,7 +93,7 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
 
-    private final MainContentRepository mainPageContentRepository;
+    private final MainContentRepository mainContentRepository;
     private final S3Client s3Client;
     private final S3Props s3Props;
 
@@ -660,7 +660,7 @@ public class PostServiceImpl implements PostService {
                     .originalUrl(null)
                     .build();
 
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
 
             String processedHtml = processHtmlAndUploadImages(content, contentId);

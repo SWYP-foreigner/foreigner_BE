@@ -60,7 +60,7 @@ public class CrawledDataAdminService {
 
     private final CrawledDataRepository crawledDataRepository;
     private final PostRepository postRepository;
-    private final MainContentRepository mainPageContentRepository;
+    private final MainContentRepository mainContentRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
@@ -132,7 +132,7 @@ public class CrawledDataAdminService {
             MainPageContent newContent = MainPageContent.builder()
                     .title(title).htmlContent(content)
                     .originalUrl(sourceDataList.get(0).getOriginalUrl()).build();
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -179,7 +179,7 @@ public class CrawledDataAdminService {
             MainPageContent newContent = MainPageContent.builder()
                     .title(crawledData.getTitle()).htmlContent(content)
                     .originalUrl(crawledData.getOriginalUrl()).build();
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
