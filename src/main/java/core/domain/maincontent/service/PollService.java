@@ -1,6 +1,5 @@
 package core.domain.maincontent.service;
 
-import com.nimbusds.jose.proc.SecurityContext;
 import core.domain.maincontent.dto.PollItem;
 import core.domain.maincontent.dto.PollResultResponse;
 import core.domain.maincontent.entity.Poll;
@@ -22,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -36,10 +36,15 @@ public class PollService {
         Poll poll = pollRepository.findFirstByTypeOrderByCreatedAtDesc(type)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
 
-        return mapToPollItem(poll);
+        Long selectedOptionId = getCurrentUser()
+                .flatMap(user -> voteRecordRepository.findByUserIdAndPollId(user.getId(), poll.getId()))
+                .map(record -> record.getPollOption().getId())
+                .orElse(null);
+
+        return mapToPollItem(poll,selectedOptionId );
     }
 
-    private PollItem mapToPollItem(Poll poll) {
+    private PollItem mapToPollItem(Poll poll, Long selectedOptionId) {
         List<PollItem.OptionItem> optionItems = poll.getOptions().stream()
                 .map(opt -> new PollItem.OptionItem(opt.getId(), opt.getContent(), opt.getVoteCount()))
                 .toList();
@@ -52,7 +57,7 @@ public class PollService {
                 poll.getCloseAt(),
                 poll.getTotalVoteCount(),
                 optionItems,
-                null // 실제 구현 시 SecurityContext에서 유저 확인 후 투표 여부 로직 추가
+                selectedOptionId
         );
     }
 
@@ -88,13 +93,25 @@ public class PollService {
         selectedOption.incrementVoteCount(); // option.voteCount++
 
         // 6. 결과 반환 처리
+        return createPollResultResponse(poll, selectedOption);
+    }
+
+
+    private Optional<User> getCurrentUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (email == null || email.equals("anonymousUser")) {
+            return Optional.empty();
+        }
+        return userRepository.findByEmail(email);
+    }
+
+    private PollResultResponse createPollResultResponse(Poll poll, PollOption selectedOption) {
         boolean isCorrect = false;
         Long correctOptionId = null;
 
         if (poll.getType() == PollType.QUIZ) {
             isCorrect = selectedOption.isCorrect();
             if (!isCorrect) {
-                // 틀렸을 경우 정답 ID를 찾아줌
                 correctOptionId = poll.getOptions().stream()
                         .filter(PollOption::isCorrect)
                         .map(PollOption::getId)
@@ -106,7 +123,7 @@ public class PollService {
                 .map(opt -> new PollResultResponse.OptionResult(
                         opt.getId(),
                         opt.getVoteCount(),
-                        poll.calculatePercentage(opt.getVoteCount()) // 백분율 계산 로직
+                        poll.calculatePercentage(opt.getVoteCount())
                 )).toList();
 
         return new PollResultResponse(poll.getId(), poll.getType(), isCorrect, correctOptionId, results);
