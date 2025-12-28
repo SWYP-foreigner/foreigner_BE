@@ -5,6 +5,7 @@ import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
@@ -29,6 +30,7 @@ public class PushNotificationService {
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final NotificationMetrics notificationMetrics;
+    private final UserRepository userRepository;
 
     /**
      * 사용자에게 푸시 알림을 발송합니다.
@@ -322,6 +324,73 @@ public class PushNotificationService {
                 log.error("💥 FCM Batch Request Failed", e);
                 notificationMetrics.mark("push_batch", "error", "exception");
             }
+        }
+    }
+
+    @Transactional
+    public void sendPushToCountry(String targetCountry, String title, String body, Long adminId) {
+        List<String> tokens = userRepository.findDeviceTokensByCountry(targetCountry);
+
+        if (tokens.isEmpty()) {
+            log.info("국가 '{}'에 발송할 대상 유저가 없습니다.", targetCountry);
+            return;
+        }
+
+        log.info("국가 '{}' 타겟팅 푸시 시작: 대상 토큰 {}개", targetCountry, tokens.size());
+
+        sendGenericBatchPush(tokens, title, body, "notice", adminId);
+    }
+
+    private void sendGenericBatchPush(List<String> tokens, String title, String body, String type, Long senderId) {
+        List<List<String>> partitions = com.google.common.collect.Lists.partition(tokens, 500);
+
+        for (List<String> batchTokens : partitions) {
+            MulticastMessage message = MulticastMessage.builder()
+                    .addAllTokens(batchTokens)
+                    .setNotification(com.google.firebase.messaging.Notification.builder()
+                            .setTitle(title)
+                            .setBody(body)
+                            .build())
+                    .putData("notificationType", type)
+                    .putData("type", type)
+                    .putData("senderId", String.valueOf(senderId))
+                    .build();
+
+            try {
+                BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
+
+                if (response.getFailureCount() > 0) {
+                    handleBatchFailures(response, batchTokens);
+                }
+
+                notificationMetrics.mark("push_country", "sent", "ok");
+
+            } catch (FirebaseMessagingException e) {
+                log.error("국가 타겟팅 푸시 배치 발송 실패", e);
+            }
+        }
+    }
+
+    private void handleBatchFailures(BatchResponse response, List<String> batchTokens) {
+        List<String> tokensToDelete = new ArrayList<>();
+        List<SendResponse> responses = response.getResponses();
+
+        for (int i = 0; i < responses.size(); i++) {
+            if (!responses.get(i).isSuccessful()) {
+                FirebaseMessagingException e = responses.get(i).getException();
+                MessagingErrorCode code = e.getMessagingErrorCode();
+
+                if (code == MessagingErrorCode.UNREGISTERED ||
+                        code == MessagingErrorCode.INVALID_ARGUMENT ||
+                        code == MessagingErrorCode.SENDER_ID_MISMATCH) {
+                    tokensToDelete.add(batchTokens.get(i));
+                }
+            }
+        }
+
+        if (!tokensToDelete.isEmpty()) {
+            userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
+            log.info("유효하지 않은 토큰 {}개 삭제 완료", tokensToDelete.size());
         }
     }
 }

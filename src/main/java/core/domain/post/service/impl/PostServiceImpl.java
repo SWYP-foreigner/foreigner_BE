@@ -658,7 +658,6 @@ public class PostServiceImpl implements PostService {
                     .title(title)
                     .htmlContent(content)
                     .originalUrl(null)
-                    .publisher(adminUser)
                     .build();
 
             MainPageContent savedContent = mainContentRepository.save(newContent);

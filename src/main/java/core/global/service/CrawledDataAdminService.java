@@ -131,8 +131,7 @@ public class CrawledDataAdminService {
         } else if ("MAIN_PAGE".equals(publishType)) {
             MainPageContent newContent = MainPageContent.builder()
                     .title(title).htmlContent(content)
-                    .originalUrl(sourceDataList.get(0).getOriginalUrl())
-                    .publisher(adminUser).build();
+                    .originalUrl(sourceDataList.get(0).getOriginalUrl()).build();
             MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
@@ -179,7 +178,7 @@ public class CrawledDataAdminService {
         } else if ("MAIN_PAGE".equals(publishType)) {
             MainPageContent newContent = MainPageContent.builder()
                     .title(crawledData.getTitle()).htmlContent(content)
-                    .originalUrl(crawledData.getOriginalUrl()).publisher(adminUser).build();
+                    .originalUrl(crawledData.getOriginalUrl()).build();
             MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;

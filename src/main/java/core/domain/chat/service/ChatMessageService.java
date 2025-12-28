@@ -12,7 +12,7 @@ import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.domain.ai.dto.MessageCreatedEvent;
+import core.domain.aiuser.dto.MessageCreatedEvent;
 import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;

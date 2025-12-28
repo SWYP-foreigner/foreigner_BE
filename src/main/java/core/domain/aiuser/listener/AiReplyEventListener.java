@@ -1,7 +1,7 @@
-package core.domain.ai.listener;
+package core.domain.aiuser.listener;
 
-import core.domain.ai.dto.MessageCreatedEvent;
-import core.domain.ai.service.AiMessageDebouncer;
+import core.domain.aiuser.dto.MessageCreatedEvent;
+import core.domain.aiuser.service.AiMessageDebouncer;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
