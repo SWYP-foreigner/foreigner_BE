@@ -6,7 +6,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageModerationStatus;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
-import core.global.service.ContentModerationService;
+import core.domain.admin.service.ContentModerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

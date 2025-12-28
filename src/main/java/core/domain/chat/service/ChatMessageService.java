@@ -24,7 +24,7 @@ import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.metrics.ChatMetrics;
-import core.global.service.PerspectiveService;
+import core.domain.admin.service.PerspectiveService;
 import core.global.service.TranslationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;

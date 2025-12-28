@@ -14,7 +14,7 @@ import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
-import core.global.service.ContentModerationService;
+import core.domain.admin.service.ContentModerationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,8 +36,6 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
-
-import static core.global.entity.image.utils.UrlUtil.buildCdnUrlFromKey;
 
 @Slf4j
 @Service
