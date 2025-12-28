@@ -1,10 +1,10 @@
-package core.domain.ai.service;
+package core.domain.aiuser.service;
 
-import core.domain.ai.client.AiClient;
-import core.domain.ai.dto.MessageCreatedEvent;
-import core.domain.ai.entity.AiPersona;
-import core.domain.ai.mapper.PromptMapper;
-import core.domain.ai.repository.AiPersonaRepository;
+import core.domain.aiuser.client.AiClient;
+import core.domain.aiuser.dto.MessageCreatedEvent;
+import core.domain.aiuser.entity.AiPersona;
+import core.domain.aiuser.mapper.PromptMapper;
+import core.domain.aiuser.repository.AiPersonaRepository;
 import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;

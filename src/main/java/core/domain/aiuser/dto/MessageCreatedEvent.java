@@ -1,4 +1,4 @@
-package core.domain.ai.dto;
+package core.domain.aiuser.dto;
 
 import core.domain.chat.dto.ChatMessageResponse;
 

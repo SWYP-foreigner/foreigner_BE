@@ -1,4 +1,4 @@
-package core.domain.ai.client;
+package core.domain.aiuser.client;
 
 import java.util.List;
 import java.util.Map;

@@ -1,10 +1,9 @@
-package core.domain.ai.mapper;
+package core.domain.aiuser.mapper;
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

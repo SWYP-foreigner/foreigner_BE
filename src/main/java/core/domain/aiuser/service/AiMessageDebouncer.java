@@ -1,6 +1,6 @@
-package core.domain.ai.service;
+package core.domain.aiuser.service;
 
-import core.domain.ai.dto.MessageCreatedEvent;
+import core.domain.aiuser.dto.MessageCreatedEvent;
 import core.domain.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

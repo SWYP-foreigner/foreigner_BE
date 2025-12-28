@@ -1,4 +1,4 @@
-package core.domain.ai.service;
+package core.domain.aiuser.service;
 
 import core.domain.chat.dto.SendMessageRequest;
 import core.domain.chat.entity.ChatRoom;

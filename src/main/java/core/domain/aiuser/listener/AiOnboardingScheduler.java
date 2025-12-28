@@ -1,6 +1,6 @@
-package core.domain.ai.listener;
+package core.domain.aiuser.listener;
 
-import core.domain.ai.service.AiOnboardingService;
+import core.domain.aiuser.service.AiOnboardingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

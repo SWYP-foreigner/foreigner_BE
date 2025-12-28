@@ -1,6 +1,5 @@
-package core.domain.post.entity;
+package core.domain.maincontent.entity;
 
-import core.domain.comment.entity.Comment;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,8 +12,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "main_page_content")

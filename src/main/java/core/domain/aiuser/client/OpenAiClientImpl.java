@@ -1,4 +1,4 @@
-package core.domain.ai.client;
+package core.domain.aiuser.client;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
