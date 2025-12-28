@@ -8,7 +8,7 @@ import core.domain.post.entity.CrawledData;
 import core.domain.post.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.CrawledDataRepository;
-import core.domain.post.repository.MainPageContentRepository;
+import core.domain.mainpage.repository.KoreanNewsRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
@@ -60,7 +60,7 @@ public class CrawledDataAdminService {
 
     private final CrawledDataRepository crawledDataRepository;
     private final PostRepository postRepository;
-    private final MainPageContentRepository mainPageContentRepository;
+    private final KoreanNewsRepository koreanNewsRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
@@ -133,7 +133,7 @@ public class CrawledDataAdminService {
                     .title(title).htmlContent(content)
                     .originalUrl(sourceDataList.get(0).getOriginalUrl())
                     .publisher(adminUser).build();
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = koreanNewsRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -180,7 +180,7 @@ public class CrawledDataAdminService {
             MainPageContent newContent = MainPageContent.builder()
                     .title(crawledData.getTitle()).htmlContent(content)
                     .originalUrl(crawledData.getOriginalUrl()).publisher(adminUser).build();
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = koreanNewsRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 

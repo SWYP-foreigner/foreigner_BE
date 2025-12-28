@@ -1,6 +1,6 @@
 package core.domain.post.entity;
 
-import core.domain.comment.entity.Comment;
+import core.domain.mainpage.service.KNewsContentType;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -13,8 +13,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "main_page_content")
@@ -34,6 +32,10 @@ public class MainPageContent {
     @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     @Column(name = "html_content", nullable = false)
     private String htmlContent;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type")
+    private KNewsContentType type;
 
     @Column(name = "original_url")
     private String originalUrl;
