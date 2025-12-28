@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +35,7 @@ public class MainContentService {
     }
 
     public List<MainContentTop9Response> getTrendingKNews() {
-        return mainContentRepository.findTop9ByTypeOrderByViewCountDesc()
+        return mainContentRepository.findTop9ByOrderByViewCountDesc()
                 .stream()
                 .map(content -> new MainContentTop9Response(
                         content.getTitle(),

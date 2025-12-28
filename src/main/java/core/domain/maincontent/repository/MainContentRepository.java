@@ -9,5 +9,5 @@ import java.util.List;
 public interface MainContentRepository extends JpaRepository<MainPageContent, Long> {
     List<MainPageContent> findTop3ByTypeOrderByViewCountDesc(KNewsContentType type);
 
-    List<MainPageContent> findTop9ByTypeOrderByViewCountDesc();
+    List<MainPageContent> findTop9ByOrderByViewCountDesc();
 }
