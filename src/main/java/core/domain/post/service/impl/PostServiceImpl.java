@@ -13,7 +13,7 @@ import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
-import core.domain.post.repository.MainPageContentRepository;
+import core.domain.mainpage.repository.KoreanNewsRepository;
 import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -93,7 +93,7 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
 
-    private final MainPageContentRepository mainPageContentRepository;
+    private final KoreanNewsRepository koreanNewsRepository;
     private final S3Client s3Client;
     private final S3Props s3Props;
 
@@ -661,7 +661,7 @@ public class PostServiceImpl implements PostService {
                     .publisher(adminUser)
                     .build();
 
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = koreanNewsRepository.save(newContent);
             Long contentId = savedContent.getId();
 
             String processedHtml = processHtmlAndUploadImages(content, contentId);
