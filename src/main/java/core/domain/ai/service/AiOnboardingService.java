@@ -137,7 +137,6 @@ public class AiOnboardingService {
         // 🚨 스팸 방지: 답장 안 한 방이 5개 이상이면 중단
         long unrepliedRoomCount = chatRoomRepository.countUnrepliedAiRooms(user.getId());
         if (unrepliedRoomCount >= 5) {
-            log.info("🚫 User[{}] ignores too many AIs ({}). Skip onboarding.", user.getId(), unrepliedRoomCount);
             return;
         }
 
