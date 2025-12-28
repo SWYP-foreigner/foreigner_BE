@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 매우 단순한 prefix 사전:
@@ -15,14 +16,17 @@ import java.util.concurrent.ConcurrentSkipListMap;
 @Component
 public class SuggestMemoryIndex {
 
-    // 사전: 사전순 정렬을 위해 SkipListMap 사용 (스레드-세이프 변형)
-    private final ConcurrentSkipListMap<String, Integer> dict = new ConcurrentSkipListMap<>();
+    // AtomicReference를 사용하여 맵 전체를 원자적으로 교체 가능하게 함
+    private final AtomicReference<ConcurrentSkipListMap<String, Integer>> dictRef =
+            new AtomicReference<>(new ConcurrentSkipListMap<>());
 
-    /** prefix 기반 빠른 후보(정렬: pop desc → 길이 asc → 사전식) */
     public List<String> suggestPrefix(String prefix, int limit) {
         if (prefix == null || prefix.isBlank() || limit <= 0) return List.of();
 
-        var it = dict.tailMap(prefix, true).entrySet().iterator();
+        // 현재 시점의 맵 스냅샷을 가져옴
+        ConcurrentSkipListMap<String, Integer> currentDict = dictRef.get();
+
+        var it = currentDict.tailMap(prefix, true).entrySet().iterator();
         List<Map.Entry<String, Integer>> buf = new ArrayList<>(limit * 4);
 
         while (it.hasNext() && buf.size() < limit * 8) {
@@ -35,25 +39,34 @@ public class SuggestMemoryIndex {
         buf.sort((a, b) -> {
             int c = Integer.compare(b.getValue(), a.getValue()); // pop desc
             if (c != 0) return c;
-            int c2 = Integer.compare(a.getKey().length(), b.getKey().length());
-            if (c2 != 0) return c2;
-            return a.getKey().compareTo(b.getKey());
+            return Integer.compare(a.getKey().length(), b.getKey().length()); // length asc
         });
 
         return buf.stream().limit(limit).map(Map.Entry::getKey).toList();
     }
 
-    /** 배치/실시간으로 후보 적재/점수 업데이트 */
+    public void replaceAll(Map<String, Integer> newMap) {
+        ConcurrentSkipListMap<String, Integer> nextDict = new ConcurrentSkipListMap<>();
+        newMap.forEach((k, v) -> {
+            String normalizedKey = norm(k);
+            if (normalizedKey != null) nextDict.put(normalizedKey, v);
+        });
+
+        dictRef.set(nextDict);
+    }
+
     public void upsert(String text, int deltaPop) {
         String k = norm(text);
         if (k == null || k.isBlank()) return;
-        dict.merge(k, deltaPop, Integer::sum);
+        dictRef.get().merge(k, deltaPop, Integer::sum);
     }
 
     private static String norm(String s) {
         if (s == null) return null;
-        // 공백 트림 + 소문자 + NFC 정규화
         return Normalizer.normalize(s.trim().toLowerCase(Locale.ROOT), Normalizer.Form.NFC);
     }
 
+    public void clear() {
+        dictRef.get().clear();
+    }
 }
