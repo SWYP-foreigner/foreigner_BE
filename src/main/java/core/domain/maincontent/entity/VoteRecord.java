@@ -1,4 +1,4 @@
-package core.domain.mainpage.entity;
+package core.domain.maincontent.entity;
 
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
@@ -35,4 +35,10 @@ public class VoteRecord {
 
     @CreationTimestamp
     private Instant votedAt;
+
+    public VoteRecord(User user, Poll poll, PollOption pollOption) {
+        this.user = user;
+        this.poll = poll;
+        this.pollOption = pollOption;
+    }
 }

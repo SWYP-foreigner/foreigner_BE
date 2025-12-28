@@ -1,4 +1,4 @@
-package core.domain.mainpage.entity;
+package core.domain.maincontent.entity;
 
 public enum PollType {
     VOTE, QUIZ

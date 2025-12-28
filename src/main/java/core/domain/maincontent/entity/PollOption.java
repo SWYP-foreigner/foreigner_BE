@@ -1,4 +1,4 @@
-package core.domain.mainpage.entity;
+package core.domain.maincontent.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -24,4 +24,8 @@ public class PollOption {
 
     // 이 선택지에 투표한 수 (선택사항: 조회 성능 최적화용)
     private long voteCount = 0;
+
+    public void incrementVoteCount() {
+        this.voteCount++;
+    }
 }

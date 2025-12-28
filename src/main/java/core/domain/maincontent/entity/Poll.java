@@ -1,4 +1,4 @@
-package core.domain.mainpage.entity;
+package core.domain.maincontent.entity;
 
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
@@ -38,4 +38,13 @@ public class Poll {
 
     @CreationTimestamp
     private Instant createdAt;
+
+    public void incrementTotalCount() {
+        this.totalVoteCount++;
+    }
+
+    public double calculatePercentage(long optionVoteCount) {
+        if (this.totalVoteCount == 0) return 0.0;
+        return Math.round((double) optionVoteCount / this.totalVoteCount * 100);
+    }
 }
