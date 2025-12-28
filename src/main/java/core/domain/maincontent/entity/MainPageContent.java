@@ -35,9 +35,6 @@ public class MainPageContent {
     @Column(name = "original_url")
     private String originalUrl;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "publisher_id")
-    private User publisher;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -47,15 +44,12 @@ public class MainPageContent {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-//    @OneToMany(mappedBy = "mainPageContent", orphanRemoval = true, cascade = CascadeType.ALL)
-//    private List<Comment> comments = new ArrayList<>();
 
     @Builder
-    public MainPageContent(String title, String htmlContent, String originalUrl, User publisher) {
+    public MainPageContent(String title, String htmlContent, String originalUrl) {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;
-        this.publisher = publisher;
     }
 
     public void changeHtmlContent(String htmlContent) {
