@@ -7,7 +7,7 @@ CREATE TABLE poll (
                       user_id BIGINT,
                       total_vote_count BIGINT DEFAULT 0,
                       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                      CONSTRAINT fk_poll_user FOREIGN KEY (user_id) REFERENCES users(id)
+                      CONSTRAINT fk_poll_user FOREIGN KEY (user_id) REFERENCES users(user_id) -- id -> user_id로 수정
 );
 
 -- 2. PollOption 테이블 생성
@@ -20,15 +20,15 @@ CREATE TABLE poll_option (
                              CONSTRAINT fk_option_poll FOREIGN KEY (poll_id) REFERENCES poll(id) ON DELETE CASCADE
 );
 
--- 3. VoteRecord 테이블 생성 (중복 투표 방지 포함)
+-- 3. VoteRecord 테이블 생성
 CREATE TABLE vote_record (
                              id BIGSERIAL PRIMARY KEY,
                              user_id BIGINT NOT NULL,
                              poll_id BIGINT NOT NULL,
                              poll_option_id BIGINT NOT NULL,
                              voted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                             CONSTRAINT fk_vote_user FOREIGN KEY (user_id) REFERENCES users(id),
+                             CONSTRAINT fk_vote_user FOREIGN KEY (user_id) REFERENCES users(user_id), -- id -> user_id로 수정
                              CONSTRAINT fk_vote_poll FOREIGN KEY (poll_id) REFERENCES poll(id),
                              CONSTRAINT fk_vote_option FOREIGN KEY (poll_option_id) REFERENCES poll_option(id),
-                             CONSTRAINT uk_user_poll UNIQUE (user_id, poll_id) -- 한 사람이 한 투표에 한 번만
+                             CONSTRAINT uk_user_poll UNIQUE (user_id, poll_id)
 );
