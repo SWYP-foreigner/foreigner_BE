@@ -12,11 +12,13 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
+import core.domain.user.repository.UserRepository;
 import core.global.enums.MessageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -42,12 +44,13 @@ public class AiChatUserService {
             "(ignore|instruction|system|override|무시해|명령)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
     );
-
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
+    private final UserRepository userRepository;
     private final AiClient aiClient;
+    private final TransactionTemplate transactionTemplate;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -59,43 +62,49 @@ public class AiChatUserService {
     public void processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage) {
         Long chatRoomId = event.messageResponse().roomId();
 
-        // 1. [No DB] 탈옥/해킹 시도 필터링 (메모리 연산)
+        // 1. [No DB] 탈옥 필터링
         if (JAILBREAK_PATTERN.matcher(combinedUserMessage).find()) {
-            log.warn("AI [{}] Ignored Jailbreak attempt: {}", aiUser.getFirstName(), combinedUserMessage);
+            log.warn("AI Filtered Jailbreak: {}", combinedUserMessage);
             return;
         }
 
-        // 2. [No DB] 사람처럼 생각하는 척 대기 (Thread Sleep)
-        // 이 구간에서 DB 커넥션을 물고 있으면 안 됨 -> 트랜잭션 없음 OK
+        // 2. [DB Hit (Short)] 그룹챗 여부 확인
+        // 리포지토리 메서드는 자체적으로 아주 짧게 트랜잭션을 열고 닫으므로 OK
         boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
-        long thinkingTime = calculateThinkingTime(combinedUserMessage,isGroupChat);
+
+        // [No DB] 대기 (여기서 DB 커넥션 안 잡고 있음 -> 안전!)
+        long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
         sleep(thinkingTime);
 
-        // 3. [DB Read Transaction] 대화 컨텍스트 준비
-        // 짧게 DB를 조회하여 프롬프트를 만들고 즉시 커넥션을 반환합니다.
-        List<Map<String, Object>> requestMessages = prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
+        // ---------------------------------------------------------------
+        // 3. [DB Read Transaction] 여기가 문제입니다!
+        // ---------------------------------------------------------------
+        // TransactionTemplate을 쓰면 이 블록 안에서만 DB 연결을 '잠깐' 빌리고,
+        // 블록이 끝나면 즉시 반납합니다. (Sleep이나 AI 호출엔 영향 없음)
 
-        // 대답할 필요가 없거나(SKIP), 오류가 있었다면 중단
-        if (requestMessages == null || requestMessages.isEmpty()) {
-            return;
-        }
+        List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
+            // 이 안은 트랜잭션이 살아있습니다.
+            // 여기서 유저 재조회 및 Lazy Loading을 수행하면 에러가 안 납니다.
+            return prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
+        });
+        // ---------------------------------------------------------------
+        // 이제 트랜잭션 종료됨. DB 커넥션 반납 완료.
+
+        // 데이터 없으면 종료
+        if (requestMessages == null || requestMessages.isEmpty()) return;
 
         try {
-            // 4. [No DB] 외부 AI API 호출 (가장 오래 걸리는 구간 - 수 초 소요)
-            // 여기서는 트랜잭션이 없으므로 DB 커넥션 풀이 안전합니다.
+            // 4. [No DB] 외부 AI 호출 (오래 걸림)
+            // 위에서 트랜잭션을 이미 닫았으므로, 여기서 오래 걸려도 DB에는 아무 영향 없음!
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // 필터링
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
             if (aiResponse.trim().toUpperCase().contains("PASS")) return;
 
-            // 5. [DB Write Transaction] 결과 전송 및 저장
-            // chatMessageService 내부에서 새로운 트랜잭션이 시작되어 안전하게 저장됩니다.
+            // 5. [DB Write Transaction] 결과 전송
+            // 서비스 내부에서 별도 트랜잭션으로 처리되므로 안전
             SendMessageRequest request = new SendMessageRequest(
-                    chatRoomId,
-                    aiUser.getId(),
-                    aiResponse,
-                    MessageType.TEXT
+                    chatRoomId, aiUser.getId(), aiResponse, MessageType.TEXT
             );
             chatMessageService.processAndSendChatMessage(request);
 
@@ -103,7 +112,6 @@ public class AiChatUserService {
             log.error("AI API Call Failed", e);
         }
     }
-
     /**
      * 🔒 [DB Read Transaction]
      * 대화 내역 조회, 페르소나 조회, 프롬프트 빌드까지만 수행하고 트랜잭션을 종료합니다.
