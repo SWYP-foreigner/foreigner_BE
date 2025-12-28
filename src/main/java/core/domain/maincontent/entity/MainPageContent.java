@@ -1,6 +1,5 @@
-package core.domain.post.entity;
+package core.domain.maincontent.entity;
 
-import core.domain.mainpage.service.KNewsContentType;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -43,6 +42,9 @@ public class MainPageContent {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "publisher_id")
     private User publisher;
+
+    @Column(name = "view_count")
+    private Long viewCount;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
