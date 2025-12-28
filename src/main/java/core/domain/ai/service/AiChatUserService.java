@@ -230,91 +230,174 @@ public class AiChatUserService {
         }
     }
 
-    // --- Helper Methods (Logic Only, No DB) ---
-// ⚠️ 호출하는 곳(prepareAiContext)에서 chatRoomId를 넘겨줘야 함!
-    private boolean shouldReply(String message, User aiUser, boolean isGroupChat, Long chatRoomId) {
 
-        // 1. [Priority 1] 내 이름 멘션 -> 100% 응답 (무조건 대답)
+    private boolean shouldReply(String message, User aiUser, boolean isGroupChat, Long chatRoomId) {
+        String aiName = aiUser.getFirstName();
+
+        // 1. [Priority 1] 내 이름 멘션 -> 100%
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
+            log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
 
-        // 2. [Priority 2] 1:1 채팅방 -> 100% 응답
-        if (!isGroupChat) return true;
+        // 2. 1:1 채팅 -> 100%
+        if (!isGroupChat) {
+            log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
+            return true;
+        }
 
-        // 3. [Filter] 남을 부르는 대화 차단 ("@영희야" 하는데 철수가 대답 X)
+        // 3. [Filter] 남 부르는 대화 차단
         if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
+            log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
             return false;
         }
 
-        // -------------------------------------------------------------
-        // 🛑 [Fatigue System] 피로도 시스템 (너무 자주 말하는 것 방지)
-        // -------------------------------------------------------------
         List<ChatMessage> recentHistory = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(chatRoomId);
 
-        // (A) 최근 3마디 안에 내가 말한 적이 있으면? -> 대답 안 함 (독점 방지)
+        // -------------------------------------------------------------
+        // 🛑 [Fatigue] 최근 3마디 내에 내가 말했으면 참기 (독점 방지)
+        // -------------------------------------------------------------
         boolean talkedRecently = recentHistory.stream()
                 .limit(3)
                 .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
 
         if (talkedRecently) {
-            // 단, 질문을 받았거나 흥미 키워드면 20% 확률로 뚫음 (가끔 연속 말하기 허용)
+            // 질문이면 20% 확률로 끼어들기 허용
             if (message.contains("?") && secureRandom.nextInt(100) < 20) {
-                log.info("AI [{}] Breaking silence despite fatigue (Question detected)", aiUser.getFirstName());
+                log.info("AI [{}] 🟡 Pass: Talked recently but question luck triggered (20%).", aiName);
             } else {
+                log.info("AI [{}] 🔴 Skip: Fatigue (Talked recently).", aiName);
                 return false;
             }
         }
 
-        // (B) 앵무새 방지: 입력된 메시지가 최근 메시지들과 너무 똑같으면 대답 안 함
-        long duplicateCount = recentHistory.stream()
+        // -------------------------------------------------------------
+        // 🦜 [Fix] 앵무새 방지
+        // -------------------------------------------------------------
+        long aiDuplicateCount = recentHistory.stream()
                 .limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim()))
                 .count();
 
-        if (duplicateCount >= 1) {
-            // "이미 누가 한 말임" -> 무시
-            return false;
-        }
-
-        // 4. [Filter] 의미 없는 초단문 무시 (ㅋㅋ, ㅇㅇ) - 질문 아니면 스킵
-        if (message.length() <= 2 && !message.contains("?")) {
+        // 2개 이상이면(방금 유저 말 포함해서 또 있으면) 앵무새로 간주
+        if (aiDuplicateCount >= 2) {
+            log.info("AI [{}] 🔴 Skip: Parrot protection (Duplicate count: {}).", aiName, aiDuplicateCount);
             return false;
         }
 
         // -------------------------------------------------------------
-        // 🎲 [Probability Logic] 확률 로직 개선
+        // 🔇 [Silence Breaker] 너무 조용하면 대답 잘 하게 하기
+        // -------------------------------------------------------------
+        if (recentHistory.size() < 2) {
+            boolean success = secureRandom.nextInt(100) < 80;
+            log.info("AI [{}] {} Silence Breaker (History size < 2, Roll Result).", aiName, success ? "🟢 Reply:" : "🔴 Skip:");
+            return success;
+        }
+
+        // 4. 단답형 무시 필터 (질문은 통과)
+        boolean isQuestion = message.contains("?") || message.endsWith("니") || message.endsWith("까")
+                || message.endsWith("가") || message.endsWith("냐");
+
+        if (message.length() <= 2 && !isQuestion) {
+            log.info("AI [{}] 🔴 Skip: Short message without question mark.", aiName);
+            return false;
+        }
+
+        // -------------------------------------------------------------
+        // 🎲 [Probability] 확률 계산
         // -------------------------------------------------------------
 
-        // (A) 내 취미(Hobby) 관련 키워드 -> 80%
-        String hobby = aiUser.getHobby(); // User 엔티티 필드명 확인 필요 (getHobby vs getHobbies)
+        // (A) 취미 키워드
+        String hobby = aiUser.getHobby(); // or getHobbies()
         if (hobby != null && !hobby.isBlank()) {
-            // 취미가 "영화, 독서" 처럼 콤마로 되어있을 경우 분리해서 체크
             for (String h : hobby.split(",")) {
                 if (message.contains(h.trim())) {
-                    log.info("AI [{}] Interest Triggered! Keyword: {}", aiUser.getFirstName(), h);
-                    return secureRandom.nextInt(100) < 80;
+                    boolean success = secureRandom.nextInt(100) < 85;
+                    log.info("AI [{}] {} Hobby Trigger '{}' (85%, Roll Result).", aiName, success ? "🟢 Reply:" : "🔴 Skip:", h);
+                    return success;
                 }
             }
         }
 
-        // (B) 질문형 메시지 -> 50% (기존 60%에서 하향: 너무 질문마다 다 대답하려고 해서)
-        if (message.contains("?") || message.endsWith("?")) {
-            return secureRandom.nextInt(100) < 50;
+        int prob = 20; // 기본 확률
+        String reason = "Base Probability";
+
+        // (B) 다국어 호출 감지 (isGroupCall 메서드 필요)
+        if (isGroupCall(message)) {
+            prob = 60;
+            reason = "Group Call Trigger";
+        }
+        // (C) 질문형
+        else if (isQuestion) {
+            prob = 50;
+            reason = "Question Type";
         }
 
-        // (C) 일반 대화
-        // 그룹 인원이 많을수록 기본 확률을 낮춰야 함. (예: 5명이면 15~20%가 적당)
-        int baseProbability = 15;
+        // 최종 주사위 굴리기
+        int roll = secureRandom.nextInt(100);
+        boolean result = roll < prob;
 
-        // 메시지가 짧으면 가볍게 반응할 확률 약간 up
-        if (message.length() < 10) {
-            baseProbability = 25;
-        }
-
-        return secureRandom.nextInt(100) < baseProbability;
+        log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).", aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
+        return result;
     }
+    // --------------------------------------------------------------------------
+    // 🌍 [Global] 그룹 호출 감지 키워드 사전
+    // --------------------------------------------------------------------------
+    private static final List<String> GROUP_CALL_KEYWORDS = List.of(
+            // 1. 한국어 (반말/친구)
+            "얘들아", "애들아", "니네", "너네", "너희", "친구들", "자기들",
+            "이놈들", "다들", "야들아", "저기", "어이",
 
+            // 2. 한국어 (존대/공손/다수)
+            "여러분", "님들", "다시", "모두", "선생님들", "형님들", "누님들", "언니들", "오빠들",
+            "계세요", "계신가요", "누구", "사람", "혹시", // "혹시 누구 계신가요?" 패턴 대응
+
+            // 3. 영어 (Global)
+            "guys", "everyone", "everybody", "y'all", "folks", "peeps", "team", "squad",
+            "anyone", "anybody", "here", "all",
+
+            // 4. 메신저/인터넷 밈 & 특수 문법
+            "@here", "@channel", "@all", // 슬랙/디스코드 스타일
+            "전체", "공지", "필독", "속보", "다나와", "집합"
+    );
+
+    /**
+     * 메시지가 특정 개인이 아닌 '그룹 전체'를 부르는 신호인지 감지합니다.
+     * 단순 포함(contains)뿐만 아니라 문맥적 뉘앙스를 파악하여 정확도를 높입니다.
+     */
+    private boolean isGroupCall(String message) {
+        if (message == null || message.isBlank()) return false;
+
+        // 1. 정규화: 소문자로 변환 및 앞뒤 공백 제거
+        String lowerMsg = message.trim().toLowerCase();
+
+        // 2. [Fast Check] 키워드 포함 여부 검사
+        boolean keywordDetected = GROUP_CALL_KEYWORDS.stream()
+                .anyMatch(lowerMsg::contains);
+
+        if (keywordDetected) return true;
+
+        // 3. [Advanced] 키워드는 없지만 그룹 호출로 볼 수 있는 패턴 분석
+
+        // Case A: "저기요" 같은 말로 시작할 때 (주목 끌기)
+        if (lowerMsg.startsWith("저기") || lowerMsg.startsWith("hey")) {
+            return true;
+        }
+
+        // Case B: 질문을 던지는데 대상이 명확하지 않은 경우 ("~ 있어?", "~ 아는 사람?")
+        // 예: "심심한 사람?", "롤 할 사람?"
+        if (lowerMsg.contains("사람?") || lowerMsg.contains("사람 ?")) {
+            return true;
+        }
+
+        // Case C: "혹시"로 시작해서 물음표로 끝나는 경우 (조심스러운 전체 질문)
+        // 예: "혹시 오늘 비 오나요?" -> 대답해주는 게 좋음
+        if (lowerMsg.startsWith("혹시") && lowerMsg.endsWith("?")) {
+            return true;
+        }
+
+        return false;
+    }
     /**
      * 🕵️‍♂️ 강력한 멘션 감지 (오타 허용, 성/이름 조합 허용)
      */
