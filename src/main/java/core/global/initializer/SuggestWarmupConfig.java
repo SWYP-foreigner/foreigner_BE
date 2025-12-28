@@ -1,6 +1,6 @@
 package core.global.initializer;
 
-import core.domain.post.entity.HotKeyword;
+import core.domain.post.entity.HotKeywords;
 import core.domain.post.repository.HotKeywordRepository;
 import core.domain.post.service.search.SuggestMemoryIndex;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +25,9 @@ public class SuggestWarmupConfig {
             log.info("[Warmup] Starting Warmup from hot_keywords table...");
 
             // 90일치 게시글 뒤지는 대신, 미리 저장된 테이블만 조회 (매우 빠름)
-            List<HotKeyword> savedKeywords = hotKeywordRepository.findAll();
+            List<HotKeywords> savedKeywords = hotKeywordRepository.findAll();
 
-            for (HotKeyword hk : savedKeywords) {
+            for (HotKeywords hk : savedKeywords) {
                 memoryIndex.upsert(hk.getKeyword(), 1);
             }
 

@@ -1,6 +1,6 @@
 package core.domain.post.service;
 
-import core.domain.post.entity.HotKeyword;
+import core.domain.post.entity.HotKeywords;
 import core.domain.post.repository.HotKeywordRepository;
 import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.post.service.search.SuggestMemoryIndex;
@@ -39,8 +39,8 @@ public class HotKeywordBatchService {
             // 2. DB 테이블 갱신 (기존 데이터 삭제 후 대량 삽입)
             hotKeywordRepository.deleteAllInBatch();
 
-            List<HotKeyword> newKeywords = results.stream()
-                    .map(row -> HotKeyword.builder()
+            List<HotKeywords> newKeywords = results.stream()
+                    .map(row -> HotKeywords.builder()
                             .keyword((String) row[0])
                             .frequency(((Number) row[1]).intValue())
                             .updatedAt(Instant.now())
@@ -51,7 +51,7 @@ public class HotKeywordBatchService {
 
             Map<String, Integer> nextData = newKeywords.stream()
                     .collect(Collectors.toMap(
-                            HotKeyword::getKeyword,
+                            HotKeywords::getKeyword,
                             hk -> 1, // 혹은 hk.getFrequency()
                             (v1, v2) -> v1
                     ));

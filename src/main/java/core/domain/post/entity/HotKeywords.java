@@ -14,7 +14,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class HotKeyword {
+public class HotKeywords {
     @Id
     private String keyword;
     private Integer frequency;
