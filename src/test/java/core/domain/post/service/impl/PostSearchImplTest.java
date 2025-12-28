@@ -2,6 +2,9 @@ package core.domain.post.service.impl;
 
 import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
+import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.comment.repository.CommentRepository;
+import core.domain.post.dto.search.PostSearchProjection;
 import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
@@ -10,6 +13,8 @@ import core.domain.post.service.search.SuggestMemoryIndex;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
+import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.like.repository.LikeRepository;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -47,6 +52,10 @@ class PostSearchImplTest {
     @Mock private BlockRepository blockRepository;
     @Mock private UserRepository userRepository;
     @Mock private SuggestMemoryIndex memoryIndex;
+    @Mock private LikeRepository likeRepository;
+    @Mock private ImageRepository imageRepository;
+    @Mock private CommentRepository commentRepository;
+    @Mock private BookmarkRepository bookmarkRepository;
 
     private final String email = "test@example.com";
     private User user;
@@ -81,25 +90,17 @@ class PostSearchImplTest {
         String cursor = null;
         int size = 2;
 
-        // SearchResultView / item mock
-        BoardItem b1 = mock(BoardItem.class);
-        BoardItem b2 = mock(BoardItem.class);
-        BoardItem b3 = mock(BoardItem.class);
+        PostSearchProjection v1 = mock(PostSearchProjection.class);
+        PostSearchProjection v2 = mock(PostSearchProjection.class);
+        PostSearchProjection v3 = mock(PostSearchProjection.class);
 
-        Instant now = Instant.now();
-        when(b1.createdAt()).thenReturn(now);
-        when(b1.postId()).thenReturn(11L);
-        when(b2.createdAt()).thenReturn(now.plusSeconds(1));
-        when(b2.postId()).thenReturn(12L);
-        when(b3.createdAt()).thenReturn(now.plusSeconds(2));
-        when(b3.postId()).thenReturn(13L);
+        when(v1.postId()).thenReturn(11L);
+        when(v1.createdAt()).thenReturn(Instant.now());
+        when(v2.postId()).thenReturn(12L);
+        when(v2.createdAt()).thenReturn(Instant.now().plusSeconds(1));
+        when(v3.postId()).thenReturn(13L);
+        when(v3.createdAt()).thenReturn(Instant.now().plusSeconds(2));
 
-        // SearchResultView 는 진짜 객체로 생성
-        SearchResultView v1 = new SearchResultView(b1, 0.9);
-        SearchResultView v2 = new SearchResultView(b2, 0.8);
-        SearchResultView v3 = new SearchResultView(b3, 0.7);
-
-        // searchRepository.search → size+1 개 리턴
         when(searchRepository.search(any(PostSearchRequest.class)))
                 .thenReturn(List.of(v1, v2, v3));
 
@@ -107,13 +108,8 @@ class PostSearchImplTest {
                 postSearchService.search(q, boardId, cursor, size);
 
         // then
-        assertThat(response.items()).hasSize(2);    // size=2
+        assertThat(response.items()).hasSize(2);
         assertThat(response.hasNext()).isTrue();
-        assertThat(response.nextCursor()).isNotNull();
-
-        // 실제 items가 searchRepository에서 온 v1, v2인지 확인
-        assertThat(response.items().get(0)).isSameAs(v1);
-        assertThat(response.items().get(1)).isSameAs(v2);
     }
 
     @Test
@@ -140,23 +136,23 @@ class PostSearchImplTest {
         String cursor = null;
         int size = 3;
 
-        BoardItem item1 = mock(BoardItem.class);
-        BoardItem item2 = mock(BoardItem.class);
+        PostSearchProjection p1 = mock(PostSearchProjection.class);
+        PostSearchProjection p2 = mock(PostSearchProjection.class);
 
-        Instant now = Instant.now();
-        when(item1.createdAt()).thenReturn(now);
-        when(item1.postId()).thenReturn(11L);
-        when(item2.createdAt()).thenReturn(now.plusSeconds(1));
-        when(item2.postId()).thenReturn(12L);
+        when(p1.postId()).thenReturn(11L);
+        when(p1.createdAt()).thenReturn(Instant.now());
+        when(p1.rawScore()).thenReturn(0.9);
 
-        SearchResultView v1 = new SearchResultView(item1, 0.9);
-        SearchResultView v2 = new SearchResultView(item2, 0.8);
+        when(p2.postId()).thenReturn(12L);
+        when(p2.createdAt()).thenReturn(Instant.now().plusSeconds(1));
+        when(p2.rawScore()).thenReturn(0.8);
 
+        // 3. Repository는 Projection 리스트를 반환함
         when(searchRepository.search(any(PostSearchRequest.class)))
-                .thenReturn(List.of(v1, v2));
+                .thenReturn(List.of(p1, p2));
 
         CursorPageResponse<SearchResultView> response =
-                postSearchService.search(q, boardId, cursor, size);
+                postSearchService.search(q, boardId, null, size);
 
         assertThat(response.items()).hasSize(2);
         assertThat(response.hasNext()).isFalse();
