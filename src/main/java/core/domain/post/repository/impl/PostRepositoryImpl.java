@@ -245,11 +245,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     @Override
     public PostDetailResponse findPostDetail(String email, Long postId) {
         QImage userImage = new QImage("u");
+        QImage subUserImage = new QImage("subUserImage");
 
         Expression<Long> likeCountExpr = likeCountExpr();
         Expression<Long> commentCountExpr = commentCountExpr();
         Expression<Long> authorIdExpr = authorIdExpr();
         StringExpression userNameExpr = getAuthorName();
+
+        // 1. 먼저 가장 최근의 이미지 ID를 찾는 서브쿼리 정의
 
         Expression<String> userImageUrlExpr = new CaseBuilder()
                 .when(post.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
@@ -257,11 +260,15 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         JPAExpressions.select(userImage.url)
                                 .from(userImage)
                                 .where(
-                                        userImage.imageType.eq(IMAGE_TYPE_USER)
-                                                .and(userImage.relatedId.eq(user.id))
+                                        userImage.id.eq(
+                                                JPAExpressions.select(subUserImage.id.max())
+                                                        .from(subUserImage)
+                                                        .where(
+                                                                subUserImage.imageType.eq(IMAGE_TYPE_USER),
+                                                                subUserImage.relatedId.eq(user.id)
+                                                        )
+                                        )
                                 )
-                                .orderBy(userImage.id.desc())
-                                .limit(1)
                 );
 
         QImage image = QImage.image;

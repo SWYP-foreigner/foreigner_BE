@@ -162,4 +162,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         ) final_data
     """, nativeQuery = true)
     List<Object[]> calculateFirstResponseTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    List<ChatMessage> findTop5ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
 }
