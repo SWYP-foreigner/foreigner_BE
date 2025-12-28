@@ -133,7 +133,6 @@ class PostSearchImplTest {
     void search_noNextPage() {
         String q = "hello";
         Long boardId = 1L;
-        String cursor = null;
         int size = 3;
 
         PostSearchProjection p1 = mock(PostSearchProjection.class);
