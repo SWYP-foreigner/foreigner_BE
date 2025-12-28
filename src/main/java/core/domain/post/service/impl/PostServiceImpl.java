@@ -13,7 +13,7 @@ import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
-import core.domain.maincontent.repository.MainPageContentRepository;
+import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -93,7 +93,7 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
 
-    private final MainPageContentRepository mainPageContentRepository;
+    private final MainContentRepository mainPageContentRepository;
     private final S3Client s3Client;
     private final S3Props s3Props;
 
@@ -658,7 +658,6 @@ public class PostServiceImpl implements PostService {
                     .title(title)
                     .htmlContent(content)
                     .originalUrl(null)
-                    .publisher(adminUser)
                     .build();
 
             MainPageContent savedContent = mainPageContentRepository.save(newContent);
