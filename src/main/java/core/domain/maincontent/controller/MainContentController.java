@@ -2,9 +2,8 @@ package core.domain.maincontent.controller;
 
 import core.domain.maincontent.dto.MainPageContentResponse;
 import core.domain.maincontent.service.MainContentService;
-import core.global.docs.annotations.CommonErrorCodeDocs;
+
 import core.global.docs.annotations.MainContentErrorDocs;
-import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.MainContentErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
