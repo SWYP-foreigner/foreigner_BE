@@ -32,7 +32,7 @@ public class MainContentService {
                         content.getHtmlContent(),
                         content.getType(),
                         Instant.now().compareTo(content.getCreatedAt())))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<MainContentTop9Response> getTrendingKNews() {
@@ -42,7 +42,7 @@ public class MainContentService {
                         content.getTitle(),
                         content.getType(),
                         Instant.now().compareTo(content.getCreatedAt())))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public MainPageContentResponse getMainContent(Long contentId) {

@@ -38,7 +38,7 @@ public class PollService {
 
         Long selectedOptionId = getCurrentUser()
                 .flatMap(user -> voteRecordRepository.findByUserIdAndPollId(user.getId(), poll.getId()))
-                .map(record -> record.getPollOption().getId())
+                .map(recordResult -> recordResult.getPollOption().getId())
                 .orElse(null);
 
         return mapToPollItem(poll,selectedOptionId );
@@ -85,8 +85,8 @@ public class PollService {
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.OPTION_NOT_FOUND));
 
         // 4. 투표 기록 저장
-        VoteRecord record = new VoteRecord(user, poll, selectedOption);
-        voteRecordRepository.save(record);
+        VoteRecord recordResult = new VoteRecord(user, poll, selectedOption);
+        voteRecordRepository.save(recordResult);
 
         // 5. 카운트 업데이트 (Denormalization 필드)
         poll.incrementTotalCount(); // poll.totalVoteCount++
