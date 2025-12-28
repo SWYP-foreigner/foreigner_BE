@@ -4,6 +4,7 @@ import core.domain.notification.service.PushNotificationService;
 import core.domain.user.repository.UserRepository;
 import core.global.dto.TargetPushRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
 
+@Slf4j
 @Controller
 @RequestMapping("/admin/push")
 @RequiredArgsConstructor
@@ -58,8 +60,16 @@ public class AdminPushController {
             redirectAttributes.addFlashAttribute("successMessage",
                     "'" + request.targetCountry() + "' 국가 유저들에게 알림 발송을 시작했습니다.");
         } catch (Exception e) {
-            e.printStackTrace();
-            redirectAttributes.addFlashAttribute("errorMessage", "발송 실패: " + e.getMessage());
+            log.error("푸시 알림 발송 실패 - country={}, title={}",
+                    request.targetCountry(),
+                    request.title(),
+                    e
+            );
+
+            redirectAttributes.addFlashAttribute(
+                    "errorMessage",
+                    "푸시 알림 발송 중 오류가 발생했습니다."
+            );
         }
 
         return "redirect:/admin/push";
