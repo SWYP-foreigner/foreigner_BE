@@ -44,6 +44,7 @@ public class MainContentService {
                         Instant.now().compareTo(content.getCreatedAt())))
                 .collect(Collectors.toList());
     }
+
     public MainPageContentResponse getMainContent(Long contentId) {
         MainPageContent content = mainContentRepository.findById(contentId)
                 .orElseThrow(() -> new BusinessException(MainContentErrorCode.CONTENT_NOT_FOUND));
