@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -44,65 +45,55 @@ public class AiChatUserService {
             "(ignore|instruction|system|override|무시해|명령)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
     );
+
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
-    private final UserRepository userRepository;
+    private final UserRepository userRepository; // 필요 시 사용
     private final AiClient aiClient;
     private final TransactionTemplate transactionTemplate;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * 🚀 [DB 누수 해결 로직]
-     * 1. 기존에 있던 @Transactional을 제거했습니다. (긴 대기 시간 동안 DB 잡는 문제 해결)
-     * 2. DB 조회가 필요한 '준비 단계'만 별도 트랜잭션 메서드(prepareAiContext)로 분리했습니다.
-     * 3. 외부 AI 호출(aiClient.generateResponse)은 트랜잭션 없이 실행됩니다.
+     * 🚀 AI 응답 프로세스 진입점
+     * DB 트랜잭션을 최소화하여 커넥션 고갈을 방지함.
      */
     public void processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage) {
         Long chatRoomId = event.messageResponse().roomId();
 
-        // 1. [No DB] 탈옥 필터링
+        // 1. [No DB] 탈옥/해킹 시도 필터링
         if (JAILBREAK_PATTERN.matcher(combinedUserMessage).find()) {
             log.warn("AI Filtered Jailbreak: {}", combinedUserMessage);
             return;
         }
 
-        // 2. [DB Hit (Short)] 그룹챗 여부 확인
-        // 리포지토리 메서드는 자체적으로 아주 짧게 트랜잭션을 열고 닫으므로 OK
+        // 2. [DB Hit (Short)] 그룹챗 여부 확인 (짧은 트랜잭션)
         boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
 
-        // [No DB] 대기 (여기서 DB 커넥션 안 잡고 있음 -> 안전!)
+        // [No DB] 사람처럼 보이게 뜸 들이기 (Thinking Time)
         long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
         sleep(thinkingTime);
 
         // ---------------------------------------------------------------
-        // 3. [DB Read Transaction] 여기가 문제입니다!
+        // 3. [DB Read Transaction] 상황 파악 및 프롬프트 구성
         // ---------------------------------------------------------------
-        // TransactionTemplate을 쓰면 이 블록 안에서만 DB 연결을 '잠깐' 빌리고,
-        // 블록이 끝나면 즉시 반납합니다. (Sleep이나 AI 호출엔 영향 없음)
-
         List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
-            // 이 안은 트랜잭션이 살아있습니다.
-            // 여기서 유저 재조회 및 Lazy Loading을 수행하면 에러가 안 납니다.
             return prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
         });
-        // ---------------------------------------------------------------
-        // 이제 트랜잭션 종료됨. DB 커넥션 반납 완료.
 
-        // 데이터 없으면 종료
+        // 대답할 상황이 아니면 종료 (null 반환됨)
         if (requestMessages == null || requestMessages.isEmpty()) return;
 
         try {
-            // 4. [No DB] 외부 AI 호출 (오래 걸림)
-            // 위에서 트랜잭션을 이미 닫았으므로, 여기서 오래 걸려도 DB에는 아무 영향 없음!
+            // 4. [No DB] 외부 AI API 호출 (가장 오래 걸림)
             String aiResponse = aiClient.generateResponse(requestMessages);
 
+            // AI 정체성 발설 필터링 및 PASS 체크
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
             if (aiResponse.trim().toUpperCase().contains("PASS")) return;
 
-            // 5. [DB Write Transaction] 결과 전송
-            // 서비스 내부에서 별도 트랜잭션으로 처리되므로 안전
+            // 5. [DB Write Transaction] 메시지 전송
             SendMessageRequest request = new SendMessageRequest(
                     chatRoomId, aiUser.getId(), aiResponse, MessageType.TEXT
             );
@@ -112,13 +103,14 @@ public class AiChatUserService {
             log.error("AI API Call Failed", e);
         }
     }
+
     /**
      * 🔒 [DB Read Transaction]
-     * 대화 내역 조회, 페르소나 조회, 프롬프트 빌드까지만 수행하고 트랜잭션을 종료합니다.
+     * 대화 내역 조회 -> 상황 판단(끼어들지 말지) -> 프롬프트 조립
      */
     @Transactional(readOnly = true)
     protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage) {
-        // 1. 최근 대화 내역 조회
+        // 1. 최근 대화 내역 조회 (최신순 20개)
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
         if (historyDesc.isEmpty()) return null;
 
@@ -126,107 +118,109 @@ public class AiChatUserService {
         ChatRoom chatRoom = lastMessage.getChatRoom();
         boolean isGroupChat = Boolean.TRUE.equals(chatRoom.getIsGroup());
 
-        // 2. 내가 마지막으로 말했으면 스킵 (그룹챗)
+        // 2. 내가 마지막으로 말했으면 연속으로 말하지 않음 (그룹챗일 경우)
         if (lastMessage.getSender().getId().equals(aiUser.getId()) && isGroupChat) {
-            log.info("AI [{}] Skip: I spoke last in Group Chat.", aiUser.getFirstName());
             return null;
         }
 
-        long activeHumanCount = historyDesc.stream()
-                .limit(10)
-                .map(msg -> msg.getSender().getId())
-                .filter(id -> !id.equals(aiUser.getId()))
-                .distinct()
+        // -------------------------------------------------------------
+        // 🛑 [과열 방지 시스템] AI끼리 무한 루프 방지
+        // 최근 1분 동안 메시지가 15개 이상 쏟아졌다면, AI들은 잠시 휴식
+        // -------------------------------------------------------------
+        long recentMessageCount = historyDesc.stream()
+                .filter(msg -> msg.getSentAt().isAfter(Instant.from(LocalDateTime.now().minusMinutes(1))))
                 .count();
 
-        // 3. 대답 여부 확률 계산
-        if (!shouldReply(combinedUserMessage, aiUser, isGroupChat, activeHumanCount)) {
-            log.info("AI [{}] PASS (Mode: {}, ActiveHumans: {})",
-                    aiUser.getFirstName(), isGroupChat ? "Group" : "1:1", activeHumanCount);
+        if (recentMessageCount >= 15) {
+            log.info("AI [{}] Cooling down... (Too many messages: {})", aiUser.getFirstName(), recentMessageCount);
+            return null; // 대화 중단
+        }
+
+        // 3. 대답 여부 확률 계산 (티키타카 로직)
+        if (!shouldReply(combinedUserMessage, aiUser, isGroupChat)) {
+            // 로그 너무 많으면 주석 처리 가능
+            // log.info("AI [{}] PASS", aiUser.getFirstName());
             return null;
         }
 
-        // 4. 프롬프트 조립 (Persona 조회 포함)
+        // 4. 프롬프트 조립
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
-        Collections.reverse(historyAsc);
+        Collections.reverse(historyAsc); // 시간순 정렬
 
         String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
 
-        // 최종 메시지 리스트 반환
         return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
 
-    // --- Helper Methods (DB 접근 없음) ---
+    // --- Helper Methods (Logic Only, No DB) ---
 
-    private boolean shouldReply(String message, User aiUser, boolean isGroupChat, long activeHumanCount) {
-        // 1. 이름이 불리면 무조건 대답 (100%)
+    private boolean shouldReply(String message, User aiUser, boolean isGroupChat) {
+        // 1. [Priority 1] 내 이름 멘션 -> 100% 응답
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             return true;
         }
 
-        // 2. 1:1 채팅이거나, 그룹방인데 말하는 사람이 1명뿐이면 (사실상 1:1) 무조건 대답
-        if (!isGroupChat || activeHumanCount <= 1) {
-            return true;
+        // 2. [Priority 2] 1:1 채팅방 -> 100% 응답
+        if (!isGroupChat) return true;
+
+        // 3. [Filter] 남을 부르는 대화 차단 ("@영희야" 하는데 철수가 대답 X)
+        // 메시지가 @로 시작하는데 내 이름은 없다? -> 남한테 하는 말임
+        if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
+            return false;
         }
 
-        // 3. [NEW] 내 취미(Hobby) 관련 키워드가 나오면 높은 확률로 끼어듦 (85%)
-        // 예: 취미가 "영화"인데 "영화 볼래?" 하면 거의 무조건 반응
+        // 4. [Filter] 의미 없는 초단문 무시 (ㅋㅋ, ㅇㅇ) - 단, 질문이면 통과
+        if (message.length() <= 2 && !message.contains("?")) {
+            return false;
+        }
+
+        // -------------------------------------------------------------
+        // 🎲 [Probability Logic] 티키타카 확률 부스트
+        // -------------------------------------------------------------
+
+        // (A) 내 취미(Hobby) 관련 키워드 등장 -> 85% (급발진)
         String hobby = aiUser.getHobby();
         if (hobby != null && !hobby.isBlank() && message.contains(hobby)) {
             log.info("AI [{}] Interest Triggered! Keyword: {}", aiUser.getFirstName(), hobby);
             return secureRandom.nextInt(100) < 85;
         }
 
-        // 4. 질문형 메시지일 때 확률 대폭 상향 (30% -> 60%)
-        // 그룹챗이어도 질문에는 절반 이상 반응해줘야 '티키타카'가 됨
+        // (B) 질문형 메시지 -> 60% (AI끼리도 서로 질문하면 대답 잘 함)
         if (message.contains("?") || message.endsWith("?")) {
             return secureRandom.nextInt(100) < 60;
         }
 
-        // 5. 일반 평서문일 때 확률 상향 (5% -> 15%)
-        // 너무 높으면 AI끼리만 떠들 수 있으니 적당히 올림
+        // (C) 일반 대화 (티키타카)
+        int baseProbability = 35; // 기본 35% (기존 15%에서 상향)
 
-        return secureRandom.nextInt(100) < 15;
+        // 메시지가 짧으면(10글자 이하) 가볍게 맞장구칠 확률 더 높임
+        if (message.length() < 10) {
+            baseProbability = 50;
+        }
+
+        return secureRandom.nextInt(100) < baseProbability;
     }
+
     /**
-     * 🕵️‍♂️ 강력한 멘션 감지 메서드
-     * 1. 성(Last), 이름(First), 전체 이름(Full) 모두 체크
-     * 2. 대소문자 구분 없음 (Doehyn == doehyn)
-     * 3. 오타 허용 (Levenshtein Distance: 도혅 -> 도현 인식)
-     * 4. 한국어/영어 혼용 대응을 위해 닉네임 필드 활용 권장
-     */
-    /**
-     * 🕵️‍♂️ 강력한 멘션 감지 메서드 (닉네임 제외)
-     * 1. 성(Last), 이름(First), 전체 이름(Full) 조합 체크
-     * 2. 대소문자 구분 없음
-     * 3. 오타 허용 (Fuzzy Match)
+     * 🕵️‍♂️ 강력한 멘션 감지 (오타 허용, 성/이름 조합 허용)
      */
     private boolean isMentioned(String message, String firstName, String lastName) {
         if (message == null || message.isBlank()) return false;
 
-        // 1. 비교할 이름 후보군 생성
         List<String> nameCandidates = new ArrayList<>();
-
         if (hasText(firstName)) nameCandidates.add(firstName);
         if (hasText(lastName)) nameCandidates.add(lastName);
-
         if (hasText(firstName) && hasText(lastName)) {
             nameCandidates.add(firstName + lastName);
-            nameCandidates.add(firstName + " " + lastName);
             nameCandidates.add(lastName + firstName);
-            nameCandidates.add(lastName + " " + firstName);
         }
 
         String cleanMessage = message.toLowerCase().replaceAll("\\s+", " ");
 
         for (String candidate : nameCandidates) {
             String target = candidate.toLowerCase();
-
             if (cleanMessage.contains(target)) return true;
-
-            if (target.length() >= 3 && containsFuzzyMatch(cleanMessage, target)) {
-                return true;
-            }
+            if (target.length() >= 3 && containsFuzzyMatch(cleanMessage, target)) return true;
         }
         return false;
     }
@@ -235,41 +229,25 @@ public class AiChatUserService {
         return str != null && !str.isBlank();
     }
 
-    /**
-     * 메시지 내의 단어들을 쪼개서 이름과 '비슷한지' 검사 (오타 허용)
-     */
     private boolean containsFuzzyMatch(String message, String targetName) {
         String[] words = message.split(" ");
-
         for (String word : words) {
             String strippedWord = stripKoreanParticles(word);
             int distance = getLevenshteinDistance(strippedWord, targetName);
             int threshold = (targetName.length() > 5) ? 2 : 1;
-
-            if (distance <= threshold) {
-                return true;
-            }
+            if (distance <= threshold) return true;
         }
         return false;
     }
 
-    /**
-     * 한국어 조사 제거 (아/야/님/이/가 등)
-     * 예: "도현아" -> "도현", "도현님" -> "도현"
-     */
     private String stripKoreanParticles(String word) {
         if (word == null || word.length() < 2) return word;
-        // 끝글자가 조사인지 확인하고 자름
         if (word.endsWith("아") || word.endsWith("야") || word.endsWith("님") || word.endsWith("이")) {
             return word.substring(0, word.length() - 1);
         }
         return word;
     }
 
-    /**
-     * 레벤슈타인 거리 알고리즘 (두 문자열의 차이 계산)
-     * - 외부 라이브러리(Apache Commons) 없이 구현
-     */
     private int getLevenshteinDistance(String s1, String s2) {
         int[] costs = new int[s2.length() + 1];
         for (int j = 0; j < costs.length; j++) costs[j] = j;
@@ -286,22 +264,15 @@ public class AiChatUserService {
         return costs[s2.length()];
     }
 
-    /**
-     * ⏱️ 생각하는 시간 계산
-     * - 1:1 채팅: 빠릿하게 반응 (0.5 ~ 1.5초)
-     * - 그룹 채팅: 서로 겹치지 않게 텀을 길게 둠 (2초 ~ 12초 랜덤)
-     */
     private long calculateThinkingTime(String userMessage, boolean isGroupChat) {
         long baseDelay = 500;
-        long typingDelay = userMessage.length() * 50L; // 글자당 0.05초 (조금 더 빠르게)
+        long typingDelay = userMessage.length() * 50L;
 
         if (isGroupChat) {
-            long randomDelay = secureRandom.nextLong(2000, 12000);
-            return baseDelay + typingDelay + randomDelay;
+            // 그룹챗은 서로 겹치지 않게 랜덤 딜레이를 길게 줌
+            return baseDelay + typingDelay + secureRandom.nextLong(1500, 8000);
         } else {
-
-            long randomJitter = secureRandom.nextLong(100, 1000);
-            return baseDelay + typingDelay + randomJitter;
+            return baseDelay + typingDelay + secureRandom.nextLong(100, 1000);
         }
     }
 
@@ -313,14 +284,11 @@ public class AiChatUserService {
         }
     }
 
-    // 이 메서드는 prepareAiContext(트랜잭션 안)에서 호출되므로 Lazy Loading 안전함
     private String buildSystemPrompt(User user, List<ChatMessage> history) {
         String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         String name = (user.getFirstName() != null ? user.getFirstName() : "너");
-
         String basicInfo = (user.getBirthdate() != null ? user.getBirthdate() : "") + " "
                 + (user.getSex() != null ? user.getSex() : "");
-
         String hobby = user.getHobby() != null ? user.getHobby() : "그냥 쉬기";
 
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -333,23 +301,11 @@ public class AiChatUserService {
                 })
                 .collect(Collectors.joining("\n"));
 
-        if (conversationContext.isEmpty()) {
-            conversationContext = "(아직 대화 내역 없음)";
-        }
+        if (conversationContext.isEmpty()) conversationContext = "(아직 대화 내역 없음)";
 
-        // DB 조회
         AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
-
-        String instructionTemplate;
-        String backgroundInfoStr;
-
-        if (persona != null) {
-            instructionTemplate = persona.getInstruction();
-            backgroundInfoStr = persona.getBackgroundInfo() != null ? persona.getBackgroundInfo() : "";
-        } else {
-            instructionTemplate = getDefaultPromptTemplate();
-            backgroundInfoStr = "";
-        }
+        String instructionTemplate = (persona != null) ? persona.getInstruction() : getDefaultPromptTemplate();
+        String backgroundInfoStr = (persona != null && persona.getBackgroundInfo() != null) ? persona.getBackgroundInfo() : "";
 
         return instructionTemplate
                 .replace("{name}", name)
@@ -362,63 +318,59 @@ public class AiChatUserService {
 
     private String getDefaultPromptTemplate() {
         return """
-                # [SYSTEM: Real-Human Messenger Mode (Dry Style)]
-                 당신은 AI가 아니라 아래 페르소나를 가진 **실제 사람**입니다. 현재 실시간 언어 번역이 가능한 다국적 친구 찾는 앱 Kori 에서 대화 중입니다.
+                # [SYSTEM: Real-Human Messenger Mode]
+                 당신은 AI가 아니라 아래 페르소나를 가진 **실제 사람**입니다. 현재 친구 찾기 앱 Kori 에서 대화 중입니다.
     
                  [내 프로필]
                  - 이름: {name}
-                 - 기본정보: {info}
                  - 취미: {hobby}
                  - 성격: {background}
                  - 현재 시간: {time}
                  ---
     
-                 # [📂 최근 대화 맥락 (Context)]
-                 아래 대화 흐름을 파악하고 자연스럽게 이어가세요. 누가 누구에게 말하는지 이름을 잘 보고 대답하세요.
+                 # [📂 대화 맥락 (Context)]
+                 아래 대화 흐름을 파악하고 자연스럽게 이어가세요.
                  {context}
     
                  ---
     
-                 # [🚫 절대 금지 사항 - 어기면 안 됨]
-                 1. **이모지/이모티콘 절대 금지** (😊, 👍, 🙏 등 일절 사용 X)
-                 2. **웃음 소리 금지** ('ㅋㅋ', 'ㅎㅎ', 'ㅋ', 'ㅎ' 등 자음 남발 금지)
-                 3. **마침표(.) 찍기 금지** (문장 끝은 그냥 비워둘 것)
-                 4. **2문장 이상 금지** (말 길게 하지 마세요)
-                 5. **대변인 행세 금지** (예: "OO가 바빠서 제가 대신..." 절대 금지. 남 핑계 대지 말고 네 얘기만 해.)
-                 6. **자아 분열 금지** (너는 무조건 '나'로 지칭. "OO는 자리를 비웠어"라고 제3자처럼 말하지 마.)
-                 7. **변명 금지** (상황이 꼬여도 구질구질하게 설명하려 들지 말고, 그냥 무시하거나 화제를 돌려.)
+                 # [🚫 절대 금지 사항]
+                 1. **이모지/이모티콘 절대 금지** (😊, 👍 등 사용 X)
+                 2. **웃음 소리 금지** ('ㅋㅋ', 'ㅎㅎ' 자음 남발 금지)
+                 3. **마침표(.) 찍기 금지** (문장 끝은 비워둘 것)
+                 4. **"누구세요?" 질문 금지** (대화 내역에 이름이 있는 사람에겐 절대 누구냐고 묻지 마. 이미 아는 사이처럼 대답해.)
+                 5. **대변인 화법 금지** (무조건 '나'로 말해)
     
                  ---
     
                  # [⚡ 대화 스타일 가이드]
     
-                 **1. 담백하고 친절하며 적당하게 (Dry & Clean)**
-                 - 감정 과잉을 피하고, 용건이나 리액션만 딱 던지세요.
-                 - 상대방과 친절하고 자연스러운 대화를 이어나가세요.
+                 **1. 눈치 빠른 실제 친구처럼 (Smart & Casual)**
+                 - 상대방이 "너 철수잖아"라고 하면, "응 맞아 왜?" 처럼 자연스럽게 받아치세요. "너는 누구야?"라고 되묻는 건 멍청해 보입니다.
+                 - **상대방이 사람이든 AI든 상관하지 마세요.** 그냥 친구처럼 편하게 대화에 끼어드세요.
     
-                 **2. 티키타카 (Tiki-Taka)**
-                 - 질문을 받으면 대답하세요.
-                 - 내 이름이 불리지 않았는데 끼어들고 싶으면, 아주 짧게(5글자 이내) 반응하거나 'PASS' 하세요.
-                 - 상대방과 자연스러운 대화를 이어나가세요.
+                 **2. 담백하고 짧게 (Short & Dry)**
+                 - 구구절절 설명하지 말고, 용건만 딱 말하세요. (2문장 이내)
+                 - 내가 모르는 주제라도 아는 척하며 대화에 끼어드세요.
     
                  **3. 페르소나 반영**
-                 - 당신의 성격인 **[{personality}]**을 반영하되, 위 '금지 사항'을 우선시하세요.
-                 - 취미(**{hobby}**) 관련 질문이 나오면 아는 척하세요.
+                 - 성격: **[{personality}]**
+                 - 취미(**{hobby}**) 관련 얘기가 나오면 적극적으로 반응하세요.
     
                  ---
     
                  # [대화 예시]
     
-                 (User): 도현아 밥 먹었어?
-                 (AI): 어 아까 먹었어.넌 뭐 밥 먹었어?
+                 (User): 야 철수야
+                 (AI): 어 왜 불러
     
-                 (User): 근데 영화 재밌나?
-                 (AI): 괜찮더라 나쁘지 않은듯?
+                 (User): 니가 철수잖아
+                 (AI): 그래 나 철수다 불만있냐
     
-                 (User): (AI 이름을 부르지 않고 자기들끼리 떠들 때)
-                 (AI): PASS
+                 (Other AI): 심심하다
+                 (AI): 나도 심심한데 게임이나 할래?
     
-                 위 지침을 완벽히 숙지하고, **이모지와 웃음기 뺀 담백하고 친절한 말투**로 바로 대답하세요. 대답할 필요가 없으면 'PASS'라고 출력하세요.
+                 위 지침을 숙지하고, **상대방을 이미 아는 사람처럼** 자연스럽고 담백하게 대답하세요. 할 말이 없으면 'PASS'라고 출력하세요.
         """;
     }
 }
