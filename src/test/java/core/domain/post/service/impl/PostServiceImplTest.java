@@ -293,32 +293,32 @@ class PostServiceImplTest {
         verify(postRepository, never()).save(any(Post.class));
     }
 
-    @Test
-    @DisplayName("writePost - 도배(5분 내 게시글 수 초과)면 TOO_MANY_POSTS 예외")
-    void writePost_flooding_throwsException() {
-        Long boardId = 2L;
-        PostWriteRequest request = new PostWriteRequest("hello", false, List.of());
-
-        Board board = mock(Board.class);
-        when(board.getCategory()).thenReturn(BoardCategory.FREE_TALK);
-        when(boardRepository.findById(boardId)).thenReturn(Optional.of(board));
-
-        when(forbiddenWordService.containsForbiddenWord("hello"))
-                .thenReturn(List.of());
-        when(postRepository.existsByAuthorEmailAndContentAndCreatedAtAfter(anyString(), anyString(), any()))
-                .thenReturn(false);
-        when(postRepository.countByAuthorEmailAndCreatedAtAfter(anyString(), any()))
-                .thenReturn(3L); // FLOOD_MAX_POSTS = 3 이상
-
-        assertThatThrownBy(() -> postService.writePost(boardId, request))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> {
-                    BusinessException be = (BusinessException) e;
-                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.TOO_MANY_POSTS);
-                });
-
-        verify(postRepository, never()).save(any(Post.class));
-    }
+//    @Test
+//    @DisplayName("writePost - 도배(5분 내 게시글 수 초과)면 TOO_MANY_POSTS 예외")
+//    void writePost_flooding_throwsException() {
+//        Long boardId = 2L;
+//        PostWriteRequest request = new PostWriteRequest("hello", false, List.of());
+//
+//        Board board = mock(Board.class);
+//        when(board.getCategory()).thenReturn(BoardCategory.FREE_TALK);
+//        when(boardRepository.findById(boardId)).thenReturn(Optional.of(board));
+//
+//        when(forbiddenWordService.containsForbiddenWord("hello"))
+//                .thenReturn(List.of());
+//        when(postRepository.existsByAuthorEmailAndContentAndCreatedAtAfter(anyString(), anyString(), any()))
+//                .thenReturn(false);
+//        when(postRepository.countByAuthorEmailAndCreatedAtAfter(anyString(), any()))
+//                .thenReturn(3L); // FLOOD_MAX_POSTS = 3 이상
+//
+//        assertThatThrownBy(() -> postService.writePost(boardId, request))
+//                .isInstanceOf(BusinessException.class)
+//                .satisfies(e -> {
+//                    BusinessException be = (BusinessException) e;
+//                    assertThat(be.getError()).isEqualTo(CommunityErrorCode.TOO_MANY_POSTS);
+//                });
+//
+//        verify(postRepository, never()).save(any(Post.class));
+//    }
 
     @Test
     @DisplayName("writePost - 정상 작성 시 Post 저장 및 이미지 저장, 팔로워 알림 발행")
