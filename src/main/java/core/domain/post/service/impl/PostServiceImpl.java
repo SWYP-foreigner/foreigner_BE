@@ -253,9 +253,9 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-        validateDuplicateContent(email, request.content());
+//        validateDuplicateContent(email, request.content());
 
-        validatePostFlooding(email);
+//        validatePostFlooding(email);
 
         final Post post = getPost(email, request, board);
 
