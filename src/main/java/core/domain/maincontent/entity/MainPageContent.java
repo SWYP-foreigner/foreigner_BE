@@ -1,6 +1,5 @@
 package core.domain.maincontent.entity;
 
-import core.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -32,9 +31,16 @@ public class MainPageContent {
     @Column(name = "html_content", nullable = false)
     private String htmlContent;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type")
+    private KNewsContentType type;
+
     @Column(name = "original_url")
     private String originalUrl;
 
+
+    @Column(name = "view_count")
+    private Long viewCount;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

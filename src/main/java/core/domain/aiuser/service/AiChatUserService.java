@@ -482,28 +482,51 @@ public class AiChatUserService {
     }
 
     private String buildSystemPrompt(User user, List<ChatMessage> history) {
+        // 1. 현재 시간 및 기본 정보 세팅
         String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
-        String name = (user.getFirstName() != null ? user.getFirstName() : "너");
+        String name = (user.getFirstName() != null) ? user.getFirstName() : "너";
+
+        // 기본 정보 조합 (생년월일 + 성별)
         String basicInfo = (user.getBirthdate() != null ? user.getBirthdate() : "") + " "
                 + (user.getSex() != null ? user.getSex() : "");
-        String hobby = user.getHobby() != null ? user.getHobby() : "그냥 쉬기";
 
-        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+        // 취미 정보 (없으면 기본값)
+        String hobby = (user.getHobby() != null) ? user.getHobby() : "휴식";
+
+        // 2. [핵심 변경] 대화 내역 포맷팅 강화
+        // 초 단위(ss) 제거하여 노이즈 감소 (HH:mm:ss -> HH:mm)
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+
         String conversationContext = history.stream()
                 .map(msg -> {
+                    // 이 메시지가 '나(AI)' 자신이 보낸 것인지 확인
                     boolean isMe = msg.getSender().getId().equals(user.getId());
-                    String senderName = isMe ? "나(" + name + ")" : msg.getSender().getFirstName();
+
+                    String originalName = msg.getSender().getFirstName();
+                    if (originalName == null) originalName = "Unknown";
+
+                    // 화자 라벨링 로직:
+                    // - 내가 쓴 글: [ME: 이름] -> AI가 자기 과거 발언임을 명확히 인지함
+                    // - 남이 쓴 글: [이름] -> 타인임을 인지함
+                    String senderLabel = isMe
+                            ? String.format("[ME: %s]", originalName)
+                            : String.format("[%s]", originalName);
+
                     String timeStr = msg.getSentAt().atZone(ZoneId.systemDefault()).format(timeFormatter);
-                    return String.format("%s,%s:%s", timeStr, senderName, msg.getContent());
+
+                    // 최종 포맷 예시: [14:05] [ME: 도현]: 밥 먹었어?
+                    return String.format("[%s] %s: %s", timeStr, senderLabel, msg.getContent());
                 })
                 .collect(Collectors.joining("\n"));
 
         if (conversationContext.isEmpty()) conversationContext = "(아직 대화 내역 없음)";
 
+        // 3. 페르소나 데이터 조회 및 템플릿 선택
         AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
         String instructionTemplate = (persona != null) ? persona.getInstruction() : getDefaultPromptTemplate();
         String backgroundInfoStr = (persona != null && persona.getBackgroundInfo() != null) ? persona.getBackgroundInfo() : "";
 
+        // 4. 프롬프트 변수 치환 후 반환
         return instructionTemplate
                 .replace("{name}", name)
                 .replace("{info}", basicInfo)
@@ -512,7 +535,6 @@ public class AiChatUserService {
                 .replace("{background}", backgroundInfoStr)
                 .replace("{context}", conversationContext);
     }
-
     private String getDefaultPromptTemplate() {
         return """
                 # [SYSTEM: Real-Human Messenger Mode]
