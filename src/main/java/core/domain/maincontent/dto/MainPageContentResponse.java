@@ -4,7 +4,7 @@ import core.domain.maincontent.entity.MainPageContent;
 
 
 public record MainPageContentResponse(
-        Long id,
+        Long contentId,
         String title,
         String htmlContent,
         String originalUrl
