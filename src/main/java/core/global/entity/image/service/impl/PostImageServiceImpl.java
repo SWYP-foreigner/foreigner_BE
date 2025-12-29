@@ -143,7 +143,7 @@ public class PostImageServiceImpl implements PostImageService {
             throw new BusinessException(ImageErrorCode.POST_IMAGES_ALREADY_EXIST);
         }
 
-        final String basePrefix = "posts/" + postId;
+        final String basePrefix = "test-posts/posts/" + postId;
 
         // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
         CopyResult copyResult = copyNewImagesInParallel(
@@ -186,7 +186,7 @@ public class PostImageServiceImpl implements PostImageService {
             return;
         }
 
-        final String basePrefix = "posts/" + postId;
+        final String basePrefix = "test-posts/posts/" + postId;
 
         // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
         CopyResult copyResult = copyNewImagesInParallel(
