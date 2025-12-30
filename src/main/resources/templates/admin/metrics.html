@@ -431,6 +431,24 @@
             </div>
         </div>
 
+        <div class="card" th:object="${metrics.groupChatSpeed}">
+            <h2>📢 그룹 채팅 활성도 (전체 평균)</h2>
+            <div style="text-align: center; margin: 30px 0;">
+                <span class="data" style="font-size: 2.5rem; color: #fd7e14;" th:text="*{formattedTime}"></span>
+                <p class="sub-data" style="margin-top: 5px;">
+                    (분석된 대화 쌍: <span th:text="*{analyzedMessageCount}"></span>건)
+                </p>
+            </div>
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; font-size: 0.9em; border-left: 5px solid #ffc107;">
+                <p style="margin: 0; color: #856404;">
+                    <strong>💡 Insight</strong><br>
+                    그룹방에서 누군가 말했을 때, 다른 사람이 대답하기까지 평균
+                    <strong th:text="*{formattedTime}"></strong> 걸립니다.<br>
+                    (자문자답 제외, 1:1 제외)
+                </p>
+            </div>
+        </div>
+
         <div class="card" th:object="${metrics.chatRoomHealth}">
             <h2>📉 1:1 대화 매칭 품질</h2>
 
@@ -484,6 +502,44 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <h2 class="section-title">🏆 그룹 채팅방 활성도 전체 랭킹</h2>
+    <div class="card" style="width: 100%; padding: 0; overflow: hidden;">
+        <div class="table-scroll-wrapper" style="max-height: 500px; border: none; overflow-y: auto;">
+            <table class="mini-table" style="margin: 0; width: 100%; border: none;">
+                <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 2; box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);">
+                <tr>
+                    <th style="width: 60px; text-align: center;">순위</th>
+                    <th>채팅방 이름</th>
+                    <th class="text-right">평균 응답 속도</th>
+                    <th class="text-right">대화량</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="room : ${metrics.groupChatRankings}">
+                    <td style="text-align: center;">
+                        <span th:if="${room.rank == 1}">🥇</span>
+                        <span th:if="${room.rank == 2}">🥈</span>
+                        <span th:if="${room.rank == 3}">🥉</span>
+                        <span th:if="${room.rank > 3}" th:text="${room.rank}"></span>
+                    </td>
+                    <td style="font-weight: 600; color: #495057;" th:text="${room.roomName}"></td>
+                    <td class="text-right">
+                        <span style="color: #fd7e14; font-weight: bold;" th:text="${room.formattedTime}"></span>
+                    </td>
+                    <td class="text-right text-gray" th:text="${room.messageCount} + '회'"></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(metrics.groupChatRankings)}">
+                    <td colspan="4" class="text-center text-gray" style="padding: 30px;">
+                        기간 내 활성화된 그룹 채팅방이 없습니다.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 

@@ -164,4 +164,48 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     List<Object[]> calculateFirstResponseTime(@Param("start") Instant start, @Param("end") Instant end);
 
     List<ChatMessage> findTop5ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
+    @Query(value = """
+        SELECT
+            COALESCE(AVG(EXTRACT(EPOCH FROM (sent_at - prev_sent_at))), 0) as avg_seconds,
+            COUNT(*) as count_pairs
+        FROM (
+            SELECT
+                cm.sent_at,
+                cm.sender_id,
+                LAG(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sent_at,
+                LAG(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sender_id
+            FROM chat_message cm
+            JOIN chat_room cr ON cm.chatroom_id = cr.chatroom_id
+            WHERE cr.is_group = true
+              AND cm.sent_at BETWEEN :start AND :end
+        ) temp_table
+        WHERE prev_sent_at IS NOT NULL
+          AND prev_sender_id != sender_id
+    """, nativeQuery = true)
+    List<Object[]> calculateGroupChatAvgReplyTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            r.room_name,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (t.sent_at - t.prev_sent_at))), 0) as avg_diff,
+            COUNT(*) as count_pairs
+        FROM (
+            SELECT
+                cm.chatroom_id,
+                cm.sent_at,
+                cm.sender_id,
+                LAG(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sent_at,
+                LAG(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sender_id
+            FROM chat_message cm
+            WHERE cm.sent_at BETWEEN :start AND :end
+        ) t
+        JOIN chat_room r ON t.chatroom_id = r.chatroom_id
+        WHERE r.is_group = true
+          AND t.prev_sent_at IS NOT NULL
+          AND t.prev_sender_id != t.sender_id -- 자문자답 제외
+        GROUP BY r.chatroom_id, r.room_name
+        ORDER BY avg_diff ASC
+    """, nativeQuery = true)
+    List<Object[]> findAllGroupChatSpeeds(@Param("start") Instant start, @Param("end") Instant end);
 }

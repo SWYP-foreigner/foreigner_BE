@@ -20,5 +20,7 @@ public record AdminMetricsDto(
         DemographicsDto demographics,
         GhostUserStatsDto ghostUserStats,
         ReplyTimeStatsDto replyTimeStats,
-        ChatRoomHealthDto chatRoomHealth
+        ChatRoomHealthDto chatRoomHealth,
+        GroupChatSpeedDto groupChatSpeed,
+        List<GroupChatRankingDto> groupChatRankings
 ) {}
