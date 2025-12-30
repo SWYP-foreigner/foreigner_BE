@@ -430,6 +430,61 @@
                 </p>
             </div>
         </div>
+
+        <div class="card" th:object="${metrics.chatRoomHealth}">
+            <h2>📉 1:1 대화 매칭 품질</h2>
+
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 5px 0;">
+                    <strong>분석 대상 채팅방:</strong>
+                    <span class="data" th:text="*{totalPrivateRooms}"></span>개
+                </p>
+                <p class="sub-data">
+                    (기간 내 생성된 1:1 채팅방 기준)
+                </p>
+            </div>
+
+            <div style="display: flex; height: 25px; border-radius: 8px; overflow: hidden; background-color: #f1f1f1; margin-bottom: 15px;">
+                <div th:style="'width:' + *{emptyRatio} + '%; background-color: #adb5bd;'" title="대화 없음"></div>
+                <div th:style="'width:' + *{oneWayRatio} + '%; background-color: #ffc107;'" title="일방적 대화"></div>
+                <div th:style="'width:' + *{twoWayRatio} + '%; background-color: #28a745;'" title="매칭 성공"></div>
+            </div>
+
+            <div style="font-size: 0.9em;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <div>
+                        <span style="display:inline-block; width:10px; height:10px; background-color: #adb5bd; border-radius:50%; margin-right:5px;"></span>
+                        <span>침묵 (0건)</span>
+                    </div>
+                    <div>
+                        <strong th:text="*{emptyRooms} + '개'"></strong>
+                        <span class="text-gray" th:text="'(' + *{emptyRatio} + '%)'"></span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <div>
+                        <span style="display:inline-block; width:10px; height:10px; background-color: #ffc107; border-radius:50%; margin-right:5px;"></span>
+                        <span>일방적 (답장X)</span>
+                    </div>
+                    <div>
+                        <strong th:text="*{oneWayRooms} + '개'"></strong>
+                        <span class="text-gray" th:text="'(' + *{oneWayRatio} + '%)'"></span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between;">
+                    <div>
+                        <span style="display:inline-block; width:10px; height:10px; background-color: #28a745; border-radius:50%; margin-right:5px;"></span>
+                        <span style="font-weight:bold; color:#28a745;">성공 (양방향)</span>
+                    </div>
+                    <div>
+                        <strong style="color:#28a745;" th:text="*{twoWayRooms} + '개'"></strong>
+                        <span class="text-gray" th:text="'(' + *{twoWayRatio} + '%)'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <h2 class="section-title">📅 주차별 가입 및 활동 현황 (코호트)</h2>

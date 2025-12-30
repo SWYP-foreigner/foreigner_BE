@@ -2,6 +2,7 @@ package core.domain.admin.service;
 
 import core.domain.admin.dto.*;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.dto.CountryRetentionDto;
 import core.domain.user.dto.StringCountDto;
 import core.domain.user.repository.UserRepository;
@@ -28,6 +29,7 @@ public class AdminMetricsService {
 
     private final UserRepository userRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatRoomRepository chatRoomRepository;
 
     @Transactional(readOnly = true)
     public AdminMetricsDto getDashboardMetrics(
@@ -50,6 +52,7 @@ public class AdminMetricsService {
         DemographicsDto demographics = fetchDemographics(joinStartDate, joinEndDate);
         GhostUserStatsDto ghostUserStats = fetchGhostUserStats(joinStartDate, joinEndDate);
         ReplyTimeStatsDto replyTimeStats = fetchFirstResponseTimeStats(joinStartDate, joinEndDate);
+        ChatRoomHealthDto chatRoomHealth = fetchChatRoomHealth(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -64,8 +67,32 @@ public class AdminMetricsService {
                 firstMessageTimeStats,
                 demographics,
                 ghostUserStats,
-                replyTimeStats
+                replyTimeStats,
+                chatRoomHealth
         );
+    }
+
+    private ChatRoomHealthDto fetchChatRoomHealth(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        long total = chatRoomRepository.countPrivateRoomsBetween(startInstant, endInstant);
+
+        if (total == 0) {
+            return new ChatRoomHealthDto(0, 0, 0, 0);
+        }
+
+        long empty = chatRoomRepository.countEmptyPrivateRooms(startInstant, endInstant);
+
+        List<Long> oneWayIds = chatRoomRepository.findOneWayRoomIds(startInstant, endInstant);
+        long oneWay = oneWayIds.size();
+
+        long twoWay = total - empty - oneWay;
+        if (twoWay < 0) twoWay = 0;
+
+        return new ChatRoomHealthDto(total, empty, oneWay, twoWay);
     }
 
     private ReplyTimeStatsDto fetchFirstResponseTimeStats(LocalDate startDate, LocalDate endDate) {
