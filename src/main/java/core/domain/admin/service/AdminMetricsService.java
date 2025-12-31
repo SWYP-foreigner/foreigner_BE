@@ -2,6 +2,7 @@ package core.domain.admin.service;
 
 import core.domain.admin.dto.*;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.dto.CountryRetentionDto;
 import core.domain.user.dto.StringCountDto;
 import core.domain.user.repository.UserRepository;
@@ -16,10 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +26,7 @@ public class AdminMetricsService {
 
     private final UserRepository userRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatRoomRepository chatRoomRepository;
 
     @Transactional(readOnly = true)
     public AdminMetricsDto getDashboardMetrics(
@@ -50,6 +49,9 @@ public class AdminMetricsService {
         DemographicsDto demographics = fetchDemographics(joinStartDate, joinEndDate);
         GhostUserStatsDto ghostUserStats = fetchGhostUserStats(joinStartDate, joinEndDate);
         ReplyTimeStatsDto replyTimeStats = fetchFirstResponseTimeStats(joinStartDate, joinEndDate);
+        ChatRoomHealthDto chatRoomHealth = fetchChatRoomHealth(joinStartDate, joinEndDate);
+        GroupChatSpeedDto groupChatSpeed = fetchGroupChatSpeed(joinStartDate, joinEndDate);
+        List<GroupChatRankingDto> groupChatRankings = fetchGroupChatRankings(joinStartDate, joinEndDate);
 
         return new AdminMetricsDto(
                 userStats,
@@ -64,8 +66,89 @@ public class AdminMetricsService {
                 firstMessageTimeStats,
                 demographics,
                 ghostUserStats,
-                replyTimeStats
+                replyTimeStats,
+                chatRoomHealth,
+                groupChatSpeed,
+                groupChatRankings
         );
+    }
+
+    private List<GroupChatRankingDto> fetchGroupChatRankings(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        // 이름 변경된 메서드 호출
+        List<Object[]> results = chatMessageRepository.findAllGroupChatSpeeds(startInstant, endInstant);
+
+        List<GroupChatRankingDto> rankings = new ArrayList<>();
+        int rank = 1;
+
+        for (Object[] row : results) {
+            String roomName = (String) row[0];
+            double avgSecondsDouble = ((Number) row[1]).doubleValue();
+            long count = ((Number) row[2]).longValue();
+
+            rankings.add(new GroupChatRankingDto(
+                    rank++,
+                    roomName,
+                    formatSeconds((long) avgSecondsDouble),
+                    count
+            ));
+        }
+        return rankings;
+    }
+
+    private GroupChatSpeedDto fetchGroupChatSpeed(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        List<Object[]> result = chatMessageRepository.calculateGroupChatAvgReplyTime(startInstant, endInstant);
+
+        if (result == null || result.isEmpty() || result.get(0)[0] == null) {
+            return new GroupChatSpeedDto("데이터 없음", 0, 0);
+        }
+
+        Object[] row = result.get(0);
+        double avgSecondsDouble = ((Number) row[0]).doubleValue();
+        long count = ((Number) row[1]).longValue();
+        long avgSeconds = (long) avgSecondsDouble;
+
+        return new GroupChatSpeedDto(formatSeconds(avgSeconds), avgSeconds, count);
+    }
+
+    private String formatSeconds(long totalSeconds) {
+        if (totalSeconds < 60) return totalSeconds + "초";
+        long minutes = totalSeconds / 60;
+        long remainingSeconds = totalSeconds % 60;
+        if (minutes < 60) return minutes + "분 " + remainingSeconds + "초";
+        long hours = minutes / 60;
+        long remainingMinutes = minutes % 60;
+        return hours + "시간 " + remainingMinutes + "분";
+    }
+
+    private ChatRoomHealthDto fetchChatRoomHealth(LocalDate startDate, LocalDate endDate) {
+        ZoneId kstZone = ZoneId.of("Asia/Seoul");
+
+        Instant startInstant = startDate.atStartOfDay(kstZone).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(kstZone).toInstant();
+
+        long total = chatRoomRepository.countPrivateRoomsBetween(startInstant, endInstant);
+
+        if (total == 0) {
+            return new ChatRoomHealthDto(0, 0, 0, 0);
+        }
+
+        long empty = chatRoomRepository.countEmptyPrivateRooms(startInstant, endInstant);
+
+        List<Long> oneWayIds = chatRoomRepository.findOneWayRoomIds(startInstant, endInstant);
+        long oneWay = oneWayIds.size();
+
+        long twoWay = total - empty - oneWay;
+        if (twoWay < 0) twoWay = 0;
+
+        return new ChatRoomHealthDto(total, empty, oneWay, twoWay);
     }
 
     private ReplyTimeStatsDto fetchFirstResponseTimeStats(LocalDate startDate, LocalDate endDate) {
