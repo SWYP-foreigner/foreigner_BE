@@ -208,4 +208,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         ORDER BY avg_diff ASC
     """, nativeQuery = true)
     List<Object[]> findAllGroupChatSpeeds(@Param("start") Instant start, @Param("end") Instant end);
+
+    long countByChatRoomId(Long chatRoomId);
 }

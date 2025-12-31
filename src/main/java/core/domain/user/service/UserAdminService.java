@@ -123,7 +123,6 @@ public class UserAdminService {
 
             if (!room.getIsGroup()) {
                 List<String> names = chatParticipantRepository.findParticipantNamesByRoomId(room.getId());
-
                 if (!names.isEmpty()) {
                     roomName = String.join(", ", names);
                 } else {
@@ -131,11 +130,14 @@ public class UserAdminService {
                 }
             }
 
+            long messageCount = chatMessageRepository.countByChatRoomId(room.getId());
+
             return new ChatRoomInfoDto(
                     room.getId(),
                     roomName,
                     room.getIsGroup(),
-                    room.getParticipants().size()
+                    room.getParticipants().size(),
+                    messageCount // [추가] DTO에 전달
             );
         });
     }
