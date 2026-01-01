@@ -1,10 +1,13 @@
 package core.domain.notification.service;
+import core.domain.chat.entity.ChatRoom;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.notification.entity.Notification;
 import core.domain.notification.repository.NotificationRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.global.enums.NotificationType;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -36,6 +39,7 @@ public class NotificationEventListener {
     private final NotificationMessageGenerator notificationMessageGenerator;
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
+    private final ChatRoomRepository chatRoomRepository;
 
     @Async("dispatchExecutor")
     @EventListener
@@ -136,33 +140,55 @@ public class NotificationEventListener {
     @Async
     @EventListener
     public void handleBulkNotification(NotificationBulkEvent event) {
+        // 1. 메시지 길이 자르기 (기존 로직)
         String safeMessage = truncate(event.content(), 100);
 
-        User senderProxy = entityManager.getReference(User.class, event.senderId());
+        // 2. [변경] 보낸 사람 이름과 방 정보 조회 (Proxy 대신 실제 엔티티 조회 필요)
+        // Proxy(getReference)는 ID만 가지고 있어서 이름을 못 가져올 수 있습니다.
+        User sender = userRepository.findById(event.senderId())
+                .orElseThrow(() -> new EntityNotFoundException("Sender not found"));
 
+        ChatRoom chatRoom = chatRoomRepository.findById(event.roomId())
+                .orElseThrow(() -> new EntityNotFoundException("ChatRoom not found"));
+
+        String senderName = sender.getFirstName(); // 혹은 sender.getNickname() 등 실제 표시할 이름
+
+        // 3. [핵심] 카카오톡 스타일 포맷팅
+        String formattedBody;
+        if (Boolean.TRUE.equals(chatRoom.getIsGroup())) {
+            formattedBody = String.format("%s (%s)\n%s",
+                    senderName,
+                    event.roomName(),
+                    safeMessage);
+        } else {
+            formattedBody = String.format("%s\n%s",
+                    senderName,
+                    safeMessage);
+        }
+
+        User senderProxy = entityManager.getReference(User.class, event.senderId());
         List<Notification> notifications = event.recipientIds().stream()
                 .map(targetId -> {
                     User receiverProxy = entityManager.getReference(User.class, targetId);
-                    Long referenceId = null;
-                    try {
-                        referenceId = Long.parseLong(String.valueOf(event.roomId()));
-                    } catch (NumberFormatException e) {
-                        // ignore
-                    }
-
                     return Notification.builder()
                             .user(receiverProxy)
                             .actor(senderProxy)
                             .message(safeMessage)
                             .notificationType(event.type())
-                            .referenceId(referenceId)
-                            .subReferenceId(null)
+                            .referenceId(event.roomId())
                             .build();
                 })
                 .toList();
-
         notificationRepository.saveAll(notifications);
-        pushNotificationService.sendGroupPush(event.recipientIds(),safeMessage, String.valueOf(event.roomId()), event.roomName(), event.senderId());
+
+        // 5. 푸시 발송 요청 (조립된 formattedBody를 전달)
+        pushNotificationService.sendGroupPush(
+                event.recipientIds(),
+                formattedBody,      // <--- 여기가 바뀐 부분입니다!
+                String.valueOf(event.roomId()),
+                event.roomName(),
+                event.senderId()
+        );
     }
     private String truncate(String input, int maxLength) {
         if (input == null) return null;
