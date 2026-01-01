@@ -43,15 +43,13 @@ public class ChatMemberService {
     private final UserRoleDetectService userRoleDetectService;
     private final ImageService imageService;
     private final ChatMessageRepository chatMessageRepository;
-
     @Transactional(readOnly = true)
     public List<ChatRoomParticipantsResponse> getRoomParticipants(Long roomId) {
-        // ChatRoom 존재 여부 확인
+
         ChatRoom chatRoom = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        List<ChatParticipant> participants = chatParticipantRepository.findByChatRoom(chatRoom);
-        // TODO: 성능 최적화를 위해 이미지 조회를 In-Query로 변경하거나 배치 조회 권장 (현재는 N+1 발생 가능)
+        List<ChatParticipant> participants = chatParticipantRepository.findActiveParticipants(roomId);
         return participants.stream()
                 .map(p -> {
                     String userImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
@@ -59,7 +57,8 @@ public class ChatMemberService {
                             .map(Image::getUrl)
                             .orElse(null);
 
-                    boolean isHost = chatRoom.getOwner() != null && chatRoom.getOwner().getId().equals(p.getUser().getId());
+                    boolean isHost = chatRoom.getOwner() != null
+                            && chatRoom.getOwner().getId().equals(p.getUser().getId());
 
                     return new ChatRoomParticipantsResponse(
                             p.getUser().getId(),
