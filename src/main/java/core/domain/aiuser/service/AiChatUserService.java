@@ -62,38 +62,37 @@ public class AiChatUserService {
     public void processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage) {
         Long chatRoomId = event.messageResponse().roomId();
 
-        // 1. [No DB] 탈옥/해킹 시도 필터링
         if (JAILBREAK_PATTERN.matcher(combinedUserMessage).find()) {
             log.warn("AI Filtered Jailbreak: {}", combinedUserMessage);
             return;
         }
 
-        // 2. [DB Hit (Short)] 그룹챗 여부 확인 (짧은 트랜잭션)
         boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
-
-        // [No DB] 사람처럼 보이게 뜸 들이기 (Thinking Time)
         long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
         sleep(thinkingTime);
 
-        // ---------------------------------------------------------------
-        // 3. [DB Read Transaction] 상황 파악 및 프롬프트 구성
-        // ---------------------------------------------------------------
         List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
             return prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
         });
 
-        // 대답할 상황이 아니면 종료 (null 반환됨)
         if (requestMessages == null || requestMessages.isEmpty()) return;
 
         try {
-            // 4. [No DB] 외부 AI API 호출 (가장 오래 걸림)
+            // [API 호출]
             String aiResponse = aiClient.generateResponse(requestMessages);
+
+            // ---------------------------------------------------------------
+            // 🛑 [수정 1] Null 및 빈 값 체크 (여기에 적용)
+            // ---------------------------------------------------------------
+            if (aiResponse == null || aiResponse.isBlank()) {
+                log.warn("AI [{}] Response is empty or failed. Skipping.", aiUser.getFirstName());
+                return; // 메시지 전송 로직 수행하지 않고 종료
+            }
 
             // AI 정체성 발설 필터링 및 PASS 체크
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
             if (aiResponse.trim().toUpperCase().contains("PASS")) return;
 
-            // 5. [DB Write Transaction] 메시지 전송
             SendMessageRequest request = new SendMessageRequest(
                     chatRoomId, aiUser.getId(), aiResponse, MessageType.TEXT
             );
