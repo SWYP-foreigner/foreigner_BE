@@ -35,20 +35,15 @@ public class ChatAdminService {
         return page.map(room -> {
             if (!room.isGroup()) {
                 List<String> names = chatParticipantRepository.findParticipantNamesByRoomId(room.chatRoomId());
-
-                String newName;
-                if (!names.isEmpty()) {
-                    newName = String.join(", ", names);
-                } else {
-                    newName = "(참여자 없음)";
-                }
+                String newName = names.isEmpty() ? "(참여자 없음)" : String.join(", ", names);
 
                 return new ChatRoomListResponse(
                         room.chatRoomId(),
                         newName,
                         room.isGroup(),
                         room.participantCount(),
-                        room.createdAt()
+                        room.createdAt(),
+                        room.messageCount()
                 );
             }
             return room;

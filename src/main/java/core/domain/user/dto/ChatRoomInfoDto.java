@@ -7,15 +7,17 @@ public record ChatRoomInfoDto(
         Long chatRoomId,
         String roomName,
         boolean isGroup,
-        long participantCount
+        long participantCount,
+        long messageCount
 ) {
-    public static ChatRoomInfoDto from(ChatParticipant participant) {
+    public static ChatRoomInfoDto from(ChatParticipant participant, long messageCount) {
         ChatRoom chatRoom = participant.getChatRoom();
         return new ChatRoomInfoDto(
                 chatRoom.getId(),
                 chatRoom.getRoomName(),
                 chatRoom.getIsGroup(),
-                chatRoom.getParticipants().size()
+                chatRoom.getParticipants().size(),
+                messageCount
         );
     }
 }
