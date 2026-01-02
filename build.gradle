@@ -203,7 +203,7 @@ sonarqube {
 tasks.register('preflight') {
     group = "verification"
     description = "Run tests, coverage and verification before starting server."
-    tasks.test, tasks.jacocoTestReport, tasks.check
+    dependsOn tasks.test, tasks.jacocoTestReport, tasks.check
 }
 //
 //// 최신화된 Errorcode 노션으로 보내기
