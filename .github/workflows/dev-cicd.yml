@@ -43,7 +43,6 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=30
-
       redis:
         image: redis:7
         ports:
@@ -64,55 +63,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
-      - name: Gradle Wrapper Validate
-        uses: gradle/actions/wrapper-validation@v3
-        continue-on-error: true
-        timeout-minutes: 5
-
-      - name: Install clients (psql, jq)
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y postgresql-client jq
-
-      - name: Show service containers status
-        run: |
-          echo "--- docker ps ---"
-          docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'
-          
-          echo "--- postgres health ---"
-          PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
-          echo "Postgres CID: $PG_CID"
-          if [ -n "$PG_CID" ]; then
-            docker inspect "$PG_CID" | jq -r '.[0].State.Health.Status'
-          fi
-          
-          echo "--- redis health ---"
-          RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
-          echo "Redis CID: $RD_CID"
-          if [ -n "$RD_CID" ]; then
-            docker inspect "$RD_CID" | jq -r '.[0].State.Health.Status'
-          fi
-
-      - name: Wait for Postgres & Redis
-        env:
-          PGPASSWORD: testpass
-        run: |
-          echo "Waiting for Postgres on postgres:5432..."
-          until pg_isready -h localhost -p 5432 -U testuser -d testdb; do
-            sleep 2
-          done
-          
-          echo "Waiting for Postgres on localhost:5432..."
-          psql -h localhost -p 5432 -U testuser -d testdb -c "select version();"
-          
-          echo "Waiting for Redis..."
-          until docker exec "$(docker ps -q --filter "name=redis" | head -n1)" redis-cli ping | grep -q PONG; do
-            sleep 2
-          done
-          echo "Redis is ready."
-
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Run preflight (tests + coverage + sonar)
         env:
@@ -120,9 +73,7 @@ jobs:
           SPRING_PROFILES_ACTIVE: test
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
-          
-          ./gradlew --no-daemon clean preflight sonar \
+          ./gradlew clean preflight sonar --parallel --build-cache \
             -Dorg.gradle.jvmargs=-Xmx2g \
             -Dspring.profiles.active=test \
             -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
@@ -131,24 +82,13 @@ jobs:
             -Dspring.data.redis.host=localhost \
             -Dspring.data.redis.port=6379
 
-
-      - name: Dump service logs (before job teardown)
-        if: always()
+      # 실패 시에만 로그 덤프 (성공 시에는 시간 절약)
+      - name: Dump service logs on failure
+        if: failure()
         run: |
-          echo "--- docker ps ---"
-          docker ps || true
-          
-          PG_CID="$(docker ps -q --filter "name=postgres" | head -n1)"
-          if [ -n "$PG_CID" ]; then
-            echo "--- postgres logs (tail) ---"
-            docker logs --tail 200 "$PG_CID" || true
-          fi
-          
-          RD_CID="$(docker ps -q --filter "name=redis" | head -n1)"
-          if [ -n "$RD_CID" ]; then
-            echo "--- redis logs (tail) ---"
-            docker logs --tail 200 "$RD_CID" || true
-          fi
+          docker ps
+          docker logs $(docker ps -q --filter "name=postgres") || true
+          docker logs $(docker ps -q --filter "name=redis") || true
 
   build:
     needs: [ preflight, quality-tests ]
