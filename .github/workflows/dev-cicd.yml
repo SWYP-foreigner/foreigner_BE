@@ -114,14 +114,15 @@ jobs:
           echo "Redis is ready."
 
 
-      - name: Run preflight (tests + coverage)
+      - name: Run preflight (tests + coverage + sonar)
         env:
           CI: "true"
           SPRING_PROFILES_ACTIVE: test
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
           
-          ./gradlew --no-daemon clean test -Dorg.gradle.jvmargs=-Xmx2g \
+          ./gradlew --no-daemon preflight sonar -Dorg.gradle.jvmargs=-Xmx2g \
             -Dspring.profiles.active=test \
             -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
             -Dspring.datasource.username=testuser \
