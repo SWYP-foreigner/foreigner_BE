@@ -122,7 +122,8 @@ jobs:
         run: |
           echo "SPRING_PROFILES_ACTIVE=$SPRING_PROFILES_ACTIVE"
           
-          ./gradlew --no-daemon preflight sonar -Dorg.gradle.jvmargs=-Xmx2g \
+          ./gradlew --no-daemon clean preflight sonar \
+            -Dorg.gradle.jvmargs=-Xmx2g \
             -Dspring.profiles.active=test \
             -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
             -Dspring.datasource.username=testuser \
