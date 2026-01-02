@@ -73,10 +73,9 @@ jobs:
           SPRING_PROFILES_ACTIVE: test
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./gradlew clean preflight sonar --parallel --build-cache \
-            -Dorg.gradle.jvmargs=-Xmx2g \
+          ./gradlew preflight sonar --parallel --build-cache \
             -Dspring.profiles.active=test \
-            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb  \
+            -Dspring.datasource.url=jdbc:postgresql://localhost:5432/testdb \
             -Dspring.datasource.username=testuser \
             -Dspring.datasource.password=testpass \
             -Dspring.data.redis.host=localhost \
