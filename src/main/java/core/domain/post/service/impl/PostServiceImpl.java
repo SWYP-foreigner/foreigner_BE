@@ -99,7 +99,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, CommunitySortOption sort, String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;

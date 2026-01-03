@@ -1,6 +1,6 @@
 package core.domain.maincontent.dto;
 
-import core.domain.maincontent.entity.KNewsContentType;
+import core.global.enums.KNewsContentType;
 
 public record MainContentTop9Response(
         Long contentId,

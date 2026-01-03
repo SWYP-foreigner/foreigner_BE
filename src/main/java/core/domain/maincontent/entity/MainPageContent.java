@@ -1,5 +1,6 @@
 package core.domain.maincontent.entity;
 
+import core.global.enums.KNewsContentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

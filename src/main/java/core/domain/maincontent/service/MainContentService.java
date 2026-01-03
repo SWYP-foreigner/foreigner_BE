@@ -3,14 +3,15 @@ package core.domain.maincontent.service;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainContentNewsResponse;
-import core.domain.maincontent.entity.KNewsContentType;
+import core.global.enums.KNewsContentType;
 
 import core.domain.maincontent.dto.MainPageContentResponse;
 import core.domain.maincontent.entity.MainPageContent;
 import core.domain.maincontent.repository.MainContentRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageType;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
+import core.global.enums.MainContentSortOption;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
@@ -103,7 +104,7 @@ public class MainContentService {
         return ChronoUnit.DAYS.between(createdAt, Instant.now());
     }
 
-    public CursorPageResponse<MainContentNewsListResponse> getCategoryNews(KNewsContentType type, SortOption sort, String cursor, int size) {
+    public CursorPageResponse<MainContentNewsListResponse> getCategoryNews(KNewsContentType type, MainContentSortOption sort, String cursor, int size) {
         final int pageSize = Math.min(Math.max(size, 1), 50);
         final Map<String, Object> c = safeDecode(cursor);
 

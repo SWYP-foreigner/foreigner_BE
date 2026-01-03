@@ -1,6 +1,6 @@
 package core.domain.maincontent.dto;
 
-import core.domain.maincontent.entity.KNewsContentType;
+import core.global.enums.KNewsContentType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public record MainContentNewsResponse(

@@ -4,7 +4,7 @@ import core.domain.maincontent.dto.PollItem;
 import core.domain.maincontent.dto.PollResultResponse;
 import core.domain.maincontent.entity.Poll;
 import core.domain.maincontent.entity.PollOption;
-import core.domain.maincontent.entity.PollType;
+import core.global.enums.PollType;
 import core.domain.maincontent.entity.VoteRecord;
 import core.domain.maincontent.repository.PollOptionRepository;
 import core.domain.maincontent.repository.PollRepository;

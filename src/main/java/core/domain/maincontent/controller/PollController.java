@@ -3,7 +3,7 @@ package core.domain.maincontent.controller;
 import core.domain.maincontent.dto.PollItem;
 import core.domain.maincontent.dto.PollParticipateRequest;
 import core.domain.maincontent.dto.PollResultResponse;
-import core.domain.maincontent.entity.PollType;
+import core.global.enums.PollType;
 import core.domain.maincontent.service.PollService;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;

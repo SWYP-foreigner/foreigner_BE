@@ -1,6 +1,6 @@
 package core.domain.maincontent.dto;
 
-import core.domain.maincontent.entity.PollType;
+import core.global.enums.PollType;
 
 import java.time.Instant;
 import java.util.List;

@@ -4,10 +4,11 @@ import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainPageContentResponse;
-import core.domain.maincontent.entity.KNewsContentType;
+import core.global.enums.KNewsContentType;
 import core.domain.maincontent.service.MainContentService;
 import core.global.docs.annotations.MainContentErrorDocs;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
+import core.global.enums.MainContentSortOption;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,7 +57,7 @@ public class MainContentController {
     @GetMapping("/{type}/list")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentNewsListResponse>>> getCategoryNews(
             @PathVariable KNewsContentType type,
-            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
+            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") MainContentSortOption sort,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size

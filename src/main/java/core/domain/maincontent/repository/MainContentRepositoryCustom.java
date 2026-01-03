@@ -1,7 +1,7 @@
 package core.domain.maincontent.repository;
 
 import core.domain.maincontent.dto.MainContentNewsListResponse;
-import core.domain.maincontent.entity.KNewsContentType;
+import core.global.enums.KNewsContentType;
 
 import java.time.Instant;
 import java.util.List;

@@ -9,7 +9,7 @@ import core.global.docs.annotations.CommonErrorCodeDocs;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
@@ -59,7 +59,7 @@ public class CommentController {
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<CommentItem>>> getCommentList(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable("postId") Long postId,
             @Parameter(description = "페이지 크기(1~100)", example = "20") @RequestParam(defaultValue = "20") Integer size,
-            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
+            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") CommunitySortOption sort,
             @Parameter(description = "다음 페이지 호출 시 전달하는 불투명 커서(Base64). 첫 페이지는 생략")
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "false") Boolean translate
