@@ -10,6 +10,7 @@ import core.global.appsetting.SupportLinksResponse;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.ImageErrorCodeDocs;
 import core.global.docs.annotations.UserErrorDocs;
+import core.global.dto.ApiResponse;
 import core.global.dto.UserLanguageDTO;
 import core.global.enums.FollowStatus;
 import core.global.enums.errorcode.GlobalErrorCode;
@@ -42,6 +43,16 @@ public class MyPageController {
     private final TranslationService translationService;
     private final FeatureUsageMetrics featureUsageMetrics;
     private final AppSettingService appSettingService;
+
+    @Operation(summary = "팔로우 요청 보내기", description = "마음에 드는 친구에게 팔로우 요청을 전송합니다.")
+    @PostMapping("/follow/{userId}")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED, UserErrorCode.CANNOT_FOLLOW_YOURSELF,  UserErrorCode.FOLLOW_ALREADY_EXISTS})
+    public ResponseEntity<ApiResponse<String>> followUser(
+            Authentication authentication, @PathVariable Long userId) {
+        followService.follow(authentication, userId);
+        featureUsageMetrics.recordFollowUsage();
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 
     /**
      * 각 FollowStatus 별 팔로우 목록 조회
