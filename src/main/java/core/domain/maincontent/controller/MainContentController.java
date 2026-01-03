@@ -1,21 +1,21 @@
 package core.domain.maincontent.controller;
 
-import core.domain.maincontent.dto.MainContentTop3Response;
+import core.domain.maincontent.dto.MainContentNewsListResponse;
+import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainPageContentResponse;
 import core.domain.maincontent.entity.KNewsContentType;
 import core.domain.maincontent.service.MainContentService;
 import core.global.docs.annotations.MainContentErrorDocs;
+import core.global.enums.SortOption;
 import core.global.enums.errorcode.MainContentErrorCode;
+import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -37,12 +37,33 @@ public class MainContentController {
             )
     )
     @GetMapping("/{type}/preview")
-    public ResponseEntity<core.global.dto.ApiResponse<List<MainContentTop3Response>>> getTop3News(
+    public ResponseEntity<core.global.dto.ApiResponse<List<MainContentNewsResponse>>> getTop3News(
             @PathVariable KNewsContentType type
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         mainContentService.getTop3News(type)
+                ));
+    }
+
+    @Operation(summary = "메인페이지 K-News 리스트 조회")
+    @ApiResponses(
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "성공"
+            )
+    )
+    @GetMapping("/{type}/list")
+    public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentNewsListResponse>>> getCategoryNews(
+            @PathVariable KNewsContentType type,
+            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
+            @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
+            @RequestParam(required = false) String cursor,
+            @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(
+                core.global.dto.ApiResponse.success(
+                        mainContentService.getCategoryNews(type, sort, cursor, size)
                 ));
     }
 

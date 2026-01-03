@@ -1,5 +1,5 @@
 package core.global.enums;
 
 public enum SortOption {
-    LATEST, POPULAR
+    LATEST, POPULAR, TRENDING, NEW
 }
