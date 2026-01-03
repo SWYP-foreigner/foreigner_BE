@@ -61,13 +61,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardItem> findLatestPosts(Long userId, Long boardId,
                                            Instant cursorCreatedAt,
                                            Long cursorId,
-                                           int size,
-                                           String q) {
+                                           int size) {
 
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank())
-                ? null
-                : post.content.containsIgnoreCase(q);
 
         BooleanExpression ltCursor = (cursorCreatedAt == null)
                 ? null
@@ -120,17 +116,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
                 .orderBy(post.createdAt.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
     }
 
     @Override
-    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
+    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
 
         // ── 집계
         Expression<Long> likeCountSub = likeCountExpr();
@@ -232,7 +227,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
                 .orderBy(
                         score.desc(),
                         post.id.desc()
