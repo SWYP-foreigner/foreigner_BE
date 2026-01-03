@@ -130,8 +130,7 @@ public class PostServiceImpl implements PostService {
                 boardId,
                 truncateToMillis(k.t),
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
         if (rows == null || rows.isEmpty()) {
@@ -154,8 +153,7 @@ public class PostServiceImpl implements PostService {
                 since,
                 k.sc,
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
 
@@ -201,7 +199,7 @@ public class PostServiceImpl implements PostService {
     }
 
     private Instant popularSince() {
-        return Instant.now().minus(Duration.ofDays(10));
+        return Instant.now().minus(Duration.ofDays(14));
     }
 
     // ------- 유틸 -------

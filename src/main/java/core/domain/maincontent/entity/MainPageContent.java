@@ -40,7 +40,7 @@ public class MainPageContent {
 
 
     @Column(name = "view_count")
-    private Long viewCount;
+    private Long viewCount = 0L;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -61,4 +61,12 @@ public class MainPageContent {
     public void changeHtmlContent(String htmlContent) {
         this.htmlContent = htmlContent;
     }
+
+    public void addViewCount() {
+        if (this.viewCount == null) {
+            this.viewCount = 0L;
+        }
+        this.viewCount++;
+    }
+
 }

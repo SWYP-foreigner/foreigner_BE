@@ -129,8 +129,8 @@ class PostServiceImplTest {
                     assertThat(be.getError()).isEqualTo(BOARD_NOT_FOUND);
                 });
 
-        verify(postRepository, never()).findLatestPosts(anyLong(), any(), any(), any(), anyInt(), any());
-        verify(postRepository, never()).findPopularPosts(anyLong(), any(), any(), any(), any(), anyInt(), any());
+        verify(postRepository, never()).findLatestPosts(anyLong(), any(), any(), any(), anyInt());
+        verify(postRepository, never()).findPopularPosts(anyLong(), any(), any(), any(), any(), anyInt());
     }
 
     @Test
@@ -145,8 +145,7 @@ class PostServiceImplTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                eq(size + 1),
-                isNull()
+                eq(size + 1)
         )).thenReturn(List.of());
 
         CursorPageResponse<BoardItem> response =

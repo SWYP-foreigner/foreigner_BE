@@ -1,7 +1,8 @@
 package core.domain.maincontent.service;
 
+import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
-import core.domain.maincontent.dto.MainContentTop3Response;
+import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.entity.KNewsContentType;
 
 import core.domain.maincontent.dto.MainPageContentResponse;
@@ -9,12 +10,17 @@ import core.domain.maincontent.entity.MainPageContent;
 import core.domain.maincontent.repository.MainContentRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageType;
+import core.global.enums.SortOption;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.exception.BusinessException;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
+import core.global.pagination.CursorPages;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
@@ -30,7 +36,7 @@ public class MainContentService {
     private final ImageRepository imageRepository;
 
     @Transactional(readOnly = true)
-    public List<MainContentTop3Response> getTop3News(KNewsContentType type) {
+    public List<MainContentNewsResponse> getTop3News(KNewsContentType type) {
 
         List<MainPageContent> contents = mainContentRepository.findTop3ByTypeOrderByViewCountDesc(type);
 
@@ -41,10 +47,9 @@ public class MainContentService {
         Map<Long, String> imageMap = getImageMap(ids);
 
         return contents.stream()
-                .map(content -> new MainContentTop3Response(
+                .map(content -> new MainContentNewsResponse(
                         content.getId(),
                         content.getTitle(),
-                        content.getHtmlContent(),
                         content.getType(),
                         calculateDaysAgo(content.getCreatedAt()),
                         imageMap.getOrDefault(content.getId(), null)
@@ -86,6 +91,7 @@ public class MainContentService {
         MainPageContent content = mainContentRepository.findById(contentId)
                 .orElseThrow(() -> new BusinessException(MainContentErrorCode.CONTENT_NOT_FOUND));
 
+        content.addViewCount();
         return MainPageContentResponse.from(content);
     }
 
@@ -95,5 +101,118 @@ public class MainContentService {
         }
 
         return ChronoUnit.DAYS.between(createdAt, Instant.now());
+    }
+
+    public CursorPageResponse<MainContentNewsListResponse> getCategoryNews(KNewsContentType type, SortOption sort, String cursor, int size) {
+        final int pageSize = Math.min(Math.max(size, 1), 50);
+        final Map<String, Object> c = safeDecode(cursor);
+
+        return switch (sort) {
+            case TRENDING -> handlePopular(type, c, pageSize);
+            case NEW -> handleLatest(type, c, pageSize);
+            default -> handleLatest(type, c, pageSize);
+        };
+    }
+
+    // ------- 정렬 핸들러 -------
+    private CursorPageResponse<MainContentNewsListResponse> handleLatest(KNewsContentType type, Map<String, Object> c, int pageSize) {
+        var k = parseLatest(c); // t,id
+        List<MainContentNewsListResponse> rows = mainContentRepository.findLatestNews(
+                type,
+                truncateToMillis(k.t),
+                k.id,
+                pageSize + 1
+        );
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
+        return CursorPages.ofLatest(
+                rows, pageSize,
+                MainContentNewsListResponse::createdAt,
+                MainContentNewsListResponse::contentId
+        );
+    }
+
+    private CursorPageResponse<MainContentNewsListResponse> handlePopular(KNewsContentType type, Map<String, Object> c, int pageSize) {
+        var k = parsePopular(c);
+        Instant since = popularSince();
+        List<MainContentNewsListResponse> rows = mainContentRepository.findPopularNews(
+                type,
+                since,
+                k.sc,
+                k.id,
+                pageSize + 1
+        );
+
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
+        return CursorPages.ofPopular(
+                rows, pageSize,
+                MainContentNewsListResponse::score,
+                MainContentNewsListResponse::contentId
+        );
+    }
+
+
+    // ------- 커서 파싱 -------
+    private LatestKey parseLatest(Map<String, Object> c) {
+        Instant t = null;
+        Long id = null;
+        Object ts = c.get("t");
+        if (ts instanceof String s && !s.isBlank()) t = Instant.parse(s);
+        Object idObj = c.get("id");
+        if (idObj instanceof Number n) id = n.longValue();
+        return new LatestKey(t, id);
+    }
+
+    private PopularKey parsePopular(Map<String, Object> c) {
+        Long sc = null, id = null;
+        Object scObj = c.get("sc");
+        if (scObj instanceof Number n) sc = n.longValue();
+        Object idObj = c.get("id");
+        if (idObj instanceof Number n) id = n.longValue();
+        return new PopularKey(sc, id);
+    }
+    private static final class LatestKey {
+        final Instant t;
+        final Long id;
+
+        LatestKey(Instant t, Long id) {
+            this.t = t;
+            this.id = id;
+        }
+    }
+
+    private static final class PopularKey {
+        final Long sc;
+        final Long id;
+
+        PopularKey(Long sc, Long id) {
+            this.sc = sc;
+            this.id = id;
+        }
+    }
+
+    private Instant truncateToMillis(Instant i) {
+        return (i == null) ? null : i.truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    private Instant popularSince() {
+        return Instant.now().minus(Duration.ofDays(14));
+    }
+
+
+    private Map<String, Object> safeDecode(String cursor) {
+        if (cursor == null || cursor.isBlank()) return Map.of();
+        try {
+            return CursorCodec.decode(cursor);
+        } catch (IllegalArgumentException e) {
+            return Map.of();
+        }
     }
 }
