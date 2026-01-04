@@ -2,7 +2,7 @@ name: Deploy Foreigner (Dev via Docker Compose)
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ pord ]
 
 concurrency:
   group: deploy-foreigner-dev
