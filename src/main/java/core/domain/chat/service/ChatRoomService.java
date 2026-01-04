@@ -216,20 +216,34 @@ public class ChatRoomService {
         }
         return summaries;
     }
-
     public List<GroupChatSearchResponse> searchGroupChatRooms(String keyword) {
         List<ChatRoom> chatRooms = chatRoomRepository.findGroupChatRoomsByKeyword(keyword);
-        return chatRooms.stream()
-                .map(chatRoom -> {
-                    String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                            ImageType.CHAT_ROOM, chatRoom.getId()
-                    ).map(Image::getUrl).orElse(null);
-                    int participantCount = chatRoom.getParticipants().size();
-                    return GroupChatSearchResponse.from(chatRoom, roomImageUrl, participantCount);
-                })
-                .collect(Collectors.toList());
-    }
+        List<GroupChatSearchResponse> resultList = new ArrayList<>();
+        for (ChatRoom chatRoom : chatRooms) {
 
+            String roomImageUrl = null;
+            var imageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                    ImageType.CHAT_ROOM, chatRoom.getId());
+
+            if (imageOptional.isPresent()) {
+                roomImageUrl = imageOptional.get().getUrl();
+            }
+
+            int activeParticipantCount = 0;
+            for (ChatParticipant p : chatRoom.getParticipants()) {
+                if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                    activeParticipantCount++;
+                }
+            }
+            resultList.add(GroupChatSearchResponse.from(
+                    chatRoom,
+                    roomImageUrl,
+                    activeParticipantCount
+            ));
+        }
+
+        return resultList;
+    }
     public ChatRecommendRoomResponse findRandomRecommendableGroupChatRoom(Long userId) {
         List<Long> recommendableIds = chatRoomRepository.findRecommendableGroupChatRoomIdsNotJoinedByUserId(userId);
         User user = userRepository.findById(userId)
