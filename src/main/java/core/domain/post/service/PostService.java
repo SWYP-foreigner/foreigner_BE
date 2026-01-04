@@ -43,6 +43,7 @@ public interface PostService {
                          String boardCategoryStr,
                          List<MultipartFile> generalImages,
                          MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                         List<MultipartFile> contentImages,
                          User adminUser) throws IOException;
 
     void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
