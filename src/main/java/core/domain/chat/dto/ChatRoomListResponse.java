@@ -9,15 +9,17 @@ public record ChatRoomListResponse(
         String roomName,
         boolean isGroup,
         long participantCount,
-        Instant createdAt
+        Instant createdAt,
+        long messageCount
 ) {
-    public static ChatRoomListResponse from(ChatRoom chatRoom, long participantCount) {
+    public static ChatRoomListResponse from(ChatRoom chatRoom, long participantCount, long messageCount) {
         return new ChatRoomListResponse(
                 chatRoom.getId(),
                 chatRoom.getRoomName(),
                 chatRoom.getIsGroup(),
                 participantCount,
-                chatRoom.getCreatedAt()
+                chatRoom.getCreatedAt(),
+                messageCount
         );
     }
 }

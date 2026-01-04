@@ -22,8 +22,8 @@ import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.domain.ai.entity.AiPersona;
-import core.domain.ai.repository.AiPersonaRepository;
+import core.domain.aiuser.entity.AiPersona;
+import core.domain.aiuser.repository.AiPersonaRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.image.service.ProfileImageService;
@@ -123,7 +123,6 @@ public class UserAdminService {
 
             if (!room.getIsGroup()) {
                 List<String> names = chatParticipantRepository.findParticipantNamesByRoomId(room.getId());
-
                 if (!names.isEmpty()) {
                     roomName = String.join(", ", names);
                 } else {
@@ -131,11 +130,14 @@ public class UserAdminService {
                 }
             }
 
+            long messageCount = chatMessageRepository.countByChatRoomId(room.getId());
+
             return new ChatRoomInfoDto(
                     room.getId(),
                     roomName,
                     room.getIsGroup(),
-                    room.getParticipants().size()
+                    room.getParticipants().size(),
+                    messageCount // [추가] DTO에 전달
             );
         });
     }

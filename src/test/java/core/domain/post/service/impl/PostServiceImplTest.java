@@ -28,7 +28,7 @@ import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.BoardCategory;
 import core.global.enums.FollowStatus;
 import core.global.enums.LikeType;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -121,7 +121,7 @@ class PostServiceImplTest {
         when(boardRepository.existsById(boardId)).thenReturn(false);
 
         assertThatThrownBy(() ->
-                postService.getPostList(boardId, SortOption.LATEST, null, 10)
+                postService.getPostList(boardId, CommunitySortOption.LATEST, null, 10)
         )
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
@@ -129,8 +129,8 @@ class PostServiceImplTest {
                     assertThat(be.getError()).isEqualTo(BOARD_NOT_FOUND);
                 });
 
-        verify(postRepository, never()).findLatestPosts(anyLong(), any(), any(), any(), anyInt(), any());
-        verify(postRepository, never()).findPopularPosts(anyLong(), any(), any(), any(), any(), anyInt(), any());
+        verify(postRepository, never()).findLatestPosts(anyLong(), any(), any(), any(), anyInt());
+        verify(postRepository, never()).findPopularPosts(anyLong(), any(), any(), any(), any(), anyInt());
     }
 
     @Test
@@ -145,12 +145,11 @@ class PostServiceImplTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                eq(size + 1),
-                isNull()
+                eq(size + 1)
         )).thenReturn(List.of());
 
         CursorPageResponse<BoardItem> response =
-                postService.getPostList(boardId, SortOption.LATEST, null, size);
+                postService.getPostList(boardId, CommunitySortOption.LATEST, null, size);
 
         assertThat(response.items()).isEmpty();
         assertThat(response.hasNext()).isFalse();

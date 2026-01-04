@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -130,4 +131,19 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             "AND c.isGroup = false " +
             "AND (SELECT COUNT(m) FROM ChatMessage m WHERE m.chatRoom = c AND m.sender.id = :userId) = 0")
     long countUnrepliedAiRooms(@Param("userId") Long userId);
+
+    @Query("SELECT COUNT(r) FROM ChatRoom r " +
+            "WHERE r.isGroup = false AND r.createdAt BETWEEN :start AND :end")
+    long countPrivateRoomsBetween(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT COUNT(r) FROM ChatRoom r " +
+            "WHERE r.isGroup = false AND r.createdAt BETWEEN :start AND :end " +
+            "AND NOT EXISTS (SELECT m FROM ChatMessage m WHERE m.chatRoom = r)")
+    long countEmptyPrivateRooms(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT m.chatRoom.id FROM ChatMessage m " +
+            "WHERE m.chatRoom.isGroup = false AND m.chatRoom.createdAt BETWEEN :start AND :end " +
+            "GROUP BY m.chatRoom.id " +
+            "HAVING COUNT(DISTINCT m.sender.id) = 1")
+    List<Long> findOneWayRoomIds(@Param("start") Instant start, @Param("end") Instant end);
 }

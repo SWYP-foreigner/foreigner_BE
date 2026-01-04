@@ -119,8 +119,7 @@ public class PostRepositoryImplTest {
                 board.getId(),     // boardId
                 null,              // cursorCreatedAt (첫 페이지)
                 null,              // cursorId
-                10,                // size
-                null               // q (검색어 없음)
+                10                // size
         );
 
         // then
@@ -142,8 +141,7 @@ public class PostRepositoryImplTest {
                 board.getId(),
                 null,
                 null,
-                2,
-                null
+                2
         );
 
         assertThat(first).hasSize(3);
@@ -156,8 +154,7 @@ public class PostRepositoryImplTest {
                 board.getId(),
                 lastOfFirst.createdAt(),
                 lastOfFirst.postId(),
-                2,
-                null
+                2
         );
 
         // 남은 한 개만 와야 함
@@ -183,8 +180,7 @@ public class PostRepositoryImplTest {
                 null,                 // since (지금은 사용 안 하므로 null)
                 null,                 // cursorScore
                 null,                 // cursorId
-                size,
-                null                  // q
+                size
         );
 
         assertThat(items)

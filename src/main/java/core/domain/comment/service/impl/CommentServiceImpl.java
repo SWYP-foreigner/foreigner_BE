@@ -21,7 +21,7 @@ import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.BoardCategory;
 import core.global.enums.LikeType;
 import core.global.enums.NotificationType;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -69,7 +69,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional(readOnly = true)
     public CursorPageResponse<CommentItem> getCommentList(
-            Long postId, Integer size, SortOption sort, @Nullable String cursor, Boolean translate) {
+            Long postId, Integer size, CommunitySortOption sort, @Nullable String cursor, Boolean translate) {
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = getUserOrThrow(email);
@@ -400,9 +400,9 @@ public class CommentServiceImpl implements CommentService {
     }
 
     private Slice<Comment> fetchSlice(
-            SortOption sort, Long myId, Long postId, Cur cur,
+            CommunitySortOption sort, Long myId, Long postId, Cur cur,
             Pageable pageableLatest, Pageable pageablePopular) {
-        if (sort == SortOption.POPULAR) {
+        if (sort == CommunitySortOption.POPULAR) {
             return (cur.id == null || cur.lc == null || cur.t == null)
                     ? commentRepository.findPopularByPostId(myId, postId, LikeType.COMMENT, pageablePopular)
                     : commentRepository.findPopularByCursor(myId, postId, LikeType.COMMENT, cur.lc, cur.t, cur.id, pageablePopular);
@@ -504,8 +504,8 @@ public class CommentServiceImpl implements CommentService {
                 .toList();
     }
 
-    private String buildNextCursor(SortOption sort, Comment last, Map<Long, Long> likeCountMap) {
-        if (sort == SortOption.POPULAR) {
+    private String buildNextCursor(CommunitySortOption sort, Comment last, Map<Long, Long> likeCountMap) {
+        if (sort == CommunitySortOption.POPULAR) {
             long lastLc = likeCountMap.getOrDefault(last.getId(), 0L);
             return CursorCodec.encode(Map.of(
                     "lc", lastLc,

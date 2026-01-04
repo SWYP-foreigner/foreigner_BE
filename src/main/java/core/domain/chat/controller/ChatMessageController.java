@@ -129,7 +129,7 @@ public class ChatMessageController {
     @ChatErrorDocs({ChatErrorCode.NOT_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getChatPresignedUrl(
             @PathVariable Long chatroomId,
-            @RequestBody PresignedUrlRequest request) {
+            @RequestBody ChatPresignedUrlRequest request) {
         PresignedUrlResponse response = chatService.generateChatPresignedUrl(chatroomId, request.fileName());
         return ResponseEntity.ok(ApiResponse.success(response));
     }

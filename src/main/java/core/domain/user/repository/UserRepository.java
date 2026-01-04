@@ -1,6 +1,7 @@
 package core.domain.user.repository;
 
 
+import core.domain.user.dto.StringCountDto;
 import core.domain.user.entity.User;
 import core.global.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -219,4 +220,98 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     @Query("SELECT cp.user FROM ChatParticipant cp " +
            "WHERE cp.chatRoom.id = :chatRoomId AND cp.user.id != :senderId")
     List<User> findPartnersByChatRoomId(@Param("chatRoomId") Long chatRoomId, @Param("senderId") Long senderId);
+
+    @Query("SELECT new core.domain.user.dto.StringCountDto(u.country, COUNT(u)) " +
+            "FROM User u " +
+            "WHERE u.country IS NOT NULL AND u.country != '' " +
+            "GROUP BY u.country " +
+            "ORDER BY COUNT(u) DESC")
+    List<StringCountDto> countUsersByCountry();
+
+    @Query("SELECT new core.domain.user.dto.StringCountDto(u.language, COUNT(u)) " +
+            "FROM User u " +
+            "WHERE u.language IS NOT NULL AND u.language != '' " +
+            "GROUP BY u.language " +
+            "ORDER BY COUNT(u) DESC")
+    List<StringCountDto> countUsersByLanguage();
+
+    @Query("SELECT u.country, COUNT(u), " +
+            "SUM(CASE WHEN u.lastSeenAt >= :activeThreshold THEN 1 ELSE 0 END) " +
+            "FROM User u " +
+            "WHERE u.createdAt BETWEEN :periodStart AND :periodEnd " +
+            "AND u.country IS NOT NULL AND u.country != '' " +
+            "GROUP BY u.country " +
+            "HAVING COUNT(u) > 0 " +
+            "ORDER BY COUNT(u) DESC")
+    List<Object[]> aggregateCountryRetention(
+            @Param("periodStart") Instant periodStart,
+            @Param("periodEnd") Instant periodEnd,
+            @Param("activeThreshold") Instant activeThreshold
+    );
+
+    @Query("SELECT DISTINCT u.country FROM User u WHERE u.country IS NOT NULL AND u.country <> '' ORDER BY u.country")
+    List<String> findDistinctCountries();
+
+    @Query("SELECT t.deviceToken FROM UserDeviceToken t JOIN t.user u WHERE u.country = :country AND u.agreedToPushNotification = true")
+    List<String> findDeviceTokensByCountry(@Param("country") String country);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT u.user_id)
+            FROM users u
+            INNER JOIN image i ON u.user_id = i.related_id
+            WHERE u.created_at BETWEEN :start AND :end
+              AND i.image_type = 'USER'
+              AND i.url NOT LIKE '%/default/character%'
+            """, nativeQuery = true)
+    long countUsersWithCustomProfile(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            COUNT(CASE WHEN diff_seconds <= 60 THEN 1 END) as within_1min,
+            COUNT(CASE WHEN diff_seconds > 60 AND diff_seconds <= 3600 THEN 1 END) as within_1hour,
+            COUNT(CASE WHEN diff_seconds > 3600 THEN 1 END) as after_1hour,
+            COUNT(CASE WHEN first_msg_time IS NULL THEN 1 END) as never
+        FROM (
+            SELECT
+                u.user_id,
+                MIN(cm.sent_at) as first_msg_time,
+                EXTRACT(EPOCH FROM (MIN(cm.sent_at) - u.created_at)) as diff_seconds
+            FROM users u
+            LEFT JOIN chat_message cm ON u.user_id = cm.sender_id
+            WHERE u.created_at BETWEEN :start AND :end
+            GROUP BY u.user_id
+        ) sub
+    """, nativeQuery = true)
+    Object[] analyzeFirstMessageTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT u.sex, COUNT(u) " +
+            "FROM User u " +
+            "WHERE u.createdAt BETWEEN :start AND :end " +
+            "GROUP BY u.sex")
+    List<Object[]> countGenderByPeriod(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            FLOOR((EXTRACT(YEAR FROM CURRENT_DATE) - CAST(SPLIT_PART(u.birth_date, '/', 3) AS INTEGER)) / 10) * 10 as age_group,
+            COUNT(*)
+        FROM users u
+        WHERE u.created_at BETWEEN :start AND :end
+          AND u.birth_date IS NOT NULL 
+          AND u.birth_date LIKE '%/%/%' -- 형식이 MM/DD/YYYY 인 데이터만 안전하게 포함
+        GROUP BY age_group
+        ORDER BY age_group
+    """, nativeQuery = true)
+    List<Object[]> countAgeGroupByPeriod(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT COUNT(*)
+        FROM users u
+        WHERE u.created_at BETWEEN :start AND :end
+          AND NOT EXISTS (SELECT 1 FROM chat_message cm WHERE cm.sender_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM comment c WHERE c.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM post p WHERE p.user_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM chat_room cr WHERE cr.owner_id = u.user_id)
+          AND NOT EXISTS (SELECT 1 FROM chat_participant cp WHERE cp.user_id = u.user_id)
+    """, nativeQuery = true)
+    long countGhostUsers(@Param("start") Instant start, @Param("end") Instant end);
 }

@@ -2,13 +2,13 @@ package core.domain.comment.service;
 
 import core.domain.comment.dto.*;
 import core.domain.comment.dto.UserCommentItem;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
 public interface CommentService {
-    CursorPageResponse<CommentItem> getCommentList(Long postId, Integer size, SortOption sort, String cursor, Boolean translate);
+    CursorPageResponse<CommentItem> getCommentList(Long postId, Integer size, CommunitySortOption sort, String cursor, Boolean translate);
 
     void writeComment(Long postId, CommentWriteRequest request);
 

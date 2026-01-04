@@ -7,13 +7,13 @@ import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
-import core.domain.post.entity.MainPageContent;
+import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
-import core.domain.post.repository.MainPageContentRepository;
+import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -93,13 +93,13 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
 
-    private final MainPageContentRepository mainPageContentRepository;
+    private final MainContentRepository mainContentRepository;
     private final S3Client s3Client;
     private final S3Props s3Props;
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, CommunitySortOption sort, String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
@@ -130,8 +130,7 @@ public class PostServiceImpl implements PostService {
                 boardId,
                 truncateToMillis(k.t),
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
         if (rows == null || rows.isEmpty()) {
@@ -154,8 +153,7 @@ public class PostServiceImpl implements PostService {
                 since,
                 k.sc,
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
 
@@ -201,7 +199,7 @@ public class PostServiceImpl implements PostService {
     }
 
     private Instant popularSince() {
-        return Instant.now().minus(Duration.ofDays(10));
+        return Instant.now().minus(Duration.ofDays(14));
     }
 
     // ------- 유틸 -------
@@ -658,10 +656,9 @@ public class PostServiceImpl implements PostService {
                     .title(title)
                     .htmlContent(content)
                     .originalUrl(null)
-                    .publisher(adminUser)
                     .build();
 
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
 
             String processedHtml = processHtmlAndUploadImages(content, contentId);
