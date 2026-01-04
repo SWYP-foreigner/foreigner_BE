@@ -78,10 +78,14 @@ public class CrawledDataAdminController {
             @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content,
+                    selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
+                    mainThumbnailFile, popularThumbnailFile, contentImages);
+
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
@@ -100,10 +104,14 @@ public class CrawledDataAdminController {
             @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            crawledDataAdminService.approveAndPost(id, publishType, boardId, content,
+                    selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
+                    mainThumbnailFile, popularThumbnailFile, contentImages);
+
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());

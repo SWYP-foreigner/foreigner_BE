@@ -6,7 +6,6 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-
         body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background-color: #f4f6f9; }
         .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; font-size: 24px; }
@@ -59,6 +58,12 @@
         .modal-content { margin: auto; display: block; max-width: 90%; max-height: 90%; }
         .close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; }
 
+        .content-image-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .content-image-item { width: 150px; border: 1px solid #ddd; padding: 5px; background: #f9f9f9; border-radius: 4px; position: relative; }
+        .content-image-preview { width: 100%; height: 100px; object-fit: cover; background: #ccc; cursor: pointer;}
+        .content-image-actions { display: flex; gap: 5px; margin-top: 5px; }
+        .btn-insert { width: 100%; background: #17a2b8; color: white; border: none; font-size: 11px; padding: 4px; cursor: pointer; border-radius: 3px; }
+        .btn-delete-img { position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body class="mode-general">
@@ -127,6 +132,19 @@
                         </label>
                         <input type="hidden" name="popularThumbnailUrl" id="urlPop">
                     </div>
+                </div>
+            </div>
+
+            <div class="thumbnail-manager only-main" style="display: block;">
+                <h4>본문 이미지 추가 (최대 5개)</h4>
+                <div style="margin-bottom: 10px;">
+                    <label class="btn-thumb-action" style="display: inline-block; width: auto; background: #007bff; color: white; border: none;">
+                        + 이미지 파일 선택 및 자르기
+                        <input type="file" id="contentImageInput" accept="image/*" style="display:none;" onchange="handleContentImageSelect(this)">
+                    </label>
+                    <input type="file" name="contentImages" id="finalContentImages" multiple style="display:none;">
+                </div>
+                <div id="contentImageList" class="content-image-list">
                 </div>
             </div>
 
@@ -276,6 +294,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <script>
+    const contentDataTransfer = new DataTransfer();
+    let contentImageBlobs = [];
+
     let currentMode = 'GENERAL';
     let cropper = null;
     let currentCropTarget = null;
@@ -317,6 +338,23 @@
             }
             reader.readAsDataURL(input.files[0]);
         }
+    }
+
+    function handleContentImageSelect(input) {
+        if (contentDataTransfer.items.length >= 5) {
+            alert("본문 이미지는 최대 5개까지만 추가할 수 있습니다.");
+            input.value = "";
+            return;
+        }
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                openCropper(e.target.result, 'Content');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+        input.value = "";
     }
 
     function openCropperForUpload(type) {
@@ -366,11 +404,11 @@
         }
 
         let targetUrl = url;
-        if (!url.startsWith('data:')) {
-            targetUrl = '/admin/proxy-image?url=' + encodeURIComponent(url);
-            image.crossOrigin = 'anonymous';
+        if (type !== 'Content' && !url.startsWith('data:')) {
+             targetUrl = '/admin/proxy-image?url=' + encodeURIComponent(url);
+             image.crossOrigin = 'anonymous';
         } else {
-            image.removeAttribute('crossOrigin');
+             image.removeAttribute('crossOrigin');
         }
 
         image.onload = null;
@@ -435,25 +473,97 @@
         }
 
         canvas.toBlob((blob) => {
-            const file = new File([blob], "cropped_" + currentCropTarget + ".jpg", { type: "image/jpeg" });
-            const container = new DataTransfer();
-            container.items.add(file);
+            const fileName = "cropped_" + new Date().getTime() + ".jpg";
+            const file = new File([blob], fileName, { type: "image/jpeg" });
 
-            const fileInput = document.getElementById('file' + currentCropTarget);
-            fileInput.files = container.files;
+            if (currentCropTarget === 'Content') {
+                contentDataTransfer.items.add(file);
+                document.getElementById('finalContentImages').files = contentDataTransfer.files;
 
-            const urlInput = document.getElementById('url' + currentCropTarget);
-            urlInput.value = '';
-            urlInput.disabled = true;
+                const blobUrl = URL.createObjectURL(blob);
+                contentImageBlobs.push(blobUrl);
+                renderContentImageList();
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                updateThumbPreview(currentCropTarget, e.target.result);
+            } else {
+                const container = new DataTransfer();
+                container.items.add(file);
+
+                const targetInputId = (currentCropTarget === 'Main') ? 'fileMain' : 'filePop';
+                document.getElementById(targetInputId).files = container.files;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    updateThumbPreview(currentCropTarget, e.target.result);
+                }
+                reader.readAsDataURL(file);
+
+                const urlInputId = (currentCropTarget === 'Main') ? 'urlMain' : 'urlPop';
+                const urlInput = document.getElementById(urlInputId);
+                if(urlInput) {
+                    urlInput.value = '';
+                    urlInput.disabled = true;
+                }
+
+                const actionsId = (currentCropTarget === 'Main') ? 'editActionsMain' : 'editActionsPop';
+                document.getElementById(actionsId).style.display = 'flex';
             }
-            reader.readAsDataURL(file);
 
             closeCropper();
         }, 'image/jpeg', 1.0);
+    }
+
+    function renderContentImageList() {
+        const listDiv = document.getElementById('contentImageList');
+        listDiv.innerHTML = '';
+
+        Array.from(contentDataTransfer.files).forEach((file, index) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'content-image-item';
+
+            const img = document.createElement('img');
+            img.className = 'content-image-preview';
+            img.src = contentImageBlobs[index];
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete-img';
+            delBtn.innerHTML = '&times;';
+            delBtn.type = 'button';
+            delBtn.onclick = () => removeContentImage(index);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'content-image-actions';
+
+            const insertBtn = document.createElement('button');
+            insertBtn.type = 'button';
+            insertBtn.className = 'btn-insert';
+            insertBtn.innerText = '본문에 넣기 ⬇️';
+            insertBtn.onclick = () => insertImageToEditorWithIdx(contentImageBlobs[index], index);
+
+            actionsDiv.appendChild(insertBtn);
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(delBtn);
+            itemDiv.appendChild(actionsDiv);
+
+            listDiv.appendChild(itemDiv);
+        });
+    }
+
+    function removeContentImage(index) {
+        contentDataTransfer.items.remove(index);
+        contentImageBlobs.splice(index, 1);
+        document.getElementById('finalContentImages').files = contentDataTransfer.files;
+        renderContentImageList();
+    }
+
+    function insertImageToEditorWithIdx(blobUrl, index) {
+        const textarea = document.getElementById('contentArea');
+        const imgTag = `\n<img src="${blobUrl}" data-file-index="${index}" style="max-width: 100%; display: block; margin: 20px auto;" />\n`;
+
+        const startPos = textarea.selectionStart;
+        const endPos = textarea.selectionEnd;
+        const text = textarea.value;
+        textarea.value = text.substring(0, startPos) + imgTag + text.substring(endPos);
+        textarea.focus();
     }
 
     function updateThumbPreview(type, src) {
