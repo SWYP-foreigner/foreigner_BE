@@ -271,9 +271,16 @@ public class ChatRoomService {
         } else {
             latestRooms = chatRoomRepository.findTop10ByIsGroupTrueAndIdLessThanOrderByCreatedAtDesc(lastChatRoomId);
         }
-        return latestRooms.stream().map(this::toGroupChatMainResponse).collect(Collectors.toList());
-    }
 
+        List<GroupChatMainResponse> responseList = new ArrayList<>();
+
+        for (ChatRoom chatRoom : latestRooms) {
+            GroupChatMainResponse response = toGroupChatMainResponse(chatRoom);
+            responseList.add(response);
+        }
+
+        return responseList;
+    }
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
         List<ChatRoom> popularRooms = chatRoomRepository.findTopByIsGroupTrueOrderByParticipantCountDesc(limit);
@@ -329,30 +336,6 @@ public class ChatRoomService {
         }
     }
 
-    private Instant getLastMessageTime(Long roomId) {
-        return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
-                .map(ChatMessage::getSentAt)
-                .orElse(null);
-    }
-
-    private String getLastNonBlockedMessageContent(Long roomId, Long userId) {
-        User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        List<User> blockedUsers = blockRepository.findByUser(currentUser)
-                .stream()
-                .map(BlockUser::getBlocked)
-                .toList();
-
-        Optional<ChatMessage> lastMessage;
-        if (blockedUsers.isEmpty()) {
-            lastMessage = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(roomId);
-        } else {
-            lastMessage = chatMessageRepository.findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(roomId, blockedUsers);
-        }
-        return lastMessage.map(ChatMessage::getContent).orElse("새로운 메시지가 없습니다.");
-    }
-
     private int countUnreadMessages(Long roomId, Long userId) {
         Long lastReadId = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .map(ChatParticipant::getLastReadMessageId)
@@ -397,12 +380,29 @@ public class ChatRoomService {
     }
 
     private GroupChatMainResponse toGroupChatMainResponse(ChatRoom chatRoom) {
-        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoom.getId())
-                .map(Image::getUrl).orElse(null);
-        String userCount = String.valueOf(chatRoom.getParticipants().size());
-        return new GroupChatMainResponse(chatRoom.getId(), chatRoom.getRoomName(), chatRoom.getDescription(), roomImageUrl, userCount);
-    }
+        String roomImageUrl = null;
+        var imageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.CHAT_ROOM, chatRoom.getId());
 
+        if (imageOptional.isPresent()) {
+            roomImageUrl = imageOptional.get().getUrl();
+        }
+
+        int activeCount = 0;
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                activeCount++;
+            }
+        }
+
+        return new GroupChatMainResponse(
+                chatRoom.getId(),
+                chatRoom.getRoomName(),
+                chatRoom.getDescription(),
+                roomImageUrl,
+                String.valueOf(activeCount) // int -> String 변환
+        );
+    }
     private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
         return toGroupChatMainResponse(chatRoom);
     }
