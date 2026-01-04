@@ -135,13 +135,15 @@ public class PostSearchService {
     }
 
     private Map<Long, Long> convertToMap(List<Object[]> result) {
-        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> (Long)r[1], (v1, v2) -> v1));
+        return result.stream().collect(Collectors.toMap(r -> (Long) r[0], r -> (Long) r[1], (v1, v2) -> v1));
     }
+
     private Map<Long, String> convertToStringMap(List<Object[]> result) {
-        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> (String)r[1], (v1, v2) -> v1));
+        return result.stream().collect(Collectors.toMap(r -> (Long) r[0], r -> (String) r[1], (v1, v2) -> v1));
     }
+
     private Map<Long, Integer> convertToIntegerMap(List<Object[]> result) {
-        return result.stream().collect(Collectors.toMap(r -> (Long)r[0], r -> ((Number)r[1]).intValue(), (v1, v2) -> v1));
+        return result.stream().collect(Collectors.toMap(r -> (Long) r[0], r -> ((Number) r[1]).intValue(), (v1, v2) -> v1));
     }
 
     private Instant parseInstant(Object obj) {
