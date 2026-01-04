@@ -116,30 +116,44 @@ public class ChatRoomService {
         }
     }
 
-
-
-    @Transactional(readOnly = true)
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        List<ChatParticipant> activeParticipants = chatRoom.getParticipants().stream()
-                .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
-                .collect(Collectors.toList());
+        List<ChatParticipant> activeParticipants = new ArrayList<>();
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                activeParticipants.add(p);
+            }
+        }
 
         String roomImageUrl = imageService.getRoomImageUrl(chatRoomId);
 
         Long ownerId = chatRoom.getOwner().getId();
-        String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, ownerId)
-                .map(Image::getUrl).orElse(null);
+        String ownerImageUrl = null;
 
-        List<String> otherParticipantsImageUrls = activeParticipants.stream()
-                .filter(participant -> !participant.getUser().getId().equals(ownerId))
-                .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                                ImageType.USER, participant.getUser().getId())
-                        .map(Image::getUrl).orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        var ownerImageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.USER, ownerId);
+
+        if (ownerImageOptional.isPresent()) {
+            ownerImageUrl = ownerImageOptional.get().getUrl();
+        }
+
+        List<String> otherParticipantsImageUrls = new ArrayList<>();
+
+        for (ChatParticipant p : activeParticipants) {
+            Long userId = p.getUser().getId();
+
+            if (userId.equals(ownerId)) {
+                continue;
+            }
+            var userImageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                    ImageType.USER, userId);
+
+            if (userImageOptional.isPresent()) {
+                otherParticipantsImageUrls.add(userImageOptional.get().getUrl());
+            }
+        }
 
         return GroupChatDetailResponse.from(
                 chatRoom,
