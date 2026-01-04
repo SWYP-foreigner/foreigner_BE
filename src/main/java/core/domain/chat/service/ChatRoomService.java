@@ -284,7 +284,13 @@ public class ChatRoomService {
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
         List<ChatRoom> popularRooms = chatRoomRepository.findTopByIsGroupTrueOrderByParticipantCountDesc(limit);
-        return popularRooms.stream().map(this::toGroupChatSearchResponse).collect(Collectors.toList());
+        List<GroupChatMainResponse> responseList = new ArrayList<>();
+        for (ChatRoom chatRoom : popularRooms) {
+            GroupChatMainResponse response = toGroupChatMainResponse(chatRoom);
+            responseList.add(response);
+        }
+
+        return responseList;
     }
 
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
