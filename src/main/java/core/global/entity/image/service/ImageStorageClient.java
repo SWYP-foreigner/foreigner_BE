@@ -13,6 +13,9 @@ public interface ImageStorageClient {
     @Transactional
     void deleteFolder(String prefix);
 
+    @Transactional
+    void deleteObjectsByUrls(List<String> urls);
+
     HeadObjectResponse headObject(String key);
 
     String extOf(String key);

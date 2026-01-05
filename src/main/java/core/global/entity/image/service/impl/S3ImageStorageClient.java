@@ -106,6 +106,16 @@ public class S3ImageStorageClient implements ImageStorageClient {
     }
 
     @Override
+    public void deleteObjectsByUrls(List<String> urls) {
+        if (urls == null || urls.isEmpty()) return;
+
+        List<String> keys = urls.stream()
+                .map(url -> UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, url))
+                .collect(Collectors.toList());
+        deleteObjectsBulk(keys);
+    }
+
+    @Override
     public HeadObjectResponse headObject(String key) {
         try {
             return s3Client.headObject(b -> b.bucket(bucket).key(key));
