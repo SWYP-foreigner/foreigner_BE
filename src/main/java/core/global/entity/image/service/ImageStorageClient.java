@@ -1,6 +1,7 @@
 package core.global.entity.image.service;
 
 import jakarta.transaction.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 import java.util.List;
@@ -25,4 +26,6 @@ public interface ImageStorageClient {
     boolean isStagingKey(String key);
     String generatePublicUrl(String key);
     String generateThumbnailUrl(String key);
+    String upload(MultipartFile file, String key);
+    String uploadFromUrl(String url, String key);
 }

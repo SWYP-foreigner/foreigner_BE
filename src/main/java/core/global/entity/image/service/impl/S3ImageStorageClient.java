@@ -3,16 +3,22 @@ package core.global.entity.image.service.impl;
 import core.global.entity.image.S3Props;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.utils.UrlUtil;
+import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -170,6 +176,54 @@ public class S3ImageStorageClient implements ImageStorageClient {
         }
         String originalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, key);
         return originalUrl + "?type=f&w=300&h=300&ttype=jpg";
+    }
+
+    @Override
+    public String upload(MultipartFile file, String key) {
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentLength(file.getSize())
+                    .build();
+
+            s3Client.putObject(putObjectRequest,
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            return key;
+        } catch (IOException e) {
+            throw new BusinessException(CommonErrorCode.FILE_UPLOAD_ERROR);
+        }
+    }
+
+    @Override
+    public String uploadFromUrl(String imageUrl, String key) {
+        try {
+            URL url = new URL(imageUrl);
+            try (InputStream inputStream = url.openStream()) {
+                byte[] imageBytes = inputStream.readAllBytes();
+
+                String ext = extOf(key);
+                String contentType = "image/" + (ext.equals("png") ? "png" : "jpeg");
+
+                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .contentType(contentType)
+                        .acl(ObjectCannedACL.PUBLIC_READ)
+                        .contentLength((long) imageBytes.length)
+                        .build();
+
+                s3Client.putObject(putObjectRequest, RequestBody.fromBytes(imageBytes));
+
+                return key;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to upload image from URL: {}", imageUrl, e);
+            return null;
+        }
     }
 
     // 간단한 확장자 체크 헬퍼
