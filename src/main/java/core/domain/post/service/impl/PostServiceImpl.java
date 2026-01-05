@@ -625,7 +625,7 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public void createAdminPost(String title, String content, String publishType,
-                                String boardCategoryStr,
+                                String boardCategoryStr, String kNewsTypeStr,
                                 List<MultipartFile> generalImages,
                                 MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
                                 List<MultipartFile> contentImages,
@@ -654,9 +654,19 @@ public class PostServiceImpl implements PostService {
                 throw new BusinessException(CommonErrorCode.INVALID_INPUT);
             }
 
+            KNewsContentType kNewsType = null;
+            if (StringUtils.hasText(kNewsTypeStr)) {
+                try {
+                    kNewsType = KNewsContentType.valueOf(kNewsTypeStr);
+                } catch (IllegalArgumentException e) {
+                    throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+                }
+            }
+
             MainPageContent newContent = MainPageContent.builder()
                     .title(title)
                     .htmlContent(content)
+                    .type(kNewsType)
                     .originalUrl(null)
                     .build();
 

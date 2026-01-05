@@ -217,13 +217,25 @@
             </div>
 
             <div class="approval-form-controls">
-                <div class="only-general">
+                <span id="generalBoardSelect">
                     <label for="boardSelect">게시할 게시판:</label>
                     <select id="boardSelect" name="boardId">
                         <option value="">게시판 선택</option>
                         <option th:each="board : ${boards}" th:value="${board.id}" th:text="${board.category.displayName}"></option>
                     </select>
-                </div>
+                </span>
+
+                <span id="mainPageTypeSelect" style="display:none;">
+                    <label for="kNewsType">K-News 타입:</label>
+                    <select name="kNewsType" id="kNewsType">
+                        <option value="" disabled selected>-- 타입 선택 --</option>
+                        <option value="K_POP">K-POP</option>
+                        <option value="K_DRAMA">K-DRAMA</option>
+                        <option value="K_CULTURE">K-CULTURE</option>
+                        <option value="K_BEAUTY">K-BEAUTY</option>
+                        <option value="K_FASHION">K-FASHION</option>
+                    </select>
+                </span>
 
                 <button type="submit" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
                     승인 및 게시
@@ -273,8 +285,8 @@
         </div>
 
         <div class="crop-bottom-actions">
-            <button type="button" onclick="closeCropper()" style="background:#6c757d; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:4px;">취소</button>
-            <button type="button" onclick="confirmCrop()" style="background:#007bff; color:white; border:none; padding:10px 20px; cursor:pointer; border-radius:4px;">적용하기</button>
+            <button type="button" onclick="closeCropper()" style="background:#6c757d; color:white; border:none; padding:10px 20px;">취소</button>
+            <button type="button" onclick="confirmCrop()" style="background:#007bff; color:white; border:none; padding:10px 20px;">적용하기</button>
         </div>
     </div>
 </div>
@@ -309,17 +321,27 @@
 
     function setMode(mode) {
         currentMode = mode;
-        const body = document.body;
         const boardSelect = document.getElementById('boardSelect');
+        const boardArea = document.getElementById('generalBoardSelect');
+        const kNewsArea = document.getElementById('mainPageTypeSelect');
+        const kNewsSelect = document.getElementById('kNewsType');
+        const body = document.body;
 
         if (mode === 'MAIN_PAGE') {
             body.classList.remove('mode-general');
             body.classList.add('mode-main');
-            if(boardSelect) boardSelect.removeAttribute('required');
+            boardSelect.removeAttribute('required');
+            boardArea.style.display = 'none';
+            kNewsArea.style.display = 'inline-block';
+            kNewsSelect.setAttribute('required', 'required');
         } else {
             body.classList.remove('mode-main');
             body.classList.add('mode-general');
-            if(boardSelect) boardSelect.setAttribute('required', 'required');
+            boardSelect.setAttribute('required', 'required');
+            boardArea.style.display = 'inline-block';
+            kNewsArea.style.display = 'none';
+            kNewsSelect.removeAttribute('required');
+            kNewsSelect.value = "";
         }
     }
 
@@ -575,18 +597,16 @@
 
     function validateForm() {
         if (currentMode === 'GENERAL') {
-            const boardId = document.getElementById('boardSelect').value;
-            if (!boardId) {
-                alert("게시할 게시판을 선택해주세요.");
+            if (!document.getElementById('boardSelect').value) {
+                alert("게시판을 선택해주세요.");
                 return false;
             }
             return confirm("일반 게시판에 등록하시겠습니까?");
         } else {
-            const mainFile = document.getElementById('fileMain').files.length > 0;
+            const mainFile = document.getElementById('mainThumbnailFile').files.length > 0;
             const mainUrl = document.getElementById('urlMain').value;
-            const popFile = document.getElementById('filePop').files.length > 0;
+            const popFile = document.getElementById('popularThumbnailFile').files.length > 0;
             const popUrl = document.getElementById('urlPop').value;
-            const content = document.getElementById('contentArea').value;
 
             const hasMain = mainFile || (mainUrl && mainUrl.trim() !== "");
             const hasPop = popFile || (popUrl && popUrl.trim() !== "");
@@ -597,10 +617,6 @@
             }
             if (!hasPop) {
                 alert("인기 썸네일(Pop)을 설정해주세요.");
-                return false;
-            }
-            if (content.trim().length === 0) {
-                alert("HTML 내용을 입력해주세요.");
                 return false;
             }
             return confirm("메인 페이지용 콘텐츠로 등록하시겠습니까?");

@@ -19,6 +19,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.PostImageService;
 import core.global.enums.CrawledDataStatus;
 import core.global.enums.ImageType;
+import core.global.enums.KNewsContentType;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -104,7 +105,7 @@ public class CrawledDataAdminService {
     }
 
     @Transactional
-    public void approveMergedData(List<Long> sourceIds, String title, String publishType, Long boardId, String content,
+    public void approveMergedData(List<Long> sourceIds, String title, String publishType, Long boardId, String kNewsTypeStr, String content,
                                   List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
                                   MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
                                   List<MultipartFile> contentImages) {
@@ -131,9 +132,22 @@ public class CrawledDataAdminService {
             }
 
         } else if ("MAIN_PAGE".equals(publishType)) {
+            KNewsContentType kNewsType = null;
+            if (StringUtils.hasText(kNewsTypeStr)) {
+                try {
+                    kNewsType = KNewsContentType.valueOf(kNewsTypeStr);
+                } catch (IllegalArgumentException e) {
+                    throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+                }
+            }
+
             MainPageContent newContent = MainPageContent.builder()
-                    .title(title).htmlContent(content)
-                    .originalUrl(sourceDataList.get(0).getOriginalUrl()).build();
+                    .title(title)
+                    .htmlContent(content)
+                    .type(kNewsType)
+                    .originalUrl(sourceDataList.get(0).getOriginalUrl())
+                    .build();
+
             MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
@@ -151,7 +165,7 @@ public class CrawledDataAdminService {
     }
 
     @Transactional
-    public void approveAndPost(Long crawledDataId, String publishType, Long boardId, String content,
+    public void approveAndPost(Long crawledDataId, String publishType, Long boardId, String kNewsTypeStr, String content,
                                List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
                                MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
                                List<MultipartFile> contentImages) {
@@ -179,9 +193,22 @@ public class CrawledDataAdminService {
             }
 
         } else if ("MAIN_PAGE".equals(publishType)) {
+            KNewsContentType kNewsType = null;
+            if (StringUtils.hasText(kNewsTypeStr)) {
+                try {
+                    kNewsType = KNewsContentType.valueOf(kNewsTypeStr);
+                } catch (IllegalArgumentException e) {
+                    throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+                }
+            }
+
             MainPageContent newContent = MainPageContent.builder()
-                    .title(crawledData.getTitle()).htmlContent(content)
-                    .originalUrl(crawledData.getOriginalUrl()).build();
+                    .title(crawledData.getTitle())
+                    .htmlContent(content)
+                    .type(kNewsType)
+                    .originalUrl(crawledData.getOriginalUrl())
+                    .build();
+
             MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;

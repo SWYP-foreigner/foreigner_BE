@@ -72,6 +72,7 @@ public class CrawledDataAdminController {
             @RequestParam("title") String title,
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
@@ -82,7 +83,7 @@ public class CrawledDataAdminController {
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content,
+            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, kNewsType, content,
                     selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
                     mainThumbnailFile, popularThumbnailFile, contentImages);
 
@@ -98,6 +99,7 @@ public class CrawledDataAdminController {
             @PathVariable Long id,
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
@@ -108,7 +110,7 @@ public class CrawledDataAdminController {
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, publishType, boardId, content,
+            crawledDataAdminService.approveAndPost(id, publishType, boardId, kNewsType, content,
                     selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
                     mainThumbnailFile, popularThumbnailFile, contentImages);
 

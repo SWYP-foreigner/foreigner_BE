@@ -102,6 +102,18 @@
             <input type="text" id="title" name="title" placeholder="제목을 입력하세요">
         </div>
 
+        <div class="input-group only-main">
+            <label for="kNewsType">K-News 타입:</label>
+            <select id="kNewsType" name="kNewsType">
+                <option value="" disabled selected>-- 타입 선택 --</option>
+                <option value="K_POP">K-POP</option>
+                <option value="K_DRAMA">K-DRAMA</option>
+                <option value="K_CULTURE">K-CULTURE</option>
+                <option value="K_BEAUTY">K-BEAUTY</option>
+                <option value="K_FASHION">K-FASHION</option>
+            </select>
+        </div>
+
         <div class="input-group only-general">
             <label for="boardCategory">게시판 선택:</label>
             <select id="boardCategory" name="boardCategory">
@@ -241,6 +253,7 @@
         const body = document.body;
         const boardSelect = document.getElementById('boardCategory');
         const titleInput = document.getElementById('title');
+        const kNewsSelect = document.getElementById('kNewsType');
 
         if (mode === 'MAIN_PAGE') {
             body.classList.remove('mode-general');
@@ -248,6 +261,7 @@
 
             boardSelect.removeAttribute('required');
             titleInput.setAttribute('required', 'required');
+            if(kNewsSelect) kNewsSelect.setAttribute('required', 'required');
         } else {
             body.classList.remove('mode-main');
             body.classList.add('mode-general');
@@ -255,6 +269,10 @@
             boardSelect.setAttribute('required', 'required');
             titleInput.removeAttribute('required');
             titleInput.value = '';
+            if(kNewsSelect) {
+                kNewsSelect.removeAttribute('required');
+                kNewsSelect.value = "";
+            }
         }
     }
 
@@ -397,7 +415,6 @@
 
             if (currentCropTarget === 'Content') {
                 contentDataTransfer.items.add(file);
-
                 document.getElementById('finalContentImages').files = contentDataTransfer.files;
 
                 const blobUrl = URL.createObjectURL(blob);
@@ -444,7 +461,7 @@
             insertBtn.type = 'button';
             insertBtn.className = 'btn-insert';
             insertBtn.innerText = '본문에 넣기 ⬇️';
-            insertBtn.onclick = () => insertImageToEditor(contentImageBlobs[index], index);
+            insertBtn.onclick = () => insertImageToEditorWithIdx(contentImageBlobs[index], index);
 
             actionsDiv.appendChild(insertBtn);
             itemDiv.appendChild(img);
@@ -458,12 +475,11 @@
     function removeContentImage(index) {
         contentDataTransfer.items.remove(index);
         contentImageBlobs.splice(index, 1);
-
         document.getElementById('finalContentImages').files = contentDataTransfer.files;
         renderContentImageList();
     }
 
-    function insertImageToEditor(blobUrl, index) {
+    function insertImageToEditorWithIdx(blobUrl, index) {
         const textarea = document.getElementById('content');
         const imgTag = `\n<img src="${blobUrl}" data-file-index="${index}" style="max-width: 100%; display: block; margin: 20px auto;" />\n`;
 

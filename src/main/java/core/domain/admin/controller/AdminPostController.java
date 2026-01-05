@@ -42,6 +42,7 @@ public class AdminPostController {
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "boardCategory", required = false) String boardCategory,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "generalImages", required = false) List<MultipartFile> generalImages,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
@@ -55,7 +56,7 @@ public class AdminPostController {
             User adminUser = userRepository.findById(principal.getUserId())
                     .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-            postService.createAdminPost(title, content, publishType, boardCategory,
+            postService.createAdminPost(title, content, publishType, boardCategory, kNewsType,
                     generalImages, mainThumbnailFile, popularThumbnailFile,
                     contentImages, adminUser);
 
