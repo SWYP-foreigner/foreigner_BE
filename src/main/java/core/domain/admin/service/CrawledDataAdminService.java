@@ -34,6 +34,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -105,7 +106,8 @@ public class CrawledDataAdminService {
     @Transactional
     public void approveMergedData(List<Long> sourceIds, String title, String publishType, Long boardId, String content,
                                   List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
-                                  MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile) {
+                                  MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                                  List<MultipartFile> contentImages) {
 
         List<CrawledData> sourceDataList = crawledDataRepository.findAllById(sourceIds);
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -136,7 +138,7 @@ public class CrawledDataAdminService {
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
-            String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache);
+            String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache, contentImages);
             savedContent.changeHtmlContent(processedHtml);
 
             processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
@@ -151,7 +153,8 @@ public class CrawledDataAdminService {
     @Transactional
     public void approveAndPost(Long crawledDataId, String publishType, Long boardId, String content,
                                List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
-                               MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile) {
+                               MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                               List<MultipartFile> contentImages) {
 
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
@@ -183,7 +186,7 @@ public class CrawledDataAdminService {
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
-            String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache);
+            String processedHtml = processHtmlAndUploadImages(content, contentId, uploadedUrlCache, contentImages);
             savedContent.changeHtmlContent(processedHtml);
 
             processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
@@ -257,28 +260,53 @@ public class CrawledDataAdminService {
     /**
      * HTML 파싱 -> 이미지 태그 추출 -> S3 업로드 -> src 교체 -> DB 저장(MAIN_PAGE_BODY)
      */
-    private String processHtmlAndUploadImages(String htmlContent, Long contentId, Map<String, String> uploadedUrlCache) {
+    private String processHtmlAndUploadImages(String htmlContent, Long contentId,
+                                              Map<String, String> uploadedUrlCache,
+                                              List<MultipartFile> contentImages) {
         Document doc = Jsoup.parseBodyFragment(htmlContent);
         Elements imgTags = doc.select("img");
 
         int orderIndex = 0;
         for (Element img : imgTags) {
             String originalSrc = img.attr("src");
+            String dataFileIndex = img.attr("data-file-index");
 
-            String s3Url = uploadedUrlCache.computeIfAbsent(originalSrc, k -> this.uploadImageToS3(k, contentId));
+            if (StringUtils.hasText(dataFileIndex) && contentImages != null) {
+                try {
+                    int index = Integer.parseInt(dataFileIndex);
+                    if (index >= 0 && index < contentImages.size()) {
+                        MultipartFile file = contentImages.get(index);
+                        if (file != null && !file.isEmpty()) {
+                            String s3Url = uploadMultipartFileToS3(file, contentId);
 
-            if (s3Url != null) {
-                img.attr("src", s3Url);
+                            img.attr("src", s3Url);
+                            img.removeAttr("data-file-index");
 
-                boolean alreadySaved = imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_BODY);
-                if (!alreadySaved) {
-                    Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, s3Url, orderIndex++);
-                    imageRepository.save(bodyImage);
+                            saveBodyImageEntity(contentId, s3Url, orderIndex++);
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid data-file-index: {}", dataFileIndex);
+                }
+            }
+            else if (originalSrc != null) {
+                String s3Url = uploadedUrlCache.computeIfAbsent(originalSrc, k -> this.uploadImageToS3(k, contentId));
+
+                if (s3Url != null) {
+                    img.attr("src", s3Url);
+                    saveBodyImageEntity(contentId, s3Url, orderIndex++);
                 }
             }
         }
 
         return doc.body().html();
+    }
+
+    private void saveBodyImageEntity(Long contentId, String s3Url, int orderIndex) {
+        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_BODY)) {
+            Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, s3Url, orderIndex);
+            imageRepository.save(bodyImage);
+        }
     }
 
     private void saveMainPageImages(Long contentId, List<String> originalUrls, Map<String, String> uploadedUrlCache) {

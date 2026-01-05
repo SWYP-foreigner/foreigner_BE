@@ -52,6 +52,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -627,6 +628,7 @@ public class PostServiceImpl implements PostService {
                                 String boardCategoryStr,
                                 List<MultipartFile> generalImages,
                                 MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                                List<MultipartFile> contentImages,
                                 User adminUser) throws IOException {
 
         if ("GENERAL".equals(publishType)) {
@@ -661,7 +663,7 @@ public class PostServiceImpl implements PostService {
             MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
 
-            String processedHtml = processHtmlAndUploadImages(content, contentId);
+            String processedHtml = processHtmlAndUploadImages(content, contentId, contentImages);
             savedContent.changeHtmlContent(processedHtml);
 
             if (mainThumbnailFile != null && !mainThumbnailFile.isEmpty()) {
@@ -676,15 +678,37 @@ public class PostServiceImpl implements PostService {
         }
     }
 
-    private String processHtmlAndUploadImages(String htmlContent, Long contentId) {
+    private String processHtmlAndUploadImages(String htmlContent, Long contentId, List<MultipartFile> contentImages) {
         Document doc = Jsoup.parseBodyFragment(htmlContent);
         Elements imgTags = doc.select("img");
 
         int orderIndex = 0;
         for (Element img : imgTags) {
             String originalSrc = img.attr("src");
+            String dataFileIndex = img.attr("data-file-index");
 
-            if (originalSrc.startsWith("http")) {
+            if (StringUtils.hasText(dataFileIndex) && contentImages != null) {
+                try {
+                    int index = Integer.parseInt(dataFileIndex);
+                    if (index >= 0 && index < contentImages.size()) {
+                        MultipartFile file = contentImages.get(index);
+                        if (file != null && !file.isEmpty()) {
+                            String s3Url = uploadMultipartFileToS3(file, contentId);
+
+                            img.attr("src", s3Url);
+                            img.removeAttr("data-file-index");
+
+                            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_BODY)) {
+                                Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, s3Url, orderIndex++);
+                                imageRepository.save(bodyImage);
+                            }
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid data-file-index: {}", dataFileIndex);
+                }
+            }
+            else if (originalSrc.startsWith("http")) {
                 String s3Url = uploadImageFromUrlToS3(originalSrc, contentId);
 
                 if (s3Url != null) {
