@@ -53,10 +53,11 @@ public class MainPageContent {
 
 
     @Builder
-    public MainPageContent(String title, String htmlContent, String originalUrl) {
+    public MainPageContent(String title, String htmlContent, String originalUrl, KNewsContentType type) {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;
+        this.type = type;
     }
 
     public void changeHtmlContent(String htmlContent) {
