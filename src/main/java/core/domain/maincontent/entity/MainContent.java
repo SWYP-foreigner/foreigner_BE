@@ -57,6 +57,7 @@ public class MainContent {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;
+        this.type = type;
     }
 
     public void changeHtmlContent(String htmlContent) {

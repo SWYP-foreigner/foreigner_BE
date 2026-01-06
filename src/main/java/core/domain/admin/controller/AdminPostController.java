@@ -42,10 +42,12 @@ public class AdminPostController {
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "boardCategory", required = false) String boardCategory,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "generalImages", required = false) List<MultipartFile> generalImages,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             @AuthenticationPrincipal CustomUserDetails principal,
             RedirectAttributes redirectAttributes
     ) {
@@ -54,7 +56,9 @@ public class AdminPostController {
             User adminUser = userRepository.findById(principal.getUserId())
                     .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-            postService.createAdminPost(title, content, publishType, boardCategory, generalImages, mainThumbnailFile, popularThumbnailFile, adminUser);
+            postService.createAdminPost(title, content, publishType, boardCategory, kNewsType,
+                    generalImages, mainThumbnailFile, popularThumbnailFile,
+                    contentImages, adminUser);
 
             redirectAttributes.addFlashAttribute("successMessage", "포스트가 성공적으로 발행되었습니다.");
             return "redirect:/admin/crawled-data";
