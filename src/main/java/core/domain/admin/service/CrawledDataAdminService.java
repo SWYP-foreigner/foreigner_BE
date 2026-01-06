@@ -13,9 +13,9 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
-import core.global.entity.image.S3Props;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
+import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.PostImageService;
 import core.global.enums.CrawledDataStatus;
 import core.global.enums.ImageType;
@@ -37,15 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetUrlRequest;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -67,9 +59,7 @@ public class CrawledDataAdminService {
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
     private final ImageRepository imageRepository;
-
-    private final S3Client s3Client;
-    private final S3Props s3Props;
+    private final ImageStorageClient imageStorageClient;
 
     @Transactional(readOnly = true)
     public Page<CrawledDataDto> getPendingCrawledData(Pageable pageable) {
@@ -224,64 +214,40 @@ public class CrawledDataAdminService {
     }
 
     private void processAndSaveThumbnail(Long contentId, MultipartFile file, String url, ImageType type, Map<String, String> urlCache) {
-        String s3Url = null;
+        String cdnUrl = null;
 
         if (file != null && !file.isEmpty()) {
-            s3Url = uploadMultipartFileToS3(file, contentId);
+            cdnUrl = uploadFileToStorage(file, contentId);
         }
         else if (url != null && !url.isBlank()) {
-            s3Url = urlCache.computeIfAbsent(url, k -> this.uploadImageToS3(k, contentId));
+            cdnUrl = urlCache.computeIfAbsent(url, k -> this.uploadUrlToStorage(k, contentId));
         }
 
-        if (s3Url != null) {
-            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, type)) {
-                Image image = Image.of(type, contentId, s3Url, 0);
+        if (cdnUrl != null) {
+            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, type)) {
+                Image image = Image.of(type, contentId, cdnUrl, 0);
                 imageRepository.save(image);
             }
         }
     }
 
-    private String uploadMultipartFileToS3(MultipartFile file, Long contentId) {
-        try {
-            String originalFilename = file.getOriginalFilename();
-            String extension = ".jpg";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-            }
+    private String uploadFileToStorage(MultipartFile file, Long contentId) {
+        String ext = getExtension(file.getOriginalFilename());
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
 
-            String fileName = UUID.randomUUID() + extension;
-            String s3Key = "main-page/" + contentId + "/" + fileName;
-
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .contentType(file.getContentType())
-                    .acl(ObjectCannedACL.PUBLIC_READ)
-                    .contentLength(file.getSize())
-                    .build();
-
-            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-
-            return s3Client.utilities().getUrl(GetUrlRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .build()).toString();
-
-        } catch (IOException e) {
-            log.error("Failed to upload MultipartFile to S3", e);
-            throw new BusinessException(CommonErrorCode.FILE_UPLOAD_ERROR);
-        }
+        imageStorageClient.upload(file, key);
+        return imageStorageClient.generatePublicUrl(key);
     }
 
-    private void saveSpecificThumbnail(Long contentId, String originalUrl, ImageType type, Map<String, String> uploadedUrlCache) {
-        String s3Url = uploadedUrlCache.computeIfAbsent(originalUrl, k -> this.uploadImageToS3(k, contentId));
+    private String uploadUrlToStorage(String originalUrl, Long contentId) {
+        String ext = getExtension(originalUrl);
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
 
-        if (s3Url != null) {
-            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, type)) {
-                Image image = Image.of(type, contentId, s3Url, 0);
-                imageRepository.save(image);
-            }
+        String uploadedKey = imageStorageClient.uploadFromUrl(originalUrl, key);
+        if (uploadedKey != null) {
+            return imageStorageClient.generatePublicUrl(key);
         }
+        return null;
     }
 
     /**
@@ -304,12 +270,12 @@ public class CrawledDataAdminService {
                     if (index >= 0 && index < contentImages.size()) {
                         MultipartFile file = contentImages.get(index);
                         if (file != null && !file.isEmpty()) {
-                            String s3Url = uploadMultipartFileToS3(file, contentId);
+                            String cdnUrl = uploadFileToStorage(file, contentId);
 
-                            img.attr("src", s3Url);
+                            img.attr("src", cdnUrl);
                             img.removeAttr("data-file-index");
 
-                            saveBodyImageEntity(contentId, s3Url, orderIndex++);
+                            saveBodyImageEntity(contentId, cdnUrl, orderIndex++);
                         }
                     }
                 } catch (NumberFormatException e) {
@@ -317,11 +283,11 @@ public class CrawledDataAdminService {
                 }
             }
             else if (originalSrc != null) {
-                String s3Url = uploadedUrlCache.computeIfAbsent(originalSrc, k -> this.uploadImageToS3(k, contentId));
+                String cdnUrl = uploadedUrlCache.computeIfAbsent(originalSrc, k -> this.uploadUrlToStorage(k, contentId));
 
-                if (s3Url != null) {
-                    img.attr("src", s3Url);
-                    saveBodyImageEntity(contentId, s3Url, orderIndex++);
+                if (cdnUrl != null) {
+                    img.attr("src", cdnUrl);
+                    saveBodyImageEntity(contentId, cdnUrl, orderIndex++);
                 }
             }
         }
@@ -329,86 +295,16 @@ public class CrawledDataAdminService {
         return doc.body().html();
     }
 
-    private void saveBodyImageEntity(Long contentId, String s3Url, int orderIndex) {
-        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_BODY)) {
-            Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, s3Url, orderIndex);
+    private void saveBodyImageEntity(Long contentId, String cdnUrl, int orderIndex) {
+        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, ImageType.MAIN_PAGE_BODY)) {
+            Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, cdnUrl, orderIndex);
             imageRepository.save(bodyImage);
         }
     }
 
-    private void saveMainPageImages(Long contentId, List<String> originalUrls, Map<String, String> uploadedUrlCache) {
-        int limit = Math.min(originalUrls.size(), 5);
-
-        for (int i = 0; i < limit; i++) {
-            String originalUrl = originalUrls.get(i);
-
-            String s3Url = uploadedUrlCache.computeIfAbsent(originalUrl, k -> this.uploadImageToS3(k, contentId));
-
-            if (s3Url != null) {
-                ImageType type = (i == 0) ? ImageType.MAIN_PAGE_THUMBNAIL : ImageType.MAIN_PAGE_POPULAR_THUMBNAIL;
-
-                if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, type)) {
-                    Image image = Image.of(type, contentId, s3Url, i);
-                    imageRepository.save(image);
-                }
-            }
-        }
-    }
-
-    private void saveFirstImageAsThumbnail(Long contentId, String processedHtml) {
-        Document doc = Jsoup.parseBodyFragment(processedHtml);
-        Element firstImg = doc.select("img").first();
-
-        if (firstImg != null) {
-            String s3Url = firstImg.attr("src");
-
-            if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_THUMBNAIL)) {
-                Image thumbnail = Image.of(ImageType.MAIN_PAGE_THUMBNAIL, contentId, s3Url, 0);
-                imageRepository.save(thumbnail);
-            }
-        }
-    }
-
-    /**
-     * 외부 URL 이미지를 다운로드하여 S3에 업로드 (Public Read 권한 부여)
-     */
-    private String uploadImageToS3(String imageUrl, Long contentId) {
-        try {
-            URL url = new URL(imageUrl);
-            String extension = getExtensionFromUrl(imageUrl);
-            String fileName = UUID.randomUUID() + extension;
-            String s3Key = "main-page/" + contentId + "/" + fileName;
-
-            try (InputStream inputStream = url.openStream()) {
-
-                byte[] imageBytes = inputStream.readAllBytes();
-
-                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                        .bucket(s3Props.getBucket())
-                        .key(s3Key)
-                        .contentType("image/" + (extension.equals(".png") ? "png" : "jpeg"))
-                        .acl(ObjectCannedACL.PUBLIC_READ)
-                        .contentLength((long) imageBytes.length)
-                        .build();
-
-                s3Client.putObject(putObjectRequest, RequestBody.fromBytes(imageBytes));
-            }
-
-            return s3Client.utilities().getUrl(GetUrlRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .build()).toString();
-
-        } catch (Exception e) {
-            log.error("Failed to upload image from URL: {}", imageUrl, e);
-            return null;
-        }
-    }
-
-    private String getExtensionFromUrl(String url) {
-        int lastDotIndex = url.lastIndexOf('.');
-        if (lastDotIndex > 0 && lastDotIndex < url.length() - 1) {
-            String ext = url.substring(lastDotIndex).toLowerCase();
+    private String getExtension(String filename) {
+        if (filename != null && filename.contains(".")) {
+            String ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();
             if (ext.contains("?")) {
                 ext = ext.substring(0, ext.indexOf("?"));
             }
