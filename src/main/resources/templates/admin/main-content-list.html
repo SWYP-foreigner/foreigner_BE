@@ -83,7 +83,14 @@
         </td>
 
         <td>
-            <a th:href="${content.originalUrl}" target="_blank" th:text="${content.title}" style="color: #333; text-decoration: underline;"></a>
+            <a th:href="@{/admin/main-contents/{id}(id=${content.id})}"
+               th:text="${content.title}"
+               style="color: #333; text-decoration: underline; font-weight: bold; cursor: pointer;">
+            </a>
+            <a th:if="${content.originalUrl != null}"
+               th:href="${content.originalUrl}"
+               target="_blank"
+               style="font-size: 12px; color: #888; margin-left: 5px;">[원본]</a>
         </td>
         <td><span class="badge" th:text="${content.type}"></span></td>
         <td th:text="${content.viewCount}"></td>
