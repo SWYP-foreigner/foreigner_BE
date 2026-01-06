@@ -1,16 +1,16 @@
-package core.domain.maincontent.service;
+package core.domain.poll.service;
 
-import core.domain.maincontent.dto.PollItem;
-import core.domain.maincontent.dto.PollResultResponse;
-import core.domain.maincontent.entity.Poll;
-import core.domain.maincontent.entity.PollOption;
-import core.global.enums.PollType;
-import core.domain.maincontent.entity.VoteRecord;
-import core.domain.maincontent.repository.PollOptionRepository;
-import core.domain.maincontent.repository.PollRepository;
-import core.domain.maincontent.repository.VoteRecordRepository;
+import core.domain.poll.dto.PollItem;
+import core.domain.poll.dto.PollResultResponse;
+import core.domain.poll.entity.Poll;
+import core.domain.poll.entity.PollOption;
+import core.domain.poll.entity.VoteRecord;
+import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.PollRepository;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.PollType;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;

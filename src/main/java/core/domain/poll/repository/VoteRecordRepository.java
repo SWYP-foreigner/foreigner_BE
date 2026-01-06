@@ -1,7 +1,7 @@
-package core.domain.maincontent.repository;
+package core.domain.poll.repository;
 
-import core.domain.maincontent.entity.Poll;
-import core.domain.maincontent.entity.VoteRecord;
+import core.domain.poll.entity.Poll;
+import core.domain.poll.entity.VoteRecord;
 import core.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 

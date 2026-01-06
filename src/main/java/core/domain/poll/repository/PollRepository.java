@@ -1,6 +1,6 @@
-package core.domain.maincontent.repository;
+package core.domain.poll.repository;
 
-import core.domain.maincontent.entity.Poll;
+import core.domain.poll.entity.Poll;
 import core.global.enums.PollType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
