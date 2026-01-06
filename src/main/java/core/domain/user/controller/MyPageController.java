@@ -140,7 +140,7 @@ public class MyPageController {
             Authentication authentication,
             @PathVariable("friendId") Long friendId) {
 
-        followService.unfollowAccepted(authentication, friendId);
+        followService.unfollow(authentication, friendId);
         featureUsageMetrics.recordFollowUsage();
 
         return ResponseEntity.ok().build();

@@ -1,6 +1,7 @@
 package core.domain.user.dto;
 
 import core.domain.user.entity.User;
+import core.domain.user.service.FriendType;
 
 import java.util.List;
 
@@ -16,10 +17,10 @@ public record UserProfileCardResponse(
         List<String> language,
         List<String> hobby,
         String imageKey,
-        String followStatus
+        FriendType followStatus
 ) {
 
-    public UserProfileCardResponse(User u, List<String> languages, List<String> hobbies, String imageKey, String followStatus) {
+    public UserProfileCardResponse(User u, List<String> languages, List<String> hobbies, String imageKey, FriendType followStatus) {
         this(
                 u.getId(),
                 u.getFirstName(),
