@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 public enum CommunityErrorCode implements AppError {
     BOARD_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시판입니다."),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
+    MAIN_PAGE_CONTENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 메인페이지 컨텐츠입니다."),
     POST_EDIT_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 수정할 권한이 없습니다."),
     POST_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 글을 삭제할 권한이 없습니다."),
     NOT_AVAILABLE_ANONYMOUS(HttpStatus.CONFLICT, "익명이 허용되지 않는 카테고리입니다."),

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>메인 컨텐츠 관리</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; }
+        th a { text-decoration: none; color: black; display: block; width: 100%; }
+        th a.sorted { font-weight: bold; color: #007bff; }
+        .pagination { margin-top: 20px; text-align: center; }
+        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
+        .pagination .active { font-weight: bold; color: black; }
+        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .search-form input, .search-form select { padding: 5px; margin-right: 10px; }
+        .search-form button { padding: 5px 10px; }
+        td small { color: #777; }
+
+        .btn-home {
+            display: inline-block;
+            margin-bottom: 15px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .badge {
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;
+            background-color: #e9ecef; color: #495057;
+        }
+    </style>
+</head>
+<body>
+<h1>메인 컨텐츠 목록</h1>
+
+<a th:href="@{/admin/users/home}" class="btn-home">어드민 홈</a>
+
+<div class="search-form">
+    <form th:action="@{/admin/main-contents}" method="get" th:object="${searchRequest}">
+        <input type="text" name="title" th:value="*{title}" placeholder="제목 검색">
+
+        <select name="type">
+            <option value="">전체 타입</option>
+            <option th:each="typeOpt : ${contentTypes}"
+                    th:value="${typeOpt}"
+                    th:text="${typeOpt}"
+                    th:selected="${typeOpt == searchRequest.type}"></option>
+        </select>
+
+        <input type="date" name="startDate" th:value="*{startDate}"> ~
+        <input type="date" name="endDate" th:value="*{endDate}">
+        <button type="submit">검색</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+    <tr>
+        <th style="width: 50px;">ID</th>
+        <th style="width: 100px;">썸네일</th> <th>제목</th>
+        <th style="width: 120px;">타입</th>
+        <th style="width: 100px;">조회수</th>
+        <th style="width: 150px;">작성일</th>
+        <th style="width: 80px;">관리</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="content : ${contentPage.content}">
+        <td th:text="${content.id}"></td>
+
+        <td style="text-align: center;">
+            <div style="width: 80px; height: 45px; background: #eee; border-radius: 4px; overflow: hidden; display: inline-block;">
+                <img th:if="${content.thumbnailUrl != null}"
+                     th:src="${content.thumbnailUrl}"
+                     style="width: 100%; height: 100%; object-fit: cover;"
+                     alt="thumb">
+                <span th:unless="${content.thumbnailUrl != null}"
+                      style="line-height: 45px; font-size: 11px; color: #999;">No Image</span>
+            </div>
+        </td>
+
+        <td>
+            <a th:href="${content.originalUrl}" target="_blank" th:text="${content.title}" style="color: #333; text-decoration: underline;"></a>
+        </td>
+        <td><span class="badge" th:text="${content.type}"></span></td>
+        <td th:text="${content.viewCount}"></td>
+        <td th:text="${#temporals.format(content.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+        <td>
+            <form th:action="@{/admin/main-contents/{id}/delete(id=${content.id})}" method="post" onsubmit="return confirm('삭제하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">삭제</button>
+            </form>
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pagination" th:if="${contentPage.totalPages > 1}">
+    <a th:if="${contentPage.hasPrevious()}"
+       th:href="@{/admin/main-contents(
+         page=${contentPage.number - 1},
+         sort=${param.sort},
+         title=${searchRequest.title}, type=${searchRequest.type},
+         startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+       )}">이전</a>
+
+    <span th:each="pageNumber : ${#numbers.sequence(0, contentPage.totalPages - 1)}">
+        <a th:href="@{/admin/main-contents(
+             page=${pageNumber},
+             sort=${param.sort},
+             title=${searchRequest.title}, type=${searchRequest.type},
+             startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+           )}"
+           th:text="${pageNumber + 1}"
+           th:classappend="${pageNumber == contentPage.number} ? 'active'"></a>
+    </span>
+
+    <a th:if="${contentPage.hasNext()}"
+       th:href="@{/admin/main-contents(
+         page=${contentPage.number + 1},
+         sort=${param.sort},
+         title=${searchRequest.title}, type=${searchRequest.type},
+         startDate=${searchRequest.startDate}, endDate=${searchRequest.endDate}
+       )}">다음</a>
+</div>
+
+</body>
+</html>

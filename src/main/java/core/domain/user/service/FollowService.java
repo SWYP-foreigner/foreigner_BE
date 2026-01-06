@@ -92,6 +92,7 @@ public class FollowService {
         return follows.stream()
                 .map(f -> {
                     User target = f.getUser().getId().equals(me.getId()) ? f.getFollowing() : f.getUser();
+                    FriendType type = determineFriendType(me, target);
 
                     String imageKey = imageService.getUserProfileKey(target.getId());
 
@@ -113,7 +114,8 @@ public class FollowService {
                             target,
                             languages,
                             hobbies,
-                            imageKey
+                            imageKey,
+                            type
                     );
                 })
                 .toList();
@@ -124,54 +126,32 @@ public class FollowService {
      */
     @Transactional
     public void follow(Authentication auth, Long targetUserId) {
-        String email = auth.getName();
-
-        User follower = userRepository.findByEmail(email)
+        // 1. 기본 정보 조회 및 본인 확인 (기존과 동일)
+        User follower = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        userRoleDetectService.isProfileSetUpUser(follower);
-
-
-        User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> {
-                    log.warn("[FOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
-
         if (follower.getId().equals(targetUser.getId())) {
-            log.warn("[FOLLOW] 자기 자신 팔로우 시도 차단: 사용자={}", follower.getId());
             throw new BusinessException(UserErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
-        Follow existing = followRepository.findByUserAndFollowing(follower, targetUser).orElse(null);
-        Follow existingReverse = followRepository.findByUserAndFollowing(targetUser, follower).orElse(null);
+        // 2. FriendType을 통한 관계 검증 로직 적용
+        FriendType currentRelation = determineFriendType(follower, targetUser);
 
-        if (existing != null) {
-            switch (existing.getStatus()) {
-                case PENDING -> {
-                    log.info("[FOLLOW] 이미 팔로우 신청 대기 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-                }
-                case ACCEPTED -> {
-                    log.warn("[FOLLOW] 이미 팔로우 중: from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-                }
-            }
+        switch (currentRelation) {
+            case FOLLOWING:
+            case FRIEND:
+                // 이미 내가 요청했거나 팔로우 중인 경우
+                throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
+
+            case FOLLOWED:
+            case NONE:
+                // 팔로우 신청 가능 상태
+                break;
         }
 
-        if (existingReverse != null) {
-            switch (existingReverse.getStatus()) {
-                case PENDING -> {
-                    log.info("[FOLLOW] 이미 팔로우 신청 대기 중(Rev): from={}, to={}", targetUser.getId(), follower.getId());
-                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-                }
-                case ACCEPTED -> {
-                    log.warn("[FOLLOW] 이미 팔로우 중(Rev): from={}, to={}", follower.getId(), targetUser.getId());
-                    throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-                }
-            }
-        }
-
+        // 3. 팔로우 저장 및 이벤트 발행 (기존과 동일)
         Follow follow = Follow.builder()
                 .user(follower)
                 .following(targetUser)
@@ -192,6 +172,30 @@ public class FollowService {
         );
 
         eventPublisher.publishEvent(event);
+    }
+
+    private FriendType determineFriendType(User me, User other) {
+        Follow followFromMe = followRepository.findByUserAndFollowing(me, other).orElse(null);
+        Follow followToMe = followRepository.findByUserAndFollowing(other, me).orElse(null);
+
+        // 1. 맞팔로우 상태 (서로 ACCEPTED)
+        if (isAccepted(followFromMe) && isAccepted(followToMe)) return FriendType.FRIEND;
+
+        // 2. 내가 팔로우 중 (내가 보낸게 ACCEPTED)
+        if (isAccepted(followFromMe)) return FriendType.FOLLOWING;
+
+        // 4. 상대가 나를 팔로우 중 (상대가 보낸게 ACCEPTED)
+        if (isAccepted(followToMe)) return FriendType.FOLLOWED;
+
+        return FriendType.NONE;
+    }
+
+    private boolean isAccepted(Follow follow) {
+        return follow != null && follow.getStatus() == FollowStatus.ACCEPTED;
+    }
+
+    private boolean isPending(Follow follow) {
+        return follow != null && follow.getStatus() == FollowStatus.PENDING;
     }
 
     /**
@@ -236,75 +240,36 @@ public class FollowService {
         eventPublisher.publishEvent(event);
     }
 
-
-    @Transactional
-    public void unfollowAccepted(Authentication authentication, Long friendId) {
-        log.info("unfollowAccepted 호출됨 - friendId: {}", friendId);
-
-        User me = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> {
-                    log.warn("로그인 사용자({})를 찾을 수 없음", authentication.getName());
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
-
-        if (me.getId().equals(friendId)) {
-            log.warn("사용자가 자기 자신을 언팔 시도 - userId: {}", me.getId());
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
-        }
-        User friend = userRepository.findById(friendId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        Optional<Follow> targetFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
-                me.getId(), friendId, FollowStatus.ACCEPTED);
-
-        Optional<Follow> targetInverseFollow = followRepository.findByUser_IdAndFollowing_IdAndStatus(
-                friendId, me.getId(), FollowStatus.ACCEPTED);
-        logFollowActivity(me, friend, FollowActionType.UNFOLLOW, "FRIEND_LIST");
-        targetFollow.ifPresent(f -> {
-            followRepository.delete(f);
-            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
-        });
-
-        targetInverseFollow.ifPresent(f -> {
-            followRepository.delete(f);
-            log.info("ACCEPTED 팔로우 삭제 완료 - {} -> {}", f.getUser().getId(), f.getFollowing().getId());
-        });
-
-        if (targetFollow.isEmpty() && targetInverseFollow.isEmpty()) {
-            log.warn("ACCEPTED 상태의 팔로우를 찾을 수 없음 - friendId: {}", friendId);
-            throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);
-        }
-    }
-
-    /**
-     * 현재 로그인 사용자가 targetUserId 언팔
-     */
     @Transactional
     public void unfollow(Authentication auth, Long targetUserId) {
-        log.info("[UNFOLLOW] 요청 시작: 사용자={}, 대상={}", auth.getName(), targetUserId);
+        // 1. 유저 조회 및 본인 확인
+        User me = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        String email = auth.getName();
-        User follower = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("[UNFOLLOW] 팔로워 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
+        // 2. 현재 관계 파악
+        FriendType type = determineFriendType(me, target);
+        log.info("[UNFOLLOW] 관계 해제 시도: 나={}, 대상={}, 현재관계={}", me.getId(), target.getId(), type);
 
-        User targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> {
-                    log.warn("[UNFOLLOW] 대상 사용자 찾기 실패: 대상 ID={}", targetUserId);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
+        switch (type) {
+            case FRIEND:
+                // 맞팔 상태: 양방향 레코드 모두 삭제 (기존 unfollowAccepted 로직)
+                followRepository.findByUserAndFollowing(me, target).ifPresent(followRepository::delete);
+                followRepository.findByUserAndFollowing(target, me).ifPresent(followRepository::delete);
+                logFollowActivity(me, target, FollowActionType.UNFOLLOW, "FRIEND_LIST");
+                break;
 
-        Follow follow = followRepository.findByUserAndFollowing(follower, targetUser)
-                .orElseThrow(() -> {
-                    log.warn("[UNFOLLOW] 팔로우 관계 없음: from={}, to={}", follower.getId(), targetUser.getId());
-                    return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
-                });
+            case FOLLOWING:
 
-        followRepository.delete(follow);
-        log.info("[UNFOLLOW] 언팔로우 성공: from={}, to={}", follower.getId(), targetUser.getId());
+            case FOLLOWED:
+
+            case NONE:
+                throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);
+        }
+
+        log.info("[UNFOLLOW] 성공: 나={}, 대상={}", me.getId(), target.getId());
     }
-
 
     /**
      * 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회
@@ -331,6 +296,7 @@ public class FollowService {
         List<FollowDTO> result = followStream
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
+                    FriendType type = determineFriendType(me, targetUser);
 
                     String imageKey = imageService.getUserProfileKey(targetUser.getId());
                     List<String> languages = (targetUser.getLanguage() != null && !targetUser.getLanguage().isBlank())
@@ -351,7 +317,8 @@ public class FollowService {
                             targetUser,
                             languages,
                             hobbies,
-                            imageKey
+                            imageKey,
+                            type
                     );
 
                 })
