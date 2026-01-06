@@ -27,13 +27,20 @@
         .only-general { display: block; }
         .only-main { display: none; }
 
-        .thumbnail-manager { display: flex; gap: 20px; margin-bottom: 20px; padding: 20px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; }
-        .thumb-box { flex: 1; text-align: center; background: #fff; padding: 15px; border-radius: 5px; border: 1px solid #ddd; }
+        .thumbnail-manager { display: flex; gap: 20px; margin-bottom: 20px; padding: 20px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; flex-wrap: wrap; }
+        .thumb-box { flex: 1; min-width: 300px; text-align: center; background: #fff; padding: 15px; border-radius: 5px; border: 1px solid #ddd; }
         .thumb-preview-area { width: 100%; height: 180px; background: #eee; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed #ccc; }
         .thumb-preview-area img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .thumb-btn-group { display: flex; gap: 5px; justify-content: center; margin-top: 5px; }
         .btn-thumb-action { font-size: 12px; padding: 5px 10px; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 3px; }
         .btn-thumb-action:hover { background: #f0f0f0; }
+
+        .content-image-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .content-image-item { width: 150px; border: 1px solid #ddd; padding: 5px; background: #f9f9f9; border-radius: 4px; position: relative; }
+        .content-image-preview { width: 100%; height: 100px; object-fit: cover; background: #ccc; cursor: pointer;}
+        .content-image-actions { display: flex; gap: 5px; margin-top: 5px; }
+        .btn-insert { width: 100%; background: #17a2b8; color: white; border: none; font-size: 11px; padding: 4px; cursor: pointer; border-radius: 3px; }
+        .btn-delete-img { position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
         #general-file-list { margin-top: 10px; }
         .file-item { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 8px 12px; margin-bottom: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
@@ -95,6 +102,18 @@
             <input type="text" id="title" name="title" placeholder="제목을 입력하세요">
         </div>
 
+        <div class="input-group only-main">
+            <label for="kNewsType">K-News 타입:</label>
+            <select id="kNewsType" name="kNewsType">
+                <option value="" disabled selected>-- 타입 선택 --</option>
+                <option value="K_POP">K-POP</option>
+                <option value="K_DRAMA">K-DRAMA</option>
+                <option value="K_CULTURE">K-CULTURE</option>
+                <option value="K_BEAUTY">K-BEAUTY</option>
+                <option value="K_FASHION">K-FASHION</option>
+            </select>
+        </div>
+
         <div class="input-group only-general">
             <label for="boardCategory">게시판 선택:</label>
             <select id="boardCategory" name="boardCategory">
@@ -143,6 +162,19 @@
                         <input type="file" name="popularThumbnailFile" id="filePop" accept="image/*" style="display:none;" onchange="handleThumbnailSelect(this, 'Pop')">
                     </label>
                 </div>
+            </div>
+        </div>
+
+        <div class="thumbnail-manager only-main" style="display: block;">
+            <h4>본문 이미지 추가 (최대 5개)</h4>
+            <div style="margin-bottom: 10px;">
+                <label class="btn-thumb-action" style="display: inline-block; width: auto; background: #007bff; color: white; border: none;">
+                    + 이미지 파일 선택 및 자르기
+                    <input type="file" id="contentImageInput" accept="image/*" style="display:none;" onchange="handleContentImageSelect(this)">
+                </label>
+                <input type="file" name="contentImages" id="finalContentImages" multiple style="display:none;">
+            </div>
+            <div id="contentImageList" class="content-image-list">
             </div>
         </div>
 
@@ -207,6 +239,9 @@
     let currentCropTarget = null;
     let uploadedOriginalFiles = { Main: null, Pop: null };
 
+    const contentDataTransfer = new DataTransfer();
+    let contentImageBlobs = [];
+
     const generalDataTransfer = new DataTransfer();
 
     document.addEventListener("DOMContentLoaded", function() {
@@ -218,6 +253,7 @@
         const body = document.body;
         const boardSelect = document.getElementById('boardCategory');
         const titleInput = document.getElementById('title');
+        const kNewsSelect = document.getElementById('kNewsType');
 
         if (mode === 'MAIN_PAGE') {
             body.classList.remove('mode-general');
@@ -225,6 +261,7 @@
 
             boardSelect.removeAttribute('required');
             titleInput.setAttribute('required', 'required');
+            if(kNewsSelect) kNewsSelect.setAttribute('required', 'required');
         } else {
             body.classList.remove('mode-main');
             body.classList.add('mode-general');
@@ -232,6 +269,10 @@
             boardSelect.setAttribute('required', 'required');
             titleInput.removeAttribute('required');
             titleInput.value = '';
+            if(kNewsSelect) {
+                kNewsSelect.removeAttribute('required');
+                kNewsSelect.value = "";
+            }
         }
     }
 
@@ -256,17 +297,13 @@
 
     function removeGeneralFile(index) {
         generalDataTransfer.items.remove(index);
-
-        const input = document.getElementById('generalImages');
-        input.files = generalDataTransfer.files;
-
+        document.getElementById('generalImages').files = generalDataTransfer.files;
         updateGeneralFileList();
     }
 
     function updateGeneralFileList() {
         const listContainer = document.getElementById('general-file-list');
         listContainer.innerHTML = '';
-
         const files = generalDataTransfer.files;
 
         for (let i = 0; i < files.length; i++) {
@@ -302,6 +339,23 @@
             }
             reader.readAsDataURL(input.files[0]);
         }
+    }
+
+    function handleContentImageSelect(input) {
+        if (contentDataTransfer.items.length >= 5) {
+            alert("본문 이미지는 최대 5개까지만 추가할 수 있습니다.");
+            input.value = "";
+            return;
+        }
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                openCropper(e.target.result, 'Content');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+        input.value = "";
     }
 
     function openCropperForUpload(type) {
@@ -356,18 +410,85 @@
         if (!cropper) return;
 
         cropper.getCroppedCanvas().toBlob((blob) => {
-            const file = new File([blob], "cropped_" + currentCropTarget + ".jpg", { type: "image/jpeg" });
-            const container = new DataTransfer();
-            container.items.add(file);
-            document.getElementById('file' + currentCropTarget).files = container.files;
+            const fileName = "cropped_" + new Date().getTime() + ".jpg";
+            const file = new File([blob], fileName, { type: "image/jpeg" });
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('preview' + currentCropTarget).src = e.target.result;
+            if (currentCropTarget === 'Content') {
+                contentDataTransfer.items.add(file);
+                document.getElementById('finalContentImages').files = contentDataTransfer.files;
+
+                const blobUrl = URL.createObjectURL(blob);
+                contentImageBlobs.push(blobUrl);
+                renderContentImageList();
+
+            } else {
+                const container = new DataTransfer();
+                container.items.add(file);
+                document.getElementById('file' + currentCropTarget).files = container.files;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('preview' + currentCropTarget).src = e.target.result;
+                }
+                reader.readAsDataURL(file);
             }
-            reader.readAsDataURL(file);
+
             closeCropper();
         }, 'image/jpeg', 1.0);
+    }
+
+    function renderContentImageList() {
+        const listDiv = document.getElementById('contentImageList');
+        listDiv.innerHTML = '';
+
+        Array.from(contentDataTransfer.files).forEach((file, index) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'content-image-item';
+
+            const img = document.createElement('img');
+            img.className = 'content-image-preview';
+            img.src = contentImageBlobs[index];
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete-img';
+            delBtn.innerHTML = '&times;';
+            delBtn.onclick = () => removeContentImage(index);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'content-image-actions';
+
+            const insertBtn = document.createElement('button');
+            insertBtn.type = 'button';
+            insertBtn.className = 'btn-insert';
+            insertBtn.innerText = '본문에 넣기 ⬇️';
+            insertBtn.onclick = () => insertImageToEditorWithIdx(contentImageBlobs[index], index);
+
+            actionsDiv.appendChild(insertBtn);
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(delBtn);
+            itemDiv.appendChild(actionsDiv);
+
+            listDiv.appendChild(itemDiv);
+        });
+    }
+
+    function removeContentImage(index) {
+        contentDataTransfer.items.remove(index);
+        contentImageBlobs.splice(index, 1);
+        document.getElementById('finalContentImages').files = contentDataTransfer.files;
+        renderContentImageList();
+    }
+
+    function insertImageToEditorWithIdx(blobUrl, index) {
+        const textarea = document.getElementById('content');
+        const imgTag = `\n<img src="${blobUrl}" data-file-index="${index}" style="max-width: 100%; display: block; margin: 20px auto;" />\n`;
+
+        const startPos = textarea.selectionStart;
+        const endPos = textarea.selectionEnd;
+        const text = textarea.value;
+
+        textarea.value = text.substring(0, startPos) + imgTag + text.substring(endPos);
+        textarea.focus();
     }
 
     function previewHtml() {

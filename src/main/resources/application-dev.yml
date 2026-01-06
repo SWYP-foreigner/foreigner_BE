@@ -112,13 +112,13 @@ ncp:
     apiKey: ${CLOVA_STUDIO_API_KEY}
 
 swagger:
-  server-url: ${SERVER_URL}
+  server-url: ${SWAGGER_URL}
 
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${SPRINGDOC_ENABLED:false}
   swagger-ui:
-    enabled: true
+    enabled: ${SPRINGDOC_ENABLED:false}
 
 google:
   cloud:

@@ -8,28 +8,28 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.PublicKey;
-import java.util.*;
+import java.util.Base64;
+import java.util.Date;
+import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @Component
 public class JwtTokenProvider {
+
     private final Key SECRET_KEY;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
-
     private final String keyHash;
-
-    private static String shortHash(byte[] key) {
-        int h = 1;
-        for (byte b : key) h = 31 * h + (b & 0xff);
-        return String.format("%08x", h); // 항상 8자리로 패딩
-    }
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secretKeyBase64,
@@ -38,71 +38,62 @@ public class JwtTokenProvider {
     ) {
         byte[] keyBytes;
         try {
-            keyBytes = Decoders.BASE64.decode(secretKeyBase64.trim()); // Base64로 보관된 경우
+            keyBytes = Decoders.BASE64.decode(secretKeyBase64.trim());
         } catch (IllegalArgumentException e) {
-            keyBytes = secretKeyBase64.getBytes(StandardCharsets.UTF_8); // 평문으로 보관된 경우
+            keyBytes = secretKeyBase64.getBytes(StandardCharsets.UTF_8);
         }
         this.SECRET_KEY = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpiration = accessTokenExpiration * 60 * 1000L;
         this.refreshTokenExpiration = refreshTokenExpiration * 60 * 1000L;
 
         this.keyHash = shortHash(keyBytes);
-        org.slf4j.LoggerFactory.getLogger(JwtTokenProvider.class)
-                .info("[JWT] Provider init: alg=HS512, keyLen={}B, keyHash={}", keyBytes.length, this.keyHash);
+        log.info("[JWT] Provider init: alg=HS512, keyLen={}B, keyHash={}", keyBytes.length, this.keyHash);
     }
 
-    // 진단용 getter
-    public String keyHash() { return keyHash; }
+    // --- 1. 토큰 생성 메서드 ---
 
-    /**
-     * 액세스 토큰을 생성합니다.
-     * userId와 email을 Claims에 포함시킵니다.
-     */
     public String createAccessToken(Long userId, String role, String email) {
-        Claims claims = Jwts.claims().setSubject(email);
-        claims.put("id", userId);
-        claims.put("role", role);
-        claims.setId(UUID.randomUUID().toString());
-        Date now = new Date();
-        Date expiration = new Date(now.getTime() + accessTokenExpiration);
-
-        return Jwts.builder()
-                .setClaims(claims)
-                .setIssuedAt(now)
-                .setExpiration(expiration)
-                .signWith(SECRET_KEY, SignatureAlgorithm.HS512)
-                .compact();
+        return buildToken(String.valueOf(email), userId, role, accessTokenExpiration);
     }
 
-    /**
-     * 리프레시 토큰을 생성합니다.
-     * userId를 Claims와 Subject에 포함시킵니다.
-     */
     public String createRefreshToken(Long userId) {
-        Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
+        // Refresh Token에는 role, email 등 민감정보 최소화 (필요시 추가)
+        return buildToken(String.valueOf(userId), userId, null, refreshTokenExpiration);
+    }
+
+    private String buildToken(String subject, Long userId, String role, long expirationTime) {
+        Claims claims = Jwts.claims().setSubject(subject);
+        if (userId != null) claims.put("id", userId);
+        if (role != null) claims.put("role", role);
+
+        // JTI(JWT ID)는 토큰의 고유 식별자 (재사용 방지 등 목적)
         claims.setId(UUID.randomUUID().toString());
+
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + refreshTokenExpiration);
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(expiration)
+                .setExpiration(new Date(now.getTime() + expirationTime))
                 .signWith(SECRET_KEY, SignatureAlgorithm.HS512)
                 .compact();
     }
+
+    // --- 2. 검증 및 파싱 (핵심) ---
+
     /**
-     * 토큰에서 이메일(subject)을 추출합니다.
+     * 토큰 유효성 검증
+     * ★ 중요: JwtTokenFilter에서 예외 종류(SignatureException vs Expired)를 구분해 로그를 찍기 위해,
+     * 여기서 try-catch로 예외를 삼키지 않고 그대로 던집니다.
      */
-    public String getEmailFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(SECRET_KEY)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
+    public boolean validateToken(String token) {
+        parseClaims(token); // 파싱 실패 시 예외 발생 -> Filter로 전파
+        return true;
     }
 
-    private Claims getAllClaimsFromToken(String token) {
+    /**
+     * 공통 파싱 로직 (중복 제거)
+     */
+    private Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(SECRET_KEY)
                 .build()
@@ -110,92 +101,77 @@ public class JwtTokenProvider {
                 .getBody();
     }
 
-    public String getRoleFromToken(String token) {
-        Object v = getAllClaimsFromToken(token).get("role");
+    // --- 3. 정보 추출 메서드 ---
 
-        if (v == null) {
+    public String getEmailFromToken(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    public Long getUserIdFromAccessToken(String token) {
+        return parseClaims(token).get("id", Long.class);
+    }
+
+    public Long getUserIdFromRefreshToken(String token) {
+        // RefreshToken은 subject 자체가 userId인 경우도 있고 claim에 있을 수도 있음. 로직에 맞춰 수정.
+        // 위 createRefreshToken 기준으로는 subject에 userId가 들어감.
+        String subject = parseClaims(token).getSubject();
+        return Long.valueOf(subject);
+    }
+
+    public String getRoleFromToken(String token) {
+        Object role = parseClaims(token).get("role");
+        if (role == null) {
             throw new BadCredentialsException("Invalid token: Missing 'role' claim.");
         }
+        return String.valueOf(role);
+    }
 
-        return String.valueOf(v);
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    // --- 4. 기타 유틸리티 ---
+
+    public String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+
+    /**
+     * (OIDC 등) 외부 공개키로 검증할 때 사용
+     * 서비스 로직 내에서 사용되므로 BusinessException 처리 유지
+     */
+    public Claims getTokenClaims(String token, PublicKey publicKey) {
+        try {
+            return Jwts.parserBuilder() // parser() -> parserBuilder() (최신 버전 권장)
+                    .setSigningKey(publicKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (io.jsonwebtoken.security.SignatureException | MalformedJwtException e) {
+            throw new BusinessException(AuthErrorCode.INVALID_JWT);
+        } catch (ExpiredJwtException e) {
+            throw new BusinessException(AuthErrorCode.JWT_EXPIRED);
+        }
     }
 
     public Map<String, String> parseHeaders(String token) throws JsonProcessingException {
         String header = token.split("\\.")[0];
         return new ObjectMapper().readValue(decodeHeader(header), Map.class);
     }
+
     private String decodeHeader(String token) {
         return new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
     }
-    public Claims getTokenClaims(String token, PublicKey publicKey) {
-        try {
-            return Jwts.parser()
-                    .setSigningKey(publicKey)
-                    .parseClaimsJws(token)
-                    .getBody();
-        } catch (SignatureException | MalformedJwtException e) {
-            throw new BusinessException(AuthErrorCode.INVALID_JWT);
-        } catch (ExpiredJwtException e) {
-            throw new BusinessException(AuthErrorCode.JWT_EXPIRED);
-        }
-    }
-    /**
-     * 액세스 토큰에서 사용자 ID를 추출합니다.
-     */
-    public Long getUserIdFromAccessToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(SECRET_KEY)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("id", Long.class);
+
+    private static String shortHash(byte[] key) {
+        int h = 1;
+        for (byte b : key) h = 31 * h + (b & 0xff);
+        return String.format("%08x", h);
     }
 
-    /**
-     * 토큰의 유효성을 검증합니다.
-     * @return 유효하면 true, 아니면 false
-     */
-    public boolean validateToken(String token) {
-        Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
-        return true;
-    }
-
-    /**
-     * Redis 엑세스 토큰이 만약 만료가 안 되면
-     *
-     */
-    /**
-     * 토큰의 만료 시간을 추출합니다.
-     */
-    public Date getExpiration(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(SECRET_KEY)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getExpiration();
-    }
-    /**
-     * 리프레시 토큰에서 사용자 ID를 추출합니다.
-     */
-
-    public Long getUserIdFromRefreshToken(String token) {
-        return Long.valueOf(
-                Jwts.parserBuilder()
-                        .setSigningKey(SECRET_KEY)
-                        .build()
-                        .parseClaimsJws(token)
-                        .getBody()
-                        .getSubject()
-        );
-    }
-    public String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
-
-
+    public String keyHash() { return keyHash; }
 }

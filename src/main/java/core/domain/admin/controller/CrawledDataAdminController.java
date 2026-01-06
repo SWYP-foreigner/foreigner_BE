@@ -72,16 +72,21 @@ public class CrawledDataAdminController {
             @RequestParam("title") String title,
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
             @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, kNewsType, content,
+                    selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
+                    mainThumbnailFile, popularThumbnailFile, contentImages);
+
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
@@ -94,16 +99,21 @@ public class CrawledDataAdminController {
             @PathVariable Long id,
             @RequestParam("publishType") String publishType,
             @RequestParam(value = "boardId", required = false) Long boardId,
+            @RequestParam(value = "kNewsType", required = false) String kNewsType,
             @RequestParam("content") String content,
             @RequestParam(value = "selectedImageUrls", required = false) List<String> selectedImageUrls,
             @RequestParam(value = "mainThumbnailUrl", required = false) String mainThumbnailUrl,
             @RequestParam(value = "popularThumbnailUrl", required = false) String popularThumbnailUrl,
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
+            @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             RedirectAttributes redirectAttributes
     ) {
         try {
-            crawledDataAdminService.approveAndPost(id, publishType, boardId, content, selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl, mainThumbnailFile, popularThumbnailFile);
+            crawledDataAdminService.approveAndPost(id, publishType, boardId, kNewsType, content,
+                    selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
+                    mainThumbnailFile, popularThumbnailFile, contentImages);
+
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
