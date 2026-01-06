@@ -1,6 +1,6 @@
 package core.domain.maincontent.dto;
 
-import core.domain.maincontent.entity.MainPageContent;
+import core.domain.maincontent.entity.MainContent;
 
 
 public record MainPageContentResponse(
@@ -9,7 +9,7 @@ public record MainPageContentResponse(
         String htmlContent,
         String originalUrl
 ) {
-    public static MainPageContentResponse from(MainPageContent entity) {
+    public static MainPageContentResponse from(MainContent entity) {
         return new MainPageContentResponse(
                 entity.getId(),
                 entity.getTitle(),

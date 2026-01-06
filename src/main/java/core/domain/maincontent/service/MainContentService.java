@@ -3,14 +3,13 @@ package core.domain.maincontent.service;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainContentNewsResponse;
+import core.domain.maincontent.entity.MainContent;
 import core.global.enums.KNewsContentType;
 
 import core.domain.maincontent.dto.MainPageContentResponse;
-import core.domain.maincontent.entity.MainPageContent;
 import core.domain.maincontent.repository.MainContentRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageType;
-import core.global.enums.CommunitySortOption;
 import core.global.enums.MainContentSortOption;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.exception.BusinessException;
@@ -39,10 +38,10 @@ public class MainContentService {
     @Transactional(readOnly = true)
     public List<MainContentNewsResponse> getTop3News(KNewsContentType type) {
 
-        List<MainPageContent> contents = mainContentRepository.findTop3ByTypeOrderByViewCountDesc(type);
+        List<MainContent> contents = mainContentRepository.findTop3ByTypeOrderByViewCountDesc(type);
 
         // 1. ID 리스트 추출
-        List<Long> ids = contents.stream().map(MainPageContent::getId).toList();
+        List<Long> ids = contents.stream().map(MainContent::getId).toList();
 
         // 2. 이미지 벌크 조회 (Map으로 변환: Key=relatedId, Value=url)
         Map<Long, String> imageMap = getImageMap(ids);
@@ -59,9 +58,9 @@ public class MainContentService {
     }
 
     public List<MainContentTop9Response> getTrendingKNews() {
-        List<MainPageContent> contents = mainContentRepository.findTop9ByOrderByViewCountDesc();
+        List<MainContent> contents = mainContentRepository.findTop9ByOrderByViewCountDesc();
 
-        List<Long> ids = contents.stream().map(MainPageContent::getId).toList();
+        List<Long> ids = contents.stream().map(MainContent::getId).toList();
         Map<Long, String> imageMap = getImageMap(ids);
 
         return contents.stream()
@@ -89,7 +88,7 @@ public class MainContentService {
     }
 
     public MainPageContentResponse getMainContent(Long contentId) {
-        MainPageContent content = mainContentRepository.findById(contentId)
+        MainContent content = mainContentRepository.findById(contentId)
                 .orElseThrow(() -> new BusinessException(MainContentErrorCode.CONTENT_NOT_FOUND));
 
         content.addViewCount();

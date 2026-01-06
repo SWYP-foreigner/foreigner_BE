@@ -3,7 +3,7 @@ package core.domain.post.service;
 import core.domain.post.entity.HotKeywords;
 import core.domain.post.repository.HotKeywordRepository;
 import core.domain.post.repository.PostSearchRepositoryCustom;
-import core.domain.post.service.search.SuggestMemoryIndex;
+import core.domain.post.service.search.PostSuggestIndex;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,7 +22,7 @@ public class HotKeywordBatchService {
 
     private final PostSearchRepositoryCustom searchRepository;
     private final HotKeywordRepository hotKeywordRepository;
-    private final SuggestMemoryIndex memoryIndex;
+    private final PostSuggestIndex memoryIndex;
 
     @Scheduled(cron = "0 0 * * * *") // 매 정각 실행
     @Transactional
