@@ -2,10 +2,10 @@ package core.domain.admin.service;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.maincontent.entity.MainContent;
 import core.domain.post.dto.crawling.CrawledDataDto;
 import core.domain.post.dto.crawling.MergedCrawledDataDto;
 import core.domain.post.entity.CrawledData;
-import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.CrawledDataRepository;
 import core.domain.maincontent.repository.MainContentRepository;
@@ -129,10 +129,10 @@ public class CrawledDataAdminService {
             }
 
         } else if ("MAIN_PAGE".equals(publishType)) {
-            MainPageContent newContent = MainPageContent.builder()
+            MainContent newContent = MainContent.builder()
                     .title(title).htmlContent(content)
                     .originalUrl(sourceDataList.get(0).getOriginalUrl()).build();
-            MainPageContent savedContent = mainContentRepository.save(newContent);
+            MainContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -176,10 +176,10 @@ public class CrawledDataAdminService {
             }
 
         } else if ("MAIN_PAGE".equals(publishType)) {
-            MainPageContent newContent = MainPageContent.builder()
+            MainContent newContent = MainContent.builder()
                     .title(crawledData.getTitle()).htmlContent(content)
                     .originalUrl(crawledData.getOriginalUrl()).build();
-            MainPageContent savedContent = mainContentRepository.save(newContent);
+            MainContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 

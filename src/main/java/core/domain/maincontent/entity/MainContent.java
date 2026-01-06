@@ -17,7 +17,7 @@ import java.time.Instant;
 @Table(name = "main_page_content")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MainPageContent {
+public class MainContent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,7 +53,7 @@ public class MainPageContent {
 
 
     @Builder
-    public MainPageContent(String title, String htmlContent, String originalUrl) {
+    public MainContent(String title, String htmlContent, String originalUrl) {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;

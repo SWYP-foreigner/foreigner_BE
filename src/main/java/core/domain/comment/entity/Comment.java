@@ -35,7 +35,7 @@ public class Comment {
 
 //    @ManyToOne(fetch = FetchType.LAZY)
 //    @JoinColumn(name = "main_page_content_id")
-//    private MainPageContent mainPageContent;
+//    private MainContent mainPageContent;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
