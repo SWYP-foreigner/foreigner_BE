@@ -2,22 +2,35 @@ package core.domain.maincontent.repository;
 
 import com.querydsl.core.types.ConstructorExpression;
 import com.querydsl.core.types.Expression;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import core.domain.admin.dto.MainContentListResponse;
+import core.domain.admin.dto.MainContentSearchRequest;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.entity.QMainContent;
 import core.global.enums.KNewsContentType;
 import core.global.entity.image.entity.QImage;
 import core.global.enums.ImageType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
@@ -62,6 +75,78 @@ public class MainContentRepositoryImpl implements MainContentRepositoryCustom {
                 .orderBy(mainContent.viewCount.desc(), mainContent.id.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
+    }
+
+    @Override
+    public Page<MainContentListResponse> searchByAdmin(MainContentSearchRequest request, Pageable pageable) {
+        List<MainContentListResponse> content = query
+                .select(Projections.constructor(MainContentListResponse.class,
+                        mainContent,
+                        image.url
+                ))
+                .from(mainContent)
+                .leftJoin(image).on(isLatestThumbnail())
+                .where(
+                        titleContains(request.getTitle()),
+                        typeEq(request.getType()),
+                        createdAtBetween(request.getStartDate(), request.getEndDate())
+                )
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .orderBy(getOrderSpecifiers(pageable.getSort()).toArray(OrderSpecifier[]::new))
+                .fetch();
+
+        long total = Optional.ofNullable(query
+                        .select(mainContent.count())
+                        .from(mainContent)
+                        .where(
+                                titleContains(request.getTitle()),
+                                typeEq(request.getType()),
+                                createdAtBetween(request.getStartDate(), request.getEndDate())
+                        )
+                        .fetchOne())
+                .orElse(0L);
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private BooleanExpression titleContains(String title) {
+        return StringUtils.hasText(title) ? mainContent.title.containsIgnoreCase(title) : null;
+    }
+
+    private BooleanExpression createdAtBetween(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return null;
+        }
+        Instant startInstant = startDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant();
+        Instant endInstant = endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant();
+        return mainContent.createdAt.between(startInstant, endInstant);
+    }
+
+    private List<OrderSpecifier> getOrderSpecifiers(Sort sort) {
+        List<OrderSpecifier> orders = new ArrayList<>();
+        if (sort != null && !sort.isEmpty()) {
+            sort.forEach(order -> {
+                com.querydsl.core.types.Order direction = order.isAscending() ? com.querydsl.core.types.Order.ASC : com.querydsl.core.types.Order.DESC;
+                switch (order.getProperty()) {
+                    case "title":
+                        orders.add(new OrderSpecifier<>(direction, mainContent.title));
+                        break;
+                    case "viewCount":
+                        orders.add(new OrderSpecifier<>(direction, mainContent.viewCount));
+                        break;
+                    case "createdAt":
+                        orders.add(new OrderSpecifier<>(direction, mainContent.createdAt));
+                        break;
+                    default:
+                        orders.add(new OrderSpecifier<>(com.querydsl.core.types.Order.DESC, mainContent.id));
+                        break;
+                }
+            });
+        } else {
+            orders.add(new OrderSpecifier<>(com.querydsl.core.types.Order.DESC, mainContent.id));
+        }
+        return orders;
     }
 
     // --- 공통 로직 추출 (Helper Methods) ---

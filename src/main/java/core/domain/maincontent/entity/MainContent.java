@@ -71,4 +71,10 @@ public class MainContent {
         this.viewCount++;
     }
 
+    public void update(String title, String htmlContent, KNewsContentType type) {
+        this.title = title;
+        this.htmlContent = htmlContent;
+        this.type = type;
+    }
+
 }
