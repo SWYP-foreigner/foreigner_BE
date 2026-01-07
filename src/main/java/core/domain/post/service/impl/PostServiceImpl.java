@@ -278,7 +278,7 @@ public class PostServiceImpl implements PostService {
                     post.getId(),
                     null
             );
-            eventPublisher.publishEvent(event);
+//            eventPublisher.publishEvent(event);
         }
     }
 
@@ -337,7 +337,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
-        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
+//        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
