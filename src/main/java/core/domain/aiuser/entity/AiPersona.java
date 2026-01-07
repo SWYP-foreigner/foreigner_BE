@@ -1,8 +1,5 @@
-<<<<<<<< HEAD:src/main/java/core/domain/ai/entity/AiPersona.java
-package core.domain.ai.entity;
-========
 package core.domain.aiuser.entity;
->>>>>>>> test:src/main/java/core/domain/aiuser/entity/AiPersona.java
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

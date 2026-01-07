@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/main/java/core/domain/ai/client/OpenAiClientImpl.java
-package core.domain.ai.client;
-========
 package core.domain.aiuser.client;
->>>>>>>> test:src/main/java/core/domain/aiuser/client/OpenAiClientImpl.java
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

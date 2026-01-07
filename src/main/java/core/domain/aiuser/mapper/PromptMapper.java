@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/main/java/core/domain/ai/mapper/PromptMapper.java
-package core.domain.ai.mapper;
-========
 package core.domain.aiuser.mapper;
->>>>>>>> test:src/main/java/core/domain/aiuser/mapper/PromptMapper.java
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;

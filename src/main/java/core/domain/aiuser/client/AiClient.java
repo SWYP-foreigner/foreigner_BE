@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/main/java/core/domain/ai/client/AiClient.java
-package core.domain.ai.client;
-========
 package core.domain.aiuser.client;
->>>>>>>> test:src/main/java/core/domain/aiuser/client/AiClient.java
 
 import java.util.List;
 import java.util.Map;
