@@ -49,6 +49,7 @@ public class AdminPostController {
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
             @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam(value = "recommendationKeywords", required = false) List<String> recommendationKeywords,
             RedirectAttributes redirectAttributes
     ) {
 
@@ -58,7 +59,7 @@ public class AdminPostController {
 
             postService.createAdminPost(title, content, publishType, boardCategory, kNewsType,
                     generalImages, mainThumbnailFile, popularThumbnailFile,
-                    contentImages, adminUser);
+                    contentImages, adminUser, recommendationKeywords);
 
             redirectAttributes.addFlashAttribute("successMessage", "포스트가 성공적으로 발행되었습니다.");
             return "redirect:/admin/crawled-data";
