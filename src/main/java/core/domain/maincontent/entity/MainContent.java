@@ -53,7 +53,7 @@ public class MainContent {
 
 
     @Builder
-    public MainContent(String title, String htmlContent, String originalUrl) {
+    public MainContent(String title, String htmlContent, String originalUrl, KNewsContentType type) {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;

@@ -108,6 +108,22 @@ public class MainContentSearchService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public void increaseRecommendationScore(String keyword) {
+        recommendationRepository.findById(keyword).ifPresent(rec -> {
+            // 기존 frequency에 +1 (혹은 가중치만큼 부여)
+            // 엔티티에 @Setter가 없다면 새로운 객체를 생성하거나 내부 메서드 활용
+            MainContentRecommendation updatedRec = MainContentRecommendation.builder()
+                    .keyword(rec.getKeyword())
+                    .frequency(rec.getFrequency() + 1) // 점수 증가
+                    .updatedAt(Instant.now())
+                    .build();
+            recommendationRepository.save(updatedRec);
+            log.info("[Rec-Score] 키워드 '{}' 점수 상승: {} -> {}",
+                    keyword, rec.getFrequency(), updatedRec.getFrequency());
+        });
+    }
+
     private long calculateDaysAgo(Instant createdAt) {
         if (createdAt == null) {
             return 0; // 예외 처리

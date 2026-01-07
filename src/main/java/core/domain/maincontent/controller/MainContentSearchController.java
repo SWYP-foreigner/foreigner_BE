@@ -3,10 +3,10 @@ package core.domain.maincontent.controller;
 
 import core.domain.maincontent.dto.MainContentsSearchResultView;
 import core.domain.maincontent.dto.MainPageContentResponse;
+import core.domain.maincontent.service.MainContentService;
 import core.domain.maincontent.service.search.MainContentKeywordExtractor;
 import core.domain.maincontent.service.search.MainContentRecentService;
 import core.domain.maincontent.service.search.MainContentSearchService;
-import core.domain.maincontent.service.MainContentService;
 import core.domain.post.dto.search.SuggestClickRequest;
 import core.domain.post.service.MainContentSuggestIndex;
 import core.global.docs.annotations.CommunityErrorDocs;
@@ -18,7 +18,6 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -51,7 +50,7 @@ public class MainContentSearchController {
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @GetMapping("/posts")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @CommunityErrorDocs({CommunityErrorCode.BOARD_NOT_FOUND, })
+    @CommunityErrorDocs({CommunityErrorCode.BOARD_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentsSearchResultView>>> getPostList(
             @RequestParam String q,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
@@ -68,15 +67,15 @@ public class MainContentSearchController {
 
     @Operation(summary = "검색결과 상세페이지",
             description = "사용자가 검색결과를 클릭/열람했을 때 호출하여 인기(pop) 점수를 반영하고 상세페이지를 제공합니다.")
-    @GetMapping("/posts/{postId}")
+    @GetMapping("/posts/{contentId}")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
-    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.BLOCKED_USER_POST })
+    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.BLOCKED_USER_POST})
     public ResponseEntity<core.global.dto.ApiResponse<MainPageContentResponse>> resultClicked(
-            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long postId
+            @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long contentId
     ) {
-        MainPageContentResponse contentDetail = mainContentService.getMainContent(postId);
+        MainPageContentResponse contentDetail = mainContentService.getMainContent(contentId);
 
-        extractedKeyword(contentDetail.htmlContent(),1);
+        extractedKeyword(contentDetail.htmlContent(), 1);
 
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(contentDetail));
     }
@@ -97,11 +96,34 @@ public class MainContentSearchController {
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(keywords));
     }
 
+    @Operation(summary = "추천 키워드 클릭 후 검색",
+            description = "추천 칩 클릭 시 해당 키워드의 점수를 올립니다.")
+    @PostMapping("/hot-keywords/clicked")
+    public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentsSearchResultView>>> recommendationClicked(
+            @RequestParam String keyword,
+            @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
+            @RequestParam(required = false) String cursor,
+            @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
+    ) {
+        // 1. 점수 올리기 (DB frequency + 1)
+        mainContentSearchService.increaseRecommendationScore(keyword);
+
+        // 2. 검색 기록 로깅 (최근 검색어에도 추가하고 싶다면)
+        mainContentRecentService.log(keyword);
+
+        return ResponseEntity.ok(
+                core.global.dto.ApiResponse.success(
+                        mainContentSearchService.search(keyword, cursor, size)
+                )
+        );
+    }
+
+
     @Operation(summary = "자동완성 클릭 기록")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @PostMapping("/clicked")
     public void clicked(@RequestBody @Valid SuggestClickRequest body) {
-        extractedKeyword(body.text(),1);
+        extractedKeyword(body.text(), 1);
     }
 
     @Operation(summary = "최근 검색어 조회")

@@ -15,4 +15,6 @@ public interface MainContentSearchRepository {
 
     @SuppressWarnings("unchecked")
     List<Object[]> findEntitiesForChips(int topN);
+
+    boolean existsInContents(String keyword);
 }

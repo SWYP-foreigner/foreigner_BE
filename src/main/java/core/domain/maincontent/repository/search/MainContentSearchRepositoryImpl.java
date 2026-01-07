@@ -93,31 +93,31 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
     @Override
     public List<Object[]> findHotKeywordsOrTitles(int topN) {
         String sql = """
-            WITH docs AS (
-              SELECT m.content_id AS doc_id, m.title -- 본문보다 제목에서 키워드 추출이 더 정확함
-              FROM main_page_content m
-              WHERE m.created_at >= now() - interval '14 days' -- 뉴스는 기간을 조금 더 넓게 잡아도 됨
-            ),
-            tokens AS (
-              SELECT d.doc_id, lower(btrim((t.token_json::jsonb ->> 'value'))) AS term
-              FROM docs d
-              CROSS JOIN LATERAL unnest(
-                pgroonga_tokenize(d.title, 'tokenizer', 'TokenDelimit')
-              ) AS t(token_json)
-              WHERE (t.token_json::jsonb ->> 'value') <> ''
-                AND (t.token_json::jsonb ->> 'value') !~ '\\s'
-                AND length(t.token_json::jsonb ->> 'value') BETWEEN 2 AND 20
-                AND (t.token_json::jsonb ->> 'value') !~ '^[0-9]+$'
-                AND (t.token_json::jsonb ->> 'value') !~ '^(https?://|www\\\\.)'
-                AND (t.token_json::jsonb ->> 'value') !~ '^[[:punct:]]+$'
-            )
-            SELECT term, COUNT(DISTINCT doc_id) as freq
-            FROM tokens
-            GROUP BY term
-            HAVING COUNT(DISTINCT doc_id) >= 1
-            ORDER BY freq DESC
-            LIMIT :topN
-            """;
+                WITH docs AS (
+                  SELECT m.content_id AS doc_id, m.title -- 본문보다 제목에서 키워드 추출이 더 정확함
+                  FROM main_page_content m
+                  WHERE m.created_at >= now() - interval '14 days' -- 뉴스는 기간을 조금 더 넓게 잡아도 됨
+                ),
+                tokens AS (
+                  SELECT d.doc_id, lower(btrim((t.token_json::jsonb ->> 'value'))) AS term
+                  FROM docs d
+                  CROSS JOIN LATERAL unnest(
+                    pgroonga_tokenize(d.title, 'tokenizer', 'TokenDelimit')
+                  ) AS t(token_json)
+                  WHERE (t.token_json::jsonb ->> 'value') <> ''
+                    AND (t.token_json::jsonb ->> 'value') !~ '\\s'
+                    AND length(t.token_json::jsonb ->> 'value') BETWEEN 2 AND 20
+                    AND (t.token_json::jsonb ->> 'value') !~ '^[0-9]+$'
+                    AND (t.token_json::jsonb ->> 'value') !~ '^(https?://|www\\\\.)'
+                    AND (t.token_json::jsonb ->> 'value') !~ '^[[:punct:]]+$'
+                )
+                SELECT term, COUNT(DISTINCT doc_id) as freq
+                FROM tokens
+                GROUP BY term
+                HAVING COUNT(DISTINCT doc_id) >= 1
+                ORDER BY freq DESC
+                LIMIT :topN
+                """;
 
         return entityManager.createNativeQuery(sql)
                 .setParameter("topN", topN)
@@ -175,29 +175,43 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
     @Override
     public List<Object[]> findEntitiesForChips(int topN) {
         String sql = """
-            SELECT term, COUNT(DISTINCT doc_id) as freq
-            FROM (
-                SELECT m.content_id AS doc_id, 
-                       btrim((t.token_json::jsonb ->> 'value')) AS term
-                FROM main_page_content m
-                CROSS JOIN LATERAL unnest(
-                    pgroonga_tokenize(m.title, 'tokenizer', 'TokenDelimit')
-                ) AS t(token_json)
-                WHERE m.created_at >= now() - interval '30 days'
-                  AND (t.token_json::jsonb ->> 'value') <> ''
-                  AND (t.token_json::jsonb ->> 'value') ~ '^[A-Z]{1,}[a-zA-Z]*$|^[가-힣]{2,5}$'
-                  AND (t.token_json::jsonb ->> 'value') !~ '^[0-9]+$' -- 숫자만 있는 것 제외
-                  AND (t.token_json::jsonb ->> 'value') !~ '^(https?://|www\\\\.)' -- URL 제외
-            ) AS tokens
-            GROUP BY term
-            HAVING COUNT(DISTINCT doc_id) >= 1
-            ORDER BY freq DESC
-            LIMIT :topN
-            """;
+                SELECT term, COUNT(DISTINCT doc_id) as freq
+                FROM (
+                    SELECT m.content_id AS doc_id, 
+                           btrim((t.token_json::jsonb ->> 'value')) AS term
+                    FROM main_page_content m
+                    CROSS JOIN LATERAL unnest(
+                        pgroonga_tokenize(m.title, 'tokenizer', 'TokenDelimit')
+                    ) AS t(token_json)
+                    WHERE m.created_at >= now() - interval '30 days'
+                      AND (t.token_json::jsonb ->> 'value') <> ''
+                      AND (t.token_json::jsonb ->> 'value') ~ '^[A-Z]{1,}[a-zA-Z]*$|^[가-힣]{2,5}$'
+                      AND (t.token_json::jsonb ->> 'value') !~ '^[0-9]+$' -- 숫자만 있는 것 제외
+                      AND (t.token_json::jsonb ->> 'value') !~ '^(https?://|www\\\\.)' -- URL 제외
+                ) AS tokens
+                GROUP BY term
+                HAVING COUNT(DISTINCT doc_id) >= 1
+                ORDER BY freq DESC
+                LIMIT :topN
+                """;
 
         return entityManager.createNativeQuery(sql)
                 .setParameter("topN", topN)
                 .getResultList();
+    }
+
+    @Override
+    public boolean existsInContents(String keyword) {
+        String sql = """
+            SELECT EXISTS (
+                SELECT 1 FROM main_page_content 
+                WHERE title &@ :keyword OR html_content &@ :keyword -- 실제 컬럼명으로 수정
+                LIMIT 1
+            )
+            """;
+        return (boolean) entityManager.createNativeQuery(sql)
+                .setParameter("keyword", keyword)
+                .getSingleResult();
     }
 
 }
