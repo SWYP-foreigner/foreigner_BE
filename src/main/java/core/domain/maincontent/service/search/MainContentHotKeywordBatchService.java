@@ -53,7 +53,7 @@ public class MainContentHotKeywordBatchService {
      * [Warmup 전용] JSON 파일을 읽어 추천 칩 테이블(Refresh) 갱신
      */
     @Transactional
-    private void loadManualRecommendations() {
+    protected void loadManualRecommendations() {
         log.info("[Warmup-Rec] JSON 키워드 검증 및 업로드 시작...");
         try {
             Resource resource = resourceLoader.getResource("classpath:k_news_keywords.json");

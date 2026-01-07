@@ -11,9 +11,11 @@ import core.domain.post.dto.search.SuggestClickRequest;
 import core.domain.post.service.MainContentSuggestIndex;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.MainContentErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,7 +52,6 @@ public class MainContentSearchController {
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @GetMapping("/posts")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @CommunityErrorDocs({CommunityErrorCode.BOARD_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentsSearchResultView>>> getPostList(
             @RequestParam String q,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
@@ -68,8 +69,7 @@ public class MainContentSearchController {
     @Operation(summary = "검색결과 상세페이지",
             description = "사용자가 검색결과를 클릭/열람했을 때 호출하여 인기(pop) 점수를 반영하고 상세페이지를 제공합니다.")
     @GetMapping("/posts/{contentId}")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
-    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.BLOCKED_USER_POST})
+    @MainContentErrorDocs({MainContentErrorCode.CONTENT_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<MainPageContentResponse>> resultClicked(
             @Parameter(description = "게시글 ID", example = "123") @PathVariable @Positive Long contentId
     ) {
@@ -99,6 +99,7 @@ public class MainContentSearchController {
     @Operation(summary = "추천 키워드 클릭 후 검색",
             description = "추천 칩 클릭 시 해당 키워드의 점수를 올립니다.")
     @PostMapping("/hot-keywords/clicked")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentsSearchResultView>>> recommendationClicked(
             @RequestParam String keyword,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
@@ -137,6 +138,7 @@ public class MainContentSearchController {
     @Operation(summary = "최근 검색어 단건 삭제")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @DeleteMapping("/recent")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public void deleteRecent(@RequestParam String q) {
         mainContentRecentService.remove(q);
     }
@@ -144,6 +146,7 @@ public class MainContentSearchController {
     @Operation(summary = "최근 검색어 전체 삭제")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @DeleteMapping("/recent/all")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public void clearRecent() {
         mainContentRecentService.clear();
     }
