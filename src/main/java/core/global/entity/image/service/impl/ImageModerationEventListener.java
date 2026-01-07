@@ -6,7 +6,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageModerationStatus;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
-import core.global.service.ContentModerationService;
+import core.domain.admin.service.ContentModerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,18 +43,18 @@ public class ImageModerationEventListener {
             byte[] data = objectBytes.asByteArray();
             String filename = event.getS3Key().substring(event.getS3Key().lastIndexOf('/') + 1);
 
-            ContentModerationService.ModerationResult result = moderationService.inspectImage(data, filename);
+//            ContentModerationService.ModerationResult result = moderationService.inspectImage(data, filename);
 
-            Image image = imageRepository.findById(event.getImageId())
-                    .orElseThrow(() -> new BusinessException(ImageErrorCode.IMAGE_NOT_FOUND));
-
-            if (result.isHarmful()) {
-                log.warn("🚨 유해 이미지 적발! ID={}, Reason={}", event.getImageId(), result.getReason());
-                image.updateModerationStatus(ImageModerationStatus.SUSPICIOUS, result.getReason());
-            } else {
-                log.info("✅ 유해성 검사 통과: ID={}", event.getImageId());
-                image.updateModerationStatus(ImageModerationStatus.CLEAN, null);
-            }
+//            Image image = imageRepository.findById(event.getImageId())
+//                    .orElseThrow(() -> new BusinessException(ImageErrorCode.IMAGE_NOT_FOUND));
+//
+//            if (result.isHarmful()) {
+//                log.warn("🚨 유해 이미지 적발! ID={}, Reason={}", event.getImageId(), result.getReason());
+//                image.updateModerationStatus(ImageModerationStatus.SUSPICIOUS, result.getReason());
+//            } else {
+//                log.info("✅ 유해성 검사 통과: ID={}", event.getImageId());
+//                image.updateModerationStatus(ImageModerationStatus.CLEAN, null);
+//            }
 
         } catch (Exception e) {
             log.error("❌ 비동기 검사 중 오류 발생: imageId={}", event.getImageId(), e);

@@ -8,7 +8,7 @@ import core.domain.post.service.PostService;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -81,7 +81,7 @@ public class BoardController {
     @GetMapping("/{boardId}/posts")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BoardItem>>> getPostList(
             @PathVariable Long boardId,
-            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") SortOption sort,
+            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") CommunitySortOption sort,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size

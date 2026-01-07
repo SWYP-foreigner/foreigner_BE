@@ -1,11 +1,10 @@
 spring:
   flyway:
-    enabled: false
+    enabled: true
     baseline-on-migrate: true
   config:
     activate:
       on-profile: local
-
   messages:
     basename: messages
     encoding: UTF-8
@@ -50,11 +49,11 @@ spring:
         enabled: false
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
@@ -156,6 +155,9 @@ management:
   metrics:
     tags:
       application: my-service
+  health:
+    mail:
+          enabled: false
 
 app:
   mail:

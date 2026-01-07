@@ -1,6 +1,5 @@
 package core.domain.comment.entity;
 
-import core.domain.post.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import jakarta.persistence.*;

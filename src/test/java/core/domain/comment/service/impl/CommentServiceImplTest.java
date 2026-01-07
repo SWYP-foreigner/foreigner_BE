@@ -16,7 +16,7 @@ import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.BoardCategory;
 import core.global.enums.LikeType;
-import core.global.enums.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
@@ -279,7 +279,7 @@ class CommentServiceImplTest {
     void getCommentList_translate_true() {
         Long postId = 10L;
         int size = 20;
-        SortOption sort = SortOption.LATEST;
+        CommunitySortOption sort = CommunitySortOption.LATEST;
         String cursor = null;
         Boolean translate = true;
 

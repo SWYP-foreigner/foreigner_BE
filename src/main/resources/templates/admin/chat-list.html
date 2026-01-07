@@ -20,7 +20,7 @@
             border-radius: 4px;
             font-size: 0.9rem;
             background-color: white;
-            height: 38px; /* 높이 통일 */
+            height: 38px;
             box-sizing: border-box;
         }
 
@@ -70,6 +70,7 @@
             <select name="sort" onchange="this.form.submit()">
                 <option value="createdAt,desc" th:selected="${param.sort == null || #strings.contains(param.sort, 'createdAt')}">생성일순</option>
                 <option value="updatedAt,desc" th:selected="${param.sort != null && #strings.contains(param.sort, 'updatedAt')}">최신 활동순</option>
+                <option value="messageCount,desc" th:selected="${param.sort != null && #strings.contains(param.sort, 'messageCount')}">대화 많은 순</option>
             </select>
 
             <input type="text" name="keyword" th:value="*{keyword}" placeholder="방 이름, 참여자, 이메일 검색">
@@ -80,10 +81,11 @@
     <table>
         <colgroup>
             <col style="width: 8%;">
-            <col style="width: 42%;">
+            <col style="width: 35%;">
+            <col style="width: 8%;">
             <col style="width: 10%;">
             <col style="width: 10%;">
-            <col style="width: 18%;">
+            <col style="width: 17%;">
             <col style="width: 12%;">
         </colgroup>
         <thead>
@@ -92,13 +94,14 @@
             <th>방 이름</th>
             <th>유형</th>
             <th>참여자 수</th>
+            <th>메시지 수</th>
             <th>생성일</th>
             <th>관리</th>
         </tr>
         </thead>
         <tbody>
         <tr th:if="${chatRoomPage.isEmpty()}">
-            <td colspan="6" style="text-align: center; color: #868e96; padding: 40px;">
+            <td colspan="7" style="text-align: center; color: #868e96; padding: 40px;">
                 검색된 채팅방이 없습니다.
             </td>
         </tr>
@@ -111,6 +114,9 @@
                 <span th:unless="${room.isGroup}" style="color: #868e96;">1:1</span>
             </td>
             <td th:text="${room.participantCount} + '명'"></td>
+            <td style="font-weight: bold; color: #495057;">
+                <span th:text="${#numbers.formatInteger(room.messageCount, 0, 'COMMA')}">0</span>건
+            </td>
             <td th:text="${#temporals.format(room.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
             <td>
                 <div class="action-buttons">

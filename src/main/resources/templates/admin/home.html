@@ -29,13 +29,14 @@
             display: none;
             position: absolute;
             background-color: #f9f9f9;
-            min-width: 160px;
+            min-width: 180px;
             box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
             z-index: 1;
             border-radius: 5px;
             left: 50%;
             transform: translateX(-50%);
             margin-top: 15px;
+            overflow: hidden;
         }
         .dropdown-content a {
             color: black;
@@ -84,6 +85,12 @@
                 <a th:href="@{/admin/comments}">댓글 관리</a>
                 <a th:href="@{/admin/boards}">카테고리 관리</a>
                 <a th:href="@{/admin/posts/reports}">신고 내역 관리</a>
+
+                <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
+
+                <a th:href="@{/admin/main-contents}" style="color: #007bff; font-weight: bold;">
+                    메인 컨텐츠 관리
+                </a>
             </div>
         </div>
 
@@ -91,9 +98,15 @@
             <div class="icon">💬</div>
             <div class="title">채팅 관리</div>
             <div class="dropdown-content">
-                <a th:href="@{/admin/chats}">채팅방 목록</a>
+                <a th:href="@{/admin/chats}">전체 채팅방 목록</a>
                 <a th:href="@{/admin/chats/search}">채팅 내용 검색</a>
                 <a th:href="@{/admin/chats/reports}">신고 내역 관리</a>
+
+                <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
+
+                <a th:href="@{/admin/direct-chat}" style="color: #007bff; font-weight: bold;">
+                    관리자 1:1 채팅
+                </a>
             </div>
         </div>
 
@@ -115,6 +128,11 @@
         <a th:href="@{/admin/users/health}" class="menu-item" style="border: 2px solid #17a2b8;">
             <div class="icon">🏥</div>
             <div class="title" style="color: #17a2b8;">시스템 상태 점검</div>
+        </a>
+
+        <a th:href="@{/admin/push}" class="menu-item" style="border: 2px solid #6610f2;">
+            <div class="icon">🚀</div>
+            <div class="title" style="color: #6610f2;">푸시 알림 발송</div>
         </a>
     </div>
 

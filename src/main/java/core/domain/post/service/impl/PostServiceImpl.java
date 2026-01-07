@@ -7,13 +7,13 @@ import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
-import core.domain.post.entity.MainPageContent;
+import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
-import core.domain.post.repository.MainPageContentRepository;
+import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -24,10 +24,10 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
-import core.global.entity.image.S3Props;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
+import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.*;
@@ -52,16 +52,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetUrlRequest;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
@@ -93,13 +87,12 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
 
-    private final MainPageContentRepository mainPageContentRepository;
-    private final S3Client s3Client;
-    private final S3Props s3Props;
+    private final MainContentRepository mainContentRepository;
+    private final ImageStorageClient imageStorageClient;
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, CommunitySortOption sort, String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
@@ -130,8 +123,7 @@ public class PostServiceImpl implements PostService {
                 boardId,
                 truncateToMillis(k.t),
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
         if (rows == null || rows.isEmpty()) {
@@ -154,8 +146,7 @@ public class PostServiceImpl implements PostService {
                 since,
                 k.sc,
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
 
@@ -201,7 +192,7 @@ public class PostServiceImpl implements PostService {
     }
 
     private Instant popularSince() {
-        return Instant.now().minus(Duration.ofDays(10));
+        return Instant.now().minus(Duration.ofDays(14));
     }
 
     // ------- 유틸 -------
@@ -253,9 +244,9 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-        validateDuplicateContent(email, request.content());
+//        validateDuplicateContent(email, request.content());
 
-        validatePostFlooding(email);
+//        validatePostFlooding(email);
 
         final Post post = getPost(email, request, board);
 
@@ -287,7 +278,7 @@ public class PostServiceImpl implements PostService {
                     post.getId(),
                     null
             );
-            eventPublisher.publishEvent(event);
+//            eventPublisher.publishEvent(event);
         }
     }
 
@@ -346,7 +337,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
-        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
+//        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -358,7 +349,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
-        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
+//        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -387,7 +378,7 @@ public class PostServiceImpl implements PostService {
         }
 
         imageService.updatePostImages(post.getId(), request.images(), request.removedImages());
-        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
+//        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
 
     }
 
@@ -626,9 +617,10 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public void createAdminPost(String title, String content, String publishType,
-                                String boardCategoryStr,
+                                String boardCategoryStr, String kNewsTypeStr,
                                 List<MultipartFile> generalImages,
                                 MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                                List<MultipartFile> contentImages,
                                 User adminUser) throws IOException {
 
         if ("GENERAL".equals(publishType)) {
@@ -654,85 +646,112 @@ public class PostServiceImpl implements PostService {
                 throw new BusinessException(CommonErrorCode.INVALID_INPUT);
             }
 
+            KNewsContentType kNewsType = null;
+            if (StringUtils.hasText(kNewsTypeStr)) {
+                try {
+                    kNewsType = KNewsContentType.valueOf(kNewsTypeStr);
+                } catch (IllegalArgumentException e) {
+                    throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+                }
+            }
+
             MainPageContent newContent = MainPageContent.builder()
                     .title(title)
                     .htmlContent(content)
+                    .type(kNewsType)
                     .originalUrl(null)
-                    .publisher(adminUser)
                     .build();
 
-            MainPageContent savedContent = mainPageContentRepository.save(newContent);
+            MainPageContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
 
-            String processedHtml = processHtmlAndUploadImages(content, contentId);
+            String processedHtml = processHtmlAndUploadImages(content, contentId, contentImages);
             savedContent.changeHtmlContent(processedHtml);
 
             if (mainThumbnailFile != null && !mainThumbnailFile.isEmpty()) {
-                String s3Url = uploadMultipartFileToS3(mainThumbnailFile, contentId);
-                saveImageEntity(contentId, s3Url, ImageType.MAIN_PAGE_THUMBNAIL);
+                String cdnUrl = uploadFileToStorage(mainThumbnailFile, contentId);
+                saveImageEntity(contentId, cdnUrl, ImageType.MAIN_PAGE_THUMBNAIL);
             }
 
             if (popularThumbnailFile != null && !popularThumbnailFile.isEmpty()) {
-                String s3Url = uploadMultipartFileToS3(popularThumbnailFile, contentId);
-                saveImageEntity(contentId, s3Url, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL);
+                String cdnUrl = uploadFileToStorage(popularThumbnailFile, contentId);
+                saveImageEntity(contentId, cdnUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL);
             }
         }
     }
 
-    private String processHtmlAndUploadImages(String htmlContent, Long contentId) {
+    private String processHtmlAndUploadImages(String htmlContent, Long contentId, List<MultipartFile> contentImages) {
         Document doc = Jsoup.parseBodyFragment(htmlContent);
         Elements imgTags = doc.select("img");
 
         int orderIndex = 0;
         for (Element img : imgTags) {
             String originalSrc = img.attr("src");
+            String dataFileIndex = img.attr("data-file-index");
 
-            if (originalSrc.startsWith("http")) {
-                String s3Url = uploadImageFromUrlToS3(originalSrc, contentId);
+            String cdnUrl = null;
 
-                if (s3Url != null) {
-                    img.attr("src", s3Url);
-
-                    if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, ImageType.MAIN_PAGE_BODY)) {
-                        Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, s3Url, orderIndex++);
-                        imageRepository.save(bodyImage);
+            if (StringUtils.hasText(dataFileIndex) && contentImages != null) {
+                try {
+                    int index = Integer.parseInt(dataFileIndex);
+                    if (index >= 0 && index < contentImages.size()) {
+                        MultipartFile file = contentImages.get(index);
+                        if (file != null && !file.isEmpty()) {
+                            cdnUrl = uploadFileToStorage(file, contentId);
+                        }
                     }
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid data-file-index: {}", dataFileIndex);
+                }
+            }
+            else if (originalSrc.startsWith("http")) {
+                cdnUrl = uploadUrlToStorage(originalSrc, contentId);
+            }
+
+            if (cdnUrl != null) {
+                img.attr("src", cdnUrl);
+                img.removeAttr("data-file-index");
+
+                if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, ImageType.MAIN_PAGE_BODY)) {
+                    Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, cdnUrl, orderIndex++);
+                    imageRepository.save(bodyImage);
                 }
             }
         }
         return doc.body().html();
     }
 
-    private String uploadImageFromUrlToS3(String imageUrl, Long contentId) {
-        try {
-            URL url = new URL(imageUrl);
-            String extension = getExtensionFromUrl(imageUrl);
-            String fileName = UUID.randomUUID() + extension;
-            String s3Key = "main-page/" + contentId + "/" + fileName;
+    private String uploadFileToStorage(MultipartFile file, Long contentId) {
+        String ext = getExtension(file.getOriginalFilename());
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
 
-            try (InputStream inputStream = url.openStream()) {
-                byte[] imageBytes = inputStream.readAllBytes();
+        imageStorageClient.upload(file, key);
 
-                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                        .bucket(s3Props.getBucket())
-                        .key(s3Key)
-                        .contentType("image/" + (extension.equals(".png") ? "png" : "jpeg"))
-                        .acl(ObjectCannedACL.PUBLIC_READ)
-                        .contentLength((long) imageBytes.length)
-                        .build();
+        return imageStorageClient.generatePublicUrl(key);
+    }
 
-                s3Client.putObject(putObjectRequest, RequestBody.fromBytes(imageBytes));
-            }
+    private String uploadUrlToStorage(String originalUrl, Long contentId) {
+        String ext = getExtension(originalUrl);
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
 
-            return s3Client.utilities().getUrl(GetUrlRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .build()).toString();
+        // ImageStorageClient에 위임
+        String uploadedKey = imageStorageClient.uploadFromUrl(originalUrl, key);
 
-        } catch (Exception e) {
-            log.warn("Failed to upload image from URL: {}", imageUrl, e);
-            return null;
+        if (uploadedKey != null) {
+            return imageStorageClient.generatePublicUrl(key);
         }
+        return null;
+    }
+
+    private String getExtension(String filename) {
+        if (filename != null && filename.contains(".")) {
+            String ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();
+            if (ext.contains("?")) {
+                ext = ext.substring(0, ext.indexOf("?"));
+            }
+            return ext;
+        }
+        return ".jpg";
     }
 
     private String getExtensionFromUrl(String url) {
@@ -749,38 +768,9 @@ public class PostServiceImpl implements PostService {
         return ".jpg";
     }
 
-    private String uploadMultipartFileToS3(MultipartFile file, Long contentId) {
-        try {
-            String originalFilename = file.getOriginalFilename();
-            String extension = ".jpg";
-            if (originalFilename != null && originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-            }
-            String fileName = UUID.randomUUID() + extension;
-            String s3Key = "main-page/" + contentId + "/" + fileName;
-
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .contentType(file.getContentType())
-                    .acl(ObjectCannedACL.PUBLIC_READ)
-                    .contentLength(file.getSize())
-                    .build();
-
-            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-
-            return s3Client.utilities().getUrl(GetUrlRequest.builder()
-                    .bucket(s3Props.getBucket())
-                    .key(s3Key)
-                    .build()).toString();
-        } catch (IOException e) {
-            throw new BusinessException(CommonErrorCode.FILE_UPLOAD_ERROR);
-        }
-    }
-
-    private void saveImageEntity(Long contentId, String s3Url, ImageType type) {
-        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, s3Url, type)) {
-            Image image = Image.of(type, contentId, s3Url, 0);
+    private void saveImageEntity(Long contentId, String cdnUrl, ImageType type) {
+        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, type)) {
+            Image image = Image.of(type, contentId, cdnUrl, 0);
             imageRepository.save(image);
         }
     }

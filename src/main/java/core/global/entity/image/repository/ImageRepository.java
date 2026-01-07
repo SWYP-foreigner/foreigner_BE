@@ -114,4 +114,21 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     List<Image> findByModerationStatusOrderByIdDesc(ImageModerationStatus status);
 
     boolean existsByRelatedIdAndUrlAndImageType(Long contentId, String url, ImageType type);
+
+    @Query("SELECT i.relatedId, i.url FROM Image i " +
+           "WHERE i.id IN (SELECT MIN(i2.id) FROM Image i2 " +
+           "               WHERE i2.relatedId IN :postIds AND i2.imageType = 'POST' " +
+           "               GROUP BY i2.relatedId)")
+    List<Object[]> findFirstUrlsByPostIds(@Param("postIds") List<Long> postIds);
+
+    // 포스트별 이미지 총 개수 조회
+    @Query("SELECT i.relatedId, COUNT(i) FROM Image i " +
+           "WHERE i.relatedId IN :postIds AND i.imageType = 'POST' " +
+           "GROUP BY i.relatedId")
+    List<Object[]> countImageByPostIds(@Param("postIds") List<Long> postIds);
+
+    // 유저별 프로필 이미지 URL 조회
+    @Query("SELECT i.relatedId, i.url FROM Image i " +
+           "WHERE i.relatedId IN :userIds AND i.imageType = 'USER'")
+    List<Object[]> findProfileImagesByUserIds(@Param("userIds") List<Long> userIds);
 }

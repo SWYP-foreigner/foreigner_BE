@@ -61,13 +61,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardItem> findLatestPosts(Long userId, Long boardId,
                                            Instant cursorCreatedAt,
                                            Long cursorId,
-                                           int size,
-                                           String q) {
+                                           int size) {
 
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank())
-                ? null
-                : post.content.containsIgnoreCase(q);
 
         BooleanExpression ltCursor = (cursorCreatedAt == null)
                 ? null
@@ -120,17 +116,16 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
                 .orderBy(post.createdAt.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
     }
 
     @Override
-    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
+    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
 
         // ── 집계
         Expression<Long> likeCountSub = likeCountExpr();
@@ -232,7 +227,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
                 .orderBy(
                         score.desc(),
                         post.id.desc()
@@ -245,11 +240,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     @Override
     public PostDetailResponse findPostDetail(String email, Long postId) {
         QImage userImage = new QImage("u");
+        QImage subUserImage = new QImage("subUserImage");
 
         Expression<Long> likeCountExpr = likeCountExpr();
         Expression<Long> commentCountExpr = commentCountExpr();
         Expression<Long> authorIdExpr = authorIdExpr();
         StringExpression userNameExpr = getAuthorName();
+
+        // 1. 먼저 가장 최근의 이미지 ID를 찾는 서브쿼리 정의
 
         Expression<String> userImageUrlExpr = new CaseBuilder()
                 .when(post.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
@@ -257,11 +255,15 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         JPAExpressions.select(userImage.url)
                                 .from(userImage)
                                 .where(
-                                        userImage.imageType.eq(IMAGE_TYPE_USER)
-                                                .and(userImage.relatedId.eq(user.id))
+                                        userImage.id.eq(
+                                                JPAExpressions.select(subUserImage.id.max())
+                                                        .from(subUserImage)
+                                                        .where(
+                                                                subUserImage.imageType.eq(IMAGE_TYPE_USER),
+                                                                subUserImage.relatedId.eq(user.id)
+                                                        )
+                                        )
                                 )
-                                .orderBy(userImage.id.desc())
-                                .limit(1)
                 );
 
         QImage image = QImage.image;
@@ -603,32 +605,49 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .otherwise(expr);
     }
 
-    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
+        QImage uSub = new QImage("uSub");
+
         return JPAExpressions
-                .select(u.url)
+                .select(u.url.min())
                 .from(u)
                 .where(
-                        u.imageType.eq(IMAGE_TYPE_USER)
-                                .and(u.relatedId.eq(user.id))
-                )
-                .orderBy(u.id.desc())
-                .limit(1);
+                        u.imageType.eq(IMAGE_TYPE_USER),
+                        u.relatedId.eq(user.id),
+                        u.id.eq(
+                                JPAExpressions
+                                        .select(uSub.id.max()) // 가장 최근에 등록된 이미지 ID
+                                        .from(uSub)
+                                        .where(
+                                                uSub.imageType.eq(IMAGE_TYPE_USER),
+                                                uSub.relatedId.eq(user.id)
+                                        )
+                        )
+                );
     }
+
 
     private Expression<String> firstPostImageUrlExpr() {
         QImage pi = new QImage("pi");
+        QImage piSub = new QImage("piSub");
 
         return JPAExpressions
-                .select(pi.url)
+                .select(pi.url.min()) // 최소 order_index가 중복될 경우를 대비한 안전장치(Scalar 보장)
                 .from(pi)
                 .where(
                         pi.imageType.eq(IMAGE_TYPE_POST),
-                        pi.relatedId.eq(post.id)
-                )
-                .orderBy(pi.orderIndex.asc(), pi.id.asc())
-                .limit(1); // 첫 번째 이미지 1장만
+                        pi.relatedId.eq(post.id),
+                        pi.orderIndex.eq(
+                                JPAExpressions
+                                        .select(piSub.orderIndex.min()) // 가장 작은 순서 번호를 찾음
+                                        .from(piSub)
+                                        .where(
+                                                piSub.imageType.eq(IMAGE_TYPE_POST),
+                                                piSub.relatedId.eq(post.id)
+                                        )
+                        )
+                );
     }
 
     private Expression<Long> commentCountExpr() {

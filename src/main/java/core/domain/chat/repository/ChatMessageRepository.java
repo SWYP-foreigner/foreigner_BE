@@ -119,6 +119,95 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     Long countSendMessageUsersLast1Day();
 
     Page<ChatMessage> findAllByChatRoomId(Long chatRoomId, Pageable pageable);
-
+    @Query("SELECT m FROM ChatMessage m JOIN FETCH m.chatRoom WHERE m.chatRoom.id = :chatRoomId ORDER BY m.sentAt DESC")
     List<ChatMessage> findTop20ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
+    @Query("SELECT cm.chatRoom.isGroup, COUNT(cm) " +
+            "FROM ChatMessage cm " +
+            "WHERE cm.sentAt BETWEEN :start AND :end " +
+            "GROUP BY cm.chatRoom.isGroup")
+    List<Object[]> countMessagesByRoomType(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        WITH RoomMessageStats AS (
+            SELECT
+                cm.chatroom_id,
+                cm.sender_id,
+                cm.sent_at,
+                FIRST_VALUE(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as first_sender_id,
+                FIRST_VALUE(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as first_sent_at
+            FROM chat_message cm
+            JOIN chat_room cr ON cm.chatroom_id = cr.chatroom_id
+            WHERE cr.is_group = false
+        ),
+        FirstReplies AS (
+            SELECT
+                chatroom_id,
+                first_sent_at,
+                MIN(sent_at) as first_reply_at
+            FROM RoomMessageStats
+            WHERE sender_id != first_sender_id
+            GROUP BY chatroom_id, first_sent_at
+        )
+        SELECT
+            COALESCE(AVG(EXTRACT(EPOCH FROM (reply_at - first_sent_at))), 0),
+            COUNT(*)
+        FROM (
+            SELECT
+                fr.chatroom_id,
+                fr.first_sent_at,
+                fr.first_reply_at as reply_at
+            FROM FirstReplies fr
+            WHERE fr.first_sent_at BETWEEN :start AND :end
+        ) final_data
+    """, nativeQuery = true)
+    List<Object[]> calculateFirstResponseTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    List<ChatMessage> findTop5ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
+    @Query(value = """
+        SELECT
+            COALESCE(AVG(EXTRACT(EPOCH FROM (sent_at - prev_sent_at))), 0) as avg_seconds,
+            COUNT(*) as count_pairs
+        FROM (
+            SELECT
+                cm.sent_at,
+                cm.sender_id,
+                LAG(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sent_at,
+                LAG(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sender_id
+            FROM chat_message cm
+            JOIN chat_room cr ON cm.chatroom_id = cr.chatroom_id
+            WHERE cr.is_group = true
+              AND cm.sent_at BETWEEN :start AND :end
+        ) temp_table
+        WHERE prev_sent_at IS NOT NULL
+          AND prev_sender_id != sender_id
+    """, nativeQuery = true)
+    List<Object[]> calculateGroupChatAvgReplyTime(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query(value = """
+        SELECT
+            r.room_name,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (t.sent_at - t.prev_sent_at))), 0) as avg_diff,
+            COUNT(*) as count_pairs
+        FROM (
+            SELECT
+                cm.chatroom_id,
+                cm.sent_at,
+                cm.sender_id,
+                LAG(cm.sent_at) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sent_at,
+                LAG(cm.sender_id) OVER (PARTITION BY cm.chatroom_id ORDER BY cm.sent_at) as prev_sender_id
+            FROM chat_message cm
+            WHERE cm.sent_at BETWEEN :start AND :end
+        ) t
+        JOIN chat_room r ON t.chatroom_id = r.chatroom_id
+        WHERE r.is_group = true
+          AND t.prev_sent_at IS NOT NULL
+          AND t.prev_sender_id != t.sender_id -- 자문자답 제외
+        GROUP BY r.chatroom_id, r.room_name
+        ORDER BY avg_diff ASC
+    """, nativeQuery = true)
+    List<Object[]> findAllGroupChatSpeeds(@Param("start") Instant start, @Param("end") Instant end);
+
+    long countByChatRoomId(Long chatRoomId);
 }
