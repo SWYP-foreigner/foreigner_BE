@@ -1,6 +1,6 @@
 package core.domain.admin.dto;
 
-import core.domain.maincontent.entity.MainPageContent;
+import core.domain.maincontent.entity.MainContent;
 import core.global.entity.image.entity.Image;
 import core.global.enums.KNewsContentType;
 import lombok.AllArgsConstructor;
@@ -30,7 +30,7 @@ public class MainContentDetailDto {
     private String popularThumbnailUrl;
     private List<String> bodyImageUrls;
 
-    public static MainContentDetailDto from(MainPageContent entity,
+    public static MainContentDetailDto from(MainContent entity,
                                             String mainThumbnailUrl,
                                             String popularThumbnailUrl,
                                             List<Image> bodyImages) {
