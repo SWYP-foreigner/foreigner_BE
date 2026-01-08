@@ -136,6 +136,10 @@ public class FollowService {
             throw new BusinessException(UserErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
+        if (followRepository.existsByUserAndFollowing(follower, targetUser)) {
+            throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
+        }
+
         // 2. FriendType을 통한 관계 검증 로직 적용
         FriendType currentRelation = determineFriendType(follower, targetUser);
 
