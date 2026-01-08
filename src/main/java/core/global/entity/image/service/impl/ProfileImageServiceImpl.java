@@ -126,6 +126,8 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         // 8) 기존 DB 삭제
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
 
+        imageRepository.flush();
+
         // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
 
@@ -225,6 +227,8 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
         // 8) 기존 DB 삭제
         imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
+
+        imageRepository.flush();
 
         // 9) staging → 영구 이동 또는 as-is 사용
         String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
