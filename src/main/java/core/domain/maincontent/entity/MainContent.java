@@ -14,7 +14,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 @Entity
-@Table(name = "main_page_content")
+@Table(name = "main_content")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MainContent {
