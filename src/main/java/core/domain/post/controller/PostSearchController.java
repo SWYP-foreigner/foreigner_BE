@@ -6,7 +6,7 @@ import core.domain.post.dto.search.SuggestClickRequest;
 import core.domain.post.service.search.PostSearchService;
 import core.domain.post.service.PostService;
 import core.domain.post.service.search.RecentSearchRedisService;
-import core.domain.post.service.search.SuggestMemoryIndex;
+import core.domain.post.service.search.PostSuggestIndex;
 import core.global.docs.annotations.CommonErrorCodeDocs;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
@@ -43,7 +43,7 @@ public class PostSearchController {
     private final PostSearchService searchService;
     private final RecentSearchRedisService recentService;
     private final FeatureUsageMetrics featureUsageMetrics;
-    private final SuggestMemoryIndex memoryIndex;
+    private final PostSuggestIndex memoryIndex;
     private final SimpleKeywordExtractor keywordExtractor;
 
     @Operation(summary = "게시글 검색", description = "커서 페이지네이션 지원")

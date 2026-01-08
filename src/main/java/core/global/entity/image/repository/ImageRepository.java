@@ -121,6 +121,12 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
            "               GROUP BY i2.relatedId)")
     List<Object[]> findFirstUrlsByPostIds(@Param("postIds") List<Long> postIds);
 
+    @Query("SELECT i.relatedId, i.url FROM Image i " +
+           "WHERE i.id IN (SELECT MIN(i2.id) FROM Image i2 " +
+           "               WHERE i2.relatedId IN :mainContentIds AND i2.imageType = 'MAIN_PAGE_THUMBNAIL' " +
+           "               GROUP BY i2.relatedId)")
+    List<Object[]> findFirstUrlsByMainContentsIds(@Param("mainContentIds") List<Long> mainContentIds);
+
     // 포스트별 이미지 총 개수 조회
     @Query("SELECT i.relatedId, COUNT(i) FROM Image i " +
            "WHERE i.relatedId IN :postIds AND i.imageType = 'POST' " +

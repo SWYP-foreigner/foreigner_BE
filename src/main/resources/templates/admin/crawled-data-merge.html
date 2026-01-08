@@ -189,6 +189,18 @@
         </div>
 
         <div class="approval-form-controls">
+            <div class="mb-3 only-main" style="margin-top: 20px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 5px; text-align: left;">
+                <label for="recommendationKeywords" class="form-label" style="font-weight: bold;">
+                    <i class="fa-solid fa-tags"></i> 추천 키워드 (쉼표로 구분)
+                </label>
+                <input type="text" class="form-control" id="recommendationKeywords" name="recommendationKeywords"
+                       placeholder="예: 서울 맛집, K-FOOD, 삼겹살"
+                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; margin-top: 5px; box-sizing: border-box;">
+                <div class="form-text" style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                    * 메인 페이지(HTML) 발행 시에만 키워드가 저장됩니다.
+                </div>
+            </div>
+
             <span id="generalBoardSelect">
                 <label>게시판:</label>
                 <select name="boardId" id="boardSelect">

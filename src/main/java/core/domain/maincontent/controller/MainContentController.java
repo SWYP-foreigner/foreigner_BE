@@ -4,24 +4,28 @@ import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainPageContentResponse;
-import core.global.enums.KNewsContentType;
 import core.domain.maincontent.service.MainContentService;
+import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.MainContentErrorDocs;
-import core.global.enums.CommunitySortOption;
+import core.global.enums.KNewsContentType;
 import core.global.enums.MainContentSortOption;
+import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Main-Contents", description = "메인 콘텐츠 API")
 @RestController
-@RequestMapping("/api/v2/main-contents") // 기본 경로 설정
+@RequestMapping("/api/v2/main-contents")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class MainContentController {
 
     private final MainContentService mainContentService;
@@ -101,5 +105,6 @@ public class MainContentController {
                         mainContentService.getTrendingKNews()
                 ));
     }
+
 
 }

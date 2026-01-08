@@ -1,6 +1,4 @@
-package core.domain.post.service.search;
-
-import org.springframework.stereotype.Component;
+package core.domain.post.service;
 
 import java.text.Normalizer;
 import java.util.*;
@@ -8,24 +6,17 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 매우 단순한 prefix 사전:
- * - 키: 텍스트(제목/검색어/태그 등 짧은 후보)
- * - 값: 인기(pop) 점수
- * - prefix 조회는 정렬맵의 tailMap으로 근사
+ * 도메인별 자동완성 메모리 인덱스 베이스
  */
-@Component
-public class SuggestMemoryIndex {
+public abstract class DomainSuggestIndex {
 
-    // AtomicReference를 사용하여 맵 전체를 원자적으로 교체 가능하게 함
     private final AtomicReference<ConcurrentSkipListMap<String, Integer>> dictRef =
             new AtomicReference<>(new ConcurrentSkipListMap<>());
 
     public List<String> suggestPrefix(String prefix, int limit) {
         if (prefix == null || prefix.isBlank() || limit <= 0) return List.of();
 
-        // 현재 시점의 맵 스냅샷을 가져옴
         ConcurrentSkipListMap<String, Integer> currentDict = dictRef.get();
-
         var it = currentDict.tailMap(prefix, true).entrySet().iterator();
         List<Map.Entry<String, Integer>> buf = new ArrayList<>(limit * 4);
 
@@ -37,9 +28,9 @@ public class SuggestMemoryIndex {
         }
 
         buf.sort((a, b) -> {
-            int c = Integer.compare(b.getValue(), a.getValue()); // pop desc
+            int c = Integer.compare(b.getValue(), a.getValue()); // 인기순
             if (c != 0) return c;
-            return Integer.compare(a.getKey().length(), b.getKey().length()); // length asc
+            return Integer.compare(a.getKey().length(), b.getKey().length()); // 짧은순
         });
 
         return buf.stream().limit(limit).map(Map.Entry::getKey).toList();
@@ -51,7 +42,6 @@ public class SuggestMemoryIndex {
             String normalizedKey = norm(k);
             if (normalizedKey != null) nextDict.put(normalizedKey, v);
         });
-
         dictRef.set(nextDict);
     }
 
@@ -68,5 +58,19 @@ public class SuggestMemoryIndex {
 
     public void clear() {
         dictRef.get().clear();
+    }
+
+    public void putAll(Map<String, Integer> newMap) {
+        if (newMap == null || newMap.isEmpty()) return;
+
+        ConcurrentSkipListMap<String, Integer> currentDict = dictRef.get();
+
+        newMap.forEach((k, v) -> {
+            String normalizedKey = norm(k);
+            if (normalizedKey != null && !normalizedKey.isBlank()) {
+                // 기존에 있으면 빈도수를 합산하거나, 요청하신 대로 '1'로 유지(merge 사용)
+                currentDict.merge(normalizedKey, v, (oldVal, newVal) -> oldVal);
+            }
+        });
     }
 }

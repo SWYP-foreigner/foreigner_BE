@@ -3,11 +3,12 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.maincontent.entity.MainContent;
+import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
-import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
@@ -86,6 +87,7 @@ public class PostServiceImpl implements PostService {
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
+    private final MainContentHotKeywordBatchService recommendBatchService;
 
     private final MainContentRepository mainContentRepository;
     private final ImageStorageClient imageStorageClient;
@@ -621,7 +623,7 @@ public class PostServiceImpl implements PostService {
                                 List<MultipartFile> generalImages,
                                 MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
                                 List<MultipartFile> contentImages,
-                                User adminUser) throws IOException {
+                                User adminUser, List<String> recommendationKeywords) throws IOException {
 
         if ("GENERAL".equals(publishType)) {
             BoardCategory category;
@@ -655,14 +657,14 @@ public class PostServiceImpl implements PostService {
                 }
             }
 
-            MainPageContent newContent = MainPageContent.builder()
+            MainContent newContent = MainContent.builder()
                     .title(title)
                     .htmlContent(content)
                     .type(kNewsType)
                     .originalUrl(null)
                     .build();
 
-            MainPageContent savedContent = mainContentRepository.save(newContent);
+            MainContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
 
             String processedHtml = processHtmlAndUploadImages(content, contentId, contentImages);
@@ -677,6 +679,8 @@ public class PostServiceImpl implements PostService {
                 String cdnUrl = uploadFileToStorage(popularThumbnailFile, contentId);
                 saveImageEntity(contentId, cdnUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL);
             }
+
+            recommendBatchService.updateRecommendationsWithManualKeywords(recommendationKeywords);
         }
     }
 

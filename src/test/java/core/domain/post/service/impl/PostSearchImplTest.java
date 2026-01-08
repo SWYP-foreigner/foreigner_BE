@@ -1,6 +1,5 @@
 package core.domain.post.service.impl;
 
-import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.comment.repository.CommentRepository;
@@ -9,14 +8,13 @@ import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
 import core.domain.post.repository.PostSearchRepositoryCustom;
 import core.domain.post.service.search.PostSearchService;
-import core.domain.post.service.search.SuggestMemoryIndex;
+import core.domain.post.service.search.PostSuggestIndex;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.UserRepository;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.exception.BusinessException;
-import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.pagination.CursorPageResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +49,7 @@ class PostSearchImplTest {
     @Mock private BoardRepository boardRepository;
     @Mock private BlockRepository blockRepository;
     @Mock private UserRepository userRepository;
-    @Mock private SuggestMemoryIndex memoryIndex;
+    @Mock private PostSuggestIndex memoryIndex;
     @Mock private LikeRepository likeRepository;
     @Mock private ImageRepository imageRepository;
     @Mock private CommentRepository commentRepository;

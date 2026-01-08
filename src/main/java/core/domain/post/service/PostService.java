@@ -44,7 +44,7 @@ public interface PostService {
                          List<MultipartFile> generalImages,
                          MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
                          List<MultipartFile> contentImages,
-                         User adminUser) throws IOException;
+                         User adminUser, List<String> recommendationKeywords) throws IOException;
 
     void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
 

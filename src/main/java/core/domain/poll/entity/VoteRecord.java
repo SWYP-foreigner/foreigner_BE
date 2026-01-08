@@ -1,4 +1,4 @@
-package core.domain.maincontent.entity;
+package core.domain.poll.entity;
 
 import core.domain.user.entity.User;
 import jakarta.persistence.*;

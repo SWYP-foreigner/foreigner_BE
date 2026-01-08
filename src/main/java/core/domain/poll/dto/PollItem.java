@@ -1,4 +1,4 @@
-package core.domain.maincontent.dto;
+package core.domain.poll.dto;
 
 import core.global.enums.PollType;
 

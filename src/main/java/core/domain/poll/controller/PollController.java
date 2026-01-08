@@ -1,10 +1,10 @@
-package core.domain.maincontent.controller;
+package core.domain.poll.controller;
 
-import core.domain.maincontent.dto.PollItem;
-import core.domain.maincontent.dto.PollParticipateRequest;
-import core.domain.maincontent.dto.PollResultResponse;
+import core.domain.poll.dto.PollItem;
+import core.domain.poll.dto.PollParticipateRequest;
+import core.domain.poll.dto.PollResultResponse;
+import core.domain.poll.service.PollService;
 import core.global.enums.PollType;
-import core.domain.maincontent.service.PollService;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
