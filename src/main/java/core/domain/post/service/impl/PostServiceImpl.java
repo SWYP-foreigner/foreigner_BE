@@ -244,9 +244,9 @@ public class PostServiceImpl implements PostService {
 
         validatePostForbiddenWord(request.content());
 
-//        validateDuplicateContent(email, request.content());
+        validateDuplicateContent(email, request.content());
 
-//        validatePostFlooding(email);
+        validatePostFlooding(email);
 
         final Post post = getPost(email, request, board);
 
@@ -278,7 +278,7 @@ public class PostServiceImpl implements PostService {
                     post.getId(),
                     null
             );
-//            eventPublisher.publishEvent(event);
+            eventPublisher.publishEvent(event);
         }
     }
 
@@ -337,7 +337,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
-//        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -349,7 +349,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         final Post post = new Post(request, user, board);
-//        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
+        eventPublisher.publishEvent(new PostCreatedEvent(post.getId(), post.getContent()));
 
         return postRepository.save(post);
     }
@@ -378,7 +378,7 @@ public class PostServiceImpl implements PostService {
         }
 
         imageService.updatePostImages(post.getId(), request.images(), request.removedImages());
-//        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
+        eventPublisher.publishEvent(new PostUpdatedEvent(post.getId(), post.getContent()));
 
     }
 
