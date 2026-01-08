@@ -279,7 +279,7 @@ jobs:
             SMOKE_ADMIN_EMAIL=${{secrets.SMOKE_ADMIN_EMAIL}}
             SMOKE_ADMIN_PW=${{secrets.SMOKE_ADMIN_PW}}
             SMOKE_ADMIN_LOGIN_URL=${{secrets.SMOKE_ADMIN_LOGIN_URL}}
-            SPRING_PROFILES_ACTIVE=dev
+            SPRING_PROFILES_ACTIVE=test
             SPRINGDOC_ENABLED=true
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
@@ -375,7 +375,7 @@ jobs:
             docker exec "$GW_ID" nginx -s reload
             
             # --- 2.5) (선택) 전환 검증: 현재 업스트림 확인 -----------------------------------
-            docker exec "$GW_ID" sh -lc 'apk add --no-cache curl 2>/dev/null || true; curl -skI https://dev.ko-ri.cloud/ | grep -i x-upstream || true'
+            docker exec "$GW_ID" sh -lc 'apk add --no-cache curl 2>/dev/null || true; curl -skI https://test.ko-ri.cloud/ | grep -i x-upstream || true'
             
             # --- 2.6) Smoke test (앱 + 외부 API) ------------------------------------------------
             echo "Running smoke test: ${SMOKE_URL}"

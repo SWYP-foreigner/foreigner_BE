@@ -415,8 +415,6 @@ public class PostImageServiceImpl implements PostImageService {
                     .toList();
             imageRepository.deleteByImageTypeAndRelatedIdAndUrlIn(ImageType.POST, postId, removeUrls);
 
-            imageRepository.flush();
-
             bulkDeleteKeys.addAll(
                     removeKeys.stream().filter(k -> !isDefaultUrlOrKey(k)).toList()
             );
