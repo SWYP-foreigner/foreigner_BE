@@ -3,7 +3,7 @@ package core.domain.admin.service;
 import core.domain.admin.dto.MainContentDetailDto;
 import core.domain.admin.dto.MainContentListResponse;
 import core.domain.admin.dto.MainContentSearchRequest;
-import core.domain.maincontent.entity.MainPageContent;
+import core.domain.maincontent.entity.MainContent;
 import core.domain.maincontent.repository.MainContentRepository;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
@@ -51,7 +51,7 @@ public class MainContentAdminService {
 
     @Transactional
     public void deleteMainContent(Long id) {
-        MainPageContent content = mainPageContentRepository.findById(id)
+        MainContent content = mainPageContentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.MAIN_PAGE_CONTENT_NOT_FOUND));
 
         deleteRelatedS3Images(id);
@@ -61,7 +61,7 @@ public class MainContentAdminService {
 
     @Transactional(readOnly = true)
     public MainContentDetailDto getDetail(Long id) {
-        MainPageContent content = mainPageContentRepository.findById(id)
+        MainContent content = mainPageContentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.MAIN_PAGE_CONTENT_NOT_FOUND));
 
         List<Image> images = imageRepository.findByImageTypeAndRelatedIdIn(
@@ -80,7 +80,7 @@ public class MainContentAdminService {
                                   MultipartFile mainThumbFile, MultipartFile popThumbFile,
                                   List<MultipartFile> newContentImages) {
 
-        MainPageContent content = mainPageContentRepository.findById(id)
+        MainContent content = mainPageContentRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.MAIN_PAGE_CONTENT_NOT_FOUND));
 
         KNewsContentType type = KNewsContentType.valueOf(kNewsTypeStr);
