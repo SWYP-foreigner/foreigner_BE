@@ -1,6 +1,6 @@
 package core.domain.admin.dto;
 
-import core.domain.maincontent.entity.MainPageContent;
+import core.domain.maincontent.entity.MainContent;
 import core.global.enums.KNewsContentType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,7 +18,7 @@ public class MainContentListResponse {
     private Instant createdAt;
     private String thumbnailUrl;
 
-    public MainContentListResponse(MainPageContent entity, String thumbnailUrl) {
+    public MainContentListResponse(MainContent entity, String thumbnailUrl) {
         this.id = entity.getId();
         this.title = entity.getTitle();
         this.type = entity.getType();

@@ -48,7 +48,7 @@ public class PostSearchService {
     private final ImageRepository imageRepository;
     private final UserRepository userRepository;
     private final BookmarkRepository bookmarkRepository;
-    private final SuggestMemoryIndex memoryIndex;
+    private final PostSuggestIndex memoryIndex;
 
     @Transactional(readOnly = true)
     public CursorPageResponse<SearchResultView> search(

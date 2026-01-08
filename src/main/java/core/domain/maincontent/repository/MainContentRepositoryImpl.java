@@ -12,8 +12,8 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.admin.dto.MainContentListResponse;
 import core.domain.admin.dto.MainContentSearchRequest;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
+import core.domain.maincontent.entity.QMainContent;
 import core.global.enums.KNewsContentType;
-import core.domain.maincontent.entity.QMainPageContent;
 import core.global.entity.image.entity.QImage;
 import core.global.enums.ImageType;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +37,7 @@ import java.util.Optional;
 public class MainContentRepositoryImpl implements MainContentRepositoryCustom {
     private final JPAQueryFactory query;
 
-    private static final QMainPageContent mainContent = QMainPageContent.mainPageContent;
+    private static final QMainContent mainContent = QMainContent.mainContent;
     private static final QImage image = QImage.image;
 
     @Override

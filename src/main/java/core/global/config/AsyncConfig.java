@@ -84,4 +84,19 @@ public class AsyncConfig implements AsyncConfigurer {
         scheduler.initialize();
         return scheduler;
     }
+
+    @Bean(name = "imageExecutor")
+    public Executor imageExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+
+        executor.setCorePoolSize(10);
+        executor.setQueueCapacity(150);
+        executor.setMaxPoolSize(300);
+        executor.setKeepAliveSeconds(60);
+        executor.setThreadNamePrefix("Async-Image-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+
+        return executor;
+    }
 }

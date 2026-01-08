@@ -1,5 +1,6 @@
 package core.global.entity.image.service.impl;
 
+import core.domain.admin.service.ContentModerationService;
 import core.domain.post.entity.Post;
 import core.global.entity.image.S3Props;
 import core.global.entity.image.dto.ImageModerationEvent;
@@ -14,12 +15,13 @@ import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
-import core.domain.admin.service.ContentModerationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,6 +38,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
@@ -49,7 +54,8 @@ public class PostImageServiceImpl implements PostImageService {
     private final S3Props s3Props;
     private final ContentModerationService contentModerationService;
     private final ApplicationEventPublisher eventPublisher;
-
+    @Qualifier("imageExecutor") // AsyncConfig에서 정의한 빈 주입
+    private final Executor imageExecutor;
     @Value("${ncp.s3.bucket}")
     private String bucket;
     @Value("${ncp.s3.endpoint}")
@@ -130,6 +136,7 @@ public class PostImageServiceImpl implements PostImageService {
         );
     }
 
+    @Async("imageExecutor")
     @Override
     @Transactional
     public void savePostImages(Long postId, List<String> toAdd) throws BusinessException {
@@ -165,6 +172,7 @@ public class PostImageServiceImpl implements PostImageService {
         }
     }
 
+    @Async("imageExecutor")
     @Override
     @Transactional
     public void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove) {
@@ -207,6 +215,7 @@ public class PostImageServiceImpl implements PostImageService {
         storageClient.deleteObjectsBulk(bulkDeleteKeys);
     }
 
+    @Async("imageExecutor")
     @Override
     @Transactional
     public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
@@ -347,18 +356,16 @@ public class PostImageServiceImpl implements PostImageService {
             Set<String> survivorUrls,
             int startOrder
     ) {
-        var pool = java.util.concurrent.Executors.newFixedThreadPool(
-                Math.min(Math.max(1, adds.size()), 8)
-        );
+        var stagingToDelete = new ConcurrentLinkedQueue<String>();
 
-        var tasks = new ArrayList<java.util.concurrent.Callable<Image>>();
-        var stagingToDelete = new java.util.concurrent.ConcurrentLinkedQueue<String>();
+        // 1. CompletableFuture를 사용하여 imageExecutor에서 비동기 작업 스트림 생성
+        List<CompletableFuture<Image>> futures = new ArrayList<>();
 
         for (int i = 0; i < adds.size(); i++) {
             final int myOrder = startOrder + i;
             final String raw = adds.get(i);
 
-            tasks.add(() -> {
+            var future = CompletableFuture.supplyAsync(() -> {
                 String srcKey = UrlUtil.toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, raw);
 
                 // 1) 기본 이미지인 경우
@@ -373,29 +380,28 @@ public class PostImageServiceImpl implements PostImageService {
                 String finalUrl = UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, finalKey);
                 if (survivorUrls.contains(finalUrl)) return null;
 
-                // 스테이징이면 COPY 성공 후 원본 삭제 후보에 추가
                 if (storageClient.isStagingKey(srcKey) && !srcKey.equals(finalKey) && !isDefaultUrlOrKey(srcKey)) {
                     stagingToDelete.add(srcKey);
                 }
 
                 return Image.of(ImageType.POST, postId, finalUrl, myOrder, ImageModerationStatus.CLEAN, null);
-            });
+            }, imageExecutor); // 🚀 Spring이 관리하는 스레드 풀 사용
+
+            futures.add(future);
         }
 
-        List<Image> toSave = new ArrayList<>();
+        // 2. 모든 작업이 완료될 때까지 대기 및 결과 수집
         try {
-            for (var f : pool.invokeAll(tasks)) {
-                Image created = f.get();
-                if (created != null) toSave.add(created);
-            }
-        } catch (Exception e) {
-            Thread.currentThread().interrupt();
-            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
-        } finally {
-            pool.shutdown();
-        }
+            List<Image> toSave = futures.stream()
+                    .map(CompletableFuture::join) // 결과가 나올 때까지 대기
+                    .filter(Objects::nonNull)
+                    .toList();
 
-        return new CopyResult(toSave, new ArrayList<>(stagingToDelete));
+            return new CopyResult(toSave, new ArrayList<>(stagingToDelete));
+        } catch (Exception e) {
+            log.error("[POST IMG] Parallel copy failed", e);
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
     }
 
     private List<String> deleteRemovedImagesAndCollectKeys(Long postId, List<String> removes) {

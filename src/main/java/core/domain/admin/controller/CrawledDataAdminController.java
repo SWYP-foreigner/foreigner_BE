@@ -80,12 +80,14 @@ public class CrawledDataAdminController {
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
+            @RequestParam(value = "recommendationKeywords", required = false) List<String> recommendationKeywords,
             RedirectAttributes redirectAttributes
     ) {
         try {
             crawledDataAdminService.approveMergedData(sourceIds, title, publishType, boardId, kNewsType, content,
                     selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
-                    mainThumbnailFile, popularThumbnailFile, contentImages);
+                    mainThumbnailFile, popularThumbnailFile, contentImages,
+                    recommendationKeywords);
 
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {
@@ -107,12 +109,14 @@ public class CrawledDataAdminController {
             @RequestPart(value = "mainThumbnailFile", required = false) MultipartFile mainThumbnailFile,
             @RequestPart(value = "popularThumbnailFile", required = false) MultipartFile popularThumbnailFile,
             @RequestPart(value = "contentImages", required = false) List<MultipartFile> contentImages,
+            @RequestParam(value = "recommendationKeywords", required = false) List<String> recommendationKeywords,
             RedirectAttributes redirectAttributes
     ) {
         try {
             crawledDataAdminService.approveAndPost(id, publishType, boardId, kNewsType, content,
                     selectedImageUrls, mainThumbnailUrl, popularThumbnailUrl,
-                    mainThumbnailFile, popularThumbnailFile, contentImages);
+                    mainThumbnailFile, popularThumbnailFile, contentImages,
+                    recommendationKeywords);
 
             redirectAttributes.addFlashAttribute("successMessage", "데이터가 성공적으로 게시되었습니다.");
         } catch (BusinessException e) {

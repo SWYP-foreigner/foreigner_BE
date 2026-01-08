@@ -22,6 +22,7 @@ public class UserInactive30dMetrics {
     public void warmup() {
         log.info("[U30d] warmup start");
         try {
+            // 이제 다른 Bean을 호출하므로 @Transactional이 정상 작동합니다.
             collect();
         } catch (Exception e) {
             log.warn("[U30d] warmup failed", e);

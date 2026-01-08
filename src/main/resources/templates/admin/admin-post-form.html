@@ -178,7 +178,17 @@
             </div>
         </div>
 
-        <div class="input-group">
+        <div class="input-group only-main">
+            <label for="recommendationKeywords" style="margin-bottom: 8px; display: block;">
+                <i class="fa-solid fa-tags"></i> 추천 키워드 (쉼표로 구분)
+            </label>
+            <input type="text" id="recommendationKeywords" name="recommendationKeywords"
+                   placeholder="예: BTS, BLACKPINK, NewJeans"
+                   style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box;">
+            <div style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                * 메인 페이지 추천 키워드 전용 키워드입니다. (일반 게시판은 적용 안 됨)
+            </div>
+
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <label for="content" style="margin:0;">본문 내용 <span class="only-main" style="color:blue; font-size:0.8em;">(HTML)</span>:</label>
                 <button type="button" class="btn-preview only-main" onclick="previewHtml()">HTML 미리보기</button>

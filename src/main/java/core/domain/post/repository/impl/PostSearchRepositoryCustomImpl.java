@@ -27,7 +27,6 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
 
     private final static LikeType LIKE_TYPE_POST = LikeType.POST;
 
-
     private final JPAQueryFactory jpaQueryFactory;
 
     @PersistenceContext

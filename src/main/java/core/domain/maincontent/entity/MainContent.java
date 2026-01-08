@@ -14,10 +14,10 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 @Entity
-@Table(name = "main_page_content")
+@Table(name = "main_content")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MainPageContent {
+public class MainContent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,7 +53,7 @@ public class MainPageContent {
 
 
     @Builder
-    public MainPageContent(String title, String htmlContent, String originalUrl, KNewsContentType type) {
+    public MainContent(String title, String htmlContent, String originalUrl, KNewsContentType type) {
         this.title = title;
         this.htmlContent = htmlContent;
         this.originalUrl = originalUrl;

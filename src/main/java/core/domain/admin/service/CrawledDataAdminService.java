@@ -2,17 +2,19 @@ package core.domain.admin.service;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.maincontent.entity.MainContent;
+import core.domain.maincontent.repository.MainContentRepository;
+import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.post.dto.crawling.CrawledDataDto;
 import core.domain.post.dto.crawling.MergedCrawledDataDto;
 import core.domain.post.entity.CrawledData;
-import core.domain.maincontent.entity.MainPageContent;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.CrawledDataRepository;
-import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.config.CustomUserDetails;
+import core.global.entity.image.S3Props;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageStorageClient;
@@ -37,6 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -59,6 +62,10 @@ public class CrawledDataAdminService {
     private final BoardRepository boardRepository;
     private final PostImageService postImageService;
     private final ImageRepository imageRepository;
+    private final MainContentHotKeywordBatchService recommendBatchService;
+
+    private final S3Client s3Client;
+    private final S3Props s3Props;
     private final ImageStorageClient imageStorageClient;
 
     @Transactional(readOnly = true)
@@ -98,7 +105,7 @@ public class CrawledDataAdminService {
     public void approveMergedData(List<Long> sourceIds, String title, String publishType, Long boardId, String kNewsTypeStr, String content,
                                   List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
                                   MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
-                                  List<MultipartFile> contentImages) {
+                                  List<MultipartFile> contentImages, List<String> recommendationKeywords) {
 
         List<CrawledData> sourceDataList = crawledDataRepository.findAllById(sourceIds);
         CustomUserDetails principal = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -131,14 +138,14 @@ public class CrawledDataAdminService {
                 }
             }
 
-            MainPageContent newContent = MainPageContent.builder()
+            MainContent newContent = MainContent.builder()
                     .title(title)
                     .htmlContent(content)
                     .type(kNewsType)
                     .originalUrl(sourceDataList.get(0).getOriginalUrl())
                     .build();
 
-            MainPageContent savedContent = mainContentRepository.save(newContent);
+            MainContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -147,6 +154,8 @@ public class CrawledDataAdminService {
 
             processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
             processAndSaveThumbnail(contentId, popularThumbnailFile, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
+
+            recommendBatchService.updateRecommendationsWithManualKeywords(recommendationKeywords);
         }
 
         for (CrawledData data : sourceDataList) {
@@ -158,7 +167,8 @@ public class CrawledDataAdminService {
     public void approveAndPost(Long crawledDataId, String publishType, Long boardId, String kNewsTypeStr, String content,
                                List<String> selectedImageUrls, String mainThumbnailUrl, String popularThumbnailUrl,
                                MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
-                               List<MultipartFile> contentImages) {
+                               List<MultipartFile> contentImages,
+                               List<String> recommendationKeywords) {
 
         CrawledData crawledData = crawledDataRepository.findById(crawledDataId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.CRAWLED_DATA_NOT_FOUND));
@@ -192,14 +202,14 @@ public class CrawledDataAdminService {
                 }
             }
 
-            MainPageContent newContent = MainPageContent.builder()
+            MainContent newContent = MainContent.builder()
                     .title(crawledData.getTitle())
                     .htmlContent(content)
                     .type(kNewsType)
                     .originalUrl(crawledData.getOriginalUrl())
                     .build();
 
-            MainPageContent savedContent = mainContentRepository.save(newContent);
+            MainContent savedContent = mainContentRepository.save(newContent);
             Long contentId = savedContent.getId();
             savedReferenceId = contentId;
 
@@ -208,6 +218,8 @@ public class CrawledDataAdminService {
 
             processAndSaveThumbnail(contentId, mainThumbnailFile, mainThumbnailUrl, ImageType.MAIN_PAGE_THUMBNAIL, uploadedUrlCache);
             processAndSaveThumbnail(contentId, popularThumbnailFile, popularThumbnailUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL, uploadedUrlCache);
+
+            recommendBatchService.updateRecommendationsWithManualKeywords(recommendationKeywords);
         }
 
         crawledData.updateStatus(CrawledDataStatus.APPROVED, savedReferenceId);

@@ -1,4 +1,5 @@
 package core.domain.aiuser.entity;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
