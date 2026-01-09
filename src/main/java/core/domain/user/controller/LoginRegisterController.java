@@ -160,38 +160,6 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-
-    @Operation(summary = "관리자 웹페이지 전용 로그인",
-            description = "관리자 계정(ADMIN)인지 확인하고, HttpOnly 쿠키에 accessToken을 발급합니다.")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "관리자 로그인 성공"),
-    })
-    @PostMapping("/admin/login")
-    @UserErrorDocs({UserErrorCode.AUTHENTICATION_FAILED,})
-    @AuthErrorDocs({AuthErrorCode.AUTHENTICATION_ADMIN_FAILED})
-    public ResponseEntity<ApiResponse<String>> adminWebLogin(
-            @Valid @RequestBody EmailLoginDto req,
-            HttpServletResponse httpResponse
-    ) {
-        try {
-            AuthResponse authResponse = userService.adminLogin(req);
-
-            long maxAgeInSeconds = authResponse.expiresInMillis() / 1000;
-            cookieUtil.createTokenCookie(
-                    httpResponse,
-                    "accessToken",
-                    authResponse.accessToken(),
-                    maxAgeInSeconds
-            );
-
-            return ResponseEntity.ok(ApiResponse.success("관리자 로그인 성공"));
-
-        } catch (BusinessException e) {
-            return ResponseEntity.status(e.getStatus())
-                    .body(ApiResponse.fail(e.getMessage()));
-        }
-    }
-
     @PostMapping("/email/check")
     @Operation(summary = "이메일 가입 중복 여부 확인")
     public ResponseEntity<ApiResponse<EmailCheckResponse>> checkRepeat(@RequestBody EmailCheckRequest request) {
