@@ -27,6 +27,8 @@ public final class PermitAllPaths {
             "/admin/login",
             "/api/v1/member/admin/login",
             "/api/v1/member/admin/otp-verify",
+            "/api/v1/member/admin/otp/reset-request",
+            "/api/v1/member/admin/otp/reset-confirm",
             "/admin/test/send-message",
             "/api/v1/app/**",
             "/internal/smoke"

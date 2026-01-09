@@ -121,6 +121,20 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success("관리자 로그인 성공"));
     }
 
+    @PostMapping("/admin/otp/reset-request")
+    @Operation(summary = "관리자 OTP 초기화 메일 발송")
+    public ResponseEntity<ApiResponse<String>> requestOtpReset(@RequestBody EmailRequest req) {
+        adminAuthService.sendOtpResetCode(req.getEmail());
+        return ResponseEntity.ok(ApiResponse.success("인증 코드가 메일로 발송되었습니다."));
+    }
+
+    @PostMapping("/admin/otp/reset-confirm")
+    @Operation(summary = "관리자 OTP 초기화 수행 (코드 검증)")
+    public ResponseEntity<ApiResponse<String>> confirmOtpReset(@RequestBody EmailVerificationRequest req) {
+        adminAuthService.resetOtp(req.getEmail(), req.getVerificationCode());
+        return ResponseEntity.ok(ApiResponse.success("OTP가 초기화되었습니다. 다시 로그인하여 재설정하세요."));
+    }
+
     @PostMapping("/refresh")
     @AuthErrorDocs({AuthErrorCode.INVALID_REFRESH_TOKEN,AuthErrorCode.INVALID_TOKEN })
     @Operation(summary = "토큰 재발급 API", description = "리프레시 토큰으로 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.")

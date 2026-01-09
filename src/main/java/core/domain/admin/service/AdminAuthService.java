@@ -17,6 +17,7 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
+import core.global.service.SmtpMailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.Optional;
 
 @Slf4j
@@ -39,6 +41,10 @@ public class AdminAuthService {
     private final GoogleOtpService googleOtpService;
     private final RedisService redisService;
     private final ApplicationEventPublisher publisher;
+    private final SmtpMailService smtpMailService;
+
+    private static final String OTP_RESET_PREFIX = "admin:otp-reset:";
+    private static final long RESET_CODE_TTL = 5L;
 
     public AdminLoginStep1Response loginStep1(EmailLoginDto req) {
         User user = userRepository.findByEmail(req.getEmail())
@@ -112,5 +118,45 @@ public class AdminAuthService {
 
         long accessExpiresIn = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
         return new AuthResponse("Bearer", accessToken, refreshToken, accessExpiresIn, user.getId(), user.getEmail(), false);
+    }
+
+    public void sendOtpResetCode(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getUserRole() != Role.ADMIN) {
+            throw new BusinessException(AuthErrorCode.AUTHENTICATION_ADMIN_FAILED);
+        }
+
+        if (adminOtpRepository.findByUser(user).isEmpty()) {
+            throw new BusinessException(AuthErrorCode.OTP_NOT_REGISTERED);
+        }
+
+        String code = String.valueOf((int)(Math.random() * 900000) + 100000);
+
+        redisService.setDataExpire(OTP_RESET_PREFIX + email, code, Duration.ofMinutes(RESET_CODE_TTL).toMillis());
+
+        smtpMailService.sendAdminOtpResetEmail(email, code, Duration.ofMinutes(RESET_CODE_TTL));
+    }
+
+    public void resetOtp(String email, String code) {
+        String savedCode = redisService.getData(OTP_RESET_PREFIX + email);
+
+        if (savedCode == null) {
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
+        }
+        if (!savedCode.equals(code)) {
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        AdminOtp adminOtp = adminOtpRepository.findByUser(user)
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.OTP_NOT_REGISTERED));
+
+        adminOtpRepository.delete(adminOtp);
+        redisService.deleteData(OTP_RESET_PREFIX + email);
+        log.info("[Admin OTP Reset] 관리자 OTP 초기화 완료: email={}", email);
     }
 }

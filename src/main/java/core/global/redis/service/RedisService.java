@@ -82,4 +82,28 @@ public class RedisService {
     private String getBlacklistKey(String token) {
         return blacklistPrefix + token;
     }
+
+    /**
+     * 일반 데이터 저장 (만료 시간 포함)
+     * @param key 저장할 키 (예: admin:otp-reset:email)
+     * @param value 저장할 값 (예: 인증코드)
+     * @param durationMillis 만료 시간(밀리초)
+     */
+    public void setDataExpire(String key, String value, long durationMillis) {
+        redisTemplate.opsForValue().set(key, value, durationMillis, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * 일반 데이터 조회
+     */
+    public String getData(String key) {
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    /**
+     * 일반 데이터 삭제
+     */
+    public void deleteData(String key) {
+        redisTemplate.delete(key);
+    }
 }
