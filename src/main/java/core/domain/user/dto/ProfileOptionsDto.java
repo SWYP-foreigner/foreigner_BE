@@ -7,44 +7,43 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
-
 public class ProfileOptionsDto {
-
-    @Getter
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Schema(description = "자기소개 추천 문구 목록 응답")
-    public static class IntroductionResponse {
-        private List<String> recommendations;
-    }
-
-    @Getter
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Schema(description = "관심사 카테고리별 목록 응답")
-    public static class InterestResponse {
-        private List<CategoryItem> categories;
-    }
-
-    @Getter
-    @AllArgsConstructor
-    public static class CategoryItem {
-        @Schema(description = "카테고리 명 (K-POP, K-DRAMA&MOVIE, LIFESTYLE)")
-        private String category;
-
-        @Schema(description = "해당 카테고리의 하위 아이템 목록")
-        private List<String> items;
-    }
 
     @Getter
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @Schema(description = "프로필 옵션 통합 응답 (자기소개 + 관심사)")
     public static class CombinedResponse {
-        @Schema(description = "추천 자기소개 문구 (영어)")
+
+        @Schema(description = "추천 자기소개 문구 리스트 (영어)",
+                example = "[\"I want to make Korean friends! 👋\", \"I really love K-POP 🎵\"]")
         private List<String> introductions;
 
-        @Schema(description = "관심사 카테고리 목록")
-        private InterestResponse interests; // 기존 InterestResponse 재사용
+        @Schema(description = "관심사 카테고리 정보")
+        private InterestResponse interests;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "관심사 카테고리 래퍼")
+    public static class InterestResponse {
+
+        @Schema(description = "카테고리 목록")
+        private List<CategoryItem> categories;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    @Schema(description = "개별 관심사 카테고리 아이템")
+    public static class CategoryItem {
+
+        @Schema(description = "카테고리 명", example = "K-POP")
+        private String category;
+
+        @Schema(description = "해당 카테고리의 키워드 리스트 (이모지 포함)",
+                example = "[\"BTS 💜\", \"NewJeans 🐰\", \"SEVENTEEN 💎\"]")
+        private List<String> items;
     }
 }

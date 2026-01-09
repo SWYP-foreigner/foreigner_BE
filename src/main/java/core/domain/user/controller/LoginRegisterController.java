@@ -317,9 +317,16 @@ public class LoginRegisterController {
         ProfileCompletionResponse response = userService.checkProfileCompletion(userId);
         return ResponseEntity.ok(response);
     }
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = ProfileOptionsDto.CombinedResponse.class))
+            )
+    })
     @GetMapping("/profile-options")
     @Operation(summary = "프로필 설정 옵션 전체 조회",
-            description = "프로필 설정 시 필요한 '추천 자기소개(영어)'와 '관심사 카테고리'를 한 번에 반환합니다.")
+            description = "프로필 설정 시 필요한 '추천 자기소개(영어)'와 '관심사 카테고리'를 한 번에 반환합니다. 기본 에러 404 등 커스텀 에러는 없습니다.")
     public ResponseEntity<ProfileOptionsDto.CombinedResponse> getProfileOptions() {
         return ResponseEntity.ok(userService.getProfileOptions());
     }

@@ -1018,7 +1018,7 @@ public class UserService {
     private static final List<ProfileOptionsDto.CategoryItem> INTEREST_CATEGORIES = List.of(
             new ProfileOptionsDto.CategoryItem("K-POP", List.of(
                     "BTS", "BLACKPINK", "NewJeans", "SEVENTEEN", "Stray Kids",
-                    "IVE", "NCT", "TWICE", "LE SSERAFIM", "aespa", "EXO", "TXT"
+                    "IVE", "NCT", "TWICE", "LE SSERAFIM", "aespa", "EXO"
             )),
             new ProfileOptionsDto.CategoryItem("K-DRAMA&MOVIE", List.of(
                     "Squid Game", "The Glory", "Parasite", "Moving", "Kingdom",
