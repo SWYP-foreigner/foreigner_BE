@@ -2,65 +2,186 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>관리자 로그인</title>
+    <title>Kori 관리자 로그인</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; }
-        .login-container { background-color: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
-        h1 { color: #333; margin-bottom: 30px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f6f9; margin: 0; }
+        .login-container { background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 380px; }
+        h1 { color: #333; margin-bottom: 10px; font-size: 24px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 30px; }
+
         .form-group { margin-bottom: 20px; text-align: left; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; }
-        .form-group input { width: 300px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
-        .btn-login { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: #555; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 15px; box-sizing: border-box; transition: border-color 0.2s; }
+        .form-group input:focus { border-color: #007bff; outline: none; }
+
+        .btn-login { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; margin-top: 10px; }
         .btn-login:hover { background-color: #0056b3; }
-        #error-message { color: red; margin-top: 15px; display: none; }
+
+        #error-message { color: #e74c3c; margin-top: 20px; display: none; font-size: 14px; background-color: #fdecea; padding: 10px; border-radius: 4px; }
+
+        /* 2단계 인증 관련 스타일 */
+        #step-2-container { display: none; }
+        #qr-code-area { display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px dashed #ccc; }
+        #qrcode { margin: 15px 0; }
+        .info-text { font-size: 13px; color: #666; margin-bottom: 5px; line-height: 1.5; }
+        .otp-input { text-align: center; letter-spacing: 5px; font-size: 20px !important; font-family: monospace; }
     </style>
 </head>
 <body>
 
 <div class="login-container">
-    <h1>관리자 페이지 로그인</h1>
-    <form id="loginForm">
-        <div class="form-group">
-            <label for="email">이메일</label>
-            <input type="email" id="email" name="email" required>
+    <h1>관리자 로그인</h1>
+    <p class="subtitle">안전한 서비스 관리를 위해 로그인해주세요.</p>
+
+    <div id="step-1-container">
+        <form id="loginFormStep1">
+            <div class="form-group">
+                <label for="email">이메일</label>
+                <input type="email" id="email" name="email" required placeholder="admin@example.com">
+            </div>
+            <div class="form-group">
+                <label for="password">비밀번호</label>
+                <input type="password" id="password" name="password" required placeholder="비밀번호 입력">
+            </div>
+            <button type="submit" class="btn-login">다음 (2차 인증)</button>
+        </form>
+    </div>
+
+    <div id="step-2-container">
+        <div id="qr-code-area" style="display: none;">
+            <p class="info-text"><strong>OTP 초기 설정</strong><br>Google Authenticator 앱으로<br>아래 QR 코드를 스캔하세요.</p>
+            <div id="qrcode"></div>
         </div>
-        <div class="form-group">
-            <label for="password">비밀번호</label>
-            <input type="password" id="password" name="password" required>
-        </div>
-        <button type="submit" class="btn-login">로그인</button>
-        <p id="error-message"></p>
-    </form>
+
+        <form id="loginFormStep2">
+            <div class="form-group">
+                <label for="otpCode">OTP 인증번호</label>
+                <input type="text" id="otpCode" name="otpCode" class="otp-input" maxlength="6" pattern="\d*" required placeholder="000000" autocomplete="off">
+            </div>
+            <p class="info-text">Google Authenticator 앱에 표시된<br>6자리 숫자를 입력하세요.</p>
+            <button type="submit" class="btn-login">인증 확인</button>
+        </form>
+    </div>
+
+    <p id="error-message"></p>
 </div>
 
 <script>
-    document.getElementById('loginForm').addEventListener('submit', async function(event) {
+    // 상태 관리를 위한 변수
+    let tempToken = null; // 1차 인증 후 받을 임시 토큰
+    let userEmail = null;
+
+    const errorMessageEl = document.getElementById('error-message');
+    const step1Container = document.getElementById('step-1-container');
+    const step2Container = document.getElementById('step-2-container');
+    const qrCodeArea = document.getElementById('qr-code-area');
+
+    // [Step 1] ID/PW 제출 처리
+    document.getElementById('loginFormStep1').addEventListener('submit', async function(event) {
         event.preventDefault();
-        const email = document.getElementById('email').value;
+        userEmail = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        const errorMessageEl = document.getElementById('error-message');
-        errorMessageEl.style.display = 'none';
+
+        hideError();
 
         try {
+            // 1. 백엔드 1차 로그인 API 호출
             const response = await fetch('/api/v1/member/admin/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, password: password })
+                body: JSON.stringify({ email: userEmail, password: password })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || '로그인에 실패했습니다.');
+                // ApiResponse.fail(message) 형태일 경우 data.message 사용
+                throw new Error(data.message || '로그인 정보가 올바르지 않습니다.');
             }
 
+            // 성공 시 ApiResponse.success(data) 구조에서 데이터 추출
+            const result = data.data;
+
+            // 2. 임시 토큰 저장 (2단계에서 사용)
+            tempToken = result.tempToken;
+
+            // 3. 화면 전환 (1단계 숨김 -> 2단계 표시)
+            step1Container.style.display = 'none';
+            step2Container.style.display = 'block';
+
+            // 4. 최초 등록자(QR URL이 있는 경우) 처리
+            if (result.qrCodeUrl) {
+                qrCodeArea.style.display = 'flex';
+                // qrcode.js 라이브러리를 사용해 QR 이미지 생성
+                // (기존 내용은 지우고 새로 생성)
+                document.getElementById("qrcode").innerHTML = "";
+                new QRCode(document.getElementById("qrcode"), {
+                    text: result.qrCodeUrl,
+                    width: 128,
+                    height: 128,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
+
+            // OTP 입력창에 포커스 이동
+            document.getElementById('otpCode').focus();
+
+        } catch (error) {
+            showError(error.message);
+        }
+    });
+
+    // [Step 2] OTP 제출 처리
+    document.getElementById('loginFormStep2').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const otpCode = document.getElementById('otpCode').value;
+
+        hideError();
+
+        if (!tempToken) {
+            showError("인증 세션이 만료되었습니다. 처음부터 다시 시도해주세요.");
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
+
+        try {
+            // 1. 백엔드 2차 인증(OTP) API 호출
+            const response = await fetch('/api/v1/member/admin/otp-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: userEmail,
+                    otpCode: otpCode,
+                    tempToken: tempToken
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'OTP 코드가 일치하지 않습니다.');
+            }
+
+            // 2. 인증 성공! 관리자 메인 페이지로 이동
+            // (백엔드에서 HttpOnly 쿠키로 AccessToken을 설정해 줌)
             window.location.href = '/admin/users/home';
 
         } catch (error) {
-            errorMessageEl.textContent = error.message;
-            errorMessageEl.style.display = 'block';
+            showError(error.message);
         }
     });
+
+    function showError(msg) {
+        errorMessageEl.textContent = msg;
+        errorMessageEl.style.display = 'block';
+    }
+
+    function hideError() {
+        errorMessageEl.style.display = 'none';
+    }
 </script>
 </body>
 </html>
