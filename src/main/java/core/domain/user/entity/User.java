@@ -107,6 +107,17 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserNotificationSetting> notificationSettings = new ArrayList<>();
 
+    // [추가 1] 활동 포인트 (Method B 구현용)
+    // 접속, 채팅, 좋아요 등을 할 때마다 쌓이는 점수 -> '친절한 유저' 판단 기준
+    @Column(name = "activity_point")
+    private Long activityPoint = 0L;
+
+    @Column(name = "visit_count")
+    private Long visitCount = 0L;
+
+    @Column(name = "reply_rate")
+    private Double replyRate = 0.0;
+
     @Builder
     public User(String firstName,
                 String lastName,
