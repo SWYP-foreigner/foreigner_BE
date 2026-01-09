@@ -988,6 +988,52 @@ public class UserService {
                             && user.getSex() != null;
         return new ProfileCompletionResponse(userId, completed);
     }
+    private static final List<String> INTRODUCTIONS = List.of(
+                "I want to make Korean friends! 👋",          // 한국 친구를 사귀고 싶어요!
+                "I really love K-POP 🎵",                     // K-POP을 정말 좋아해요
+                "I want to study Korean together 📚",         // 한국어 공부를 같이 하고 싶어요
+                "I'm planning a trip to Korea ✈️",            // 한국 여행을 계획 중이에요
+                "I want to share daily stories 💬",           // 일상 이야기를 나누고 싶어요
+                "Let's share good restaurant info 🥘",        // 맛집 정보를 공유해요
+                "I love BTS the most 💜",                     // BTS를 가장 좋아해요
+                "Please recommend Korean dramas 📺",          // 한국 드라마 추천해주세요
+                "Let's do language exchange 🇰🇷",              // 서로의 언어를 교환해요
+                "Feel free to contact me! 😄",                // 편하게 연락주세요!
+                "I'm interested in fashion & beauty 💄",      // 패션과 뷰티에 관심이 많아요
+                "I want to learn Korean culture 🎎",          // 한국 문화를 배우고 싶어요
+                "I want to have deep conversations ☕",       // 진지한 대화를 나누고 싶어요
+                "I like exercising and taking walks 🏃",      // 운동과 산책을 좋아해요
+                "I have a cat 🐱",                            // 고양이 집사입니다
+                "I like going to cafes on weekends ☕",       // 주말에 카페 가는 걸 좋아해요
+                "Let's talk about Netflix 🎬",                // 넷플릭스 같이 이야기해요
+                "Taking photos is my hobby 📸",               // 사진 찍는 게 취미예요
+                "I love delicious desserts 🍰",               // 맛있는 디저트를 좋아해요
+                "I want to share positive energy ✨"           // 긍정적인 에너지를 나누고 싶어요
+        );
 
 
+    /**
+     * 관심사 카테고리 및 아이템 (K-POP, K-DRAMA&MOVIE, LIFESTYLE)
+     */
+    private static final List<ProfileOptionsDto.CategoryItem> INTEREST_CATEGORIES = List.of(
+            new ProfileOptionsDto.CategoryItem("K-POP", List.of(
+                    "BTS", "BLACKPINK", "NewJeans", "SEVENTEEN", "Stray Kids",
+                    "IVE", "NCT", "TWICE", "LE SSERAFIM", "aespa", "EXO", "TXT"
+            )),
+            new ProfileOptionsDto.CategoryItem("K-DRAMA&MOVIE", List.of(
+                    "Squid Game", "The Glory", "Parasite", "Moving", "Kingdom",
+                    "Crash Landing on You", "All of Us Are Dead", "Reply 1988",
+                    "Sweet Home", "Itaewon Class"
+            )),
+            new ProfileOptionsDto.CategoryItem("LIFESTYLE", List.of(
+                    "Travel", "Food", "Fashion", "Beauty", "Language Exchange",
+                    "Daily Life", "Cafe", "MBTI", "Exercise", "Music", "Drawing"
+            ))
+    );
+    public ProfileOptionsDto.CombinedResponse getProfileOptions() {
+        return ProfileOptionsDto.CombinedResponse.builder()
+                .introductions(INTRODUCTIONS)
+                .interests(new ProfileOptionsDto.InterestResponse(INTEREST_CATEGORIES))
+                .build();
+    }
 }
