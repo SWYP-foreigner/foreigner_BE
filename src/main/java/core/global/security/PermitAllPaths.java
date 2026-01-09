@@ -26,6 +26,7 @@ public final class PermitAllPaths {
             "/swagger-resources/**",
             "/admin/login",
             "/api/v1/member/admin/login",
+            "/api/v1/member/admin/otp-verify",
             "/admin/test/send-message",
             "/api/v1/app/**",
             "/internal/smoke"

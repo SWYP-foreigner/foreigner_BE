@@ -1,9 +1,7 @@
 package core.domain.user.controller;
 
-import core.domain.chat.dto.ChatUserProfileResponse;
+import core.domain.admin.service.AdminAuthService;
 import core.domain.user.dto.*;
-import core.domain.user.entity.User;
-import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserService;
 import core.global.apple.dto.AppleLoginByCodeRequest;
 import core.global.apple.dto.WithdrawIsApple;
@@ -18,9 +16,7 @@ import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.exception.BusinessException;
 import core.global.metrics.FeatureUsageMetrics;
-import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.GeoService;
 import core.global.service.GoogleAuthService;
@@ -39,17 +35,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 
 @Tag(name = "User", description = "사용자 회원가입,로그인 관련 API")
 @RestController
@@ -67,6 +59,7 @@ public class LoginRegisterController {
     private final CookieUtil cookieUtil;
     private final GeoService geoService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AdminAuthService adminAuthService;
 
     @PostMapping("/doLogin")
     @Operation(summary = "일반 로그인")
@@ -105,6 +98,27 @@ public class LoginRegisterController {
         LoginResponseDto responseDto = appleAuthService.login(req);
         publisher.publishEvent(new UserLoggedInEvent(responseDto.userId().toString(), "apple"));
         return ResponseEntity.ok(ApiResponse.success(responseDto));
+    }
+
+    @PostMapping("/admin/login")
+    @Operation(summary = "관리자 1차 로그인 (ID/PW)")
+    public ResponseEntity<ApiResponse<AdminLoginStep1Response>> adminLoginStep1(
+            @Valid @RequestBody EmailLoginDto req) {
+        return ResponseEntity.ok(ApiResponse.success(adminAuthService.loginStep1(req)));
+    }
+
+    @PostMapping("/admin/otp-verify")
+    @Operation(summary = "관리자 2차 로그인 (OTP)")
+    public ResponseEntity<ApiResponse<String>> adminLoginStep2(
+            @RequestBody OtpVerificationRequest req,
+            HttpServletResponse httpResponse) {
+
+        AuthResponse authResponse = adminAuthService.loginStep2(req);
+
+        long maxAgeInSeconds = authResponse.expiresInMillis() / 1000;
+        cookieUtil.createTokenCookie(httpResponse, "accessToken", authResponse.accessToken(), maxAgeInSeconds);
+
+        return ResponseEntity.ok(ApiResponse.success("관리자 로그인 성공"));
     }
 
     @PostMapping("/refresh")
