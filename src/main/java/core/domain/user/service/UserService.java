@@ -305,21 +305,7 @@ public class UserService {
         }
     }
 
-    /**
-     * DTO의 필수 필드가 모두 채워졌는지 검사하는 메서드
-     */
-    private boolean isAllProfileFieldsFilled(UserSetupRequest dto) {
-        return notBlank(dto.firstname()) &&
-               notBlank(dto.lastname()) &&
-               notBlank(dto.gender()) &&
-               notBlank(dto.birthday()) &&
-               notBlank(dto.country()) &&
-               notBlank(dto.introduction()) &&
-               notBlank(dto.purpose()) &&
-               notBlank(dto.imageKey()) && // 이미지도 필수
-               dto.language() != null && !dto.language().isEmpty() && // 언어도 1개 이상
-               dto.hobby() != null && !dto.hobby().isEmpty(); // 취미도 1개 이상
-    }
+
 
     private boolean notBlank(String s) {
         return s != null && !s.isBlank();
