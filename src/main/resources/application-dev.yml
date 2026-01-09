@@ -383,3 +383,6 @@ openai:
 otp:
   issuer: "Kori-Admin"
   magic-code-enabled: false
+
+encryption:
+  secret: ${ENCRYPTION_SECRET}

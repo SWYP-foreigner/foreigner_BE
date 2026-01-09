@@ -176,3 +176,6 @@ openai:
 otp:
   issuer: "Kori-Admin (Local)"
   magic-code-enabled: true
+
+encryption:
+  secret: ${ENCRYPTION_SECRET}
