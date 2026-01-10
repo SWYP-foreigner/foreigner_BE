@@ -24,6 +24,7 @@ jobs:
           test -n "${{ secrets.DB_PASSWORD }}"         || (echo "DB_PASSWORD is empty" && exit 1)
           test -n "${{ secrets.JWT_SECRET }}"          || (echo "JWT_SECRET is empty" && exit 1)
           test -n "${{ secrets.DEV_SUDO_PASSWORD }}"   || (echo "DEV_SUDO_PASSWORD is empty" && exit 1)
+          test -n "${{ secrets.PROD_ENCRYPTION_SECRET }}" || (echo "PROD_ENCRYPTION_SECRET is empty" && exit 1)
           echo "All required secrets are set."
 
   quality-tests:
@@ -209,6 +210,8 @@ jobs:
             GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
             GCP_TRANSLATE_API_KEY=${{ secrets.GCP_TRANSLATE_API_KEY }}
             GCP_MAP_API_KEY=${{ secrets.GCP_MAP_API_KEY }}
+            
+            ENCRYPTION_SECRET=${{ secrets.PROD_ENCRYPTION_SECRET }}
             
             NAVER_HOST=${{ secrets.NAVER_HOST }}
             APP_NAME=${{ secrets.APP_NAME }}

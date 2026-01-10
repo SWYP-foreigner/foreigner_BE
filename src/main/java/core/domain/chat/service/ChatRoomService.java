@@ -423,9 +423,7 @@ public class ChatRoomService {
                 String.valueOf(activeCount) // int -> String 변환
         );
     }
-    private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
-        return toGroupChatMainResponse(chatRoom);
-    }
+
 
     class ChatRoomSortData {
         ChatRoom room;
@@ -499,37 +497,51 @@ public class ChatRoomService {
         // 7. 최종 응답 변환 (반복문 사용)
         List<ChatRoomSummaryResponse> responseList = new ArrayList<>();
         for (ChatRoomSortData data : sortList) {
-            // 변환 메서드 호출
-            ChatRoomSummaryResponse summary = createSummaryResponse(data.room, data.lastMessage, userId);
+
+            // [수정] 메시지 미리보기 텍스트 변환 로직 적용
+            String previewContent = getPreviewContent(data.lastMessage);
+            ChatRoomSummaryResponse summary = createSummaryResponse(data.room, data.lastMessage, previewContent, userId);
+
             responseList.add(summary);
         }
-
         return responseList;
     }
+    private String getPreviewContent(ChatMessage message) {
+        if (message == null) {
+            return "";
+        }
 
-    private ChatRoomSummaryResponse createSummaryResponse(ChatRoom room, ChatMessage lastMessage, Long userId) {
-        // [기본 정보 설정]
-        String lastMessageContent = "";
+        switch (message.getMessageType()) {
+            case IMAGE:
+                return "Sent a photo"; // 📷
+            case VIDEO:
+                return "Sent a video"; // 🎥
+            case TEXT:
+            default:
+                return message.getContent();
+        }
+
+    }
+    private ChatRoomSummaryResponse createSummaryResponse(ChatRoom room, ChatMessage lastMessage, String previewContent, Long userId) {
+
+        // [시간 설정]
         Instant lastMessageTime = room.getCreatedAt();
-
         if (lastMessage != null) {
-            lastMessageContent = lastMessage.getContent();
             lastMessageTime = lastMessage.getSentAt();
         }
+        // (내용은 인자로 받은 previewContent를 그대로 사용하므로 별도 로직 불필요)
 
         int unreadCount = countUnreadMessages(room.getId(), userId);
 
-        // [참여자 분석] 반복문 하나로 '활성 인원 카운트'와 '상대방 찾기' 동시 수행
+        // [참여자 분석]
         int activeParticipantCount = 0;
         User opponent = null;
 
         for (ChatParticipant p : room.getParticipants()) {
-            // 1. 활성 상태인 참여자만 카운트 (수정된 부분)
             if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
                 activeParticipantCount++;
             }
-
-            // 2. 1:1 채팅일 경우 상대방 찾기 (내가 아닌 유저)
+            // 1:1 채팅일 경우 상대방 찾기
             if (!room.getIsGroup() && !p.getUser().getId().equals(userId)) {
                 opponent = p.getUser();
             }
@@ -558,11 +570,11 @@ public class ChatRoomService {
         return new ChatRoomSummaryResponse(
                 room.getId(),
                 roomName,
-                lastMessageContent,
+                previewContent, // ✅ 변환된 텍스트 삽입
                 lastMessageTime,
                 roomImageUrl,
                 unreadCount,
-                activeParticipantCount // 수정된 카운트 적용
+                activeParticipantCount
         );
     }
 }
