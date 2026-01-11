@@ -67,7 +67,9 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         validateProfileInput(userId, requestedKeyOrUrl);
 
         if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
-            throw new BusinessException(ImageErrorCode.USER_IMAGES_ALREADY_EXIST);
+            log.info("중복 이미지 사용자 Id {}", userId);
+            imageRepository.deleteByImageTypeAndRelatedIdWithFlushing(ImageType.USER, userId);
+            log.info("[Profile Setup] 기존 이미지 삭제 완료 (Flush) - userId: {}", userId);
         }
 
         // 2) URL/Key 판정 및 변환
@@ -79,11 +81,12 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         // 5) 최종 후보 키/URL 계산 (버전드 키 전략)
         String candidateFinalKey = computeCandidateFinalKey(userId, requestInfo);
 
-        // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
+        log.debug("[Profile Setup] 이미지 파일 이동 시도 - userId: {}, targetKey: {}", userId, candidateFinalKey);
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
 
         // 10) 저장
         saveImageInDB(userId, ImageType.USER, finalKey);
+        log.info("[Profile Setup] 유저 프로필 이미지 저장 성공 - userId: {}, finalKey: {}", userId, finalKey);
     }
 
     /**
@@ -124,9 +127,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         deleteOldS3ImageIfNecessary(userId, existingOpt);
 
         // 8) 기존 DB 삭제
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.USER, userId);
-
-        imageRepository.flush();
+        imageRepository.deleteByImageTypeAndRelatedIdWithFlushing(ImageType.USER, userId);
 
         // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
@@ -226,9 +227,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         deleteOldS3ImageIfNecessaryForChatRoom(chatRoomId, existingOpt);
 
         // 8) 기존 DB 삭제
-        imageRepository.deleteByImageTypeAndRelatedId(ImageType.CHAT_ROOM, chatRoomId);
-
-        imageRepository.flush();
+        imageRepository.deleteByImageTypeAndRelatedIdWithFlushing(ImageType.CHAT_ROOM, chatRoomId);
 
         // 9) staging → 영구 이동 또는 as-is 사용
         String finalKey = moveChatRoomStagingIfNecessary(chatRoomId, requestInfo, candidateFinalKey);
