@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -30,13 +31,15 @@ public class ContentBasedRecommender {
     private final FollowRepository followRepository;
     private final ImageService imageService;
     private final SecureRandom secureRandom = new SecureRandom();
-    private static final double WEIGHT_ACTIVITY = 85.0;
-    private static final double WEIGHT_SIMILARITY = 10.0;
-    // 랜덤 비중을 5로 축소 (활동적인 사람이 랜덤 운 때문에 밀려나지 않도록)
-    private static final double WEIGHT_RANDOM = 5.0;
-    // [핵심] 반감기를 '1일'에서 '0.25일(6시간)' 또는 '0.1일(2.4시간)'으로 단축
-    private static final double ACTIVITY_HALF_LIFE_DAYS = 0.1;
 
+    // --- [가중치 설정] 접속 시간과 활동량에 '올인' ---
+    private static final double WEIGHT_RECENCY = 0.6;    // 최근 접속 (60%) - 가장 중요
+    private static final double WEIGHT_ACTIVITY = 0.3;   // 활동량 (30%) - 채팅/방문 많은 사람
+    private static final double WEIGHT_SIMILARITY = 0.1; // 취향/국적 (10%) - 최소한의 필터
+
+    // 활동 포인트 만점 기준 (예: 1000점이면 활동 점수 만점)
+    private static final double MAX_ACTIVITY_POINT = 1000.0;
+    private static final double MAX_VISIT_COUNT = 50.0;
 
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
@@ -44,7 +47,7 @@ public class ContentBasedRecommender {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        // 2. 제외 대상 필터링 (팔로잉, 차단, 본인)
+        // 2. 제외 대상 필터링
         List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
         Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);
         Set<Long> blockedIds = blockRepository.findAllBlockedUserIds(meId);
@@ -54,38 +57,39 @@ public class ContentBasedRecommender {
         excludeIds.add(meId);
         if (excludeIds.isEmpty()) excludeIds.add(0L);
 
-        Instant activeLimit = Instant.now().minus(3, ChronoUnit.DAYS);
-
+        // [변경] 검색 범위: 최근 24시간 이내 접속자로 제한 (최우선)
+        Instant activeLimit = Instant.now().minus(1, ChronoUnit.DAYS);
         List<User> candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
-        if (candidates.isEmpty()) {
-            activeLimit = Instant.now().minus(14, ChronoUnit.DAYS);
+
+        // [Fallback] 24시간 이내 접속자가 너무 적으면 최근 3일로 확장
+        if (candidates.size() < 5) {
+            activeLimit = Instant.now().minus(3, ChronoUnit.DAYS);
             candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
         }
+
         if (candidates.isEmpty()) {
             return List.of();
         }
 
-        // 4. 내 언어/취미 Set으로 변환 (비교 편의성)
+        // 3. 내 취향 정보 준비
         String myCountry = me.getCountry();
         Set<String> myHobbies = csvToSet(me.getHobby());
 
-        // 5. 점수 계산 및 정렬, 상위 3명 추출
+        // 4. 점수 계산 (Recency + Activity 집중)
         List<UserScore> scoredCandidates = candidates.stream()
                 .map(candidate -> {
-                    double score = calculateTotalScore(candidate, myCountry, myHobbies);
+                    double score = calculateScore(candidate, myCountry, myHobbies);
                     return new UserScore(candidate, score);
                 })
-                .sorted(Comparator.comparingDouble(UserScore::getScore).reversed()) // 1. 점수 내림차순 정렬
+                .sorted(Comparator.comparingDouble(UserScore::getScore).reversed())
                 .collect(Collectors.toList());
 
-        // [핵심 변경] 상위 N명을 가져와서 섞음 (Shuffle)
-        // 이유: 활동성 점수가 워낙 강력해서 상위권이 고정되므로, 상위 20명 내에서 랜덤성을 부여
-        int poolSize = Math.min(scoredCandidates.size(), 20); // 상위 20명 (후보가 적으면 전체)
-
+        // 5. 상위권 셔플 (고인물 고착화 방지용 최소한의 셔플)
+        // 점수가 높은 상위 10명 중에서만 랜덤으로 3명을 뽑음
+        int poolSize = Math.min(scoredCandidates.size(), 10);
         List<UserScore> topTierPool = new ArrayList<>(scoredCandidates.subList(0, poolSize));
-        Collections.shuffle(topTierPool); // 여기가 마법의 한 줄 (순서를 뒤섞음)
+        Collections.shuffle(topTierPool, secureRandom);
 
-        // 섞인 목록에서 3명 뽑기
         return topTierPool.stream()
                 .limit(limit)
                 .map(us -> toDto(us.getUser()))
@@ -93,65 +97,78 @@ public class ContentBasedRecommender {
     }
 
     /**
-     * [총점 계산 로직]
-     * Total = (활동성 * 85) + (유사도 * 10) + (랜덤 * 5)
+     * [점수 계산 로직]
+     * Score = (최근접속 * 0.6) + (활동량 * 0.3) + (유사도 * 0.1)
      */
-    private double calculateTotalScore(User candidate, String myCountry, Set<String> myHobbies) {
+    private double calculateScore(User candidate, String myCountry, Set<String> myHobbies) {
+
+        // 1. Recency Score (최근 접속)
+        double recencyScore = calculateRecencyScore(candidate.getLastSeenAt());
+
+        // 2. Activity Score (활동량 - 포인트 + 방문수)
         double activityScore = calculateActivityScore(candidate);
-        // [변경] 파라미터 변경
+
+        // 3. Similarity Score (유사도)
         double similarityScore = calculateSimilarityScore(candidate, myCountry, myHobbies);
-        double randomNoise = secureRandom.nextDouble();
 
-        return (activityScore * WEIGHT_ACTIVITY)
-                + (similarityScore * WEIGHT_SIMILARITY)
-                + (randomNoise * WEIGHT_RANDOM);
+        // 최종 합산
+        return (recencyScore * WEIGHT_RECENCY)
+                + (activityScore * WEIGHT_ACTIVITY)
+                + (similarityScore * WEIGHT_SIMILARITY);
     }
+
     /**
-     * [활동성 점수] 0.0 ~ 1.0
-     * 최근 접속일수록 1.0에 가까움. 시간이 지날수록 지수적으로 감소.
+     * [최근 접속 점수]
+     * 10분 이내 접속 시 1.0 (초강력), 시간이 지날수록 급격히 하락
      */
-    private double calculateActivityScore(User user) {
-        if (user.getLastSeenAt() == null) return 0.0;
+    private double calculateRecencyScore(Instant lastSeenAt) {
+        if (lastSeenAt == null) return 0.0;
 
-        long hoursSinceLastSeen = ChronoUnit.HOURS.between(user.getLastSeenAt(), Instant.now());
-        // 미래 시간인 경우 방어 로직
-        if (hoursSinceLastSeen < 0) hoursSinceLastSeen = 0;
+        long minutesAgo = Duration.between(lastSeenAt, Instant.now()).toMinutes();
+        if (minutesAgo <= 10) return 1.0; // 방금 접속한 사람 최고 우대
+        if (minutesAgo <= 60) return 0.9; // 1시간 이내
 
-        double daysSince = hoursSinceLastSeen / 24.0;
-        double decayRate = Math.log(2) / ACTIVITY_HALF_LIFE_DAYS;
-
-        return Math.exp(-decayRate * daysSince);
+        // 24시간(1440분)이 지나면 점수가 0에 가깝게 떨어짐
+        return Math.exp(-((double) minutesAgo / 1440.0));
     }
 
     /**
-     * [유사도 점수] 0.0 ~ 1.0
-     * 국적(2.0) + 취미(1.0) 가중치 적용
+     * [활동량 점수]
+     * 채팅 포인트(ActivityPoint)와 방문 횟수(VisitCount)를 반영
+     */
+    private double calculateActivityScore(User u) {
+        long points = (u.getActivityPoint() != null) ? u.getActivityPoint() : 0L;
+        long visits = (u.getVisitCount() != null) ? u.getVisitCount() : 0L;
+
+        // 포인트 점수 (최대 1.0)
+        double pScore = Math.min(points / MAX_ACTIVITY_POINT, 1.0);
+
+        // 방문 점수 (최대 1.0)
+        double vScore = Math.min(visits / MAX_VISIT_COUNT, 1.0);
+
+        // 활동 포인트(채팅)에 더 가중치 (7:3)
+        return (pScore * 0.7) + (vScore * 0.3);
+    }
+
+    /**
+     * [유사도 점수] - 보조 지표
      */
     private double calculateSimilarityScore(User candidate, String myCountry, Set<String> myHobbies) {
-        // 1. 국적 점수 계산 (가중치 2.0)
-        // 국적이 같으면 2점, 다르면 0점
-        double countryScore = 0.0;
+        double score = 0.0;
+        // 국적 같으면 0.5
         if (myCountry != null && myCountry.equalsIgnoreCase(candidate.getCountry())) {
-            countryScore = 2.0;
+            score += 0.5;
         }
-
-        // 2. 취미 점수 계산 (가중치 1.0)
-        // 일치하는 취미 개수 * 1.0
+        // 취미 겹치면 0.5 (개수 무관, 하나라도 겹치면)
         Set<String> candidateHobbies = csvToSet(candidate.getHobby());
-        long hobbyMatchCount = candidateHobbies.stream()
-                .filter(myHobbies::contains).count();
-        double hobbyScore = hobbyMatchCount * 1.0;
-
-        // 3. 정규화 (0.0 ~ 1.0 사이 값으로 변환)
-        // 분모 = 국적 만점(2.0) + 내 취미 개수(다 맞았을 때)
-        double maxPossibleScore = 2.0 + Math.max(1, myHobbies.size());
-
-        double totalScore = countryScore + hobbyScore;
-
-        return Math.min(1.0, totalScore / maxPossibleScore);
+        boolean hasCommonHobby = candidateHobbies.stream().anyMatch(myHobbies::contains);
+        if (hasCommonHobby) {
+            score += 0.5;
+        }
+        return score;
     }
-    // --- Helper Methods ---
 
+    // --- Helper Methods ---
     private Set<String> csvToSet(String csv) {
         if (csv == null || csv.isBlank()) return Set.of();
         return Arrays.stream(csv.split(","))
@@ -170,7 +187,6 @@ public class ContentBasedRecommender {
         );
     }
 
-    // 내부 점수 래퍼 클래스
     @lombok.AllArgsConstructor
     @lombok.Getter
     private static class UserScore {
