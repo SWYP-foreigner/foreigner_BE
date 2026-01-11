@@ -8,4 +8,4 @@ ALTER TABLE users
 
 -- 3. 응답률 (소수점 지원)
 ALTER TABLE users
-    ADD COLUMN reply_rate DOUBLE DEFAULT 0.0;
+    ADD COLUMN reply_rate DOUBLE PRECISION DEFAULT 0.0;
