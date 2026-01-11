@@ -133,23 +133,21 @@ public class ContentBasedRecommender {
     }
 
     /**
-     * [활동량 점수]
-     * 채팅 포인트(ActivityPoint)와 방문 횟수(VisitCount)를 반영
+     * [활동성 점수 계산 - 최종판]
+     * 1. 응답률 (Quality): 답장을 잘 해주는가? (40%)
+     * 2. 활동 포인트 (Quantity): 채팅을 많이 치는가? (30%)
+     * 3. 방문 횟수 (Frequency): 자주 오는가? (30%)
      */
     private double calculateActivityScore(User u) {
+        double rate = (u.getReplyRate() != null) ? u.getReplyRate() : 0.5;
+
         long points = (u.getActivityPoint() != null) ? u.getActivityPoint() : 0L;
+        double pointScore = Math.min(points / 1000.0, 1.0);
         long visits = (u.getVisitCount() != null) ? u.getVisitCount() : 0L;
+        double visitScore = Math.min(visits / 50.0, 1.0);
 
-        // 포인트 점수 (최대 1.0)
-        double pScore = Math.min(points / MAX_ACTIVITY_POINT, 1.0);
-
-        // 방문 점수 (최대 1.0)
-        double vScore = Math.min(visits / MAX_VISIT_COUNT, 1.0);
-
-        // 활동 포인트(채팅)에 더 가중치 (7:3)
-        return (pScore * 0.7) + (vScore * 0.3);
+        return (rate * 0.4) + (pointScore * 0.3) + (visitScore * 0.3);
     }
-
     /**
      * [유사도 점수] - 보조 지표
      */
