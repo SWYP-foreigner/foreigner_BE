@@ -21,7 +21,7 @@ public enum UserErrorCode implements AppError {
     DUPLICATE_EMAIL_PROVIDER_MISMATCH(HttpStatus.CONFLICT, "다른 방식으로 가입된 이메일입니다."),
 
 
-    ALREADY_BLOCKED (HttpStatus.CONFLICT, "이미 차단한 유저입니다."),
+    ALREADY_BLOCKED(HttpStatus.CONFLICT, "이미 차단한 유저입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 유저를 팔로우하고 있습니다."),
     PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "Your profile is incomplete. Please complete your profile setup"),
@@ -38,7 +38,9 @@ public enum UserErrorCode implements AppError {
     INVALID_USER_UPDATE_REQUEST(HttpStatus.BAD_REQUEST, "프로필 업데이트가 처리되지 않았습니다."),
     JWT_INVALID_ROLE(HttpStatus.UNAUTHORIZED, "추방된 유저입니다"),
     INVALID_PROFILE(HttpStatus.BAD_REQUEST, "이미 셋업한 유저입니다."),
-    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "잘못된 입력값입니다.");
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "잘못된 입력값입니다."),
+    ALREADY_FOLLOWING(HttpStatus.CONFLICT, "이미 팔로우 중입니다."),
+    ALREADY_FOLLOWED(HttpStatus.CONFLICT, "상대방이 팔로우했습니다.");
     private final HttpStatus httpStatus;
     private final String message;
 
