@@ -99,41 +99,51 @@ public class ProfileImageServiceImpl implements ProfileImageService {
     @Transactional
     @Override
     public String updateUserProfileImage(Long userId, String requestedKeyOrUrl) {
+        log.info("[프로필 수정 시작] userId: {}, 요청값: {}", userId, requestedKeyOrUrl);
+
         // 1) 입력 검증
         validateProfileInput(userId, requestedKeyOrUrl);
 
         // 2) URL/Key 판정 및 변환
         RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
+        log.info("[프로필 수정 - 정보 판정] default여부: {}, staging여부: {}, 추출된Key: {}",
+                requestInfo.isDefaultIncoming(), requestInfo.isStaging(), requestInfo.getReqKey());
 
-
-        // 3) 기본이미지가 아니면 헤더 검사(용량 제한 포함)
+        // 3) 용량 및 헤더 검증
         validateImageHeadIfNecessary(requestInfo);
 
         // 4) 기존 이미지 조회
         Optional<Image> existingOpt =
                 imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId);
+        log.info("[프로필 수정 - 기존 조회] 기존 이미지 존재 여부: {}", existingOpt.isPresent());
 
-        // 5) 최종 후보 키/URL 계산 (버전드 키 전략)
+        // 5) 최종 후보 키/URL 계산
         String candidateFinalKey = computeCandidateFinalKey(userId, requestInfo);
         String candidateFinalUrl = buildCdnUrlFromKey(cdnBaseUrl, candidateFinalKey);
+        log.info("[프로필 수정 - 후보 생성] 최종 저장 예정 Key: {}", candidateFinalKey);
 
-
-        // 6) 동일 URL이면 no-op (버전 키면 보통 달라서 여기 안 걸림)
+        // 6) 동일 URL이면 no-op
         if (isNoOp(existingOpt, candidateFinalUrl)) {
+            log.info("[프로필 수정 - 중단] 요청된 이미지가 기존 이미지와 동일합니다. 작업을 중단합니다.");
             return candidateFinalUrl;
         }
 
-        // 7) 기존 S3 삭제 (있으면, 그리고 default가 아니면)
+        // 7) 기존 S3 삭제
         deleteOldS3ImageIfNecessary(userId, existingOpt);
 
-        // 8) 기존 DB 삭제
+        // 8) 기존 DB 삭제 (Flush 포함)
         imageRepository.deleteByImageTypeAndRelatedIdWithFlushing(ImageType.USER, userId);
+        log.info("[프로필 수정 - DB 초기화] 기존 이미지 레코드 삭제 완료 (Flush)");
 
-        // 9) staging → 영구(버전드 키) 이동 또는 as-is 사용
+        // 9) staging -> 영구 이동
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
+        log.info("[프로필 수정 - 이동 완료] 최종 확정된 Key: {}", finalKey);
 
-        // 10) 저장
-        return saveImageInDB(userId, ImageType.USER, finalKey);
+        // 10) 저장 및 결과 반환
+        String resultUrl = saveImageInDB(userId, ImageType.USER, finalKey);
+        log.info("[프로필 수정 종료] 성공적으로 변경되었습니다. finalUrl: {}", resultUrl);
+
+        return resultUrl;
     }
 
     @Override
@@ -315,70 +325,114 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
 
     private void validateProfileInput(Long userId, String requestedKeyOrUrl) {
+        log.info("[검증 - validateProfileInput] userId: {}, requestedKeyOrUrl: {}", userId, requestedKeyOrUrl);
         if (requestedKeyOrUrl == null || requestedKeyOrUrl.isBlank()) {
             log.warn("[UPI] fail.input_validation reason=null_or_blank userId={}", userId);
             throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         }
+        log.info("[검증 성공] 입력값 유효함");
     }
 
     private RequestInfo resolveRequestInfo(String requestedKeyOrUrl) {
+        log.info("[분석 - resolveRequestInfo] 분석 시작: {}", requestedKeyOrUrl);
+
         boolean isDefaultIncoming = storageClient.isDefaultUrlOrKey(requestedKeyOrUrl);
         String reqKey = toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, requestedKeyOrUrl);
         boolean reqIsStaging = storageClient.isStagingKey(reqKey);
 
+        log.info("[분석 결과] default여부: {}, 추출된Key: {}, staging여부: {}", isDefaultIncoming, reqKey, reqIsStaging);
         return new RequestInfo(isDefaultIncoming, reqKey, reqIsStaging);
     }
 
     private String computeCandidateFinalKey(Long userId, RequestInfo requestInfo) {
+        log.info("[계산 - computeCandidateFinalKey] 후보 키 계산 중... userId: {}", userId);
         String reqKey = requestInfo.getReqKey();
 
         if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
-            return buildVersionedProfileKey(userId, ImageType.USER, reqKey);
+            String versionedKey = buildVersionedProfileKey(userId, ImageType.USER, reqKey);
+            log.info("[계산 결과] staging이므로 버전 키 생성: {}", versionedKey);
+            return versionedKey;
         }
 
+        log.info("[계산 결과] 기본이미지거나 이미 영구키이므로 유지: {}", reqKey);
         return reqKey;
     }
 
     private void validateImageHeadIfNecessary(RequestInfo requestInfo) {
-        if (requestInfo.isDefaultIncoming()) return;
+        if (requestInfo.isDefaultIncoming()) {
+            log.info("[헤더검사 - skip] 기본 이미지이므로 헤더 검사를 생략합니다.");
+            return;
+        }
+        log.info("[헤더검사 - 시작] Key: {}", requestInfo.getReqKey());
         validateImageHeadOrThrow(requestInfo.getReqKey(), PROFILE_MAX_BYTES);
     }
 
     private void validateImageHeadOrThrow(String key, long maxBytes) {
         HeadObjectResponse head = storageClient.headObject(key);
         long size = head.contentLength();
-        if (size <= 0 || size > maxBytes) throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
         String ct = Optional.ofNullable(head.contentType()).orElse("").toLowerCase();
-        if (!ct.startsWith("image/")) throw new BusinessException(ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+
+        log.info("[헤더검사 상세] size: {} bytes (제한: {}), contentType: {}", size, maxBytes, ct);
+
+        if (size <= 0 || size > maxBytes) {
+            log.info("[헤더검사 실패] 용량 부적합 (0 이하 또는 10MB 초과)");
+            throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        if (!ct.startsWith("image/")) {
+            log.info("[헤더검사 실패] 이미지 타입이 아님: {}", ct);
+            throw new BusinessException(ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR);
+        }
+        log.info("[헤더검사 성공]");
     }
 
     private boolean isNoOp(Optional<Image> existingOpt, String candidateFinalUrl) {
-        return existingOpt.isPresent()
-               && java.util.Objects.equals(existingOpt.get().getUrl(), candidateFinalUrl);
+        if (existingOpt.isEmpty()) {
+            log.info("[No-Op 검사] 기존 이미지가 없어 No-Op이 아닙니다.");
+            return false;
+        }
+        String existingUrl = existingOpt.get().getUrl();
+        boolean same = java.util.Objects.equals(existingUrl, candidateFinalUrl);
+        log.info("[No-Op 검사] 기존URL: {}, 새URL: {}, 동일여부: {}", existingUrl, candidateFinalUrl, same);
+        return same;
     }
 
     private void deleteOldS3ImageIfNecessary(Long userId, Optional<Image> existingOpt) {
+        if (existingOpt.isEmpty()) {
+            log.info("[S3삭제 - skip] 기존 이미지 정보가 DB에 없습니다.");
+            return;
+        }
+
+        String oldUrl = existingOpt.get().getUrl();
         existingOpt.ifPresent(old -> {
-            if (!storageClient.isDefaultUrlOrKey(old.getUrl())) {
+            if (!storageClient.isDefaultUrlOrKey(oldUrl)) {
                 try {
-                    String oldKey = toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, old.getUrl());
+                    String oldKey = toKeyFromUrlOrKey(endPoint, bucket, cdnBaseUrl, oldUrl);
+                    log.info("[S3삭제 - 실행] userId: {}, 삭제할 Key: {}", userId, oldKey);
                     s3Client.deleteObject(b -> b.bucket(bucket).key(oldKey));
                 } catch (SdkException e) {
                     // 실패해도 치명적이지 않으므로 경고만
                     log.warn("[UPI] old_s3_delete_ignored userId={} url={} err={}", userId, old.getUrl(), e.getMessage());
                 }
+            }else {
+                log.info("[S3삭제 - skip] 기존 이미지가 기본 이미지(default)이므로 삭제하지 않습니다. url: {}", oldUrl);
             }
         });
     }
 
     private String saveImageInDB(Long relatedId, ImageType imageType, String finalKey) {
         String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
+        log.info("[DB저장 - 시작] Type: {}, ID: {}, URL: {}", imageType, relatedId, finalUrl);
 
         Image image = Image.of(imageType, relatedId, finalUrl, 0, ImageModerationStatus.CLEAN, null);
         Image savedImage = imageRepository.save(image);
+
+        log.info("[DB저장 - 완료] Image 엔티티 ID: {}", savedImage.getId());
+
         if (!storageClient.isDefaultUrlOrKey(finalKey)) {
-            log.info("[ProfileImage] 비동기 유해성 검사 요청 발행: ID={}, Key={}", savedImage.getId(), finalKey);
+            log.info("[유해성검사] 이벤트 발행 시작. ID: {}, Key: {}", savedImage.getId(), finalKey);
             eventPublisher.publishEvent(new ImageModerationEvent(savedImage.getId(), finalKey));
+        } else {
+            log.info("[유해성검사 - skip] 기본 이미지이므로 검사 생략");
         }
 
         return finalUrl;
@@ -413,13 +467,12 @@ public class ProfileImageServiceImpl implements ProfileImageService {
     private String buildVersionedProfileKey(Long id, ImageType imageType, String reqKey) {
         String ext = storageClient.extOf(reqKey);
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        if (imageType == ImageType.USER) {
-            return "users/%d/profile.%s.%s".formatted(id, uuid, ext);
-        } else if (imageType == ImageType.CHAT_ROOM) {
-            return "chatRoom/%d/chat_profile_%s.%s".formatted(id, uuid, ext);
-        }
+        String key = (imageType == ImageType.USER)
+                ? "users/%d/profile.%s.%s".formatted(id, uuid, ext)
+                : "chatRoom/%d/chat_profile_%s.%s".formatted(id, uuid, ext);
 
-        return null;
+        log.info("[버전 키 생성] id: {}, type: {}, 생성된 key: {}", id, imageType, key);
+        return key;
     }
 
     private String moveStagingProfileIfNecessary(Long userId, RequestInfo requestInfo, String candidateFinalKey) {
@@ -427,6 +480,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
         if (!requestInfo.isDefaultIncoming() && requestInfo.isStaging()) {
             String dstKey = candidateFinalKey;
+            log.info("[S3이동 - 시작] userId: {}, src: {}, dst: {}", userId, reqKey, candidateFinalKey);
             try {
                 // 메타데이터는 REPLACE하여 표준화(원치 않으면 COPY로 유지 가능)
                 s3Client.copyObject(b -> b
@@ -434,14 +488,17 @@ public class ProfileImageServiceImpl implements ProfileImageService {
                         .destinationBucket(bucket).destinationKey(dstKey)
                         .acl(ObjectCannedACL.PUBLIC_READ)
                         .metadataDirective(MetadataDirective.REPLACE)
-                        .cacheControl("public, max-age=31536000, immutable")); // 버전 키이므로 aggressive 캐시 OK
+                        .cacheControl("public, max-age=31536000, immutable"));
                 s3Client.deleteObject(b -> b.bucket(bucket).key(reqKey));
+                log.info("[S3이동 - 완료] 객체 이동 및 원본 staging 삭제 완료");
                 return dstKey;
             } catch (SdkException e) {
                 log.warn("[UPI] staging_move_failed userId={} src={} dst={} err={}", userId, reqKey, dstKey, e.getMessage());
                 throw new BusinessException(ImageErrorCode.IMAGE_UPLOAD_FAILED);
             }
         }
+
+        log.info("[S3이동 - skip] 이동 조건 미충족 (default 이미지거나 staging이 아님)");
 
         return candidateFinalKey;
     }
