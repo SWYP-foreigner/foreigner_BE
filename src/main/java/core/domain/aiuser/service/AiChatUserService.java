@@ -124,6 +124,8 @@ public class AiChatUserService {
 
         // 2. 내가 마지막으로 말했으면 연속으로 말하지 않음 (그룹챗일 경우 독점 방지)
         if (lastMessage.getSender().getId().equals(aiUser.getId()) && isGroupChat) {
+            // [예외] 여기서도 Main Speaker라면 허용해주는 것이 좋음 (단, 여기는 중복 호출 방지 성격이 강하므로 유지하거나, 필요 시 수정 가능)
+            // Coordinator 레벨에서 Sleep을 주고 들어오므로 여기는 크게 문제되지 않음
             return null;
         }
 
@@ -235,13 +237,18 @@ public class AiChatUserService {
         }
 
         // 4. [Fatigue] 최근 3마디 내에 내가 말했으면 참기 (독점 방지)
+        // [수정] Main Speaker에게는 면제권을 부여하여 Active Talker가 대화를 이어갈 수 있게 함
         boolean talkedRecently = recentHistory.stream()
                 .limit(3)
                 .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
 
         if (talkedRecently) {
-            // 질문이면 20% 확률로 끼어들기 허용
-            if (message.contains("?") && secureRandom.nextInt(100) < 20) {
+            if (isMainSpeaker) {
+                // 면제권 발동
+                log.info("AI [{}] 🟢 Pass: Fatigue ignored (Reason: Main Speaker Immunity).", aiName);
+            }
+            // 질문이면 20% 확률로 끼어들기 허용 (Main Speaker가 아닐 경우)
+            else if (message.contains("?") && secureRandom.nextInt(100) < 20) {
                 log.info("AI [{}] 🟡 Pass: Talked recently but question luck triggered (20%).", aiName);
             } else {
                 log.info("AI [{}] 🔴 Skip: Fatigue (Talked recently).", aiName);
