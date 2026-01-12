@@ -40,7 +40,7 @@ import static core.global.entity.image.utils.UrlUtil.toKeyFromUrlOrKey;
 @RequiredArgsConstructor
 public class ProfileImageServiceImpl implements ProfileImageService {
 
-    private static final long PROFILE_MAX_BYTES = 10L * 1024 * 1024;
+    private static final long PROFILE_MAX_BYTES = 15L * 1024 * 1024;
 
     private final S3Client s3Client;
     private final ImageRepository imageRepository;

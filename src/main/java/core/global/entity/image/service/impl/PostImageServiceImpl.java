@@ -1,6 +1,5 @@
 package core.global.entity.image.service.impl;
 
-import core.domain.admin.service.ContentModerationService;
 import core.domain.post.entity.Post;
 import core.global.entity.image.S3Props;
 import core.global.entity.image.dto.ImageModerationEvent;
@@ -52,7 +51,6 @@ public class PostImageServiceImpl implements PostImageService {
     private final ImageStorageClient storageClient;
     private final S3Presigner s3Presigner;
     private final S3Props s3Props;
-    private final ContentModerationService contentModerationService;
     private final ApplicationEventPublisher eventPublisher;
     @Qualifier("imageExecutor") // AsyncConfig에서 정의한 빈 주입
     private final Executor imageExecutor;
