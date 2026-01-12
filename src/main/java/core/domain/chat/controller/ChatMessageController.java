@@ -115,12 +115,14 @@ public class ChatMessageController {
     // [수정 5] 응답 스키마(PresignedUrlResponse) 명시
     @Operation(summary = "채팅 미디어 Presigned URL 발급",
             description = """
-               지정된 채팅방(chatroomId)에 사진이나 동영상을 업로드할 수 있는, 15분간 유효한 일회성 URL을 발급합니다.
-               
-               클라이언트는 이 응답으로 받은 `presignedUrl`에 `PUT` 메서드를 사용하여 바이너리 파일 데이터를 직접 업로드해야 합니다.
-               
-               업로드 성공 후에는 응답으로 받은 `fileKey` 값을 사용하여 WebSocket으로 최종 메시지를 전송해야 합니다.
-               """)
+           지정된 채팅방(chatroomId)에 미디어(사진/동영상)를 업로드하기 위한 URL을 발급합니다.
+           
+           - **IMAGE**: `presignedUrl` 하나만 반환됩니다.
+           - **VIDEO**: `presignedUrl`(영상용)과 `thumbnailUrl`(썸네일용) 두 가지가 반환됩니다.
+           
+           클라이언트는 반환된 URL에 각각 PUT 요청으로 파일을 업로드한 뒤, 
+           `fileKey`와 `thumbnailKey`를 사용하여 소켓 메시지를 전송해야 합니다.
+           """)
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Presigned URL 발급 성공",
                     content = @Content(schema = @Schema(implementation = PresignedUrlResponse.class))),
@@ -130,7 +132,14 @@ public class ChatMessageController {
     public ResponseEntity<ApiResponse<PresignedUrlResponse>> getChatPresignedUrl(
             @PathVariable Long chatroomId,
             @RequestBody ChatPresignedUrlRequest request) {
-        PresignedUrlResponse response = chatService.generateChatPresignedUrl(chatroomId, request.fileName());
+
+        // fileType 추가 전달
+        PresignedUrlResponse response = chatService.generateChatPresignedUrl(
+                chatroomId,
+                request.fileName(),
+                request.fileType()
+        );
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

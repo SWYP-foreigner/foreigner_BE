@@ -661,14 +661,47 @@ public class ChatMessageService {
         }
     }
 
-    public PresignedUrlResponse generateChatPresignedUrl(Long chatroomId, String fileName) {
-        String fileKey = "chats/" + chatroomId + "/" + UUID.randomUUID() + "-" + fileName;
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder().bucket(bucketName).key(fileKey).build();
+    public PresignedUrlResponse generateChatPresignedUrl(Long chatroomId, String fileName, MessageType fileType) {
+        // 1. UUID를 한 번만 생성 (동영상과 썸네일이 공유!)
+        String commonUuid = UUID.randomUUID().toString();
+
+        // 2. 메인 파일 Key 생성 (예: chats/1/uuid-video.mp4)
+        String fileKey = "chats/" + chatroomId + "/" + commonUuid + "-" + fileName;
+
+        // 3. 메인 파일 URL 생성
+        String mainUrl = createPresignedUrl(fileKey);
+
+        String thumbnailKey = null;
+        String thumbnailUrl = null;
+
+        // 4. 동영상인 경우에만 썸네일 URL 추가 생성
+        if (fileType == MessageType.VIDEO) {
+            int lastDotIndex = fileKey.lastIndexOf('.');
+            if (lastDotIndex != -1) {
+                thumbnailKey = fileKey.substring(0, lastDotIndex) + ".jpg";
+            } else {
+                thumbnailKey = fileKey + ".jpg";
+            }
+
+            thumbnailUrl = createPresignedUrl(thumbnailKey);
+        }
+
+        return new PresignedUrlResponse(mainUrl, fileKey, thumbnailUrl, thumbnailKey);
+    }
+
+    // [리팩토링] 중복 코드를 줄이기 위한 헬퍼 메서드
+    private String createPresignedUrl(String key) {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .build();
+
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofMinutes(15))
-                .putObjectRequest(putObjectRequest).build();
-        PresignedPutObjectRequest presignedPutObjectRequest = s3Presigner.presignPutObject(presignRequest);
-        return new PresignedUrlResponse(presignedPutObjectRequest.url().toString(), fileKey);
+                .putObjectRequest(putObjectRequest)
+                .build();
+
+        return s3Presigner.presignPutObject(presignRequest).url().toString();
     }
 
     @Transactional(readOnly = true)
