@@ -37,7 +37,14 @@ public class AiChatCoordinatorService {
     public void coordinateReplies(Long roomId, Set<User> aiParticipants, MessageCreatedEvent lastEvent, String userMessage) {
 
         List<User> aiList = new ArrayList<>(aiParticipants);
+
+        // 1. 일단 섞습니다 (Active가 아닌 나머지 애들의 순서를 랜덤으로 하기 위해)
         Collections.shuffle(aiList);
+
+        // 2. [핵심 수정] 우선순위 정렬 (멘션된 사람 > 방금 말한 사람 > 나머지)
+        // 이 정렬을 통해 Active Talker가 무조건 리스트 0번(Main Speaker)을 차지하게 만듭니다.
+        // 이렇게 해야 'UserService'에서 피로도 면제권(Main Speaker 권한)을 얻어 대화가 끊기지 않습니다.
+        sortParticipantsByPriority(aiList, roomId, userMessage);
 
         if (aiList.isEmpty()) return;
 
@@ -46,7 +53,9 @@ public class AiChatCoordinatorService {
 
         for (int i = 0; i < aiList.size(); i++) {
             User aiUser = aiList.get(i);
-            boolean isMainSpeakerCandidate = (i == 0); // 셔플 1번 타자
+
+            // 정렬 덕분에 Active Talker는 무조건 i=0이 되어 Main Speaker 자격을 얻음
+            boolean isMainSpeakerCandidate = (i == 0);
 
             // [핵심 변경] 실행 전에 미리 타입을 결정합니다.
             // 기존에는 UserService가 알아서 했지만, 이제는 Coordinator가 스케줄링을 해야 하므로 여기서 판단합니다.
@@ -67,6 +76,42 @@ public class AiChatCoordinatorService {
                 scheduleLateReply(aiUser, lastEvent, userMessage, roomId, lateDelayMinutes);
             }
         }
+    }
+
+    /**
+     * [Helper] 참여자 우선순위 정렬
+     * 1순위: 멘션됨 (호출 시 최우선)
+     * 2순위: Active Talker (대화 관성 유지)
+     * 3순위: 나머지 (이미 셔플된 상태)
+     */
+    private void sortParticipantsByPriority(List<User> aiList, Long roomId, String userMessage) {
+        // Active Talker 정보를 미리 조회하여 Map에 담아둡니다 (반복적인 DB 조회 방지용)
+        Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
+        Set<Long> activeTalkerIds = new HashSet<>();
+
+        for (User ai : aiList) {
+            if (chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(ai.getId(), roomId, fiveMinutesAgo)) {
+                activeTalkerIds.add(ai.getId());
+            }
+        }
+
+        aiList.sort((u1, u2) -> {
+            // 1. 멘션 여부 체크
+            boolean u1Mentioned = isMentioned(userMessage, u1.getFirstName());
+            boolean u2Mentioned = isMentioned(userMessage, u2.getFirstName());
+
+            if (u1Mentioned && !u2Mentioned) return -1; // u1 우선
+            if (!u1Mentioned && u2Mentioned) return 1;  // u2 우선
+
+            // 2. Active Talker 체크
+            boolean u1Active = activeTalkerIds.contains(u1.getId());
+            boolean u2Active = activeTalkerIds.contains(u2.getId());
+
+            if (u1Active && !u2Active) return -1; // u1 우선
+            if (!u1Active && u2Active) return 1;  // u2 우선
+
+            return 0; // 순서 유지 (이미 셔플되었으므로 랜덤)
+        });
     }
 
     /**
