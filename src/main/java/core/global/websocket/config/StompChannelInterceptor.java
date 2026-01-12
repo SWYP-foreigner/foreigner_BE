@@ -32,11 +32,13 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final UserActivityService userActivityService;
     private final ChatRoomDwellRecorder dwell;
     private final ChatMetrics chatMetrics;
+
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
         log.debug("preSend 진입: command={}, destination={}", accessor.getCommand(), accessor.getDestination());
 
+        // 1. CONNECT (연결 시)
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             log.info("STOMP CONNECT 요청 처리 시작");
             String authHeader = accessor.getFirstNativeHeader("Authorization");
@@ -68,8 +70,12 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                     sessionAttributes.put("userAuth", auth);
                     sessionAttributes.put("userId", userId);
                     sessionAttributes.put("connectAt", System.currentTimeMillis());
+
                     String userEmail = auth.getName();
-                    userActivityService.updateLastSeenAt(userEmail);
+                    userActivityService.updateLastSeenAt(userEmail); // 기존: 휴면 복구 및 접속 시간 갱신
+
+                    // [추가 1] 방문 횟수 증가 (Visit Count)
+                    userActivityService.recordVisit(userId);
                 }
                 accessor.setUser(auth);
                 log.info("STOMP JWT 인증 완료: WebSocket 세션에 사용자 정보 등록 (userId: {})", userId);
@@ -78,20 +84,31 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             } catch (Exception e) {
                 log.error("STOMP JWT 처리 중 예외 발생: {}", e.getMessage(), e);
-
                 chatMetrics.onWsConnect("auth_error");
-
                 throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
 
-        } else if (StompCommand.SEND.equals(accessor.getCommand()) || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+        }
+        // 2. SEND (메시지 전송 시)
+        else if (StompCommand.SEND.equals(accessor.getCommand())) {
 
-            if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
-                String sessionId = accessor.getSessionId();
-                String dest = accessor.getDestination();
-                String roomId = parseRoomId(dest);
-                dwell.onEnter(sessionId, roomId);
+            // [추가 2] 채팅 메시지 전송 시 활동 포인트 적립
+            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            if (sessionAttributes != null) {
+                Long userId = (Long) sessionAttributes.get("userId");
+                if (userId != null) {
+                    // 채팅 1회당 5점 부여 (정책에 따라 조절)
+                    userActivityService.addActivityPoint(userId, 5L);
+                }
             }
+
+        }
+        // 3. SUBSCRIBE (채팅방 입장 시)
+        else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            String sessionId = accessor.getSessionId();
+            String dest = accessor.getDestination();
+            String roomId = parseRoomId(dest);
+            dwell.onEnter(sessionId, roomId);
 
         } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
 

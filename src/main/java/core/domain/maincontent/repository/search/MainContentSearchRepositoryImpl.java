@@ -95,7 +95,7 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
         String sql = """
                 WITH docs AS (
                   SELECT m.content_id AS doc_id, m.title -- 본문보다 제목에서 키워드 추출이 더 정확함
-                  FROM main_page_content m
+                  FROM main_content m
                   WHERE m.created_at >= now() - interval '14 days' -- 뉴스는 기간을 조금 더 넓게 잡아도 됨
                 ),
                 tokens AS (
@@ -179,7 +179,7 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
                 FROM (
                     SELECT m.content_id AS doc_id, 
                            btrim((t.token_json::jsonb ->> 'value')) AS term
-                    FROM main_page_content m
+                    FROM main_content m
                     CROSS JOIN LATERAL unnest(
                         pgroonga_tokenize(m.title, 'tokenizer', 'TokenDelimit')
                     ) AS t(token_json)
@@ -204,7 +204,7 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
     public boolean existsInContents(String keyword) {
         String sql = """
             SELECT EXISTS (
-                SELECT 1 FROM main_page_content 
+                SELECT 1 FROM main_content 
                 WHERE title &@ :keyword OR html_content &@ :keyword -- 실제 컬럼명으로 수정
                 LIMIT 1
             )

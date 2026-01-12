@@ -17,6 +17,7 @@ import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,13 +40,15 @@ public class MainContentSearchController {
     private final MainContentRecentService mainContentRecentService;
     private final MainContentSuggestIndex mainContentSuggestIndex;
     private final MainContentKeywordExtractor newsExtractor;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    MainContentSearchController(MainContentService mainContentService, MainContentSearchService mainContentSearchService, MainContentRecentService mainContentRecentService, MainContentSuggestIndex mainContentSuggestIndex, MainContentKeywordExtractor newsExtractor) {
+    MainContentSearchController(MainContentService mainContentService, MainContentSearchService mainContentSearchService, MainContentRecentService mainContentRecentService, MainContentSuggestIndex mainContentSuggestIndex, MainContentKeywordExtractor newsExtractor, FeatureUsageMetrics featureUsageMetrics) {
         this.mainContentService = mainContentService;
         this.mainContentSearchService = mainContentSearchService;
         this.mainContentRecentService = mainContentRecentService;
         this.mainContentSuggestIndex = mainContentSuggestIndex;
         this.newsExtractor = newsExtractor;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(summary = "게시글 검색", description = "커서 페이지네이션 지원")
@@ -58,6 +61,8 @@ public class MainContentSearchController {
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
+        featureUsageMetrics.recordMainPageUsage();
+
         mainContentRecentService.log(q);
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
@@ -76,6 +81,8 @@ public class MainContentSearchController {
         MainPageContentResponse contentDetail = mainContentService.getMainContent(contentId);
 
         extractedKeyword(contentDetail.htmlContent(), 1);
+
+        featureUsageMetrics.recordMainPageUsage();
 
         return ResponseEntity.ok(core.global.dto.ApiResponse.success(contentDetail));
     }
@@ -112,6 +119,8 @@ public class MainContentSearchController {
         // 2. 검색 기록 로깅 (최근 검색어에도 추가하고 싶다면)
         mainContentRecentService.log(keyword);
 
+        featureUsageMetrics.recordMainPageUsage();
+
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         mainContentSearchService.search(keyword, cursor, size)
@@ -124,6 +133,7 @@ public class MainContentSearchController {
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     @PostMapping("/clicked")
     public void clicked(@RequestBody @Valid SuggestClickRequest body) {
+        featureUsageMetrics.recordMainPageUsage();
         extractedKeyword(body.text(), 1);
     }
 

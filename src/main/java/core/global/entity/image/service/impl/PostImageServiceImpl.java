@@ -1,6 +1,5 @@
 package core.global.entity.image.service.impl;
 
-import core.domain.admin.service.ContentModerationService;
 import core.domain.post.entity.Post;
 import core.global.entity.image.S3Props;
 import core.global.entity.image.dto.ImageModerationEvent;
@@ -52,7 +51,6 @@ public class PostImageServiceImpl implements PostImageService {
     private final ImageStorageClient storageClient;
     private final S3Presigner s3Presigner;
     private final S3Props s3Props;
-    private final ContentModerationService contentModerationService;
     private final ApplicationEventPublisher eventPublisher;
     @Qualifier("imageExecutor") // AsyncConfig에서 정의한 빈 주입
     private final Executor imageExecutor;
@@ -148,7 +146,7 @@ public class PostImageServiceImpl implements PostImageService {
             throw new BusinessException(ImageErrorCode.POST_IMAGES_ALREADY_EXIST);
         }
 
-        final String basePrefix = "test-posts/posts/" + postId;
+        final String basePrefix = "posts/" + postId;
 
         // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
         CopyResult copyResult = copyNewImagesInParallel(
@@ -192,7 +190,7 @@ public class PostImageServiceImpl implements PostImageService {
             return;
         }
 
-        final String basePrefix = "test-posts/posts/" + postId;
+        final String basePrefix = "posts/" + postId;
 
         // 3) 병렬 COPY (스테이징 원본은 목록에 모아 한 번에 삭제)
         CopyResult copyResult = copyNewImagesInParallel(

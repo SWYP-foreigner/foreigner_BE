@@ -34,4 +34,20 @@ public class UserActivityService {
             }
         });
     }
+    @Transactional
+    public void recordVisit(Long userId) {
+        userRepository.findById(userId).ifPresent(user -> {
+            // 마지막 접속이 오늘 이전이라면(혹은 1시간 전) 방문 횟수 증가 로직 등 추가 가능
+            // 여기서는 심플하게 접속 시 무조건 증가 (필요시 시간 체크 로직 추가)
+            user.incrementVisitCount();
+            user.updateLastSeenAt();
+        });
+    }
+
+    @Transactional
+    public void addActivityPoint(Long userId, long points) {
+        userRepository.findById(userId).ifPresent(user -> {
+            user.addActivityPoint(points);
+        });
+    }
 }

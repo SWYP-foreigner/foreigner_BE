@@ -5,6 +5,7 @@ import core.domain.user.dto.StringCountDto;
 import core.domain.user.entity.User;
 import core.global.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -314,4 +315,24 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
           AND NOT EXISTS (SELECT 1 FROM chat_participant cp WHERE cp.user_id = u.user_id)
     """, nativeQuery = true)
     long countGhostUsers(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Modifying(clearAutomatically = true)
+    @Query(value = """
+        UPDATE users u
+        JOIN (
+            SELECT 
+                cp.user_id,
+                COALESCE(
+                    SUM(CASE WHEN cm.sender_id = cp.user_id THEN 1.0 ELSE 0.0 END) 
+                    / NULLIF(COUNT(cm.message_id), 0)
+                , 0.0) as calculated_rate
+            FROM chat_participant cp
+            JOIN chat_room cr ON cp.chatroom_id = cr.chatroom_id
+            JOIN chat_message cm ON cr.chatroom_id = cm.chatroom_id
+            WHERE cr.is_group = false  -- 1:1 채팅만 반영
+            GROUP BY cp.user_id
+        ) stats ON u.id = stats.user_id
+        SET u.reply_rate = stats.calculated_rate
+    """, nativeQuery = true)
+    void updateReplyRatesBulk();
 }

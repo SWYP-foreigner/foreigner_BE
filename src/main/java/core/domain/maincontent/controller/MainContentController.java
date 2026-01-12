@@ -11,6 +11,7 @@ import core.global.enums.KNewsContentType;
 import core.global.enums.MainContentSortOption;
 import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.MainContentErrorCode;
+import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,9 +30,11 @@ import java.util.List;
 public class MainContentController {
 
     private final MainContentService mainContentService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    MainContentController(MainContentService mainContentService) {
+    MainContentController(MainContentService mainContentService, FeatureUsageMetrics featureUsageMetrics) {
         this.mainContentService = mainContentService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(summary = "메인페이지 K-News 최신 3개 조회")
@@ -45,6 +48,8 @@ public class MainContentController {
     public ResponseEntity<core.global.dto.ApiResponse<List<MainContentNewsResponse>>> getTop3News(
             @PathVariable KNewsContentType type
     ) {
+        featureUsageMetrics.recordMainPageUsage();
+
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         mainContentService.getTop3News(type)
@@ -66,6 +71,8 @@ public class MainContentController {
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
     ) {
+        featureUsageMetrics.recordMainPageUsage();
+
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         mainContentService.getCategoryNews(type, sort, cursor, size)
@@ -86,6 +93,8 @@ public class MainContentController {
             @Parameter(description = "조회할 콘텐츠의 ID", required = true, example = "1")
             @PathVariable Long contentId
     ) {
+        featureUsageMetrics.recordMainPageUsage();
+
         MainPageContentResponse response = mainContentService.getMainContent(contentId);
         return ResponseEntity.ok(response);
     }
@@ -99,7 +108,7 @@ public class MainContentController {
     )
     @GetMapping("/trending")
     public ResponseEntity<core.global.dto.ApiResponse<List<MainContentTop9Response>>> getTrendingKNews() {
-
+        featureUsageMetrics.recordMainPageUsage();
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
                         mainContentService.getTrendingKNews()

@@ -107,6 +107,17 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserNotificationSetting> notificationSettings = new ArrayList<>();
 
+    // [추가 1] 활동 포인트 (Method B 구현용)
+    // 접속, 채팅, 좋아요 등을 할 때마다 쌓이는 점수 -> '친절한 유저' 판단 기준
+    @Column(name = "activity_point")
+    private Long activityPoint = 0L;
+
+    @Column(name = "visit_count")
+    private Long visitCount = 0L;
+
+    @Column(name = "reply_rate")
+    private Double replyRate = 0.0;
+
     @Builder
     public User(String firstName,
                 String lastName,
@@ -290,5 +301,50 @@ public class User {
 
     public void changeUserRole(Role role) {
         this.userRole = role;
+    }
+    /**
+     * [알고리즘용] 신규 유저 판단 로직
+     * DB의 isNewUser(프로필 설정 여부)와 다르게,
+     * 가입한 지 특정 일수(예: 7일)가 지났는지를 판단합니다.
+     */
+    public boolean isJoinedWithinDays(int days) {
+        if (this.createdAt == null) return false;
+        Instant threshold = Instant.now().minus(days, java.time.temporal.ChronoUnit.DAYS);
+
+        return this.createdAt.isAfter(threshold);
+    }
+
+    /**
+     * [알고리즘용] 유저 활동 점수 (Method B)
+     * 응답률 데이터 부재로 인해 활동 포인트와 방문 횟수를 정규화하여 반환
+     */
+    public double getEngagementScore() {
+        // 예: 활동 포인트 최대 1000점, 방문 횟수 가중치 등 (서비스 규모에 따라 튜닝 필요)
+        double pointScore = (this.activityPoint != null) ? this.activityPoint * 0.5 : 0;
+        double visitScore = (this.visitCount != null) ? this.visitCount * 2.0 : 0;
+        return pointScore + visitScore;
+    }
+    public void incrementVisitCount() {
+        if (this.visitCount == null) {
+            this.visitCount = 0L;
+        }
+        this.visitCount++;
+        touchUpdatedAt(); // 수정 시간 갱신
+    }
+
+    /**
+     * [비즈니스 로직] 활동 포인트 적립
+     * @param points 적립할 점수 (예: 채팅 5점, 좋아요 10점 등)
+     */
+    public void addActivityPoint(Long points) {
+        if (points == null || points <= 0) {
+            return; // 0 이하의 점수는 무시
+        }
+
+        if (this.activityPoint == null) {
+            this.activityPoint = 0L;
+        }
+        this.activityPoint += points;
+        touchUpdatedAt(); // 수정 시간 갱신
     }
 }

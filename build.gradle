@@ -111,6 +111,9 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 
+    // --- Google Authenticator ---
+    implementation 'com.warrenstrange:googleauth:1.5.0'
+
     implementation 'org.jsoup:jsoup:1.17.2'
     implementation 'org.htmlunit:htmlunit:3.11.0'
     implementation 'org.webjars.npm:cropperjs:1.5.13'

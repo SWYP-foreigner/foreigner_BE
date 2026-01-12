@@ -379,3 +379,10 @@ smoke:
 
 openai:
   api-key: ${OPEN_AI_KEY}
+
+otp:
+  issuer: "Kori-Admin"
+  magic-code-enabled: false
+
+encryption:
+  secret: ${ENCRYPTION_SECRET}
