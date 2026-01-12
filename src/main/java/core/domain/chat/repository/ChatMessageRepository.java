@@ -210,4 +210,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     List<Object[]> findAllGroupChatSpeeds(@Param("start") Instant start, @Param("end") Instant end);
 
     long countByChatRoomId(Long chatRoomId);
+
+    boolean existsBySenderIdAndChatRoomIdAndSentAtAfter(Long senderId, Long chatRoomId, Instant sentAt);
 }

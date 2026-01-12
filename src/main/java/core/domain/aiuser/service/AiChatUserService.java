@@ -12,7 +12,6 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
-import core.domain.user.repository.UserRepository;
 import core.global.enums.MessageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -50,7 +48,6 @@ public class AiChatUserService {
     private final AiPersonaRepository aiPersonaRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
-    private final UserRepository userRepository; // 필요 시 사용
     private final AiClient aiClient;
     private final TransactionTemplate transactionTemplate;
     private static final SecureRandom secureRandom = new SecureRandom();
@@ -59,12 +56,12 @@ public class AiChatUserService {
      * 🚀 AI 응답 프로세스 진입점
      * DB 트랜잭션을 최소화하여 커넥션 고갈을 방지함.
      */
-    public void processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage) {
+    public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
         Long chatRoomId = event.messageResponse().roomId();
 
         if (JAILBREAK_PATTERN.matcher(combinedUserMessage).find()) {
             log.warn("AI Filtered Jailbreak: {}", combinedUserMessage);
-            return;
+            return false;
         }
 
         boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
@@ -72,34 +69,38 @@ public class AiChatUserService {
         sleep(thinkingTime);
 
         List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
-            return prepareAiContext(chatRoomId, aiUser, combinedUserMessage);
+            return prepareAiContext(chatRoomId, aiUser, combinedUserMessage, isMainSpeaker);
         });
 
-        if (requestMessages == null || requestMessages.isEmpty()) return;
+        if (requestMessages == null || requestMessages.isEmpty()) {
+            return false;
+        }
 
         try {
-            // [API 호출]
+            // 4. API 호출
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // ---------------------------------------------------------------
-            // 🛑 [수정 1] Null 및 빈 값 체크 (여기에 적용)
-            // ---------------------------------------------------------------
+            // Null 및 빈 값 체크
             if (aiResponse == null || aiResponse.isBlank()) {
                 log.warn("AI [{}] Response is empty or failed. Skipping.", aiUser.getFirstName());
-                return; // 메시지 전송 로직 수행하지 않고 종료
+                return false;
             }
 
-            // AI 정체성 발설 필터링 및 PASS 체크
-            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return;
-            if (aiResponse.trim().toUpperCase().contains("PASS")) return;
+            // 정체성 발설 필터링 및 PASS 체크
+            if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return false;
+            if (aiResponse.trim().toUpperCase().contains("PASS")) return false;
 
+            // 5. 메시지 전송
             SendMessageRequest request = new SendMessageRequest(
                     chatRoomId, aiUser.getId(), aiResponse, MessageType.TEXT
             );
             chatMessageService.processAndSendChatMessage(request);
 
+            return true; // 전송 성공
+
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
+            return false;
         }
     }
 
@@ -111,7 +112,7 @@ public class AiChatUserService {
      * AI 대화 컨텍스트 준비 (루프 감지 및 긴급 탈출 로직 포함)
      */
     @Transactional(readOnly = true)
-    protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage) {
+    protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage, boolean isMainSpeaker) {
 
         // 1. 최근 대화 내역 조회 (최신순 20개)
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
@@ -126,14 +127,10 @@ public class AiChatUserService {
             return null;
         }
 
-        // -------------------------------------------------------------
-        // 🛑 [과열 방지] 1분 내 메시지 15개 이상이면 잠시 중단 (Rate Limiting)
-        // -------------------------------------------------------------
+        // 3. 과열 방지 (Rate Limiting)
         LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
-        Instant compareTime = oneMinuteAgo.atZone(ZoneId.systemDefault()).toInstant();
-
         long recentMessageCount = historyDesc.stream()
-                .filter(msg -> msg.getSentAt() != null && msg.getSentAt().isAfter(compareTime))
+                .filter(msg -> msg.getSentAt() != null && msg.getSentAt().isAfter(oneMinuteAgo.atZone(ZoneId.systemDefault()).toInstant()))
                 .count();
 
         if (recentMessageCount >= 15) {
@@ -141,48 +138,34 @@ public class AiChatUserService {
             return null;
         }
 
-        // -------------------------------------------------------------
-        // 🚨 [루프 감지] 특정 키워드 반복 확인 (한국어/영어)
-        // -------------------------------------------------------------
+        // 4. 루프 감지
         long loopCount = historyDesc.stream()
-                .limit(8) // 최근 8개 메시지만 검사
+                .limit(8)
                 .filter(msg -> {
                     String content = msg.getContent();
-                    if (content == null) return false;
-                    // 반복되는 키워드 체크 (일정, 공유, schedule 등)
-                    return content.contains("알려줘") || content.contains("일정") ||
-                            content.contains("공유") || content.contains("조율") ||
-                            content.contains("schedule") || content.contains("let me know");
+                    return content != null && (
+                            content.contains("알려줘") || content.contains("일정") ||
+                                    content.contains("공유") || content.contains("조율") ||
+                                    content.contains("schedule") || content.contains("let me know"));
                 })
                 .count();
-
-        // 8개 중 3개 이상이 비슷한 키워드라면 루프 상태로 판단
         boolean isLooping = loopCount >= 3;
 
-        // 3. 대답 여부 확률 계산 (확률 통과 못하면 null 반환)
-        // (단, isLooping일 때는 루프를 끊기 위해 확률을 무시하고 개입할 수도 있으나, 여기선 기본 흐름 유지)
-        if (!shouldReply(combinedUserMessage, aiUser, isGroupChat,chatRoomId)) {
+        // 5. [핵심] 대답 여부 확률 계산 (isMainSpeaker 반영)
+        if (!shouldReply(combinedUserMessage, aiUser, chatRoomId, isMainSpeaker, isGroupChat, historyDesc)) {
             return null;
         }
 
-        // 4. 프롬프트 조립을 위해 시간순 정렬
+        // 6. 프롬프트 조립
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
 
-        // 기본 페르소나 및 프롬프트 생성
         String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
 
-        // -------------------------------------------------------------
-        // 💉 [긴급 처방] 루프 감지 시 '화제 전환' 명령 주입 (한/영 지원)
-        // -------------------------------------------------------------
+        // 긴급 루프 탈출 프롬프트 주입
         if (isLooping) {
-            // 메시지에 한글이 포함되어 있는지 정규식으로 확인
             boolean isKoreanMode = combinedUserMessage.matches(".*[ㄱ-ㅎㅏ-ㅣ가-힣]+.*");
-
-            log.warn("AI [{}] Loop detected! Injecting emergency prompt (Lang: {}).",
-                    aiUser.getFirstName(), isKoreanMode ? "KO" : "EN");
-
-            // 아래 getEmergencyPrompt 메서드를 호출하여 지침 추가
+            log.warn("AI [{}] Loop detected! Injecting emergency prompt.", aiUser.getFirstName());
             systemPrompt += getEmergencyPrompt(isKoreanMode);
         }
 
@@ -230,7 +213,7 @@ public class AiChatUserService {
     }
 
 
-    private boolean shouldReply(String message, User aiUser, boolean isGroupChat, Long chatRoomId) {
+    private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
         // 1. [Priority 1] 내 이름 멘션 -> 100%
@@ -245,17 +228,13 @@ public class AiChatUserService {
             return true;
         }
 
-        // 3. [Filter] 남 부르는 대화 차단
+        // 3. [Filter] 남 부르는 대화 차단 ("@영희야" 라고 했는데 내가 철수면 무시)
         if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
             return false;
         }
 
-        List<ChatMessage> recentHistory = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(chatRoomId);
-
-        // -------------------------------------------------------------
-        // 🛑 [Fatigue] 최근 3마디 내에 내가 말했으면 참기 (독점 방지)
-        // -------------------------------------------------------------
+        // 4. [Fatigue] 최근 3마디 내에 내가 말했으면 참기 (독점 방지)
         boolean talkedRecently = recentHistory.stream()
                 .limit(3)
                 .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
@@ -270,30 +249,25 @@ public class AiChatUserService {
             }
         }
 
-        // -------------------------------------------------------------
-        // 🦜 [Fix] 앵무새 방지
-        // -------------------------------------------------------------
+        // 5. 앵무새 방지
         long aiDuplicateCount = recentHistory.stream()
                 .limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim()))
                 .count();
 
-        // 2개 이상이면(방금 유저 말 포함해서 또 있으면) 앵무새로 간주
         if (aiDuplicateCount >= 2) {
-            log.info("AI [{}] 🔴 Skip: Parrot protection (Duplicate count: {}).", aiName, aiDuplicateCount);
+            log.info("AI [{}] 🔴 Skip: Parrot protection.", aiName);
             return false;
         }
 
-        // -------------------------------------------------------------
-        // 🔇 [Silence Breaker] 너무 조용하면 대답 잘 하게 하기
-        // -------------------------------------------------------------
+        // 6. 침묵 깨기 (History size < 2) -> 80%
         if (recentHistory.size() < 2) {
             boolean success = secureRandom.nextInt(100) < 80;
-            log.info("AI [{}] {} Silence Breaker (History size < 2, Roll Result).", aiName, success ? "🟢 Reply:" : "🔴 Skip:");
+            log.info("AI [{}] {} Silence Breaker.", aiName, success ? "🟢 Reply:" : "🔴 Skip:");
             return success;
         }
 
-        // 4. 단답형 무시 필터 (질문은 통과)
+        // 7. 단답형 무시 필터 (질문은 제외)
         boolean isQuestion = message.contains("?") || message.endsWith("니") || message.endsWith("까")
                 || message.endsWith("가") || message.endsWith("냐");
 
@@ -306,33 +280,44 @@ public class AiChatUserService {
         // 🎲 [Probability] 확률 계산
         // -------------------------------------------------------------
 
-        // (A) 취미 키워드
-        String hobby = aiUser.getHobby(); // or getHobbies()
+        // (A) 취미 키워드 매칭
+        String hobby = aiUser.getHobby();
         if (hobby != null && !hobby.isBlank()) {
             for (String h : hobby.split(",")) {
                 if (message.contains(h.trim())) {
                     boolean success = secureRandom.nextInt(100) < 85;
-                    log.info("AI [{}] {} Hobby Trigger '{}' (85%, Roll Result).", aiName, success ? "🟢 Reply:" : "🔴 Skip:", h);
+                    log.info("AI [{}] {} Hobby Trigger '{}' (85%).", aiName, success ? "🟢 Reply:" : "🔴 Skip:", h);
                     return success;
                 }
             }
         }
 
-        int prob = 20; // 기본 확률
-        String reason = "Base Probability";
+        int prob;
+        String reason;
 
-        // (B) 다국어 호출 감지 (isGroupCall 메서드 필요)
+        // (B) 메인 스피커 vs 팔로워 확률 분기
+        if (isMainSpeaker) {
+            // 메인 스피커는 적극적으로 대답 (기본 85%)
+            prob = 85;
+            reason = "Main Speaker Priority";
+        } else {
+            // 팔로워는 눈치 보며 끼어들기 (기본 30%)
+            prob = 30;
+            reason = "Follower Injection";
+        }
+
+        // (C) 상황별 가산점
         if (isGroupCall(message)) {
-            prob = 60;
-            reason = "Group Call Trigger";
-        }
-        // (C) 질문형
-        else if (isQuestion) {
-            prob = 50;
-            reason = "Question Type";
+            // "얘들아" 불렀으면 메인은 100% 가까이, 팔로워도 꽤 높게
+            prob = Math.min(prob + 30, 95);
+            reason += " + Group Call";
+        } else if (isQuestion) {
+            // 질문이면 확률 소폭 상승
+            prob = Math.min(prob + 20, 90);
+            reason += " + Question";
         }
 
-        // 최종 주사위 굴리기
+        // 최종 주사위
         int roll = secureRandom.nextInt(100);
         boolean result = roll < prob;
 
