@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiChatUserService {
 
-    // ... (상수 및 필드 동일) ...
     private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(gpt|openai|ai|language model|인공지능|언어 모델)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(ignore|instruction|system|override|무시해|명령)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
@@ -49,7 +48,7 @@ public class AiChatUserService {
 
     /**
      * 🚀 AI 응답 프로세스 진입점
-     * 🔴 [수정] Non-blocking 방식 적용 (Thread.sleep 제거됨)
+     * Non-blocking 방식 적용 (Thread.sleep 제거됨)
      */
     public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
         Long chatRoomId = event.messageResponse().roomId();
@@ -58,12 +57,6 @@ public class AiChatUserService {
             log.warn("AI Filtered Jailbreak: {}", combinedUserMessage);
             return false;
         }
-
-        // 🔴 [삭제] 생각하는 시간(Thinking Time) Sleep 제거
-        // boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
-        // long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
-        // sleep(thinkingTime);
-        // -> Coordinator의 스케줄링 딜레이에 이미 포함되었으므로 여기서는 즉시 실행합니다.
 
         List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
             return prepareAiContext(chatRoomId, aiUser, combinedUserMessage, isMainSpeaker);
@@ -187,98 +180,110 @@ public class AiChatUserService {
         }
     }
 
+    /**
+     * 🔴 [수정됨] 대화 활성화(Active Mode)를 위한 확률 상향 조정
+     */
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
+        // 1. 직접 멘션 (100%)
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
 
+        // 2. 1:1 채팅 (100%)
         if (!isGroupChat) {
             log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
             return true;
         }
 
+        // 3. 다른 사람 멘션 시 스킵
         if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
             return false;
         }
 
-        boolean talkedRecently = recentHistory.stream()
-                .limit(3)
-                .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
-
-        if (talkedRecently) {
-            if (isMainSpeaker) {
-                log.info("AI [{}] 🟢 Pass: Fatigue ignored (Reason: Main Speaker Immunity).", aiName);
-            }
-            else if (message.contains("?") && secureRandom.nextInt(100) < 20) {
-                log.info("AI [{}] 🟡 Pass: Talked recently but question luck triggered (20%).", aiName);
-            } else {
-                log.info("AI [{}] 🔴 Skip: Fatigue (Talked recently).", aiName);
-                return false;
-            }
-        }
-
+        // 4. 앵무새 방지
         long aiDuplicateCount = recentHistory.stream()
                 .limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim()))
                 .count();
-
         if (aiDuplicateCount >= 2) {
             log.info("AI [{}] 🔴 Skip: Parrot protection.", aiName);
             return false;
         }
 
-        if (recentHistory.size() < 2) {
-            boolean success = secureRandom.nextInt(100) < 80;
-            log.info("AI [{}] {} Silence Breaker.", aiName, success ? "🟢 Reply:" : "🔴 Skip:");
-            return success;
-        }
-
-        boolean isQuestion = message.contains("?") || message.endsWith("니") || message.endsWith("까")
-                || message.endsWith("가") || message.endsWith("냐");
-
-        if (message.length() <= 2 && !isQuestion) {
-            log.info("AI [{}] 🔴 Skip: Short message without question mark.", aiName);
-            return false;
-        }
-
+        // 5. 취미 트리거
+        boolean isHobbyTriggered = false;
         String hobby = aiUser.getHobby();
         if (hobby != null && !hobby.isBlank()) {
             for (String h : hobby.split(",")) {
                 if (message.contains(h.trim())) {
-                    boolean success = secureRandom.nextInt(100) < 85;
-                    log.info("AI [{}] {} Hobby Trigger '{}' (85%).", aiName, success ? "🟢 Reply:" : "🔴 Skip:", h);
-                    return success;
+                    isHobbyTriggered = true;
+                    break;
                 }
             }
         }
 
+        // 6. 티키타카 모드 감지 (직전 메시지가 나였는가?)
+        boolean isReplyToMe = !recentHistory.isEmpty() &&
+                recentHistory.get(0).getSender().getId().equals(aiUser.getId());
+
         int prob;
         String reason;
 
-        if (isMainSpeaker) {
-            prob = 85;
-            reason = "Main Speaker Priority";
+        if (isReplyToMe) {
+            // [상황 1] 티키타카: 무조건 반응
+            prob = 100;
+            reason = "Tiki-Taka (Reply to AI)";
+        } else if (isHobbyTriggered) {
+            // [상황 1-1] 취미 관련: 놓치지 않고 100% 반응 (Active Mode)
+            prob = 100;
+            reason = "Hobby Trigger (Active)";
+        } else if (isMainSpeaker) {
+            // [상황 2] Main Speaker
+            if (message.contains("?") || isGroupCall(message)) {
+                // 질문/호출 시 80% 반응 (기존 50% -> 80% 상향)
+                prob = 80;
+                reason = "Main Speaker (Question/Call - Active)";
+            } else {
+                // 일반 잡담에도 50% 반응 (기존 20% -> 50% 상향)
+                prob = 50;
+                reason = "Main Speaker (Chatter - Active)";
+            }
         } else {
-            prob = 30;
-            reason = "Follower Injection";
+            // [상황 3] Lurker (비활성)
+            if (isGroupCall(message)) {
+                // 전체 호출엔 80% 반응 (기존 50% -> 80% 상향)
+                prob = 80;
+                reason = "Lurker (Group Call - Active)";
+            } else {
+                // 가끔 생존 신고 20% (기존 5% -> 20% 상향)
+                prob = 20;
+                reason = "Lurker Injection (Active)";
+            }
         }
 
-        if (isGroupCall(message)) {
-            prob = Math.min(prob + 30, 95);
-            reason += " + Group Call";
-        } else if (isQuestion) {
-            prob = Math.min(prob + 20, 90);
-            reason += " + Question";
+        // 7. 피로도 체크 (티키타카 제외)
+        if (!isReplyToMe) {
+            boolean talkedRecently = recentHistory.stream()
+                    .limit(3)
+                    .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
+
+            if (talkedRecently) {
+                // 피로도 패널티도 완화 (확률을 절반으로 깎음 -> 0으로 만들지 않음)
+                prob = prob / 2;
+                reason += " + Fatigue Penalty";
+            }
         }
 
         int roll = secureRandom.nextInt(100);
         boolean result = roll < prob;
 
-        log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).", aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
+        log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).",
+                aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
+
         return result;
     }
 
