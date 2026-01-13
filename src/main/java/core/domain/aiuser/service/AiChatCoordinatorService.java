@@ -31,34 +31,33 @@ public class AiChatCoordinatorService {
     private static final SecureRandom secureRandom = new SecureRandom();
     private static final int ACTIVE_TALKER_WINDOW_MINUTES = 5;
 
-    // [추가] 한 턴에 즉시 반응(Fast Group)할 수 있는 최대 AI 수 제한 (Quota)
-    // - 2명 설정 이유: 1명은 너무 정적이고, 3명 이상은 너무 시끄러움. 2명이 가장 적절한 티키타카.
+    // 한 턴에 즉시 반응(Fast Group)할 수 있는 최대 AI 수 제한 (Quota)
     private static final int MAX_FAST_REPLIES_PER_TURN = 2;
 
     public void coordinateReplies(Long roomId, Set<User> aiParticipants, MessageCreatedEvent lastEvent, String userMessage) {
 
-        // 1. [Group Only] 확률 감쇠(Soft Cap) 로직 적용
-        // 1:1 채팅이 아니고, 확률 컷오프에 걸리면 이번 턴은 아무도 대답하지 않고 종료합니다.
+        // 1. [Group Only] 확률 감쇠(Soft Cap) 로직
         boolean isGroupChat = chatRoomRepository.isGroupChat(roomId);
 
         if (isGroupChat && shouldSkipByProbabilityDecay(roomId)) {
             log.info("💤 AI Chat Faded out (Probability Decay triggered) | RoomId: {}", roomId);
-            return; // 이번 이벤트는 무시 (대화 종료)
+            return;
         }
 
         List<User> aiList = new ArrayList<>(aiParticipants);
         Collections.shuffle(aiList);
 
-        // 2. 우선순위 정렬 (Active Talker 보장)
-        // 정렬 순서: 멘션됨 > Active Talker > 나머지
+        // 2. 우선순위 정렬
         sortParticipantsByPriority(aiList, roomId, userMessage);
 
         if (aiList.isEmpty()) return;
 
+        // 🔴 [수정] 누적 딜레이 계산 시작 (초기값 0)
         long accumulatedFastDelay = 0;
-
-        // [추가] 현재 턴의 Fast 그룹 할당 카운터
         int currentFastCount = 0;
+
+        // 🔴 [추가] 메시지 길이에 따른 기본 읽기/생각 시간 계산 (공통)
+        long baseThinkingTime = calculateBaseThinkingTime(userMessage);
 
         for (int i = 0; i < aiList.size(); i++) {
             User aiUser = aiList.get(i);
@@ -67,23 +66,27 @@ public class AiChatCoordinatorService {
             // 1. 기본 타입 결정 (Fast/Slow)
             ResponseType responseType = determineResponseType(aiUser, roomId, userMessage, isMainSpeakerCandidate);
 
-            // 🔴 [수정] Quota(쿼터) 체크: 이미 Fast 자리가 꽉 찼으면 강제로 SLOW로 강등
-            // 단, 멘션된 경우(Priority 1)는 유저 호출이므로 쿼터 무시하고 무조건 FAST 허용
+            // 2. Quota(쿼터) 체크
             boolean isDirectlyMentioned = isMentioned(userMessage, aiUser.getFirstName());
 
             if (responseType == ResponseType.FAST && !isDirectlyMentioned) {
                 if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
-                    // 자리 없음 -> 강제로 지연 응답 그룹으로 이동 (너무 시끄러워지는 것 방지)
                     responseType = ResponseType.SLOW;
                 } else {
-                    // 자리 있음 -> 카운트 증가 및 Fast 유지
                     currentFastCount++;
                 }
             }
 
             if (responseType == ResponseType.FAST) {
-                long myDelay = secureRandom.nextLong(2000, 5000);
-                accumulatedFastDelay += myDelay;
+                // 🔴 [수정] Blocking Sleep 제거를 위한 딜레이 선반영 로직
+                // - 기존: 2~5초 랜덤
+                // - 변경: (기본 읽는 시간) + (1~3초 랜덤 간격)
+                // - 효과: 메시지가 길면 더 오래 기다렸다가 답장함 (자연스러움)
+                long randomGap = secureRandom.nextLong(1000, 3000);
+                long totalStepDelay = baseThinkingTime + randomGap;
+
+                accumulatedFastDelay += totalStepDelay; // 앞사람 시간만큼 누적하여 순차 발송 보장
+
                 scheduleFastResponse(aiUser, lastEvent, userMessage, isMainSpeakerCandidate, accumulatedFastDelay);
 
             } else {
@@ -93,84 +96,69 @@ public class AiChatCoordinatorService {
         }
     }
 
-    /**
-     * 🔥 [신규] 확률 감쇠 로직 (Probability Decay)
-     * AI끼리의 연속 대화(Streak)가 길어질수록, 다음 대화가 발생할 확률을 낮춥니다.
-     * @return true면 스킵(대화 종료), false면 진행
-     */
-    private boolean shouldSkipByProbabilityDecay(Long roomId) {
-        // 1. 최근 메시지 조회
-        List<ChatMessage> history = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(roomId);
+    // 🔴 [이동] UserService에 있던 시간 계산 로직을 여기로 가져옴
+    private long calculateBaseThinkingTime(String userMessage) {
+        long baseDelay = 500; // 기본 0.5초
+        long typingDelay = (userMessage != null ? userMessage.length() : 0) * 50L; // 글자당 0.05초
+        return baseDelay + typingDelay;
+    }
 
-        // 2. AI 연속 발언 횟수(Streak) 계산
+    private boolean shouldSkipByProbabilityDecay(Long roomId) {
+        List<ChatMessage> history = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(roomId);
         int aiStreak = 0;
         for (ChatMessage msg : history) {
-            if (msg.getSender().getUserRole() == Role.AI) { // Role.AI 확인 필요
+            if (msg.getSender().getUserRole() == Role.AI) {
                 aiStreak++;
             } else {
-                // 사람이 말한 순간 Streak 끊김
                 break;
             }
         }
 
-        // 3. Streak에 따른 생존 확률 결정
         int survivalProb;
         switch (aiStreak) {
-            case 0: survivalProb = 100; break; // 사람이 방금 말함 -> 무조건 반응
-            case 1: survivalProb = 80;  break; // AI 1명 대답함 -> 80% 확률로 티키타카
-            case 2: survivalProb = 50;  break; // AI 2명 대답함 -> 50% 확률로 연장
-            case 3: survivalProb = 10;  break; // AI 3명 대답함 -> 10% (거의 끝)
-            default: survivalProb = 0;  break; // 4절 이상 금지 (강제 종료)
+            case 0: survivalProb = 100; break;
+            case 1: survivalProb = 80;  break;
+            case 2: survivalProb = 50;  break;
+            case 3: survivalProb = 10;  break;
+            default: survivalProb = 0;  break;
         }
 
-        // 4. 주사위 굴리기
         int roll = secureRandom.nextInt(100);
         boolean survive = roll < survivalProb;
 
         log.info("🎲 Decay Check | Streak: {} | Prob: {}% | Roll: {} | Result: {}",
                 aiStreak, survivalProb, roll, survive ? "Survive" : "Die");
 
-        return !survive; // 생존 실패(false)하면 skip(true) 반환
+        return !survive;
     }
-
-    // --- 기존 로직 유지 ---
 
     private void sortParticipantsByPriority(List<User> aiList, Long roomId, String userMessage) {
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
         Set<Long> activeTalkerIds = new HashSet<>();
-
         for (User ai : aiList) {
             if (chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(ai.getId(), roomId, fiveMinutesAgo)) {
                 activeTalkerIds.add(ai.getId());
             }
         }
-
         aiList.sort((u1, u2) -> {
             boolean u1Mentioned = isMentioned(userMessage, u1.getFirstName());
             boolean u2Mentioned = isMentioned(userMessage, u2.getFirstName());
             if (u1Mentioned && !u2Mentioned) return -1;
             if (!u1Mentioned && u2Mentioned) return 1;
-
             boolean u1Active = activeTalkerIds.contains(u1.getId());
             boolean u2Active = activeTalkerIds.contains(u2.getId());
             if (u1Active && !u2Active) return -1;
             if (!u1Active && u2Active) return 1;
-
             return 0;
         });
     }
 
     private ResponseType determineResponseType(User aiUser, Long roomId, String userMessage, boolean isMainSpeaker) {
         if (isMentioned(userMessage, aiUser.getFirstName())) return ResponseType.FAST;
-
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
-        boolean isActiveTalker = chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(
-                aiUser.getId(), roomId, fiveMinutesAgo
-        );
-
+        boolean isActiveTalker = chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(aiUser.getId(), roomId, fiveMinutesAgo);
         if (isActiveTalker) return ResponseType.FAST;
         if (isMainSpeaker) return ResponseType.FAST;
-
         return (secureRandom.nextInt(100) < 30) ? ResponseType.FAST : ResponseType.SLOW;
     }
 

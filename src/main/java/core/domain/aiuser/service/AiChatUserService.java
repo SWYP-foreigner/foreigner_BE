@@ -35,14 +35,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiChatUserService {
 
-    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile(
-            "(gpt|openai|ai|language model|인공지능|언어 모델)",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
-    );
-    private static final Pattern JAILBREAK_PATTERN = Pattern.compile(
-            "(ignore|instruction|system|override|무시해|명령)",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS
-    );
+    // ... (상수 및 필드 동일) ...
+    private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(gpt|openai|ai|language model|인공지능|언어 모델)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
+    private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(ignore|instruction|system|override|무시해|명령)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
@@ -54,7 +49,7 @@ public class AiChatUserService {
 
     /**
      * 🚀 AI 응답 프로세스 진입점
-     * DB 트랜잭션을 최소화하여 커넥션 고갈을 방지함.
+     * 🔴 [수정] Non-blocking 방식 적용 (Thread.sleep 제거됨)
      */
     public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
         Long chatRoomId = event.messageResponse().roomId();
@@ -64,9 +59,11 @@ public class AiChatUserService {
             return false;
         }
 
-        boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
-        long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
-        sleep(thinkingTime);
+        // 🔴 [삭제] 생각하는 시간(Thinking Time) Sleep 제거
+        // boolean isGroupChat = chatRoomRepository.isGroupChat(chatRoomId);
+        // long thinkingTime = calculateThinkingTime(combinedUserMessage, isGroupChat);
+        // sleep(thinkingTime);
+        // -> Coordinator의 스케줄링 딜레이에 이미 포함되었으므로 여기서는 즉시 실행합니다.
 
         List<Map<String, Object>> requestMessages = transactionTemplate.execute(status -> {
             return prepareAiContext(chatRoomId, aiUser, combinedUserMessage, isMainSpeaker);
@@ -77,26 +74,22 @@ public class AiChatUserService {
         }
 
         try {
-            // 4. API 호출
             String aiResponse = aiClient.generateResponse(requestMessages);
 
-            // Null 및 빈 값 체크
             if (aiResponse == null || aiResponse.isBlank()) {
                 log.warn("AI [{}] Response is empty or failed. Skipping.", aiUser.getFirstName());
                 return false;
             }
 
-            // 정체성 발설 필터링 및 PASS 체크
             if (AI_IDENTITY_PATTERN.matcher(aiResponse).find()) return false;
             if (aiResponse.trim().toUpperCase().contains("PASS")) return false;
 
-            // 5. 메시지 전송
             SendMessageRequest request = new SendMessageRequest(
                     chatRoomId, aiUser.getId(), aiResponse, MessageType.TEXT
             );
             chatMessageService.processAndSendChatMessage(request);
 
-            return true; // 전송 성공
+            return true;
 
         } catch (Exception e) {
             log.error("AI API Call Failed", e);
@@ -104,17 +97,9 @@ public class AiChatUserService {
         }
     }
 
-    /**
-     * 🔒 [DB Read Transaction]
-     * 대화 내역 조회 -> 상황 판단(끼어들지 말지) -> 프롬프트 조립
-     */
-    /**
-     * AI 대화 컨텍스트 준비 (루프 감지 및 긴급 탈출 로직 포함)
-     */
+
     @Transactional(readOnly = true)
     protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage, boolean isMainSpeaker) {
-
-        // 1. 최근 대화 내역 조회 (최신순 20개)
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
         if (historyDesc.isEmpty()) return null;
 
@@ -122,14 +107,10 @@ public class AiChatUserService {
         ChatRoom chatRoom = lastMessage.getChatRoom();
         boolean isGroupChat = Boolean.TRUE.equals(chatRoom.getIsGroup());
 
-        // 2. 내가 마지막으로 말했으면 연속으로 말하지 않음 (그룹챗일 경우 독점 방지)
         if (lastMessage.getSender().getId().equals(aiUser.getId()) && isGroupChat) {
-            // [예외] 여기서도 Main Speaker라면 허용해주는 것이 좋음 (단, 여기는 중복 호출 방지 성격이 강하므로 유지하거나, 필요 시 수정 가능)
-            // Coordinator 레벨에서 Sleep을 주고 들어오므로 여기는 크게 문제되지 않음
             return null;
         }
 
-        // 3. 과열 방지 (Rate Limiting)
         LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(1);
         long recentMessageCount = historyDesc.stream()
                 .filter(msg -> msg.getSentAt() != null && msg.getSentAt().isAfter(oneMinuteAgo.atZone(ZoneId.systemDefault()).toInstant()))
@@ -140,7 +121,6 @@ public class AiChatUserService {
             return null;
         }
 
-        // 4. 루프 감지
         long loopCount = historyDesc.stream()
                 .limit(8)
                 .filter(msg -> {
@@ -153,18 +133,15 @@ public class AiChatUserService {
                 .count();
         boolean isLooping = loopCount >= 3;
 
-        // 5. [핵심] 대답 여부 확률 계산 (isMainSpeaker 반영)
         if (!shouldReply(combinedUserMessage, aiUser, chatRoomId, isMainSpeaker, isGroupChat, historyDesc)) {
             return null;
         }
 
-        // 6. 프롬프트 조립
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
 
         String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
 
-        // 긴급 루프 탈출 프롬프트 주입
         if (isLooping) {
             boolean isKoreanMode = combinedUserMessage.matches(".*[ㄱ-ㅎㅏ-ㅣ가-힣]+.*");
             log.warn("AI [{}] Loop detected! Injecting emergency prompt.", aiUser.getFirstName());
@@ -173,10 +150,6 @@ public class AiChatUserService {
 
         return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
-
-    // --------------------------------------------------------------------------
-    // 아래 헬퍼 메서드도 같은 클래스(AiChatUserService) 내부에 추가되어 있어야 합니다.
-    // --------------------------------------------------------------------------
 
     private String getEmergencyPrompt(boolean isKorean) {
         if (isKorean) {
@@ -214,40 +187,32 @@ public class AiChatUserService {
         }
     }
 
-
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
-        // 1. [Priority 1] 내 이름 멘션 -> 100%
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
 
-        // 2. 1:1 채팅 -> 100%
         if (!isGroupChat) {
             log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
             return true;
         }
 
-        // 3. [Filter] 남 부르는 대화 차단 ("@영희야" 라고 했는데 내가 철수면 무시)
         if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
             return false;
         }
 
-        // 4. [Fatigue] 최근 3마디 내에 내가 말했으면 참기 (독점 방지)
-        // [수정] Main Speaker에게는 면제권을 부여하여 Active Talker가 대화를 이어갈 수 있게 함
         boolean talkedRecently = recentHistory.stream()
                 .limit(3)
                 .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
 
         if (talkedRecently) {
             if (isMainSpeaker) {
-                // 면제권 발동
                 log.info("AI [{}] 🟢 Pass: Fatigue ignored (Reason: Main Speaker Immunity).", aiName);
             }
-            // 질문이면 20% 확률로 끼어들기 허용 (Main Speaker가 아닐 경우)
             else if (message.contains("?") && secureRandom.nextInt(100) < 20) {
                 log.info("AI [{}] 🟡 Pass: Talked recently but question luck triggered (20%).", aiName);
             } else {
@@ -256,7 +221,6 @@ public class AiChatUserService {
             }
         }
 
-        // 5. 앵무새 방지
         long aiDuplicateCount = recentHistory.stream()
                 .limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim()))
@@ -267,14 +231,12 @@ public class AiChatUserService {
             return false;
         }
 
-        // 6. 침묵 깨기 (History size < 2) -> 80%
         if (recentHistory.size() < 2) {
             boolean success = secureRandom.nextInt(100) < 80;
             log.info("AI [{}] {} Silence Breaker.", aiName, success ? "🟢 Reply:" : "🔴 Skip:");
             return success;
         }
 
-        // 7. 단답형 무시 필터 (질문은 제외)
         boolean isQuestion = message.contains("?") || message.endsWith("니") || message.endsWith("까")
                 || message.endsWith("가") || message.endsWith("냐");
 
@@ -283,11 +245,6 @@ public class AiChatUserService {
             return false;
         }
 
-        // -------------------------------------------------------------
-        // 🎲 [Probability] 확률 계산
-        // -------------------------------------------------------------
-
-        // (A) 취미 키워드 매칭
         String hobby = aiUser.getHobby();
         if (hobby != null && !hobby.isBlank()) {
             for (String h : hobby.split(",")) {
@@ -302,99 +259,60 @@ public class AiChatUserService {
         int prob;
         String reason;
 
-        // (B) 메인 스피커 vs 팔로워 확률 분기
         if (isMainSpeaker) {
-            // 메인 스피커는 적극적으로 대답 (기본 85%)
             prob = 85;
             reason = "Main Speaker Priority";
         } else {
-            // 팔로워는 눈치 보며 끼어들기 (기본 30%)
             prob = 30;
             reason = "Follower Injection";
         }
 
-        // (C) 상황별 가산점
         if (isGroupCall(message)) {
-            // "얘들아" 불렀으면 메인은 100% 가까이, 팔로워도 꽤 높게
             prob = Math.min(prob + 30, 95);
             reason += " + Group Call";
         } else if (isQuestion) {
-            // 질문이면 확률 소폭 상승
             prob = Math.min(prob + 20, 90);
             reason += " + Question";
         }
 
-        // 최종 주사위
         int roll = secureRandom.nextInt(100);
         boolean result = roll < prob;
 
         log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).", aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
         return result;
     }
-    // --------------------------------------------------------------------------
-    // 🌍 [Global] 그룹 호출 감지 키워드 사전
-    // --------------------------------------------------------------------------
+
     private static final List<String> GROUP_CALL_KEYWORDS = List.of(
-            // 1. 한국어 (반말/친구)
             "얘들아", "애들아", "니네", "너네", "너희", "친구들", "자기들",
             "이놈들", "다들", "야들아", "저기", "어이",
-
-            // 2. 한국어 (존대/공손/다수)
             "여러분", "님들", "다시", "모두", "선생님들", "형님들", "누님들", "언니들", "오빠들",
-            "계세요", "계신가요", "누구", "사람", "혹시", // "혹시 누구 계신가요?" 패턴 대응
-
-            // 3. 영어 (Global)
+            "계세요", "계신가요", "누구", "사람", "혹시",
             "guys", "everyone", "everybody", "y'all", "folks", "peeps", "team", "squad",
             "anyone", "anybody", "here", "all",
-
-            // 4. 메신저/인터넷 밈 & 특수 문법
-            "@here", "@channel", "@all", // 슬랙/디스코드 스타일
+            "@here", "@channel", "@all",
             "전체", "공지", "필독", "속보", "다나와", "집합"
     );
 
-    /**
-     * 메시지가 특정 개인이 아닌 '그룹 전체'를 부르는 신호인지 감지합니다.
-     * 단순 포함(contains)뿐만 아니라 문맥적 뉘앙스를 파악하여 정확도를 높입니다.
-     */
     private boolean isGroupCall(String message) {
         if (message == null || message.isBlank()) return false;
-
-        // 1. 정규화: 소문자로 변환 및 앞뒤 공백 제거
         String lowerMsg = message.trim().toLowerCase();
-
-        // 2. [Fast Check] 키워드 포함 여부 검사
         boolean keywordDetected = GROUP_CALL_KEYWORDS.stream()
                 .anyMatch(lowerMsg::contains);
-
         if (keywordDetected) return true;
-
-        // 3. [Advanced] 키워드는 없지만 그룹 호출로 볼 수 있는 패턴 분석
-
-        // Case A: "저기요" 같은 말로 시작할 때 (주목 끌기)
         if (lowerMsg.startsWith("저기") || lowerMsg.startsWith("hey")) {
             return true;
         }
-
-        // Case B: 질문을 던지는데 대상이 명확하지 않은 경우 ("~ 있어?", "~ 아는 사람?")
-        // 예: "심심한 사람?", "롤 할 사람?"
         if (lowerMsg.contains("사람?") || lowerMsg.contains("사람 ?")) {
             return true;
         }
-
-        // Case C: "혹시"로 시작해서 물음표로 끝나는 경우 (조심스러운 전체 질문)
-        // 예: "혹시 오늘 비 오나요?" -> 대답해주는 게 좋음
         if (lowerMsg.startsWith("혹시") && lowerMsg.endsWith("?")) {
             return true;
         }
-
         return false;
     }
-    /**
-     * 🕵️‍♂️ 강력한 멘션 감지 (오타 허용, 성/이름 조합 허용)
-     */
+
     private boolean isMentioned(String message, String firstName, String lastName) {
         if (message == null || message.isBlank()) return false;
-
         List<String> nameCandidates = new ArrayList<>();
         if (hasText(firstName)) nameCandidates.add(firstName);
         if (hasText(lastName)) nameCandidates.add(lastName);
@@ -402,9 +320,7 @@ public class AiChatUserService {
             nameCandidates.add(firstName + lastName);
             nameCandidates.add(lastName + firstName);
         }
-
         String cleanMessage = message.toLowerCase().replaceAll("\\s+", " ");
-
         for (String candidate : nameCandidates) {
             String target = candidate.toLowerCase();
             if (cleanMessage.contains(target)) return true;
@@ -452,72 +368,29 @@ public class AiChatUserService {
         return costs[s2.length()];
     }
 
-    private long calculateThinkingTime(String userMessage, boolean isGroupChat) {
-        long baseDelay = 500;
-        long typingDelay = userMessage.length() * 50L;
-
-        if (isGroupChat) {
-            // 그룹챗은 서로 겹치지 않게 랜덤 딜레이를 길게 줌
-            return baseDelay + typingDelay + secureRandom.nextLong(1500, 8000);
-        } else {
-            return baseDelay + typingDelay + secureRandom.nextLong(100, 1000);
-        }
-    }
-
-    private void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     private String buildSystemPrompt(User user, List<ChatMessage> history) {
-        // 1. 현재 시간 및 기본 정보 세팅
         String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         String name = (user.getFirstName() != null) ? user.getFirstName() : "너";
-
-        // 기본 정보 조합 (생년월일 + 성별)
         String basicInfo = (user.getBirthdate() != null ? user.getBirthdate() : "") + " "
                 + (user.getSex() != null ? user.getSex() : "");
-
-        // 취미 정보 (없으면 기본값)
         String hobby = (user.getHobby() != null) ? user.getHobby() : "휴식";
-
-        // 2. [핵심 변경] 대화 내역 포맷팅 강화
-        // 초 단위(ss) 제거하여 노이즈 감소 (HH:mm:ss -> HH:mm)
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
-
         String conversationContext = history.stream()
                 .map(msg -> {
-                    // 이 메시지가 '나(AI)' 자신이 보낸 것인지 확인
                     boolean isMe = msg.getSender().getId().equals(user.getId());
-
                     String originalName = msg.getSender().getFirstName();
                     if (originalName == null) originalName = "Unknown";
-
-                    // 화자 라벨링 로직:
-                    // - 내가 쓴 글: [ME: 이름] -> AI가 자기 과거 발언임을 명확히 인지함
-                    // - 남이 쓴 글: [이름] -> 타인임을 인지함
                     String senderLabel = isMe
                             ? String.format("[ME: %s]", originalName)
                             : String.format("[%s]", originalName);
-
                     String timeStr = msg.getSentAt().atZone(ZoneId.systemDefault()).format(timeFormatter);
-
-                    // 최종 포맷 예시: [14:05] [ME: 도현]: 밥 먹었어?
                     return String.format("[%s] %s: %s", timeStr, senderLabel, msg.getContent());
                 })
                 .collect(Collectors.joining("\n"));
-
         if (conversationContext.isEmpty()) conversationContext = "(아직 대화 내역 없음)";
-
-        // 3. 페르소나 데이터 조회 및 템플릿 선택
         AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
         String instructionTemplate = (persona != null) ? persona.getInstruction() : getDefaultPromptTemplate();
         String backgroundInfoStr = (persona != null && persona.getBackgroundInfo() != null) ? persona.getBackgroundInfo() : "";
-
-        // 4. 프롬프트 변수 치환 후 반환
         return instructionTemplate
                 .replace("{name}", name)
                 .replace("{info}", basicInfo)
