@@ -46,10 +46,6 @@ public class AiChatUserService {
     private final TransactionTemplate transactionTemplate;
     private static final SecureRandom secureRandom = new SecureRandom();
 
-    /**
-     * 🚀 AI 응답 프로세스 진입점
-     * Non-blocking 방식 적용 (Thread.sleep 제거됨)
-     */
     public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
         Long chatRoomId = event.messageResponse().roomId();
 
@@ -100,7 +96,7 @@ public class AiChatUserService {
         ChatRoom chatRoom = lastMessage.getChatRoom();
         boolean isGroupChat = Boolean.TRUE.equals(chatRoom.getIsGroup());
 
-        if (lastMessage.getSender().getId().equals(aiUser.getId()) && isGroupChat) {
+        if (lastMessage.getSender().getId().equals(aiUser.getId())) {
             return null;
         }
 
@@ -181,30 +177,26 @@ public class AiChatUserService {
     }
 
     /**
-     * 🔴 [수정됨] 대화 활성화(Active Mode)를 위한 확률 상향 조정
+     * 🔴 [수정됨] 연속 메시지(Streak) 상황에서도 티키타카 감지하도록 개선
      */
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
-        // 1. 직접 멘션 (100%)
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
 
-        // 2. 1:1 채팅 (100%)
         if (!isGroupChat) {
             log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
             return true;
         }
 
-        // 3. 다른 사람 멘션 시 스킵
         if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
             return false;
         }
 
-        // 4. 앵무새 방지
         long aiDuplicateCount = recentHistory.stream()
                 .limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim()))
@@ -214,7 +206,6 @@ public class AiChatUserService {
             return false;
         }
 
-        // 5. 취미 트리거
         boolean isHobbyTriggered = false;
         String hobby = aiUser.getHobby();
         if (hobby != null && !hobby.isBlank()) {
@@ -226,9 +217,31 @@ public class AiChatUserService {
             }
         }
 
-        // 6. 티키타카 모드 감지 (직전 메시지가 나였는가?)
-        boolean isReplyToMe = !recentHistory.isEmpty() &&
-                recentHistory.get(0).getSender().getId().equals(aiUser.getId());
+        // 6. [🔴 로직 수정 Final] 티키타카 모드 감지 (연속 채팅 대응)
+        // 유저가 연속으로 메시지를 보내더라도, 그 직전에 말한 사람이 '나(AI)'라면 티키타카로 인정
+        boolean isReplyToMe = false;
+        if (!recentHistory.isEmpty()) {
+            Long currentSenderId = recentHistory.get(0).getSender().getId();
+
+            // Index 1부터 과거로 탐색 (최대 6개)
+            for (int i = 1; i < Math.min(recentHistory.size(), 7); i++) {
+                ChatMessage pastMsg = recentHistory.get(i);
+                Long pastSenderId = pastMsg.getSender().getId();
+
+                // 유저 본인의 연속 메시지는 건너뜀
+                if (pastSenderId.equals(currentSenderId)) {
+                    continue;
+                }
+
+                // 유저가 아닌 다른 사람이 나왔을 때, 그게 나인가?
+                if (pastSenderId.equals(aiUser.getId())) {
+                    isReplyToMe = true;
+                }
+
+                // 유저 아닌 화자가 나오면 루프 종료 (문맥 확인 완료)
+                break;
+            }
+        }
 
         int prob;
         String reason;
@@ -238,43 +251,42 @@ public class AiChatUserService {
             prob = 100;
             reason = "Tiki-Taka (Reply to AI)";
         } else if (isHobbyTriggered) {
-            // [상황 1-1] 취미 관련: 놓치지 않고 100% 반응 (Active Mode)
+            // [상황 1-1] 취미 관련
             prob = 100;
             reason = "Hobby Trigger (Active)";
         } else if (isMainSpeaker) {
             // [상황 2] Main Speaker
             if (message.contains("?") || isGroupCall(message)) {
-                // 질문/호출 시 80% 반응 (기존 50% -> 80% 상향)
                 prob = 80;
                 reason = "Main Speaker (Question/Call - Active)";
             } else {
-                // 일반 잡담에도 50% 반응 (기존 20% -> 50% 상향)
                 prob = 50;
                 reason = "Main Speaker (Chatter - Active)";
             }
         } else {
-            // [상황 3] Lurker (비활성)
+            // [상황 3] Lurker
             if (isGroupCall(message)) {
-                // 전체 호출엔 80% 반응 (기존 50% -> 80% 상향)
                 prob = 80;
                 reason = "Lurker (Group Call - Active)";
             } else {
-                // 가끔 생존 신고 20% (기존 5% -> 20% 상향)
                 prob = 20;
                 reason = "Lurker Injection (Active)";
             }
         }
 
-        // 7. 피로도 체크 (티키타카 제외)
+        // 7. 피로도 체크 (Main Speaker 질문 무시 로직 적용)
         if (!isReplyToMe) {
             boolean talkedRecently = recentHistory.stream()
-                    .limit(3)
+                    .limit(4)
                     .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
 
             if (talkedRecently) {
-                // 피로도 패널티도 완화 (확률을 절반으로 깎음 -> 0으로 만들지 않음)
-                prob = prob / 2;
-                reason += " + Fatigue Penalty";
+                if (isMainSpeaker && (message.contains("?") || isGroupCall(message))) {
+                    log.info("AI [{}] ⚡ Fatigue Ignored (Main Speaker + Question).", aiName);
+                } else {
+                    prob = prob / 2;
+                    reason += " + Fatigue Penalty";
+                }
             }
         }
 
@@ -287,6 +299,7 @@ public class AiChatUserService {
         return result;
     }
 
+    // ... (나머지 헬퍼 메서드들은 기존과 동일) ...
     private static final List<String> GROUP_CALL_KEYWORDS = List.of(
             "얘들아", "애들아", "니네", "너네", "너희", "친구들", "자기들",
             "이놈들", "다들", "야들아", "저기", "어이",
