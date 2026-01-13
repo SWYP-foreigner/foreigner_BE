@@ -47,16 +47,19 @@ public class AiChatCoordinatorService {
         List<User> aiList = new ArrayList<>(aiParticipants);
         Collections.shuffle(aiList);
 
-        // 2. 우선순위 정렬
-        sortParticipantsByPriority(aiList, roomId, userMessage);
+        // 🟢 [추가] 직전에 말한 AI가 누구인지 찾기 (Last Speaker Priority)
+        Long lastAiSpeakerId = findLastAiSpeakerId(roomId);
+
+        // 2. 우선순위 정렬 (Last Speaker ID 전달)
+        sortParticipantsByPriority(aiList, roomId, userMessage, lastAiSpeakerId);
 
         if (aiList.isEmpty()) return;
 
-        // 🔴 [수정] 누적 딜레이 계산 시작 (초기값 0)
+        // 누적 딜레이 계산 시작 (초기값 0)
         long accumulatedFastDelay = 0;
         int currentFastCount = 0;
 
-        // 🔴 [추가] 메시지 길이에 따른 기본 읽기/생각 시간 계산 (공통)
+        // 메시지 길이에 따른 기본 읽기/생각 시간 계산 (공통)
         long baseThinkingTime = calculateBaseThinkingTime(userMessage);
 
         for (int i = 0; i < aiList.size(); i++) {
@@ -67,21 +70,27 @@ public class AiChatCoordinatorService {
             ResponseType responseType = determineResponseType(aiUser, roomId, userMessage, isMainSpeakerCandidate);
 
             // 2. Quota(쿼터) 체크
+            // 멘션되었거나, 방금 말한 사람(티키타카 중)이면 쿼터 무시하고 진행할 수도 있지만,
+            // 여기서는 일단 Fast 그룹에 우선 배정하는 것으로 처리
             boolean isDirectlyMentioned = isMentioned(userMessage, aiUser.getFirstName());
+            boolean isLastSpeaker = (lastAiSpeakerId != null && aiUser.getId().equals(lastAiSpeakerId));
 
-            if (responseType == ResponseType.FAST && !isDirectlyMentioned) {
-                if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
-                    responseType = ResponseType.SLOW;
+            if (responseType == ResponseType.FAST) {
+                // 멘션도 아니고 방금 말한 사람도 아닌데(그냥 Active라서 Fast된 경우), 쿼터가 찼으면 Slow로 강등
+                if (!isDirectlyMentioned && !isLastSpeaker) {
+                    if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
+                        responseType = ResponseType.SLOW;
+                    } else {
+                        currentFastCount++;
+                    }
                 } else {
+                    // 멘션 or LastSpeaker는 쿼터 카운트는 올리되, 강등되진 않음 (우선권)
                     currentFastCount++;
                 }
             }
 
             if (responseType == ResponseType.FAST) {
-                // 🔴 [수정] Blocking Sleep 제거를 위한 딜레이 선반영 로직
-                // - 기존: 2~5초 랜덤
-                // - 변경: (기본 읽는 시간) + (1~3초 랜덤 간격)
-                // - 효과: 메시지가 길면 더 오래 기다렸다가 답장함 (자연스러움)
+                // Blocking Sleep 제거를 위한 딜레이 선반영 로직
                 long randomGap = secureRandom.nextLong(1000, 3000);
                 long totalStepDelay = baseThinkingTime + randomGap;
 
@@ -96,7 +105,55 @@ public class AiChatCoordinatorService {
         }
     }
 
-    // 🔴 [이동] UserService에 있던 시간 계산 로직을 여기로 가져옴
+    // 🟢 [신규 메서드] 가장 최근에 말한 AI의 ID 조회
+    // (성능: 인덱스 타는 쿼리라 매우 빠름)
+    private Long findLastAiSpeakerId(Long roomId) {
+        // JPA 메서드 필요: List<ChatMessage> findTop10ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+        List<ChatMessage> history = chatMessageRepository.findTop10ByChatRoomIdOrderBySentAtDesc(roomId);
+
+        for (ChatMessage msg : history) {
+            // Role 체크 (Enum 이름은 프로젝트에 맞게 확인 필요: Role.AI 등)
+            if (msg.getSender().getUserRole() == Role.AI) {
+                return msg.getSender().getId();
+            }
+        }
+        return null;
+    }
+
+    // 🔴 [수정됨] 정렬 로직 (Last Speaker 우선순위 추가)
+    private void sortParticipantsByPriority(List<User> aiList, Long roomId, String userMessage, Long lastAiSpeakerId) {
+        Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
+        Set<Long> activeTalkerIds = new HashSet<>();
+
+        for (User ai : aiList) {
+            if (chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(ai.getId(), roomId, fiveMinutesAgo)) {
+                activeTalkerIds.add(ai.getId());
+            }
+        }
+
+        aiList.sort((u1, u2) -> {
+            // 1순위: 이름 멘션 여부
+            boolean u1Mentioned = isMentioned(userMessage, u1.getFirstName());
+            boolean u2Mentioned = isMentioned(userMessage, u2.getFirstName());
+            if (u1Mentioned && !u2Mentioned) return -1;
+            if (!u1Mentioned && u2Mentioned) return 1;
+
+            // 2순위: 직전 대화자 여부 (Last Speaker) - [티키타카 보호 핵심]
+            boolean u1IsLast = (lastAiSpeakerId != null && u1.getId().equals(lastAiSpeakerId));
+            boolean u2IsLast = (lastAiSpeakerId != null && u2.getId().equals(lastAiSpeakerId));
+            if (u1IsLast && !u2IsLast) return -1;
+            if (!u1IsLast && u2IsLast) return 1;
+
+            // 3순위: 최근 활동 여부 (Active Talker)
+            boolean u1Active = activeTalkerIds.contains(u1.getId());
+            boolean u2Active = activeTalkerIds.contains(u2.getId());
+            if (u1Active && !u2Active) return -1;
+            if (!u1Active && u2Active) return 1;
+
+            return 0;
+        });
+    }
+
     private long calculateBaseThinkingTime(String userMessage) {
         long baseDelay = 500; // 기본 0.5초
         long typingDelay = (userMessage != null ? userMessage.length() : 0) * 50L; // 글자당 0.05초
@@ -132,33 +189,15 @@ public class AiChatCoordinatorService {
         return !survive;
     }
 
-    private void sortParticipantsByPriority(List<User> aiList, Long roomId, String userMessage) {
-        Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
-        Set<Long> activeTalkerIds = new HashSet<>();
-        for (User ai : aiList) {
-            if (chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(ai.getId(), roomId, fiveMinutesAgo)) {
-                activeTalkerIds.add(ai.getId());
-            }
-        }
-        aiList.sort((u1, u2) -> {
-            boolean u1Mentioned = isMentioned(userMessage, u1.getFirstName());
-            boolean u2Mentioned = isMentioned(userMessage, u2.getFirstName());
-            if (u1Mentioned && !u2Mentioned) return -1;
-            if (!u1Mentioned && u2Mentioned) return 1;
-            boolean u1Active = activeTalkerIds.contains(u1.getId());
-            boolean u2Active = activeTalkerIds.contains(u2.getId());
-            if (u1Active && !u2Active) return -1;
-            if (!u1Active && u2Active) return 1;
-            return 0;
-        });
-    }
-
     private ResponseType determineResponseType(User aiUser, Long roomId, String userMessage, boolean isMainSpeaker) {
         if (isMentioned(userMessage, aiUser.getFirstName())) return ResponseType.FAST;
+
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
         boolean isActiveTalker = chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(aiUser.getId(), roomId, fiveMinutesAgo);
+
         if (isActiveTalker) return ResponseType.FAST;
         if (isMainSpeaker) return ResponseType.FAST;
+
         return (secureRandom.nextInt(100) < 30) ? ResponseType.FAST : ResponseType.SLOW;
     }
 
