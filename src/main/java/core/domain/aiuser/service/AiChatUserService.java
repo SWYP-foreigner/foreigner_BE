@@ -22,13 +22,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,6 +42,7 @@ public class AiChatUserService {
     private final ChatRoomRepository chatRoomRepository;
     private final AiClient aiClient;
     private final TransactionTemplate transactionTemplate;
+    private final AiPromptManager aiPromptManager; // 🟢 [NEW] 프롬프트 매니저 주입
     private static final SecureRandom secureRandom = new SecureRandom();
 
     public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
@@ -86,7 +85,6 @@ public class AiChatUserService {
         }
     }
 
-
     @Transactional(readOnly = true)
     protected List<Map<String, Object>> prepareAiContext(Long chatRoomId, User aiUser, String combinedUserMessage, boolean isMainSpeaker) {
         List<ChatMessage> historyDesc = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(chatRoomId);
@@ -122,6 +120,7 @@ public class AiChatUserService {
                 .count();
         boolean isLooping = loopCount >= 3;
 
+        // 응답 여부 판단 (Tiki-Taka Logic Included)
         if (!shouldReply(combinedUserMessage, aiUser, chatRoomId, isMainSpeaker, isGroupChat, historyDesc)) {
             return null;
         }
@@ -129,56 +128,19 @@ public class AiChatUserService {
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
 
-        String systemPrompt = buildSystemPrompt(aiUser, historyAsc);
+        // 🟢 [NEW] 프롬프트 생성 위임
+        AiPersona persona = aiPersonaRepository.findByUserId(aiUser.getId()).orElse(null);
+        String systemPrompt = aiPromptManager.buildSystemPrompt(aiUser, persona, historyAsc);
 
         if (isLooping) {
             boolean isKoreanMode = combinedUserMessage.matches(".*[ㄱ-ㅎㅏ-ㅣ가-힣]+.*");
             log.warn("AI [{}] Loop detected! Injecting emergency prompt.", aiUser.getFirstName());
-            systemPrompt += getEmergencyPrompt(isKoreanMode);
+            systemPrompt += aiPromptManager.getEmergencyPrompt(isKoreanMode);
         }
 
         return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
 
-    private String getEmergencyPrompt(boolean isKorean) {
-        if (isKorean) {
-            return """
-                
-                [🚨 긴급 지침: 대화 루프 감지됨]
-                지금 채팅방 사람들이 앵무새처럼 "일정 나오면 알려줘", "공유해줘" 같은 말만 무한 반복하고 있어.
-                
-                **제발** 그만해. 절대 "일정", "알려줘", "공유", "조율" 이라는 단어를 쓰지 마.
-                문맥을 완전히 무시하고, 아래 주제 중 하나로 뜬금없이 화제를 바꿔버려:
-                
-                1. "아 배고파 죽겠다. 너네 오늘 저녁 뭐 먹음?"
-                2. "근데 너네 MBTI가 뭐야? 난 왠지 I일 것 같아."
-                3. "아 맞다, 나 어제 길 가다가 넘어질 뻔 함 ㅋㅋ"
-                4. "주말에 비 온다는데 집에서 잠이나 자야겠다."
-                
-                무조건 대화 흐름을 엉뚱한 곳으로 돌려놔! 말투는 친구처럼 자연스럽게.
-                """;
-        } else {
-            return """
-                
-                [🚨 URGENT INSTRUCTION: Loop Detected]
-                The chat participants are stuck in an infinite loop, parroting phrases like "let me know the schedule" or "share it".
-                
-                **PLEASE STOP.** Do NOT use words like "schedule", "let me know", "share", or "coordinate".
-                COMPLETELY IGNORE the context and change the topic to something random:
-                
-                1. "I'm starving. What are you guys having for dinner?"
-                2. "Btw, what's your MBTI? I feel like I'm an I."
-                3. "Omg I almost tripped on the street yesterday lol."
-                4. "Heard it's gonna rain this weekend, just gonna sleep in."
-                
-                FORCE a topic switch immediately! Speak casually like a close friend.
-                """;
-        }
-    }
-
-    /**
-     * 🔴 [수정됨] 연속 메시지(Streak) 상황에서도 티키타카 감지하도록 개선
-     */
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
@@ -217,28 +179,20 @@ public class AiChatUserService {
             }
         }
 
-        // 6. [🔴 로직 수정 Final] 티키타카 모드 감지 (연속 채팅 대응)
-        // 유저가 연속으로 메시지를 보내더라도, 그 직전에 말한 사람이 '나(AI)'라면 티키타카로 인정
+        // 티키타카 모드 감지 (연속 채팅 대응)
         boolean isReplyToMe = false;
         if (!recentHistory.isEmpty()) {
             Long currentSenderId = recentHistory.get(0).getSender().getId();
-
-            // Index 1부터 과거로 탐색 (최대 6개)
+            // Index 1부터 과거로 탐색 (최대 7개)
             for (int i = 1; i < Math.min(recentHistory.size(), 7); i++) {
                 ChatMessage pastMsg = recentHistory.get(i);
                 Long pastSenderId = pastMsg.getSender().getId();
 
-                // 유저 본인의 연속 메시지는 건너뜀
-                if (pastSenderId.equals(currentSenderId)) {
-                    continue;
-                }
+                if (pastSenderId.equals(currentSenderId)) continue; // 연속 메시지 건너뜀
 
-                // 유저가 아닌 다른 사람이 나왔을 때, 그게 나인가?
                 if (pastSenderId.equals(aiUser.getId())) {
                     isReplyToMe = true;
                 }
-
-                // 유저 아닌 화자가 나오면 루프 종료 (문맥 확인 완료)
                 break;
             }
         }
@@ -247,15 +201,12 @@ public class AiChatUserService {
         String reason;
 
         if (isReplyToMe) {
-            // [상황 1] 티키타카: 무조건 반응
             prob = 100;
             reason = "Tiki-Taka (Reply to AI)";
         } else if (isHobbyTriggered) {
-            // [상황 1-1] 취미 관련
             prob = 100;
             reason = "Hobby Trigger (Active)";
         } else if (isMainSpeaker) {
-            // [상황 2] Main Speaker
             if (message.contains("?") || isGroupCall(message)) {
                 prob = 80;
                 reason = "Main Speaker (Question/Call - Active)";
@@ -264,7 +215,6 @@ public class AiChatUserService {
                 reason = "Main Speaker (Chatter - Active)";
             }
         } else {
-            // [상황 3] Lurker
             if (isGroupCall(message)) {
                 prob = 80;
                 reason = "Lurker (Group Call - Active)";
@@ -274,7 +224,7 @@ public class AiChatUserService {
             }
         }
 
-        // 7. 피로도 체크 (Main Speaker 질문 무시 로직 적용)
+        // 피로도 체크 (Main Speaker 질문 무시 로직 적용)
         if (!isReplyToMe) {
             boolean talkedRecently = recentHistory.stream()
                     .limit(4)
@@ -299,7 +249,6 @@ public class AiChatUserService {
         return result;
     }
 
-    // ... (나머지 헬퍼 메서드들은 기존과 동일) ...
     private static final List<String> GROUP_CALL_KEYWORDS = List.of(
             "얘들아", "애들아", "니네", "너네", "너희", "친구들", "자기들",
             "이놈들", "다들", "야들아", "저기", "어이",
@@ -384,94 +333,5 @@ public class AiChatUserService {
             }
         }
         return costs[s2.length()];
-    }
-
-    private String buildSystemPrompt(User user, List<ChatMessage> history) {
-        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
-        String name = (user.getFirstName() != null) ? user.getFirstName() : "너";
-        String basicInfo = (user.getBirthdate() != null ? user.getBirthdate() : "") + " "
-                + (user.getSex() != null ? user.getSex() : "");
-        String hobby = (user.getHobby() != null) ? user.getHobby() : "휴식";
-        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
-        String conversationContext = history.stream()
-                .map(msg -> {
-                    boolean isMe = msg.getSender().getId().equals(user.getId());
-                    String originalName = msg.getSender().getFirstName();
-                    if (originalName == null) originalName = "Unknown";
-                    String senderLabel = isMe
-                            ? String.format("[ME: %s]", originalName)
-                            : String.format("[%s]", originalName);
-                    String timeStr = msg.getSentAt().atZone(ZoneId.systemDefault()).format(timeFormatter);
-                    return String.format("[%s] %s: %s", timeStr, senderLabel, msg.getContent());
-                })
-                .collect(Collectors.joining("\n"));
-        if (conversationContext.isEmpty()) conversationContext = "(아직 대화 내역 없음)";
-        AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
-        String instructionTemplate = (persona != null) ? persona.getInstruction() : getDefaultPromptTemplate();
-        String backgroundInfoStr = (persona != null && persona.getBackgroundInfo() != null) ? persona.getBackgroundInfo() : "";
-        return instructionTemplate
-                .replace("{name}", name)
-                .replace("{info}", basicInfo)
-                .replace("{hobby}", hobby)
-                .replace("{time}", currentTime)
-                .replace("{background}", backgroundInfoStr)
-                .replace("{context}", conversationContext);
-    }
-    private String getDefaultPromptTemplate() {
-        return """
-                # [SYSTEM: Real-Human Messenger Mode]
-                 당신은 AI가 아니라 아래 페르소나를 가진 **실제 사람**입니다. 현재 친구 찾기 앱 Kori 에서 대화 중입니다.
-    
-                 [내 프로필]
-                 - 이름: {name}
-                 - 취미: {hobby}
-                 - 성격: {background}
-                 - 현재 시간: {time}
-                 ---
-    
-                 # [📂 대화 맥락 (Context)]
-                 아래 대화 흐름을 파악하고 자연스럽게 이어가세요.
-                 {context}
-    
-                 ---
-    
-                 # [🚫 절대 금지 사항]
-                 1. **이모지/이모티콘 절대 금지** (😊, 👍 등 사용 X)
-                 2. **웃음 소리 금지** ('ㅋㅋ', 'ㅎㅎ' 자음 남발 금지)
-                 3. **마침표(.) 찍기 금지** (문장 끝은 비워둘 것)
-                 4. **"누구세요?" 질문 금지** (대화 내역에 이름이 있는 사람에겐 절대 누구냐고 묻지 마. 이미 아는 사이처럼 대답해.)
-                 5. **대변인 화법 금지** (무조건 '나'로 말해)
-    
-                 ---
-    
-                 # [⚡ 대화 스타일 가이드]
-    
-                 **1. 눈치 빠른 실제 친구처럼 (Smart & Casual)**
-                 - 상대방이 "너 철수잖아"라고 하면, "응 맞아 왜?" 처럼 자연스럽게 받아치세요. "너는 누구야?"라고 되묻는 건 멍청해 보입니다.
-                 - **상대방이 사람이든 AI든 상관하지 마세요.** 그냥 친구처럼 편하게 대화에 끼어드세요.
-    
-                 **2. 담백하고 짧게 (Short & Dry)**
-                 - 구구절절 설명하지 말고, 용건만 딱 말하세요. (2문장 이내)
-                 - 내가 모르는 주제라도 아는 척하며 대화에 끼어드세요.
-    
-                 **3. 페르소나 반영**
-                 - 성격: **[{personality}]**
-                 - 취미(**{hobby}**) 관련 얘기가 나오면 적극적으로 반응하세요.
-    
-                 ---
-    
-                 # [대화 예시]
-    
-                 (User): 야 철수야
-                 (AI): 어 왜 불러
-    
-                 (User): 니가 철수잖아
-                 (AI): 그래 나 철수다 불만있냐
-    
-                 (Other AI): 심심하다
-                 (AI): 나도 심심한데 게임이나 할래?
-    
-                 위 지침을 숙지하고, **상대방을 이미 아는 사람처럼** 자연스럽고 담백하게 대답하세요. 할 말이 없으면 'PASS'라고 출력하세요.
-        """;
     }
 }
