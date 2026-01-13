@@ -31,6 +31,10 @@ public class AiChatCoordinatorService {
     private static final SecureRandom secureRandom = new SecureRandom();
     private static final int ACTIVE_TALKER_WINDOW_MINUTES = 5;
 
+    // [추가] 한 턴에 즉시 반응(Fast Group)할 수 있는 최대 AI 수 제한 (Quota)
+    // - 2명 설정 이유: 1명은 너무 정적이고, 3명 이상은 너무 시끄러움. 2명이 가장 적절한 티키타카.
+    private static final int MAX_FAST_REPLIES_PER_TURN = 2;
+
     public void coordinateReplies(Long roomId, Set<User> aiParticipants, MessageCreatedEvent lastEvent, String userMessage) {
 
         // 1. [Group Only] 확률 감쇠(Soft Cap) 로직 적용
@@ -46,17 +50,36 @@ public class AiChatCoordinatorService {
         Collections.shuffle(aiList);
 
         // 2. 우선순위 정렬 (Active Talker 보장)
+        // 정렬 순서: 멘션됨 > Active Talker > 나머지
         sortParticipantsByPriority(aiList, roomId, userMessage);
 
         if (aiList.isEmpty()) return;
 
         long accumulatedFastDelay = 0;
 
+        // [추가] 현재 턴의 Fast 그룹 할당 카운터
+        int currentFastCount = 0;
+
         for (int i = 0; i < aiList.size(); i++) {
             User aiUser = aiList.get(i);
             boolean isMainSpeakerCandidate = (i == 0);
 
+            // 1. 기본 타입 결정 (Fast/Slow)
             ResponseType responseType = determineResponseType(aiUser, roomId, userMessage, isMainSpeakerCandidate);
+
+            // 🔴 [수정] Quota(쿼터) 체크: 이미 Fast 자리가 꽉 찼으면 강제로 SLOW로 강등
+            // 단, 멘션된 경우(Priority 1)는 유저 호출이므로 쿼터 무시하고 무조건 FAST 허용
+            boolean isDirectlyMentioned = isMentioned(userMessage, aiUser.getFirstName());
+
+            if (responseType == ResponseType.FAST && !isDirectlyMentioned) {
+                if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
+                    // 자리 없음 -> 강제로 지연 응답 그룹으로 이동 (너무 시끄러워지는 것 방지)
+                    responseType = ResponseType.SLOW;
+                } else {
+                    // 자리 있음 -> 카운트 증가 및 Fast 유지
+                    currentFastCount++;
+                }
+            }
 
             if (responseType == ResponseType.FAST) {
                 long myDelay = secureRandom.nextLong(2000, 5000);
