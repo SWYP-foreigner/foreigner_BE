@@ -25,8 +25,6 @@ import static core.domain.post.entity.QPost.post;
 @RequiredArgsConstructor
 public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCustom {
 
-    private final static LikeType LIKE_TYPE_POST = LikeType.POST;
-
     private final JPAQueryFactory jpaQueryFactory;
 
     @PersistenceContext
@@ -93,7 +91,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                 .from(p)
                 .where(where)
                 .orderBy(scoreRounded.desc(), p.createdAt.desc(), p.id.desc())
-                .limit(request.limit() + 1)
+                .limit(request.limit() + 1L)
                 .fetch();
     }
 

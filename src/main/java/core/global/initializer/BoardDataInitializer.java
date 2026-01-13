@@ -20,9 +20,10 @@ public class BoardDataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         for (BoardCategory category : BoardCategory.values()) {
-            if (!boardRepository.existsByCategory(category)) {
-                boardRepository.save(new Board(category));
+            if (boardRepository.existsByCategory(category)) {
+                continue;
             }
+            boardRepository.save(new Board(category));
         }
     }
 }
