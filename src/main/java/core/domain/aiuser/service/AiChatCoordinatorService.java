@@ -205,9 +205,11 @@ public class AiChatCoordinatorService {
     }
 
     private long calculateBaseThinkingTime(String userMessage) {
-        long baseDelay = 500;
-        long typingDelay = (userMessage != null ? userMessage.length() : 0) * 50L;
-        return baseDelay + typingDelay;
+        long baseReactionTime = secureRandom.nextLong(500, 1500);
+        long readingTime = (userMessage != null ? userMessage.length() : 0) * 50L;
+        long thinkingVariance = secureRandom.nextLong(0, 1000);
+
+        return baseReactionTime + readingTime + thinkingVariance;
     }
 
     private boolean shouldSkipByProbabilityDecay(Long roomId) {
