@@ -140,7 +140,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
             subQuery.append("(");
             subQuery.append("""
             SELECT 
-                pgroonga_extract_phrase(post_content, ?, %d) as phrase,
+                pgroonga_extract_phrase(post_content, ?::text, %d) as phrase,
                 created_at
             FROM post
             WHERE post_content_norm &@* ?
