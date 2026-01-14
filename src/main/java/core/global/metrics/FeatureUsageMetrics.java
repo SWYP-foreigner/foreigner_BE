@@ -13,6 +13,7 @@ public class FeatureUsageMetrics {
     private final Counter chatFeatureCounter;
     private final Counter followFeatureCounter;
     private final Counter communityFeatureCounter;
+    private final Counter mainPageFeatureCounter;
 
     public FeatureUsageMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -25,6 +26,10 @@ public class FeatureUsageMetrics {
 
         communityFeatureCounter = Counter.builder("feature_community_usage_count")
                 .description("커뮤니티 기능 사용 횟수")
+                .register(registry);
+
+        mainPageFeatureCounter = Counter.builder("feature_main_usage_count")
+                .description("메인 페이지 접속 횟수")
                 .register(registry);
     }
 
@@ -45,5 +50,9 @@ public class FeatureUsageMetrics {
     public void recordCommunityUsage() {
         communityFeatureCounter.increment();
         incTotalByFeature("community");
+    }
+    public void recordMainPageUsage() {
+        mainPageFeatureCounter.increment();
+        incTotalByFeature("main");
     }
 }

@@ -222,13 +222,16 @@ public class LoginRegisterController {
 
 
     @PatchMapping("/profile/setup")
-    @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성 ", description = "현재 사용자의 프로필 정보를 세팅합니다.")
+    @Operation(summary = "처음 회원가입시 프로필 이미지랑 함께 자기소개 작성", description = "현재 사용자의 프로필 정보를 세팅합니다.")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.INVALID_PROFILE})
     @ImageErrorCodeDocs({ImageErrorCode.USER_IMAGES_ALREADY_EXIST, ImageErrorCode.IMAGE_UPLOAD_FAILED, })
     public ResponseEntity<Void> updateProfile(@Valid @RequestBody UserSetupRequest dto) {
         userService.setupUserProfile(dto);
         return ResponseEntity.ok(null);
     }
+
+
+
 
     @DeleteMapping("/image")
     @Operation(summary = "프로필 이미지 삭제", description = "현재 사용자의 프로필 정보를 삭제합니다.")
@@ -313,5 +316,17 @@ public class LoginRegisterController {
         ProfileCompletionResponse response = userService.checkProfileCompletion(userId);
         return ResponseEntity.ok(response);
     }
-
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = ProfileOptionsDto.CombinedResponse.class))
+            )
+    })
+    @GetMapping("/profile-options")
+    @Operation(summary = "프로필 설정 옵션 전체 조회",
+            description = "프로필 설정 시 필요한 '추천 자기소개(영어)'와 '관심사 카테고리'를 한 번에 반환합니다. 기본 에러 404 등 커스텀 에러는 없습니다.")
+    public ResponseEntity<ProfileOptionsDto.CombinedResponse> getProfileOptions() {
+        return ResponseEntity.ok(userService.getProfileOptions());
+    }
 }

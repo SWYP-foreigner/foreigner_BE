@@ -1,8 +1,8 @@
 package core.global.entity.image.repository;
 
+import core.global.entity.image.entity.Image;
 import core.global.enums.ImageModerationStatus;
 import core.global.enums.ImageType;
-import core.global.entity.image.entity.Image;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,37 +14,37 @@ import java.util.Optional;
 
 public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("""
-    select i.relatedId, i.url
-    from Image i
-    where i.imageType = :imageType
-      and i.relatedId in :commentIds
-    """)
+            select i.relatedId, i.url
+            from Image i
+            where i.imageType = :imageType
+              and i.relatedId in :commentIds
+            """)
     List<Object[]> findUrlByRelatedIds(
             @Param("imageType") ImageType imageType,
             @Param("commentIds") List<Long> commentIds
     );
 
     @Query("""
-        select i.relatedId, i.url
-        from Image i
-        where i.id in (
-            select min(i2.id)
-            from Image i2
-            where i2.imageType = :imageType
-              and i2.relatedId in :relatedIds
-            group by i2.relatedId
-        )
-    """)
+                select i.relatedId, i.url
+                from Image i
+                where i.id in (
+                    select min(i2.id)
+                    from Image i2
+                    where i2.imageType = :imageType
+                      and i2.relatedId in :relatedIds
+                    group by i2.relatedId
+                )
+            """)
     List<Object[]> findFirstUrlByRelatedIds(@Param("imageType") ImageType imageType,
                                             @Param("relatedIds") List<Long> relatedIds);
 
     @Query("""
-        select i.relatedId, i.url
-        from Image i
-        where i.imageType = :imageType
-          and i.relatedId in :relatedIds
-        order by i.id asc
-    """)
+                select i.relatedId, i.url
+                from Image i
+                where i.imageType = :imageType
+                  and i.relatedId in :relatedIds
+                order by i.id asc
+            """)
     List<Object[]> findAllUrlsByRelatedIds(@Param("imageType") ImageType imageType,
                                            @Param("relatedIds") List<Long> relatedIds);
 
@@ -58,21 +58,30 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     @Modifying
     @Query("""
-        delete from Image i
-        where i.imageType = :imageType
-          and i.relatedId  = :relatedId
-          and i.url in :urls
-    """)
+                delete from Image i
+                where i.imageType = :imageType
+                  and i.relatedId  = :relatedId
+                  and i.url in :urls
+            """)
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, Collection<String> urls);
 
     @Modifying
     @Query("""
-        delete from Image i
-         where i.imageType = :imageType
-           and i.relatedId  = :relatedId
-    """)
+                delete from Image i
+                 where i.imageType = :imageType
+                   and i.relatedId  = :relatedId
+            """)
     void deleteByImageTypeAndRelatedId(@Param("imageType") ImageType imageType,
                                        @Param("relatedId") Long relatedId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+                delete from Image i
+                 where i.imageType = :imageType
+                   and i.relatedId  = :relatedId
+            """)
+    void deleteByImageTypeAndRelatedIdWithFlushing(@Param("imageType") ImageType imageType,
+                                                   @Param("relatedId") Long relatedId);
 
     void deleteByImageTypeAndRelatedIdAndUrlIn(ImageType imageType, Long relatedId, List<String> urls);
 
@@ -90,7 +99,9 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     @Query("SELECT i FROM Image i WHERE i.imageType = :imageType AND i.relatedId IN :relatedIds AND i.orderIndex = 0")
     List<Image> findAllPrimaryImagesForUsers(@Param("imageType") ImageType imageType, @Param("relatedIds") List<Long> relatedIds);
+
     List<Image> findAllByImageTypeAndRelatedIdIn(ImageType imageType, List<Long> relatedIds);
+
     /**
      * [추가] 특정 타입과 ID에 해당하는 '모든' 이미지 목록을 조회합니다.
      * 채팅방의 기존 이미지를 모두 삭제하기 위해 사용됩니다.
@@ -106,6 +117,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
      * 특정 이미지 타입(ImageType)과 연관 ID(relatedId)를 가진 이미지들 중
      * orderIndex가 가장 작은(가장 상위에 있는) 하나의 이미지를 조회합니다.
      * * @param imageType 이미지 타입 (예: CHAT_ROOM)
+     *
      * @param relatedId 연관된 엔티티의 ID (예: 채팅방 ID)
      * @return 조회된 Image 엔티티 (Optional)
      */

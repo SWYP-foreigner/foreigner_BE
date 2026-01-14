@@ -12,9 +12,8 @@ import core.global.entity.image.service.ImageService;
 import core.global.enums.FollowActionType;
 import core.global.enums.FollowStatus;
 import core.global.enums.NotificationType;
-import core.global.exception.BusinessException;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.entity.image.repository.ImageRepository;
+import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -136,16 +135,21 @@ public class FollowService {
             throw new BusinessException(UserErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
+        if (followRepository.existsByUserAndFollowing(follower, targetUser) || followRepository.existsByUserAndFollowing(targetUser, follower)) {
+            throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
+        }
+
         // 2. FriendType을 통한 관계 검증 로직 적용
         FriendType currentRelation = determineFriendType(follower, targetUser);
 
         switch (currentRelation) {
             case FOLLOWING:
+                throw new BusinessException(UserErrorCode.ALREADY_FOLLOWING);
             case FRIEND:
                 // 이미 내가 요청했거나 팔로우 중인 경우
                 throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-
             case FOLLOWED:
+                throw new BusinessException(UserErrorCode.ALREADY_FOLLOWED);
             case NONE:
                 // 팔로우 신청 가능 상태
                 break;
@@ -261,6 +265,8 @@ public class FollowService {
                 break;
 
             case FOLLOWING:
+                followRepository.findByUserAndFollowing(me, target).ifPresent(followRepository::delete);
+                break;
 
             case FOLLOWED:
 
@@ -271,9 +277,7 @@ public class FollowService {
         log.info("[UNFOLLOW] 성공: 나={}, 대상={}", me.getId(), target.getId());
     }
 
-    /**
-     * 내(현재 로그인 사용자)가 보낸 사람(팔로잉) 나한테 메시지를 보낸사람 조회
-     */
+
     @Transactional(readOnly = true)
     public List<FollowDTO> getMyFollowsByStatus(Authentication auth, FollowStatus status, boolean isFollowers) {
         log.info("[GET FOLLOWS] 요청 시작: 사용자={}, 상태={}, 팔로워 조회 여부={}", auth.getName(), status, isFollowers);
