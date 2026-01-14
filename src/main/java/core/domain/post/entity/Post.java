@@ -93,8 +93,4 @@ public class Post {
     public void changeContent(String content) {
         this.content = content;
     }
-
-    public void changeCheckCount() {
-        this.checkCount = this.checkCount + 1;
-    }
 }

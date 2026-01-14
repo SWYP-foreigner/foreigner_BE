@@ -191,26 +191,33 @@ class PostSearchImplTest {
     @Test
     @DisplayName("suggest - 메모리 우선, 모자란 부분만 DB에서 채우고 중복 제거 후 LIMIT까지 반환")
     void suggest_mergeMemoryAndDb_success() {
+        // 1. 준비
         String prefix = "he";
-        Long boardId = 1L; // 전체
-        // 차단 유저: setUp에서 기본 empty
+        Long boardId = 1L; // 서비스 로직상 1L은 null(전체)로 처리됨
 
-        // FAST_FIRST_MAX = 4, LIMIT = 7, DB_FALLBACK_MAX = 3
-        // 메모리에서 3개, DB에서 3개 주고, 중복 1개 섞은 케이스
-        when(memoryIndex.suggestPrefix(prefix.trim(), 4))
-                .thenReturn(List.of("hello", "help", "heap"));
+        // 서비스 상수: LIMIT = 9, FAST_FIRST_MAX = 9
+        // 메모리에서 3개를 반환한다고 가정
+        List<String> memoryResults = List.of("hello", "help", "heap");
+        when(memoryIndex.suggestPrefix(eq("he"), eq(9))) // FAST_FIRST_MAX는 9임
+                .thenReturn(memoryResults);
 
-        when(searchRepository.suggest(eq(prefix.trim()), isNull(), anyList(), eq(3)))
-                .thenReturn(List.of("health", "hello", "hear")); // "hello" 중복
+        // remain 계산: 9(LIMIT) - 3(memoryResults) = 6
+        // DB에서는 6개를 요청하게 됨
+        List<String> dbResults = List.of("health", "hello", "hear"); // "hello" 중복
+        when(searchRepository.suggest(eq("he"), isNull(), anyList(), eq(6))) // remain은 6
+                .thenReturn(dbResults);
 
+        // 2. 실행
         List<String> result = postSearchService.suggest(prefix, boardId);
 
-        // 순서: 메모리 우선, 그 다음 DB (중복 제거)
+        // 3. 검증
+        // 순서: 메모리(hello, help, heap) -> DB(health, hear / hello는 중복제거)
         assertThat(result).containsExactly(
                 "hello", "help", "heap", "health", "hear"
         );
 
-        verify(memoryIndex).suggestPrefix("he", 4);
-        verify(searchRepository).suggest(eq("he"), isNull(), anyList(), eq(3));
+        // 정확한 파라미터로 호출되었는지 확인
+        verify(memoryIndex).suggestPrefix("he", 9);
+        verify(searchRepository).suggest(eq("he"), isNull(), anyList(), eq(6));
     }
 }
