@@ -21,7 +21,7 @@ public interface PostService {
 
     void addLike(Long boardId);
 
-    void writePost(@Positive Long boardId, PostWriteRequest request);
+    Long writePost(@Positive Long boardId, PostWriteRequest request);
 
     void writePostForChat(Long roomId, PostWriteForChatRequest request);
 

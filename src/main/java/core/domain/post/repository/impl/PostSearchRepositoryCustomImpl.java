@@ -93,7 +93,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                 .from(p)
                 .where(where)
                 .orderBy(scoreRounded.desc(), p.createdAt.desc(), p.id.desc())
-                .limit(request.limit() + 1)
+                .limit(request.limit() + 1L)
                 .fetch();
     }
 

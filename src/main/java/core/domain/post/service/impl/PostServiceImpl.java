@@ -233,7 +233,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public void writePost(@Positive Long boardId, PostWriteRequest request) {
+    public Long writePost(@Positive Long boardId, PostWriteRequest request) {
         if (boardId == 1) {
             throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_WRITE);
         }
@@ -254,6 +254,8 @@ public class PostServiceImpl implements PostService {
 
         imageService.savePostImages(post.getId(), request.imageUrls());
         publishFollowerNotification(post);
+
+        return post.getId();
     }
 
     /**
