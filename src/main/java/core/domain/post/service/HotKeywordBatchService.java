@@ -48,9 +48,6 @@ public class HotKeywordBatchService {
                 return;
             }
 
-            // 2. DB 테이블 갱신 (기존 데이터 삭제 후 대량 삽입)
-            hotKeywordRepository.deleteAllInBatch();
-
             List<HotKeywords> newKeywords = results.stream()
                     .map(row -> HotKeywords.builder()
                             .keyword((String) row[0])
@@ -77,6 +74,7 @@ public class HotKeywordBatchService {
 
                     String p = phrase.toString().trim();
                     if (!p.isEmpty()) {
+                        // "NewJeans", "NewJeans Billboard", "NewJeans Billboard Hit"가 각각 저장됨
                         nextData.merge(p, freq, Integer::sum);
                     }
                 }
@@ -104,7 +102,7 @@ public class HotKeywordBatchService {
         cleaned = cleaned.replaceAll("\\s+", " ");
 
         String[] words = cleaned.split(" ");
-        if (words.length > 3) { // 추가 단어 1개를 포함해 총 3단어까지 유지
+        if (words.length > 3) {
             return String.join(" ", words[0], words[1], words[2]);
         }
 

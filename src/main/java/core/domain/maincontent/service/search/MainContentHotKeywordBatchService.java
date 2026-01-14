@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -98,7 +99,6 @@ public class MainContentHotKeywordBatchService {
         log.info("[Batch-Main] 데이터 업데이트 시작 (자동완성 누적 갱신)");
 
         try {
-            // 1. 자동완성 (Autocomplete): 검색 편의를 위해 지우지 않고 "덧붙여 나감"
             List<Object[]> autocompleteResults = searchRepository.findHotKeywordsOrTitles(2000);
             if (!autocompleteResults.isEmpty()) {
                 List<MainContentHotKeywords> newHotKeywords = autocompleteResults.stream()
@@ -109,16 +109,45 @@ public class MainContentHotKeywordBatchService {
                                 .build())
                         .toList();
 
-                // [DB/Memory] 삭제 없이 추가만 수행 (Append)
                 hotKeywordRepository.saveAll(newHotKeywords);
-                Map<String, Integer> additionalData = newHotKeywords.stream()
-                        .collect(Collectors.toMap(MainContentHotKeywords::getKeyword, mk -> 1, (v1, v2) -> v1));
-                memoryIndex.putAll(additionalData);
-            }
 
+                Map<String, Integer> nextData = new HashMap<>();
+                for (Object[] row : autocompleteResults) {
+                    String rawTerm = (String) row[0];
+                    int freq = ((Number) row[1]).intValue();
+
+                    String cleaned = refineGoogleStyle(rawTerm);
+                    String[] words = cleaned.split(" ");
+
+                    StringBuilder phrase = new StringBuilder();
+                    for (int i = 0; i < Math.min(words.length, 3); i++) {
+                        if (i > 0) phrase.append(" ");
+                        phrase.append(words[i]);
+
+                        String p = phrase.toString().trim();
+                        if (!p.isEmpty()) {
+                            nextData.merge(p, freq, Integer::sum);
+                        }
+                    }
+                }
+                memoryIndex.putAll(nextData);
+            }
         } catch (Exception e) {
             log.error("[Batch-Main] 배치 작업 중 에러 발생", e);
         }
+    }
+
+    private String refineGoogleStyle(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        String cleaned = raw.replaceAll("(?i)\\s*'?s\\b", "");
+        cleaned = cleaned.replaceAll("[^a-zA-Z0-9가-힣\\s]", " ").trim();
+        cleaned = cleaned.replaceAll("\\s+", " ");
+
+        String[] words = cleaned.split(" ");
+        if (words.length > 3) { // 3단어까지만 유지
+            return String.join(" ", words[0], words[1], words[2]);
+        }
+        return cleaned;
     }
 
     @Transactional

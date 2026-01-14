@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MainContentSearchService {
 
-    private static final int LIMIT = 7;
-    private static final int FAST_FIRST_MAX = 4;   // 메모리 최대
+    private static final int LIMIT = 9;
+    private static final int FAST_FIRST_MAX = 9;   // 메모리 최대
     private static final int DB_FALLBACK_MAX = 3;  // DB 최대
     private static final ObjectMapper mapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
@@ -146,35 +146,34 @@ public class MainContentSearchService {
         return null;
     }
 
-    @Transactional(readOnly = true, timeout = 1)
+//    @Transactional(readOnly = true)
     public List<String> suggest(String prefix) {
         String pfx = prefix == null ? "" : prefix.trim();
         if (pfx.isEmpty()) return List.of();
 
         // 1) 메모리 자동완성 우선 (최대 FAST_FIRST_MAX, 단 총 LIMIT 고려)
-        int fastQuota = Math.min(FAST_FIRST_MAX, LIMIT);
-        List<String> fast = memoryIndex.suggestPrefix(pfx, fastQuota);
+        List<String> fast = memoryIndex.suggestPrefix(pfx, FAST_FIRST_MAX);
 
         // 2) 부족분만 PGroonga로 보충 (최대 DB_FALLBACK_MAX, 단 총 LIMIT 고려)
-        int remain = Math.max(0, LIMIT - fast.size());
-        int dbQuota = Math.min(DB_FALLBACK_MAX, remain);
+        int remain = LIMIT - fast.size();
+        List<String> db = (remain > 0) ? mainContentSearchRepository.suggest(pfx, remain) : List.of();
 
-        List<String> db = List.of();
-        if (dbQuota > 0) {
-            db = mainContentSearchRepository.suggest(pfx, dbQuota);
+        // 3) 대소문자 중복 제거 머지
+        Map<String, String> deduplicatedMap = new LinkedHashMap<>();
+
+        for (String s : fast) {
+            deduplicatedMap.putIfAbsent(s.toLowerCase().trim(), s);
         }
 
-        // 3) 머지: 메모리 우선 순서 보존 + 중복 제거 + 총 LIMIT 절단
-        LinkedHashSet<String> merged = new LinkedHashSet<>(fast);
         for (String s : db) {
-            if (merged.size() >= LIMIT) break;
-            merged.add(s);
+            if (deduplicatedMap.size() >= LIMIT) break;
+            String cleaned = s.replaceAll("(?i)\\s*[''’]?s\\b", "").trim();
+            deduplicatedMap.putIfAbsent(cleaned.toLowerCase(), cleaned);
         }
 
-        return new ArrayList<>(merged);
+        return new ArrayList<>(deduplicatedMap.values());
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> safeDecode(String cursor) {
         if (cursor == null || cursor.isBlank()) return Map.of();
         try {

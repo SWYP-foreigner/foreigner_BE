@@ -131,48 +131,53 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         String lowerQ = q.toLowerCase().trim();
         List<Object> args = new ArrayList<>();
 
-        // 1. 파라미터 순서대로 추가
-        args.add(lowerQ); // pgroonga_extract_phrase(post_content, ?, 2)
-        args.add(lowerQ); // post_content_norm &@* ?
+        int[] wordCounts = {0, 1, 2};
+        StringBuilder subQuery = new StringBuilder();
 
-        // 2. 안쪽 쿼리 조립
-        StringBuilder subQuery = new StringBuilder("""
+        for (int i = 0; i < wordCounts.length; i++) {
+            if (i > 0) subQuery.append(" UNION ALL ");
+
+            subQuery.append("(");
+            subQuery.append("""
             SELECT 
-                pgroonga_extract_phrase(post_content, ?, 1) as phrase,
+                pgroonga_extract_phrase(post_content, ?, %d) as phrase,
                 created_at
             FROM post
             WHERE post_content_norm &@* ?
-        """);
+        """.formatted(wordCounts[i]));
 
-        if (boardId != null) {
-            subQuery.append(" AND board_id = ? ");
-            args.add(boardId);
+            args.add(lowerQ);
+            args.add(lowerQ);
+
+            if (boardId != null) {
+                subQuery.append(" AND board_id = ? ");
+                args.add(boardId);
+            }
+
+            if (blockedIds != null && !blockedIds.isEmpty()) {
+                String inSql = blockedIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+                subQuery.append(" AND author_id NOT IN (").append(inSql).append(") ");
+                args.addAll(blockedIds);
+            }
+            subQuery.append(" LIMIT 300 "); // 각 분기별로 상위 300개 추출
+            subQuery.append(")");
         }
 
-        if (blockedIds != null && !blockedIds.isEmpty()) {
-            String inSql = blockedIds.stream().map(id -> "?").collect(Collectors.joining(", "));
-            subQuery.append(" AND author_id NOT IN (").append(inSql).append(") ");
-            args.addAll(blockedIds);
-        }
-
-        // 3. 바깥쪽 쿼리 조립
         String fullSql = String.format("""
-                    SELECT phrase
-                    FROM (%s) AS sub
-                    WHERE phrase IS NOT NULL AND phrase != ''
-                    GROUP BY phrase
-                    ORDER BY 
-                        MAX(CASE WHEN phrase ILIKE ? THEN 1 ELSE 0 END) DESC,
-                        MIN(LENGTH(phrase)) ASC,
-                        MAX(created_at) DESC
-                    LIMIT ?
-                """, subQuery.toString());
+                SELECT phrase
+                FROM (%s) AS sub
+                WHERE phrase IS NOT NULL AND phrase != ''
+                GROUP BY phrase
+                ORDER BY 
+                    MAX(CASE WHEN phrase ILIKE ? THEN 1 ELSE 0 END) DESC, -- 입력어 시작 우선
+                    MIN(LENGTH(phrase)) ASC,                             -- 짧은 단어(0, 1단어) 우선
+                    MAX(created_at) DESC                                 -- 최신순
+                LIMIT ?
+            """, subQuery.toString());
 
-        args.add(lowerQ + "%"); // ILIKE startsWith 용
-        args.add(limit);        // LIMIT 용
+        args.add(lowerQ + "%");
+        args.add(limit);
 
-        // [중요] getJdbcOperations()를 통해 기본 JdbcTemplate의 query 메서드 호출
-        // 이렇게 하면 Spring이 @ 기호를 변수로 오해하지 않고 DB에 그대로 전달합니다.
         return jdbcTemplate.getJdbcOperations().query(
                 fullSql,
                 (rs, rowNum) -> rs.getString(1),
