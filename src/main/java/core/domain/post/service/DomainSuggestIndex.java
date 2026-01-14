@@ -16,24 +16,36 @@ public abstract class DomainSuggestIndex {
     public List<String> suggestPrefix(String prefix, int limit) {
         if (prefix == null || prefix.isBlank() || limit <= 0) return List.of();
 
+        String normalizedPrefix = norm(prefix);
         ConcurrentSkipListMap<String, Integer> currentDict = dictRef.get();
-        var it = currentDict.tailMap(prefix, true).entrySet().iterator();
-        List<Map.Entry<String, Integer>> buf = new ArrayList<>(limit * 4);
 
-        while (it.hasNext() && buf.size() < limit * 8) {
+        var it = currentDict.tailMap(normalizedPrefix, true).entrySet().iterator();
+        List<Map.Entry<String, Integer>> buf = new ArrayList<>();
+
+        while (it.hasNext()) {
             var e = it.next();
             String key = e.getKey();
-            if (!key.startsWith(prefix)) break;
+            if (!key.startsWith(normalizedPrefix)) break;
             buf.add(e);
         }
 
-        buf.sort((a, b) -> {
-            int c = Integer.compare(b.getValue(), a.getValue()); // 인기순
-            if (c != 0) return c;
-            return Integer.compare(a.getKey().length(), b.getKey().length()); // 짧은순
-        });
+        return buf.stream()
+                .sorted((a, b) -> {
+                    // [1순위] 정확도: 입력값과 완전히 일치하는게 있으면 최상단 (구글 방식)
+                    boolean aExact = a.getKey().equals(normalizedPrefix);
+                    boolean bExact = b.getKey().equals(normalizedPrefix);
+                    if (aExact != bExact) return aExact ? -1 : 1;
 
-        return buf.stream().limit(limit).map(Map.Entry::getKey).toList();
+                    // [2순위] 길이: 짧은 단어 우선
+                    int lenCompare = Integer.compare(a.getKey().length(), b.getKey().length());
+                    if (lenCompare != 0) return lenCompare;
+
+                    // [3순위] 빈도수: 길이가 같다면 인기도가 높은 순
+                    return Integer.compare(b.getValue(), a.getValue());
+                })
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .toList();
     }
 
     public void replaceAll(Map<String, Integer> newMap) {

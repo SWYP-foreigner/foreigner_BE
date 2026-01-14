@@ -7,17 +7,18 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.post.dto.search.PostSearchProjection;
+import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.entity.QPost;
 import core.domain.post.repository.PostSearchRepositoryCustom;
-import core.domain.post.dto.search.PostSearchRequest;
-import core.global.enums.LikeType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static core.domain.post.entity.QPost.post;
 
@@ -25,12 +26,11 @@ import static core.domain.post.entity.QPost.post;
 @RequiredArgsConstructor
 public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCustom {
 
-    private final static LikeType LIKE_TYPE_POST = LikeType.POST;
-
     private final JPAQueryFactory jpaQueryFactory;
 
     @PersistenceContext
     private final EntityManager entityManager;
+    private final NamedParameterJdbcTemplate jdbcTemplate;
 
     /**
      * 정확도 정렬 1종 + 키셋 커서(score, created_at, post_id) 역순
@@ -98,78 +98,85 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public List<Object[]> findHotKeywordsOrTitles(int topN) {
-        String sql = """
-            WITH docs AS (
-              SELECT p.post_id AS doc_id, p.post_content
-              FROM public.post p
-              WHERE p.created_at >= now() - interval '7 days'
-            ),
-            tokens AS (
-              SELECT d.doc_id, lower(btrim((t.token_json::jsonb ->> 'value'))) AS term
-              FROM docs d
-              CROSS JOIN LATERAL unnest(
-                pgroonga_tokenize(d.post_content, 'tokenizer', 'TokenDelimit')
-              ) AS t(token_json)
-              WHERE (t.token_json::jsonb ->> 'value') <> ''
-                AND (t.token_json::jsonb ->> 'value') !~ '\\s'
-                AND length(t.token_json::jsonb ->> 'value') BETWEEN 2 AND 20
-                AND (t.token_json::jsonb ->> 'value') !~ '^[0-9]+$'
-                AND (t.token_json::jsonb ->> 'value') !~ '^(https?://|www\\\\.)'
-                AND (t.token_json::jsonb ->> 'value') !~ '^[[:punct:]]+$'
-            )
-            SELECT term, COUNT(DISTINCT doc_id) as freq
-            FROM tokens
-            GROUP BY term
-            HAVING COUNT(DISTINCT doc_id) >= 1
-            ORDER BY freq DESC
-            LIMIT :topN
-            """;
+        QPost p = QPost.post;
 
-        return entityManager.createNativeQuery(sql)
-                .setParameter("topN", topN)
-                .getResultList();
+        var termPath = Expressions.stringTemplate(
+                "btrim(regexp_replace(trim(substring(replace({0}, chr(10), ' '), 1, 40)), '(?i)\\s*''?s\\b', '', 'g'), ' ,.?!')",
+                p.content
+        );
+
+        // 2. QueryDSL 실행
+        List<com.querydsl.core.Tuple> fetch = jpaQueryFactory
+                .select(termPath, p.id.count())
+                .from(p)
+                .where(
+                        p.content.length().gt(5)
+                                .and(termPath.isNotNull())
+                                .and(termPath.ne(""))
+                )
+                .groupBy(termPath)
+                .orderBy(p.id.count().desc())
+                .limit(topN)
+                .fetch();
+
+        // 3. List<Object[]> 형식으로 변환하여 반환
+        return fetch.stream()
+                .map(tuple -> new Object[]{tuple.get(0, String.class), tuple.get(1, Long.class)})
+                .collect(Collectors.toList());
     }
 
-
-    /**
-     * 자동완성:
-     * - prefix: pgroonga.query_escape(q) || '*'
-     * - 중복 스니펫 제거: GROUP BY snippet
-     * - 정렬: max(score) desc, max(created_at) desc
-     */
     @Override
     public List<String> suggest(String q, Long boardId, List<Long> blockedIds, int limit) {
-        QPost p = post;
+        String lowerQ = q.toLowerCase().trim();
+        List<Object> args = new ArrayList<>();
 
-        // 접두어 매칭: 래퍼가 escape + '*'까지 처리
-        var match = Expressions.booleanTemplate(
-                "function('pgroonga_match_prefix', {0}, {1}) = true",
-                p.content, Expressions.constant(q)
+        // 1. 파라미터 순서대로 추가
+        args.add(lowerQ); // pgroonga_extract_phrase(post_content, ?, 2)
+        args.add(lowerQ); // post_content_norm &@* ?
+
+        // 2. 안쪽 쿼리 조립
+        StringBuilder subQuery = new StringBuilder("""
+            SELECT 
+                pgroonga_extract_phrase(post_content, ?, 1) as phrase,
+                created_at
+            FROM post
+            WHERE post_content_norm &@* ?
+        """);
+
+        if (boardId != null) {
+            subQuery.append(" AND board_id = ? ");
+            args.add(boardId);
+        }
+
+        if (blockedIds != null && !blockedIds.isEmpty()) {
+            String inSql = blockedIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+            subQuery.append(" AND author_id NOT IN (").append(inSql).append(") ");
+            args.addAll(blockedIds);
+        }
+
+        // 3. 바깥쪽 쿼리 조립
+        String fullSql = String.format("""
+                    SELECT phrase
+                    FROM (%s) AS sub
+                    WHERE phrase IS NOT NULL AND phrase != ''
+                    GROUP BY phrase
+                    ORDER BY 
+                        MAX(CASE WHEN phrase ILIKE ? THEN 1 ELSE 0 END) DESC,
+                        MIN(LENGTH(phrase)) ASC,
+                        MAX(created_at) DESC
+                    LIMIT ?
+                """, subQuery.toString());
+
+        args.add(lowerQ + "%"); // ILIKE startsWith 용
+        args.add(limit);        // LIMIT 용
+
+        // [중요] getJdbcOperations()를 통해 기본 JdbcTemplate의 query 메서드 호출
+        // 이렇게 하면 Spring이 @ 기호를 변수로 오해하지 않고 DB에 그대로 전달합니다.
+        return jdbcTemplate.getJdbcOperations().query(
+                fullSql,
+                (rs, rowNum) -> rs.getString(1),
+                args.toArray()
         );
-
-        var where = new BooleanBuilder().and(match);
-        if (boardId != null) where.and(p.board.id.eq(boardId));
-        if (blockedIds != null && !blockedIds.isEmpty()) where.and(p.author.id.notIn(blockedIds));
-
-        // 중복 제거 키: 140자 스니펫
-        var snippet140 = Expressions.stringTemplate("left({0}, 140)", p.content);
-
-        // 점수/최신일 집계 (tableoid/ctid 쓰지 말고 래퍼 사용)
-        NumberExpression<Double> maxScore = Expressions.numberTemplate(
-                Double.class, "max(function('pgroonga_score_of', {0}))", p.id
-        );
-        var maxCreatedAt = Expressions.dateTimeTemplate(Instant.class, "max({0})", p.createdAt);
-
-        return jpaQueryFactory.select(snippet140)
-                .from(p)
-                .where(where)
-                .groupBy(snippet140)
-                .orderBy(maxScore.desc(), maxCreatedAt.desc())
-                .limit(limit)
-                .fetch();
     }
-
-
 }
