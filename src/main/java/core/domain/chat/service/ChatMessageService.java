@@ -105,6 +105,8 @@ public class ChatMessageService {
             // 1. 메시지 저장 및 필수 데이터 조회 (DB Insert)
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
+            chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
+
             User sender = savedMessage.getSender();
 
             // =================================================================
@@ -564,6 +566,8 @@ public class ChatMessageService {
         ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
         chatMessageRepository.save(savedMessage);
 
+        chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
+
         // 3. Image 테이블 저장 (사진 및 동영상 썸네일 관리용)
         saveMediaToImageTable(savedMessage, req);
 
@@ -971,15 +975,22 @@ public class ChatMessageService {
         ChatMessage lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId).orElse(null);
         String lastContent = (lastMsg != null) ? getPreviewContent(lastMsg) : "start to talk";
 
-        Instant lastTime = (lastMsg != null) ? lastMsg.getSentAt() : room.getCreatedAt();
+        Instant lastTime = (room.getLastMessageSentAt() != null)
+                ? room.getLastMessageSentAt()
+                : room.getCreatedAt();
+
         int unread = countUnreadMessages(roomId, forUserId);
 
         String name = room.getRoomName();
         String img = null;
 
-        if (!room.getIsGroup()) {
+        if (!Boolean.TRUE.equals(room.getIsGroup())) {
             User opponent = room.getParticipants().stream()
-                    .map(ChatParticipant::getUser).filter(u -> !u.getId().equals(forUserId)).findFirst().orElse(null);
+                    .map(ChatParticipant::getUser)
+                    .filter(u -> !u.getId().equals(forUserId))
+                    .findFirst()
+                    .orElse(null);
+
             if (opponent != null) {
                 name = opponent.getFirstName() + " " + opponent.getLastName();
                 img = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, opponent.getId())
