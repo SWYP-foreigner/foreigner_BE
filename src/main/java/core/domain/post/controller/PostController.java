@@ -11,7 +11,6 @@ import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -70,15 +69,15 @@ public class PostController {
     @CommonErrorCodeDocs({CommonErrorCode.FORBIDDEN_WORD_DETECTED})
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     @ImageErrorCodeDocs({ImageErrorCode.POST_IMAGES_ALREADY_EXIST,ImageErrorCode.IMAGE_UPLOAD_FAILED})
-    public ResponseEntity<core.global.dto.ApiResponse<?>> writePost(
+    public ResponseEntity<core.global.dto.ApiResponse<Long>> writePost(
             @PathVariable @Positive Long boardId,
             @Valid @RequestBody PostWriteRequest writeRequest) {
 
-        postService.writePost( boardId, writeRequest);
+        Long postId = postService.writePost(boardId, writeRequest);
         featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(core.global.dto.ApiResponse.success("게시글 작성 완료"));
+                .body(core.global.dto.ApiResponse.success(postId));
     }
 
     @Operation(summary = "채팅 게시글 작성", description = "채팅 링크에서 넘어와서 본문/이미지/익명 여부를 포함해 게시글을 작성합니다.")

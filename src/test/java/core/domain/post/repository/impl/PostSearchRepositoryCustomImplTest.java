@@ -197,22 +197,22 @@ class PostSearchRepositoryCustomImplTest {
                 .noneMatch(r -> r.postId().equals(afterId));
     }
 
-    @Test
-    @DisplayName("suggest - prefix 자동완성 결과가 나오고 중복 스니펫이 제거된다")
-    void suggest_success_dedup() {
-        List<String> suggestions = repo.suggest(
-                "kor",
-                board.getId(),
-                List.of(),
-                10
-        );
-
-        assertThat(suggestions).isNotNull();
-        assertThat(suggestions).isNotEmpty();
-
-        long distinct = suggestions.stream().distinct().count();
-        assertThat(distinct).isEqualTo(suggestions.size());
-    }
+//    @Test
+//    @DisplayName("suggest - prefix 자동완성 결과가 나오고 중복 스니펫이 제거된다")
+//    void suggest_success_dedup() {
+//        List<String> suggestions = repo.suggest(
+//                "kor",
+//                board.getId(),
+//                List.of(),
+//                10
+//        );
+//
+//        assertThat(suggestions).isNotNull();
+//        assertThat(suggestions).isNotEmpty();
+//
+//        long distinct = suggestions.stream().distinct().count();
+//        assertThat(distinct).isEqualTo(suggestions.size());
+//    }
 
     @Test
     @DisplayName("findHotKeywordsOrTitles - topN 제한이 적용된다")

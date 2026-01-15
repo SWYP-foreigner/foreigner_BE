@@ -37,7 +37,6 @@ public class FollowService {
     private final ApplicationEventPublisher eventPublisher;
     private final SocialChatMetrics socialChatMetrics;
     private final FollowActivityLogRepository followActivityLogRepository;
-    private final UserRoleDetectService userRoleDetectService;
     private final ImageService imageService;
 
     private String countryOf(User u) {
@@ -86,12 +85,17 @@ public class FollowService {
         User me = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
+        // 내가 보낸 것이 수락됨 OR 상대가 보낸 것을 내가 수락함
+        // Query: SELECT f FROM Follow f WHERE (f.user.id = :id OR f.following.id = :id) AND f.status = 'ACCEPTED'
         List<Follow> follows = followRepository.findAllAcceptedFollowsByUserId(me.getId(), FollowStatus.ACCEPTED);
 
         return follows.stream()
                 .map(f -> {
+                    // 나 말고 상대방 유저 객체 선택
                     User target = f.getUser().getId().equals(me.getId()) ? f.getFollowing() : f.getUser();
-                    FriendType type = determineFriendType(me, target);
+
+                    // 친구 목록에 있는 사람은 무조건 FRIEND 상태
+                    FriendType type = FriendType.FRIEND;
 
                     String imageKey = imageService.getUserProfileKey(target.getId());
 
@@ -135,27 +139,10 @@ public class FollowService {
             throw new BusinessException(UserErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
-        if (followRepository.existsByUserAndFollowing(follower, targetUser) || followRepository.existsByUserAndFollowing(targetUser, follower)) {
+        followRepository.findAnyRelation(follower, targetUser).ifPresent(f -> {
             throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-        }
+        });
 
-        // 2. FriendType을 통한 관계 검증 로직 적용
-        FriendType currentRelation = determineFriendType(follower, targetUser);
-
-        switch (currentRelation) {
-            case FOLLOWING:
-                throw new BusinessException(UserErrorCode.ALREADY_FOLLOWING);
-            case FRIEND:
-                // 이미 내가 요청했거나 팔로우 중인 경우
-                throw new BusinessException(UserErrorCode.FOLLOW_ALREADY_EXISTS);
-            case FOLLOWED:
-                throw new BusinessException(UserErrorCode.ALREADY_FOLLOWED);
-            case NONE:
-                // 팔로우 신청 가능 상태
-                break;
-        }
-
-        // 3. 팔로우 저장 및 이벤트 발행 (기존과 동일)
         Follow follow = Follow.builder()
                 .user(follower)
                 .following(targetUser)
@@ -179,27 +166,23 @@ public class FollowService {
     }
 
     private FriendType determineFriendType(User me, User other) {
-        Follow followFromMe = followRepository.findByUserAndFollowing(me, other).orElse(null);
-        Follow followToMe = followRepository.findByUserAndFollowing(other, me).orElse(null);
+        // 1. 누가 보냈든 관계 레코드 하나를 가져옴
+        Follow follow = followRepository.findAnyRelation(me, other).orElse(null);
 
-        // 1. 맞팔로우 상태 (서로 ACCEPTED)
-        if (isAccepted(followFromMe) && isAccepted(followToMe)) return FriendType.FRIEND;
+        if (follow == null) return FriendType.NONE;
 
-        // 2. 내가 팔로우 중 (내가 보낸게 ACCEPTED)
-        if (isAccepted(followFromMe)) return FriendType.FOLLOWING;
+        // 2. 수락된 상태면 무조건 친구 (누가 보냈든 상관없음)
+        if (follow.getStatus() == FollowStatus.ACCEPTED) {
+            return FriendType.FRIEND;
+        }
 
-        // 4. 상대가 나를 팔로우 중 (상대가 보낸게 ACCEPTED)
-        if (isAccepted(followToMe)) return FriendType.FOLLOWED;
+        // 3. 대기 중(PENDING)일 때만 방향 확인
+        if (follow.getStatus() == FollowStatus.PENDING) {
+            // 내가 보낸 거면 FOLLOWING, 내가 받은 거면 FOLLOWED
+            return follow.getUser().getId().equals(me.getId()) ? FriendType.FOLLOWING : FriendType.FOLLOWED;
+        }
 
         return FriendType.NONE;
-    }
-
-    private boolean isAccepted(Follow follow) {
-        return follow != null && follow.getStatus() == FollowStatus.ACCEPTED;
-    }
-
-    private boolean isPending(Follow follow) {
-        return follow != null && follow.getStatus() == FollowStatus.PENDING;
     }
 
     /**
@@ -246,35 +229,20 @@ public class FollowService {
 
     @Transactional
     public void unfollow(Authentication auth, Long targetUserId) {
-        // 1. 유저 조회 및 본인 확인
         User me = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         User target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        // 2. 현재 관계 파악
-        FriendType type = determineFriendType(me, target);
-        log.info("[UNFOLLOW] 관계 해제 시도: 나={}, 대상={}, 현재관계={}", me.getId(), target.getId(), type);
+        // 어느 방향이든 존재하는 팔로우/친구 레코드를 찾음
+        Follow follow = followRepository.findAnyRelation(me, target)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND));
 
-        switch (type) {
-            case FRIEND:
-                // 맞팔 상태: 양방향 레코드 모두 삭제 (기존 unfollowAccepted 로직)
-                followRepository.findByUserAndFollowing(me, target).ifPresent(followRepository::delete);
-                followRepository.findByUserAndFollowing(target, me).ifPresent(followRepository::delete);
-                logFollowActivity(me, target, FollowActionType.UNFOLLOW, "FRIEND_LIST");
-                break;
+        // 2. 찾은 레코드가 무엇이든 삭제 (이게 취소이자 친구 끊기임)
+        followRepository.delete(follow);
 
-            case FOLLOWING:
-                followRepository.findByUserAndFollowing(me, target).ifPresent(followRepository::delete);
-                break;
-
-            case FOLLOWED:
-
-            case NONE:
-                throw new BusinessException(UserErrorCode.FOLLOW_NOT_FOUND);
-        }
-
-        log.info("[UNFOLLOW] 성공: 나={}, 대상={}", me.getId(), target.getId());
+        log.info("[UNFOLLOW/DELETE] 성공: 나={}, 대상={}, 삭제된 레코드ID={}",
+                me.getId(), target.getId(), follow.getId());
     }
 
 

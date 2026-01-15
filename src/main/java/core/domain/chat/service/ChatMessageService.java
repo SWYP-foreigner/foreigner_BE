@@ -948,12 +948,29 @@ public class ChatMessageService {
         return chatMessageRepository.countUnreadMessages(roomId, lastReadId, userId);
     }
 
+    private String getPreviewContent(ChatMessage message) {
+        if (message == null) {
+            return "";
+        }
+
+        switch (message.getMessageType()) {
+            case IMAGE:
+                return "Sent a photo"; // 📷
+            case VIDEO:
+                return "Sent a video"; // 🎥
+            case TEXT:
+            default:
+                return message.getContent();
+        }
+
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public ChatRoomSummaryResponse buildChatRoomSummaryResponse(Long roomId, Long forUserId) {
         ChatRoom room = chatRoomRepository.findById(roomId).orElseThrow();
         ChatMessage lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId).orElse(null);
+        String lastContent = (lastMsg != null) ? getPreviewContent(lastMsg) : "start to talk";
 
-        String lastContent = (lastMsg != null) ? lastMsg.getContent() : "대화를 시작해보세요.";
         Instant lastTime = (lastMsg != null) ? lastMsg.getSentAt() : room.getCreatedAt();
         int unread = countUnreadMessages(roomId, forUserId);
 

@@ -11,8 +11,10 @@ import core.domain.maincontent.entity.QMainContent;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -20,6 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MainContentSearchRepositoryImpl implements MainContentSearchRepository {
     private final JPAQueryFactory jpaQueryFactory;
+    private final NamedParameterJdbcTemplate jdbcTemplate;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -44,7 +47,7 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
                 mainPageContent.title, Expressions.constant(request.q())
         );
 
-        // 2. HtmlContent 매치
+        // 2. HtmlContent 매치 (원본 htmlContent + 함수 대신 html_content_norm 사용)
         var matchHtml = Expressions.booleanTemplate(
                 "function('pgroonga_match', function('clean_html_for_search', {0}), {1}) = true",
                 mainPageContent.htmlContent, Expressions.constant(request.q())
@@ -133,37 +136,59 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
      */
     @Override
     public List<String> suggest(String q, int limit) {
-        QMainContent mainPageContent = QMainContent.mainContent;
+        String lowerQ = q.toLowerCase().trim();
+        List<Object> args = new ArrayList<>();
 
-        // 1. 제목 접두어 매칭
-        var matchTitle = Expressions.booleanTemplate(
-                "function('pgroonga_match_prefix', {0}, {1}) = true",
-                mainPageContent.title, Expressions.constant(q)
-        );
+        // 제목/본문 x (0, 1, 2단어 추가) 총 6개 분기 파라미터
+        for (int i = 0; i < 6; i++) { args.add(lowerQ); args.add(lowerQ); }
 
-        // 2. 정제된 본문 접두어 매칭 (함수 사용)
-        var matchContent = Expressions.booleanTemplate(
-                "function('pgroonga_match_prefix', function('clean_html_for_search', {0}), {1}) = true",
-                mainPageContent.htmlContent, Expressions.constant(q)
-        );
+        StringBuilder subQuery = new StringBuilder("""
+            (SELECT pgroonga_extract_phrase(title, ?, 0) as phrase, created_at FROM main_content WHERE title &@* ? LIMIT 200)
+            UNION ALL
+            (SELECT pgroonga_extract_phrase(title, ?, 1) as phrase, created_at FROM main_content WHERE title &@* ? LIMIT 200)
+            UNION ALL
+            (SELECT pgroonga_extract_phrase(title, ?, 2) as phrase, created_at FROM main_content WHERE title &@* ? LIMIT 200)
+            UNION ALL
+            (SELECT pgroonga_extract_phrase(clean_html_for_search(html_content), ?, 0) as phrase, created_at FROM main_content WHERE clean_html_for_search(html_content) &@* ? LIMIT 200)
+            UNION ALL
+            (SELECT pgroonga_extract_phrase(clean_html_for_search(html_content), ?, 1) as phrase, created_at FROM main_content WHERE clean_html_for_search(html_content) &@* ? LIMIT 200)
+            UNION ALL
+            (SELECT pgroonga_extract_phrase(clean_html_for_search(html_content), ?, 2) as phrase, created_at FROM main_content WHERE clean_html_for_search(html_content) &@* ? LIMIT 200)
+        """);
 
-        // 검색 제안으로 보여줄 문자열
-        var suggestTarget = mainPageContent.title;
+        String fullSql = String.format("""
+            SELECT phrase FROM (%s) AS sub
+            WHERE phrase IS NOT NULL AND phrase != ''
+            GROUP BY phrase
+            ORDER BY 
+                MAX(CASE WHEN phrase ILIKE ? THEN 1 ELSE 0 END) DESC, -- 시작 일치 우선
+                MIN(LENGTH(phrase)) ASC,                             -- 짧은 것(단어수 적은것) 우선
+                MAX(created_at) DESC                                 -- 최신순
+            LIMIT ?
+        """, subQuery.toString());
 
-        // 점수 및 최신순 정렬을 위한 집계
-        NumberExpression<Double> maxScore = Expressions.numberTemplate(
-                Double.class, "max(function('pgroonga_score_of', {0}))", mainPageContent.id
-        );
-        var maxCreatedAt = Expressions.dateTimeTemplate(java.time.Instant.class, "max({0})", mainPageContent.createdAt);
+        args.add(lowerQ + "%");
+        args.add(limit);
 
-        return jpaQueryFactory
-                .select(suggestTarget)
-                .from(mainPageContent)
-                .where(matchTitle.or(matchContent))
-                .groupBy(suggestTarget)
-                .orderBy(maxScore.desc(), maxCreatedAt.desc())
-                .limit(limit)
-                .fetch();
+        return jdbcTemplate.getJdbcOperations().execute((java.sql.Connection conn) -> {
+            try (java.sql.Statement stmt = conn.createStatement()) {
+                // 인덱스 스캔 강제
+                stmt.execute("SET LOCAL enable_seqscan = off");
+
+                try (java.sql.PreparedStatement pstmt = conn.prepareStatement(fullSql)) {
+                    for (int i = 0; i < args.size(); i++) {
+                        pstmt.setObject(i + 1, args.get(i));
+                    }
+                    try (java.sql.ResultSet rs = pstmt.executeQuery()) {
+                        List<String> results = new ArrayList<>();
+                        while (rs.next()) {
+                            results.add(rs.getString(1));
+                        }
+                        return results;
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -205,7 +230,8 @@ public class MainContentSearchRepositoryImpl implements MainContentSearchReposit
         String sql = """
             SELECT EXISTS (
                 SELECT 1 FROM main_content 
-                WHERE title &@ :keyword OR html_content &@ :keyword -- 실제 컬럼명으로 수정
+                -- 인덱스를 타게 하기 위해 html_content에 함수를 입혀줍니다.
+                WHERE title &@ :keyword OR clean_html_for_search(html_content) &@ :keyword 
                 LIMIT 1
             )
             """;
