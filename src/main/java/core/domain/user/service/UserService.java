@@ -838,7 +838,7 @@ public class UserService {
 
     private FriendType calculateRelationship(FollowStatus myStatus, FollowStatus theirStatus) {
         // 1. 서로 수락된 상태 -> 친구 (맞팔)
-        if (myStatus == FollowStatus.ACCEPTED && theirStatus == FollowStatus.ACCEPTED) {
+        if (myStatus == FollowStatus.ACCEPTED || theirStatus == FollowStatus.ACCEPTED) {
             return FriendType.FRIEND;
         }
 
@@ -848,7 +848,7 @@ public class UserService {
         }
 
         // 4. 상대가 나를 팔로우 중 (나는 안 함/거절/요청전) -> 나를 팔로우 함 (버튼: '맞팔하기')
-        if (theirStatus == FollowStatus.ACCEPTED) {
+        if (theirStatus == FollowStatus.PENDING) {
             return FriendType.FOLLOWED;
         }
 
