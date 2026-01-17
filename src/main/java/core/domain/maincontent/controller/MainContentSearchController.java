@@ -80,7 +80,6 @@ public class MainContentSearchController {
     ) {
         MainPageContentResponse contentDetail = mainContentService.getMainContent(contentId);
 
-        extractedKeyword(contentDetail.htmlContent(), 1);
 
         featureUsageMetrics.recordMainPageUsage();
 
