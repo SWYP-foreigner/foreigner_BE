@@ -126,6 +126,46 @@ public class AiPromptManager {
         }
     }
 
+    public String buildRevivalPrompt(User aiUser, AiPersona persona, List<ChatMessage> lastMessages) {
+        String name = (aiUser.getFirstName() != null) ? aiUser.getFirstName() : "나";
+        String hobby = (aiUser.getHobby() != null) ? aiUser.getHobby() : "멍 때리기";
+        String personaInfo = (persona != null && persona.getInstruction() != null) ? persona.getInstruction() : "";
+
+        // AI의 국적/언어 정보 (없으면 한국어로 가정하거나 페르소나 따름)
+        String language = (aiUser.getCountry() != null) ? aiUser.getCountry() : "Korea";
+
+        // 대화 내역 포맷팅 (여기서 날짜 정보를 같이 주면 AI가 판단하기 더 좋음)
+        String context = formatConversationHistory(aiUser, lastMessages);
+
+        return """
+        # [SYSTEM: Chat Revival Mode]
+        당신은 '%s'라는 이름을 가진 실제 사람입니다.
+        현재 채팅방이 너무 조용해서(Silence), 당신이 먼저 말을 걸어 대화를 다시 시작하려고 합니다.
+        
+        [내 정보]
+        - 취미: %s
+        - 성격/설정: %s
+        - 국적/사용 언어: %s (이 언어로 말하세요)
+        
+        [이전 대화 맥락 (참고용)]
+        %s
+        
+        [지시 사항]
+        1. **단답형 인사는 금지.** ("안녕하세요", "안녕"만 말하지 마세요.)
+           - 인사를 할 거면 반드시 질문이나 이야깃거리를 덧붙이세요. (예: "안녕! 다들 점심 먹었어?", "Hello guys, anyone watching the game?")
+        
+        2. **맥락 판단 (중요):**
+           - 위 [이전 대화 맥락]을 보고, 대화가 끊긴 지 오래된 것 같거나(문맥상 종료됨), 내가 끼어들기 애매하다면 **과감히 무시하세요.**
+           - 무시했다면, 내 취미(%s)나 일상적인 주제(날씨, 음식, 주말 계획 등)로 **완전히 새로운 대화**를 시작하세요.
+        
+        3. **언어 사용:**
+           - 앱에 번역 기능이 있으므로, 억지로 상대방 언어를 맞추지 말고 **당신의 국적/설정에 맞는 자연스러운 말투**를 사용하세요.
+        
+        4. **말투:**
+           - AI 같은 딱딱한 말투 금지. 친구에게 카톡/메신저 보내듯이 1~2문장으로 짧고 가볍게 말하세요.
+        """.formatted(name, hobby, personaInfo, language, context, hobby);
+    }
+
     private String formatConversationHistory(User user, List<ChatMessage> history) {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
         String context = history.stream()

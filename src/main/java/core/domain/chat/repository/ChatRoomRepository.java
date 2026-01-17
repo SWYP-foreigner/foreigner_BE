@@ -1,8 +1,9 @@
 package core.domain.chat.repository;
 
-import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
+import core.domain.user.entity.User;
 import core.global.enums.ChatParticipantStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -146,4 +147,20 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             "GROUP BY m.chatRoom.id " +
             "HAVING COUNT(DISTINCT m.sender.id) = 1")
     List<Long> findOneWayRoomIds(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "WHERE cr.id IN :roomIds " +
+            "AND cr.isGroup = true " +
+            "AND cr.lastMessageSentAt < :threshold " +
+            "ORDER BY cr.lastMessageSentAt ASC")
+    List<ChatRoom> findSilentRoomsByRoomIds(@Param("roomIds") List<Long> roomIds,
+                                            @Param("threshold") Instant threshold,
+                                            Pageable pageable);
+
+    @Query("SELECT u FROM User u " +
+            "JOIN ChatParticipant cp ON u.id = cp.user.id " +
+            "WHERE cp.chatRoom.id = :roomId " +
+            "AND u.userRole = 'AI' " +
+            "AND cp.status = 'ACTIVE'")
+    List<User> findAiParticipantsByRoomId(@Param("roomId") Long roomId);
 }
