@@ -5,10 +5,14 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -21,7 +25,7 @@ import java.util.Date;
 @Service
 @RequiredArgsConstructor
 public class OAuthSmokeCheckService {
-    private final WebClient.Builder webClientBuilder;
+    private final RestTemplate restTemplate;
 
     @Value("${oauth.google.web.client-id}")
     private String googleClientId;
@@ -37,34 +41,46 @@ public class OAuthSmokeCheckService {
     private String applePrivateKeyPem;
 
     public String googleChecker() {
-        WebClient webClient = webClientBuilder.build();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("client_id", googleClientId);
+        body.add("client_secret", googleClientSecret);
+        body.add("grant_type", "authorization_code");
+        body.add("code", "smoke_test");
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
         try {
-            webClient.post()
-                    .uri("https://oauth2.googleapis.com/token")
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue("client_id=" + googleClientId + "&client_secret=" + googleClientSecret +
-                               "&grant_type=authorization_code&code=smoke_test")
-                    .retrieve().toEntity(String.class).block();
+            restTemplate.postForEntity("https://oauth2.googleapis.com/token", request, String.class);
             return "GOOGLE_SECRET_OK";
-        } catch (WebClientResponseException e) {
-            // 400이면 키는 맞는데 코드가 틀린 것이므로 '유효'
+        } catch (HttpClientErrorException e) {
+            // 400 Bad Request가 오면 성공으로 간주하는 로직
             if (e.getStatusCode().value() == 400) return "GOOGLE_SECRET_VALID";
             throw new RuntimeException("GOOGLE_SECRET_INVALID: " + e.getResponseBodyAsString());
         }
     }
 
     public String appleChecker() {
-        WebClient webClient = webClientBuilder.build();
         try {
             String clientSecret = createAppleClientSecret();
-            webClient.post()
-                    .uri("https://appleid.apple.com/auth/token")
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue("client_id=" + appleClientId + "&client_secret=" + clientSecret +
-                               "&grant_type=authorization_code&code=smoke_test")
-                    .retrieve().toEntity(String.class).block();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("client_id", appleClientId);
+            body.add("client_secret", clientSecret);
+            body.add("grant_type", "authorization_code");
+            body.add("code", "smoke_test");
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
+
+            restTemplate.postForEntity("https://appleid.apple.com/auth/token", request, String.class);
             return "APPLE_SECRET_OK";
-        } catch (WebClientResponseException e) {
+
+        } catch (HttpClientErrorException e) {
             String body = e.getResponseBodyAsString();
             if (body.contains("invalid_grant")) return "APPLE_SECRET_VALID";
             throw new RuntimeException("APPLE_SECRET_INVALID: " + body);

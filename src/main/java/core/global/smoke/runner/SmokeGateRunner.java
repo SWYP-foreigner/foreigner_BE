@@ -3,9 +3,9 @@ package core.global.smoke.runner;
 import core.global.smoke.dto.SmokeItem;
 import core.global.smoke.dto.SmokeResult;
 import core.global.smoke.utils.SmokeProperties;
-import org.springframework.http.HttpMethod;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -16,11 +16,11 @@ import java.util.Map;
 public class SmokeGateRunner {
 
     private final SmokeProperties props;
-    private final WebClient client;
+    private final RestTemplate restTemplate;
 
-    public SmokeGateRunner(SmokeProperties props, WebClient.Builder builder) {
+    public SmokeGateRunner(SmokeProperties props, RestTemplate restTemplate) {
         this.props = props;
-        this.client = builder.baseUrl(props.getBaseUrl()).build();
+        this.restTemplate = restTemplate;
     }
 
     public SmokeResult run(String mode) {
@@ -60,23 +60,26 @@ public class SmokeGateRunner {
                         ? c.getPath()
                         : props.getBaseUrl() + c.getPath();
 
-                var requestSpec = client.method(HttpMethod.valueOf(c.getMethod().toUpperCase()))
-                        .uri(targetUrl);
-
-                if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL") && !c.getType().equalsIgnoreCase("HEALTH")) {
-                    requestSpec.header("Authorization", "Bearer " + accessToken);
+                HttpHeaders headers = new HttpHeaders();
+                if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL")) {
+                    headers.setBearerAuth(accessToken);
                 }
-
                 if (c.getBody() != null) {
-                    requestSpec.header("Content-Type", "application/json")
-                            .bodyValue(c.getBody()); // 이 부분이 Body를 전송합니다.
+                    headers.setContentType(MediaType.APPLICATION_JSON);
                 }
 
-                int status = requestSpec
-                        .exchangeToMono(resp -> resp.releaseBody().thenReturn(resp.statusCode().value()))
-                        .timeout(perRequestTimeout)
-                        .block();
+                HttpEntity<Object> requestEntity = new HttpEntity<>(c.getBody(), headers);
 
+                // 3. RestTemplate 호출 (WebClient.exchange...block 대체)
+                // c.getMethod()가 "GET", "POST" 등의 문자열로 들어오므로 HttpMethod로 변환
+                ResponseEntity<String> response = restTemplate.exchange(
+                        targetUrl,
+                        HttpMethod.valueOf(c.getMethod().toUpperCase()),
+                        requestEntity,
+                        String.class
+                );
+
+                int status = response.getStatusCodeValue();
                 boolean ok = (status == c.getExpectedStatus());
 
                 SmokeItem item = new SmokeItem(
@@ -121,25 +124,27 @@ public class SmokeGateRunner {
                 "password", props.getAdmin().getPassword()
         );
 
-        return client.post()
-                .uri(props.getAdmin().getLoginPath())
-                .bodyValue(loginReq)
-                .retrieve()
-                .toEntity(String.class)
-                .map(responseEntity -> {
-                    var cookies = responseEntity.getHeaders().get("Set-Cookie");
-                    if (cookies == null || cookies.isEmpty()) {
-                        throw new RuntimeException("No Set-Cookie header found in response");
-                    }
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    props.getAdmin().getLoginPath(),
+                    loginReq,
+                    String.class
+            );
 
-                    // "accessToken=ey...; Path=/; ..." 형태에서 값만 추출
-                    return cookies.stream()
-                            .filter(cookie -> cookie.startsWith("accessToken="))
-                            .map(cookie -> cookie.split(";")[0].split("=")[1])
-                            .findFirst()
-                            .orElseThrow(() -> new RuntimeException("accessToken cookie not found"));
-                })
-                .block(Duration.ofSeconds(5));
+            List<String> cookies = response.getHeaders().get("Set-Cookie");
+            if (cookies == null || cookies.isEmpty()) {
+                throw new RuntimeException("No Set-Cookie header found");
+            }
+
+            return cookies.stream()
+                    .filter(cookie -> cookie.startsWith("accessToken="))
+                    .map(cookie -> cookie.split(";")[0].split("=")[1])
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("accessToken cookie not found"));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Admin Login Failed", e);
+        }
     }
 
     private SmokeResult createLoginFailureResult(String mode, long started, Exception e) {
