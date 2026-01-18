@@ -43,6 +43,10 @@ public class ChatRoom {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     private User owner;
+
+    @Column(name = "last_message_sent_at")
+    private Instant lastMessageSentAt;
+
     public void addParticipant(ChatParticipant participant) {
         participants.add(participant);
     }
@@ -89,5 +93,9 @@ public class ChatRoom {
         if (newOwner != null) {
             this.owner = newOwner;
         }
+    }
+
+    public void updateLastMessageSentAt(Instant sentAt) {
+        this.lastMessageSentAt = sentAt;
     }
 }
