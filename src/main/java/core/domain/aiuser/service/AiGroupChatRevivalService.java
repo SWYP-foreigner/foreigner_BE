@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -42,11 +43,9 @@ public class AiGroupChatRevivalService {
     private final AiPromptManager aiPromptManager;
     private final AiPersonaRepository aiPersonaRepository;
 
-    private static final SecureRandom secureRandom = new SecureRandom();
+    private final TransactionTemplate transactionTemplate;
 
-    // ==========================================
-    // 🧪 [TEST MODE SETTING]
-    // ==========================================
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     // 1. 침묵 기준 시간
     private static final long SILENCE_THRESHOLD_MINUTES = 240;
@@ -83,57 +82,59 @@ public class AiGroupChatRevivalService {
     }
 
     private void tryTriggerRevivalMessage(ChatRoom room) {
-        // 1. 해당 방의 AI 멤버들 조회
-        List<User> aiParticipants = chatRoomRepository.findAiParticipantsByRoomId(room.getId());
-        if (aiParticipants.isEmpty()) return;
+        RevivalContext context = transactionTemplate.execute(status -> {
+            // 1. AI 참여자 조회
+            List<User> aiParticipants = chatRoomRepository.findAiParticipantsByRoomId(room.getId());
+            if (aiParticipants.isEmpty()) return null;
 
-        // 2. 최근 대화 5개 조회 (일단 DB에서는 최근 5개를 가져옴)
-        List<ChatMessage> lastMessages = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(room.getId());
+            // 2. 메시지 조회 및 정렬
+            List<ChatMessage> lastMessages = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(room.getId());
+            Collections.reverse(lastMessages);
 
-        // 시간순 정렬 보정 (과거 -> 최신)
-        Collections.reverse(lastMessages);
+            // 3. 발화자 선정
+            User initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
 
-        // 3. 마지막 발화자가 AI라면, 이번 턴에서는 제외하기 (티키타카 유도)
-        if (!lastMessages.isEmpty()) {
-            User lastSender = lastMessages.get(lastMessages.size() - 1).getSender();
-
-            if (aiParticipants.size() > 1) {
-                List<User> otherAis = aiParticipants.stream()
-                        .filter(ai -> !ai.getId().equals(lastSender.getId()))
-                        .toList();
-
-                if (!otherAis.isEmpty()) {
-                    aiParticipants = otherAis;
-                }
+            // 🚨 [핵심] Lazy Loading 강제 초기화 (Hibernate 초기화)
+            // 프롬프트 만들 때 필요한 정보를 여기서 미리 다 건드려서 로딩해둡니다.
+            String hobby = initiatorAi.getHobby();
+            String country = initiatorAi.getCountry();
+            AiPersona persona = aiPersonaRepository.findByUserId(initiatorAi.getId()).orElse(null);
+            if (persona != null) {
+                persona.getInstruction(); // Lazy 로딩 트리거
             }
-        }
 
-        // 4. 발화자 선정
-        User initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
+            return new RevivalContext(initiatorAi, persona, lastMessages);
+        });
 
-        // 5. 멘트 생성 (24시간 필터링은 이 메서드 안에서 수행)
-        String revivalMessage = generateDynamicRevivalMessage(initiatorAi, lastMessages);
+        if (context == null) return;
 
+        // 🧠 [2단계] AI 생성 (트랜잭션 X - DB 연결 없이 맘 편히 오래 걸려도 됨)
+        // 이 구간에서는 DB 커넥션을 점유하지 않습니다.
+        String revivalMessage = generateDynamicRevivalMessage(context.aiUser, context.persona, context.lastMessages);
+
+        // 💾 [3단계] 메시지 전송 (트랜잭션 O - 이미 ChatMessageService에 걸려있음)
         SendMessageRequest request = new SendMessageRequest(
                 room.getId(),
-                initiatorAi.getId(),
+                context.aiUser.getId(),
                 revivalMessage,
                 MessageType.TEXT
         );
 
         try {
             chatMessageService.processAndSendChatMessage(request);
-            log.info("🚑 CPR Success: Room[{}] AI[{}] Msg[{}]", room.getId(), initiatorAi.getFirstName(), revivalMessage);
+            log.info("🚑 CPR Success: Room[{}] AI[{}] Msg[{}]", room.getId(), context.aiUser.getFirstName(), revivalMessage);
         } catch (Exception e) {
             log.error("❌ Revival failed for room {}", room.getId(), e);
         }
     }
 
+    private record RevivalContext(User aiUser, AiPersona persona, List<ChatMessage> lastMessages) {}
+
     /**
      * AI 페르소나와 이전 대화를 기반으로 '살아있는' 멘트 생성
      * (24시간 지난 대화는 문맥에서 제외)
      */
-    private String generateDynamicRevivalMessage(User aiUser, List<ChatMessage> lastMessages) {
+    private String generateDynamicRevivalMessage(User aiUser, AiPersona persona, List<ChatMessage> lastMessages) { // 👈 파라미터 3개로 변경
         try {
             // 🟢 [핵심] 24시간 필터링: 너무 오래된 메시지는 문맥에서 제거
             Instant oneDayAgo = Instant.now().minus(Duration.ofHours(24));
@@ -145,15 +146,13 @@ public class AiGroupChatRevivalService {
             // (참고) validContext가 비어있으면 프롬프트 매니저가 "대화 내역 없음"으로 처리하여
             // AI가 "새로운 주제"를 꺼내도록 유도하게 됨.
 
-            // 1. 페르소나 조회
-            AiPersona persona = aiPersonaRepository.findByUserId(aiUser.getId()).orElse(null);
-
-            // 2. 프롬프트 생성 (필터링된 validContext 사용)
+            // 1. 프롬프트 생성 (받아온 persona 사용)
             String prompt = aiPromptManager.buildRevivalPrompt(aiUser, persona, validContext);
 
-            // 3. API 호출
+            // 2. API 호출 (System / User 메시지 분리 권장)
             List<Map<String, Object>> input = List.of(
-                    Map.of("role", "system", "content", prompt)
+                    Map.of("role", "system", "content", prompt),
+                    Map.of("role", "user", "content", "지금 대화 맥락에 맞춰 자연스럽게 첫 마디를 건네주세요.")
             );
 
             String response = aiClient.generateResponse(input);
@@ -166,7 +165,6 @@ public class AiGroupChatRevivalService {
             log.warn("⚠️ LLM Revival Failed (Using Fallback): {}", e.getMessage());
         }
 
-        // 🚨 실패 시 하드코딩 멘트 사용
         return FALLBACK_TOPICS[secureRandom.nextInt(FALLBACK_TOPICS.length)];
     }
 
