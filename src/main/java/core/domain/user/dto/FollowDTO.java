@@ -18,7 +18,7 @@ public record FollowDTO(
         List<String> language,
         List<String> hobby,
         String imageKey,
-        FriendType friendType
+        FriendType followStatus
 ) {
 
     public FollowDTO(User u, List<String> languages, List<String> hobbies, String imageKey, FriendType friendType) {
