@@ -251,11 +251,30 @@ public class FollowService {
         log.info("[GET FOLLOWS] 요청 시작: 사용자={}, 상태={}, 팔로워 조회 여부={}", auth.getName(), status, isFollowers);
 
         String email = auth.getName();
-        User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
+
+        // [방어 로직 1] Optional<User> 대신 List<User>로 조회하여 'UniqueResult' 예외 원천 차단
+        List<User> foundUsers = userRepository.findByEmail(email);
+
+        if (foundUsers.isEmpty()) {
+            log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // [방어 로직 2] 중복 계정이 발견될 경우 '가장 최신 계정' 하나를 선정 (Self-Healing)
+        // 기준 1: updatedAt이 가장 최근인 것
+        // 기준 2: updatedAt이 같다면 id가 높은 것 (나중에 가입한 것)
+        User me = foundUsers.stream()
+                .max(Comparator.comparing(User::getUpdatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(User::getId))
+                .orElse(foundUsers.get(0));
+
+        // [운영 참고용 로그] 중복 데이터가 있음을 로그로 남겨둠 (나중에 DB 정리할 때 참고)
+        if (foundUsers.size() > 1) {
+            log.error("[DATA WARNING] 이메일 중복 데이터 발견! 로직은 정상 수행됩니다. email={}, count={}, selectedId={}",
+                    email, foundUsers.size(), me.getId());
+        }
+
+        // --- 이하 기존 로직과 동일 ---
 
         Stream<Follow> followStream;
 
@@ -268,9 +287,12 @@ public class FollowService {
         List<FollowDTO> result = followStream
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
+
+                    // 친구 관계 판단 로직 (메서드가 존재한다고 가정)
                     FriendType type = determineFriendType(me, targetUser);
 
                     String imageKey = imageService.getUserProfileKey(targetUser.getId());
+
                     List<String> languages = (targetUser.getLanguage() != null && !targetUser.getLanguage().isBlank())
                             ? Arrays.stream(targetUser.getLanguage().split(","))
                             .map(String::trim)
@@ -296,7 +318,7 @@ public class FollowService {
                 })
                 .collect(Collectors.toList());
 
-        log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환", result.size());
+        log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환 (Target User ID: {})", result.size(), me.getId());
         return result;
     }
 
