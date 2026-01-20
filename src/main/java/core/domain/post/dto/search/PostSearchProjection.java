@@ -14,5 +14,8 @@ public record PostSearchProjection(
         boolean isAnonymous,
         long viewCount,
         double rawScore,
-        long scoreRounded
+        long scoreRounded,
+        String pollTitle,
+        Instant pollCloseAt,
+        Long pollTotalCount
 ) {}

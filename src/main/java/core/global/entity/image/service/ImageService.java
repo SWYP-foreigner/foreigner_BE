@@ -4,6 +4,7 @@ import core.domain.post.entity.Post;
 import core.global.entity.image.dto.ImageDto;
 import core.global.entity.image.dto.PresignedUrlRequest;
 import core.global.entity.image.dto.PresignedUrlResponse;
+import core.global.enums.PollType;
 import core.global.exception.BusinessException;
 import jakarta.transaction.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,6 +21,9 @@ public interface ImageService {
 
     @Transactional
     void updatePostImages(Long postId, List<String> toAdd, List<String> toRemove);
+
+    @Transactional
+    void upsertPollImages(Long id, List<String> addImageUrls, List<String> removeImageUrls, PollType type);
 
     @Transactional
     void deleteFolder(String fileLocation);
@@ -52,4 +56,5 @@ public interface ImageService {
 
     @Transactional
     void uploadAndSavePostImages(Post post, List<MultipartFile> images) throws IOException;
+
 }
