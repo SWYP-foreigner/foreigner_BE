@@ -44,18 +44,3 @@ ALTER TABLE vote_record DROP CONSTRAINT IF EXISTS fk_vote_poll;
 ALTER TABLE vote_record ADD CONSTRAINT fk_vote_poll
     FOREIGN KEY (poll_id) REFERENCES poll (post_id) ON DELETE CASCADE;
 DO
-NOTICE:  drop cascades to 2 other objects
-상세정보:  drop cascades to constraint fk_option_poll on table poll_option
-drop cascades to constraint fk_vote_poll on table vote_record
-ALTER TABLE
-    DO
-ALTER TABLE
-    ALTER TABLE
-ALTER TABLE
-    ALTER TABLE
-    NOTICE:  constraint "fk_option_poll" of relation "poll_option" does not exist, skipping
-ALTER TABLE
-    ALTER TABLE
-    NOTICE:  constraint "fk_vote_poll" of relation "vote_record" does not exist, skipping
-ALTER TABLE
-    ALTER TABLE
