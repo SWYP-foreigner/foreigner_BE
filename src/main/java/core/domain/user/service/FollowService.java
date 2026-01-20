@@ -211,7 +211,11 @@ public class FollowService {
                     log.warn("[ACCEPT FOLLOW] 대기 중인 팔로우 요청 없음: from={}, to={}", fromUser.getId(), toUser.getId());
                     return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
                 });
-
+        followRepository.findByUserAndFollowingAndStatus(toUser, fromUser, FollowStatus.PENDING)
+                .ifPresent(reverseReq -> {
+                    followRepository.delete(reverseReq);
+                    log.info("[CLEANUP] 맞팔로우 성사로 인한 반대편 대기 요청 삭제: {} -> {}", toUser.getId(), fromUser.getId());
+                });
         follow.accept();
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
         logFollowActivity(fromUser, toUser, FollowActionType.ACCEPT, "NOTIFICATION");
@@ -253,7 +257,7 @@ public class FollowService {
         String email = auth.getName();
 
         // [방어 로직 1] Optional<User> 대신 List<User>로 조회하여 'UniqueResult' 예외 원천 차단
-        List<User> foundUsers = userRepository.findByEmail(email);
+        List<User> foundUsers = userRepository.findAllByEmail(email);
 
         if (foundUsers.isEmpty()) {
             log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
