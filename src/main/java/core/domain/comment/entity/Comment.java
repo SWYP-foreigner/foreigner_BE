@@ -105,8 +105,6 @@ public class Comment {
         this.deletedBy = deleter;
     }
 
-    public boolean isLeaf() { return children == null || children.isEmpty(); }
-
     public void setParent(Comment parent) {
         this.parent = parent;
         parent.children.add(this);
