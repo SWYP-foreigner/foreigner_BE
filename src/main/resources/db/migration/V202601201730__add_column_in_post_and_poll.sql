@@ -1,4 +1,4 @@
-foreigner=# -- 1. 새로운 컬럼 추가 (이미 있다면 무시하도록 설정)
+1. 새로운 컬럼 추가 (이미 있다면 무시하도록 설정)
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='poll' AND column_name='title') THEN
