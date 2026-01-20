@@ -5,6 +5,8 @@ import lombok.Getter;
 @Getter
 public enum BoardCategory {
     ALL("ALL"),
+    QUIZ("Quiz"),
+    VOTE("Vote"),
     NEWS("News"),
     TIP("Tip"),
     QNA("Q&A"),

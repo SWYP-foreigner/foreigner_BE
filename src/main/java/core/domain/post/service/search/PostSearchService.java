@@ -113,9 +113,10 @@ public class PostSearchService {
                     commentCounts.getOrDefault(p.postId(), 0L),
                     p.viewCount(),
                     userImageUrls.get(p.authorId()),
-                    contentThumbnails.get(p.postId()),
-                    contentImageCounts.getOrDefault(p.postId(), 0),
-                    p.scoreRounded()
+                    p.scoreRounded(),
+                    new BoardItem.PostInfo(contentThumbnails.get(p.postId()),
+                            contentImageCounts.getOrDefault(p.postId(), 0)),
+                    new BoardItem.PollInfo()
             );
             return new SearchResultView(boardItem, p.rawScore());
         }).toList();
