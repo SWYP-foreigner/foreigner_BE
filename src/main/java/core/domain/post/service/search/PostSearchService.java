@@ -7,6 +7,8 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.dto.search.PostSearchProjection;
 import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.dto.search.SearchResultView;
@@ -49,6 +51,8 @@ public class PostSearchService {
     private final UserRepository userRepository;
     private final BookmarkRepository bookmarkRepository;
     private final PostSuggestIndex memoryIndex;
+    private final PollOptionRepository pollOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
 
     @Transactional(readOnly = true)
     public CursorPageResponse<SearchResultView> search(
@@ -91,6 +95,10 @@ public class PostSearchService {
                 .filter(Objects::nonNull) // 익명은 프로필 이미지 필요 없음
                 .distinct().toList();
 
+        List<Long> pollPostIds = contentProjections.stream()
+                .filter(p -> p.pollTitle() != null)
+                .map(PostSearchProjection::postId)
+                .toList();
 
         // 6. 벌크 데이터 조회 (Map/Set 변환)
         Map<Long, Long> likeCounts = convertToMap(likeRepository.countByPostIds(postIds));
@@ -102,8 +110,41 @@ public class PostSearchService {
         Set<Long> likedPostIds = new HashSet<>(likeRepository.findLikedPostIdsByUserId(user.getId(), postIds));
         Set<Long> bookmarkedPostIds = new HashSet<>(bookmarkRepository.findBookmarkedPostIdsByUserId(user.getId(), postIds));
 
+        Map<Long, List<BoardItem.OptionItem>> pollOptionsMap = Collections.emptyMap();
+        if (!pollPostIds.isEmpty()) {
+            pollOptionsMap = pollOptionRepository.findAllByPollIdIn(pollPostIds).stream()
+                    .collect(Collectors.groupingBy(
+                            po -> po.getPoll().getId(),
+                            Collectors.mapping(po -> new BoardItem.OptionItem(
+                                    po.getId(), po.getContent(), po.getVoteCount()
+                            ), Collectors.toList())
+                    ));
+        }
+
+        Map<Long, Long> userSelectedOptions = Collections.emptyMap();
+        if (!pollPostIds.isEmpty()) {
+            List<Object[]> voteResults = voteRecordRepository.findUserVotesInPolls(user.getId(), pollPostIds);
+            userSelectedOptions = voteResults.stream()
+                    .collect(Collectors.toMap(
+                            r -> (Long) r[0], // pollId
+                            r -> (Long) r[1], // selectedOptionId
+                            (v1, v2) -> v1
+                    ));
+        }
+
         // 7. 최종 DTO 조립
+        final var finalUserVotes = userSelectedOptions;
+        final var finalOptionsMap = pollOptionsMap;
         List<SearchResultView> items = contentProjections.stream().map(p -> {
+            BoardItem.PollInfo pollInfo = null;
+            if (p.pollTitle() != null) {
+                pollInfo = new BoardItem.PollInfo(
+                        p.pollTitle(), p.pollCloseAt(), p.pollTotalCount(),
+                        new ArrayList<>(finalOptionsMap.getOrDefault(p.postId(), List.of())),
+                        finalUserVotes.get(p.postId())
+                );
+            }
+
             BoardItem boardItem = new BoardItem(
                     p.postId(), p.contentPreview(), p.authorId(), p.authorName(),
                     p.category(), p.createdAt(), p.isAnonymous(),
@@ -116,7 +157,7 @@ public class PostSearchService {
                     p.scoreRounded(),
                     new BoardItem.PostInfo(contentThumbnails.get(p.postId()),
                             contentImageCounts.getOrDefault(p.postId(), 0)),
-                    new BoardItem.PollInfo()
+                    pollInfo
             );
             return new SearchResultView(boardItem, p.rawScore());
         }).toList();
