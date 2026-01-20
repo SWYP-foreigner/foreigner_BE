@@ -2,9 +2,10 @@ package core.domain.poll.service;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.poll.controller.VoteWriteRequest;
+import core.domain.poll.dto.VoteWriteRequest;
 import core.domain.poll.dto.PollItem;
 import core.domain.poll.dto.PollResultResponse;
+import core.domain.poll.dto.QuizWriteRequest;
 import core.domain.poll.entity.Poll;
 import core.domain.poll.entity.PollOption;
 import core.domain.poll.entity.VoteRecord;
@@ -93,6 +94,10 @@ public class PollService {
         PollOption selectedOption = pollOptionRepository.findById(optionId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.OPTION_NOT_FOUND));
 
+        if (!selectedOption.getPoll().getId().equals(pollId)) {
+            throw new BusinessException(CommunityErrorCode.INVALID_INPUT);
+        }
+
         // 4. 투표 기록 저장
         VoteRecord recordResult = new VoteRecord(user, poll, selectedOption);
         voteRecordRepository.save(recordResult);
@@ -105,18 +110,15 @@ public class PollService {
         return createPollResultResponse(poll, selectedOption);
     }
 
-
-    
-
     private PollResultResponse createPollResultResponse(Poll poll, PollOption selectedOption) {
-        boolean isCorrect = false;
+        Boolean isCorrect = false;
         Long correctOptionId = null;
 
         if (poll.getType() == PollType.QUIZ) {
-            isCorrect = selectedOption.isCorrect();
+            isCorrect = selectedOption.getIsCorrect();
             if (!isCorrect) {
                 correctOptionId = poll.getOptions().stream()
-                        .filter(PollOption::isCorrect)
+                        .filter(PollOption::getIsCorrect)
                         .map(PollOption::getId)
                         .findFirst().orElse(null);
             }

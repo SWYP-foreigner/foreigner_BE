@@ -1,7 +1,7 @@
 package core.domain.poll.entity;
 
-import core.domain.poll.controller.VoteWriteRequest;
-import core.domain.poll.service.QuizWriteRequest;
+import core.domain.poll.dto.VoteWriteRequest;
+import core.domain.poll.dto.QuizWriteRequest;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import core.global.enums.PollType;
@@ -22,7 +22,6 @@ import java.util.List;
 public class Poll {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private String title;
@@ -63,7 +62,7 @@ public class Poll {
 
         if (request.options() != null) {
             for (String optionContent : request.options()) {
-                this.addOption(optionContent);
+                this.addOption(optionContent, false);
             }
         }
     }
@@ -79,8 +78,9 @@ public class Poll {
         post.initPoll(this);
 
         if (request.options() != null) {
-            for (String optionContent : request.options()) {
-                this.addOption(optionContent);
+            for (int i = 0; i < request.options().size(); i++) {
+                boolean isCorrect = (i == request.correctOptionIndex());
+                this.addOption(request.options().get(i), isCorrect);
             }
         }
     }
@@ -94,8 +94,8 @@ public class Poll {
         return Math.round((double) optionVoteCount / this.totalVoteCount * 100);
     }
 
-    public void addOption(String content) {
-        PollOption option = new PollOption(this, content);
+    public void addOption(String content, boolean isCorrect) {
+        PollOption option = new PollOption(this, content, isCorrect);
         this.options.add(option);
     }
 }

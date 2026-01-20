@@ -1,10 +1,7 @@
 package core.domain.poll.controller;
 
-import core.domain.poll.dto.PollItem;
-import core.domain.poll.dto.PollParticipateRequest;
-import core.domain.poll.dto.PollResultResponse;
+import core.domain.poll.dto.*;
 import core.domain.poll.service.PollService;
-import core.domain.poll.service.QuizWriteRequest;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;

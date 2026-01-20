@@ -1,4 +1,4 @@
-package core.domain.poll.controller;
+package core.domain.poll.dto;
 
 import java.util.List;
 

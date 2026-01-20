@@ -20,15 +20,15 @@ public class PollOption {
 
     private String content; // 선택지 텍스트: "BTS", "Blackpink"
 
-    private boolean isCorrect; // 퀴즈 정답 여부 (투표일 경우 무시)
+    private Boolean isCorrect; // 퀴즈 정답 여부 (투표일 경우 무시)
 
     // 이 선택지에 투표한 수 (선택사항: 조회 성능 최적화용)
-    private long voteCount = 0;
+    private Long voteCount = 0L;
 
-    public PollOption(Poll poll, String content) {
+    public PollOption(Poll poll, String content, Boolean isCorrect) {
         this.poll = poll;
         this.content = content;
-        this.isCorrect = false;
+        this.isCorrect = isCorrect;
     }
 
     public void incrementVoteCount() {
