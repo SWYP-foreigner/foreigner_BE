@@ -256,7 +256,6 @@ public class FollowService {
 
         String email = auth.getName();
 
-        // [방어 로직 1] Optional<User> 대신 List<User>로 조회하여 'UniqueResult' 예외 원천 차단
         List<User> foundUsers = userRepository.findAllByEmail(email);
 
         if (foundUsers.isEmpty()) {
@@ -264,27 +263,22 @@ public class FollowService {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
 
-        // [방어 로직 2] 중복 계정이 발견될 경우 '가장 최신 계정' 하나를 선정 (Self-Healing)
-        // 기준 1: updatedAt이 가장 최근인 것
-        // 기준 2: updatedAt이 같다면 id가 높은 것 (나중에 가입한 것)
         User me = foundUsers.stream()
                 .max(Comparator.comparing(User::getUpdatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
                         .thenComparing(User::getId))
                 .orElse(foundUsers.get(0));
 
-        // [운영 참고용 로그] 중복 데이터가 있음을 로그로 남겨둠 (나중에 DB 정리할 때 참고)
         if (foundUsers.size() > 1) {
             log.error("[DATA WARNING] 이메일 중복 데이터 발견! 로직은 정상 수행됩니다. email={}, count={}, selectedId={}",
                     email, foundUsers.size(), me.getId());
         }
 
-        // --- 이하 기존 로직과 동일 ---
 
         Stream<Follow> followStream;
 
         if (isFollowers) {
             followStream = followRepository.findByFollowingAndStatus(me, status).stream();
-        } else { // false이면 내가 팔로우하는 사람들을 조회
+        } else {
             followStream = followRepository.findByUserAndStatus(me, status).stream();
         }
 
@@ -292,7 +286,6 @@ public class FollowService {
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
 
-                    // 친구 관계 판단 로직 (메서드가 존재한다고 가정)
                     FriendType type = determineFriendType(me, targetUser);
 
                     String imageKey = imageService.getUserProfileKey(targetUser.getId());
