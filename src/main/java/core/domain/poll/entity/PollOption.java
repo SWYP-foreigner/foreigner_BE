@@ -25,6 +25,12 @@ public class PollOption {
     // 이 선택지에 투표한 수 (선택사항: 조회 성능 최적화용)
     private long voteCount = 0;
 
+    public PollOption(Poll poll, String content) {
+        this.poll = poll;
+        this.content = content;
+        this.isCorrect = false;
+    }
+
     public void incrementVoteCount() {
         this.voteCount++;
     }

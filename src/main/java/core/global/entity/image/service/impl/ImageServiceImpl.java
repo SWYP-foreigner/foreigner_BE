@@ -8,6 +8,7 @@ import core.global.entity.image.service.ImageService;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.PostImageService;
 import core.global.entity.image.service.ProfileImageService;
+import core.global.enums.PollType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class ImageServiceImpl implements ImageService {
     private final PostImageService postImageService;
     private final ProfileImageService profileImageService;
     private final ImageStorageClient imageStorageClient;
+    private final MainContentImageService mainContentImageService;
 
     @Override
     public List<PresignedUrlResponse> generatePresignedUrls(PresignedUrlRequest request) {
@@ -96,6 +98,12 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException {
         postImageService.uploadAndSavePostImages(post, multipartFiles);
+    }
+
+    @Transactional
+    @Override
+    public void upsertPollImages(Long id, List<String> addImageUrls, List<String> removeImageUrls, PollType type) {
+        mainContentImageService.upsertPollImages(id, addImageUrls, removeImageUrls, type);
     }
 
     @Override

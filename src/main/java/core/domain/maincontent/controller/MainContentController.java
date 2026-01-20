@@ -33,15 +33,13 @@ public class MainContentController {
 
     private final MainContentService mainContentService;
     private final FeatureUsageMetrics featureUsageMetrics;
-    private final MainContentController mainContentController;
     private final MainContentKeywordExtractor newsExtractor;
     private final MainContentSuggestIndex mainContentSuggestIndex;
 
 
-    MainContentController(MainContentService mainContentService, FeatureUsageMetrics featureUsageMetrics, MainContentController mainContentController, MainContentKeywordExtractor newsExtractor, MainContentSuggestIndex mainContentSuggestIndex) {
+    MainContentController(MainContentService mainContentService, FeatureUsageMetrics featureUsageMetrics, MainContentKeywordExtractor newsExtractor, MainContentSuggestIndex mainContentSuggestIndex) {
         this.mainContentService = mainContentService;
         this.featureUsageMetrics = featureUsageMetrics;
-        this.mainContentController = mainContentController;
         this.newsExtractor = newsExtractor;
         this.mainContentSuggestIndex = mainContentSuggestIndex;
     }
@@ -105,7 +103,7 @@ public class MainContentController {
         MainPageContentResponse response = mainContentService.getMainContent(contentId);
 
         featureUsageMetrics.recordMainPageUsage();
-        mainContentController.extractedKeyword(response.htmlContent(), 1);
+        extractedKeyword(response.htmlContent(), 1);
 
         return ResponseEntity.ok(response);
     }

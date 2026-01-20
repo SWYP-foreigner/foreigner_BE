@@ -1,5 +1,8 @@
 package core.domain.poll.service;
 
+import core.domain.board.entity.Board;
+import core.domain.board.repository.BoardRepository;
+import core.domain.poll.controller.VoteWriteRequest;
 import core.domain.poll.dto.PollItem;
 import core.domain.poll.dto.PollResultResponse;
 import core.domain.poll.entity.Poll;
@@ -8,8 +11,11 @@ import core.domain.poll.entity.VoteRecord;
 import core.domain.poll.repository.PollOptionRepository;
 import core.domain.poll.repository.PollRepository;
 import core.domain.poll.repository.VoteRecordRepository;
+import core.domain.post.entity.Post;
+import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.BoardCategory;
 import core.global.enums.PollType;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
@@ -26,10 +32,13 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class PollService {
+
     private final PollRepository pollRepository;
     private final PollOptionRepository pollOptionRepository;
     private final VoteRecordRepository voteRecordRepository;
     private final UserRepository userRepository;
+    private final BoardRepository boardRepository;
+    private final PostRepository postRepository;
 
     @Transactional(readOnly = true)
     public PollItem getTodayPoll(PollType type) {
@@ -41,7 +50,7 @@ public class PollService {
                 .map(recordResult -> recordResult.getPollOption().getId())
                 .orElse(null);
 
-        return mapToPollItem(poll,selectedOptionId );
+        return mapToPollItem(poll, selectedOptionId);
     }
 
     private PollItem mapToPollItem(Poll poll, Long selectedOptionId) {
@@ -53,7 +62,7 @@ public class PollService {
                 poll.getId(),
                 poll.getType(),
                 poll.getTitle(),
-                "Tell me about your favorite content!", // 엔티티에 필드 추가 시 poll.getDescription()
+                poll.getDescription(),
                 poll.getCloseAt(),
                 poll.getTotalVoteCount(),
                 optionItems,
@@ -97,13 +106,7 @@ public class PollService {
     }
 
 
-    private Optional<User> getCurrentUser() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        if (email == null || email.equals("anonymousUser")) {
-            return Optional.empty();
-        }
-        return userRepository.findByEmail(email);
-    }
+    
 
     private PollResultResponse createPollResultResponse(Poll poll, PollOption selectedOption) {
         boolean isCorrect = false;
@@ -128,4 +131,49 @@ public class PollService {
 
         return new PollResultResponse(poll.getId(), poll.getType(), isCorrect, correctOptionId, results);
     }
+
+    @Transactional
+    public Long createVote(VoteWriteRequest request) {
+        User user = getCurrentUser()
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Board board = boardRepository.findByCategory(BoardCategory.VOTE)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
+
+        // 1. 마스터 Post 엔티티 먼저 생성 (익명 여부 반영)
+        Post post = new Post(request.content(), user, board, request.isAnonymous());
+
+        // 2. Poll 엔티티 생성 (생성자 호출 시 내부에서 post와 연결됨)
+        new Poll(user, post, request);
+
+        // 3. Post만 저장하면 CascadeType.ALL에 의해 Poll까지 한 번에 저장됨
+        return postRepository.save(post).getId();
+    }
+
+    @Transactional
+    public Long createQuiz(QuizWriteRequest request) {
+        User user = getCurrentUser()
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Board board = boardRepository.findByCategory(BoardCategory.QUIZ)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
+
+        // 1. Post 엔티티 생성 (퀴즈는 기본적으로 익명 false)
+        Post post = new Post(request.content(), user, board, false);
+
+        // 2. Poll 엔티티 생성
+        new Poll(user, post, request);
+
+        // 3. 저장
+        return postRepository.save(post).getId();
+    }
+
+    private Optional<User> getCurrentUser() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (email == null) {
+            return Optional.empty();
+        }
+        return userRepository.findByEmail(email);
+    }
+
 }
