@@ -1,5 +1,6 @@
 package core.domain.admin.controller;
 
+import core.domain.admin.dto.AiUserListDto;
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.comment.dto.RecentCommentDto;
@@ -155,7 +156,7 @@ public class UserAdminViewController {
 
     @GetMapping("/ai/invite")
     public String inviteAiPage(Model model) {
-        List<User> aiUsers = userAdminService.getAiUsers();
+        List<AiUserListDto> aiUsers = userAdminService.getAiUsers();
         List<ChatRoom> chatRooms = userAdminService.getGroupChatRooms();
 
         model.addAttribute("aiUsers", aiUsers);
@@ -259,7 +260,7 @@ public class UserAdminViewController {
 
     @GetMapping("/ai")
     public String aiUserListPage(Model model) {
-        List<User> aiUsers = userAdminService.getAiUsers();
+        List<AiUserListDto> aiUsers = userAdminService.getAiUsers();
 
         model.addAttribute("aiUsers", aiUsers);
         return "admin/user-list-ai";

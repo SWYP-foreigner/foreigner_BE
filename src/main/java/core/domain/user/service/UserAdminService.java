@@ -1,5 +1,6 @@
 package core.domain.user.service;
 
+import core.domain.admin.dto.AiUserListDto;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatParticipant;
@@ -450,8 +451,18 @@ public class UserAdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> getAiUsers() {
-        return userRepository.findAllByUserRole(Role.AI);
+    public List<AiUserListDto> getAiUsers() {
+        List<User> aiUsers = userRepository.findAllByUserRole(Role.AI);
+        List<AiUserListDto> result = new ArrayList<>();
+
+        for (User user : aiUsers) {
+            AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
+            AiType type = (persona != null) ? persona.getAiType() : AiType.ALL;
+
+            result.add(new AiUserListDto(user, type));
+        }
+
+        return result;
     }
 
     @Transactional(readOnly = true)
