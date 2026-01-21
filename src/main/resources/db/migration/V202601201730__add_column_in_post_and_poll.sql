@@ -43,4 +43,4 @@ ALTER TABLE poll_option ADD CONSTRAINT fk_option_poll
 ALTER TABLE vote_record DROP CONSTRAINT IF EXISTS fk_vote_poll;
 ALTER TABLE vote_record ADD CONSTRAINT fk_vote_poll
     FOREIGN KEY (poll_id) REFERENCES poll (post_id) ON DELETE CASCADE;
-DO
+
