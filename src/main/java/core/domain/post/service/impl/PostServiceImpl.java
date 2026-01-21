@@ -4,8 +4,11 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.maincontent.entity.MainContent;
+import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.poll.entity.PollOption;
+import core.domain.poll.repository.PollOptionRepository;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
@@ -14,7 +17,6 @@ import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
-import core.domain.maincontent.repository.MainContentRepository;
 import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
@@ -62,6 +64,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static core.global.enums.errorcode.CommunityErrorCode.POST_NOT_FOUND;
 
@@ -88,6 +91,7 @@ public class PostServiceImpl implements PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostReportRepository postReportRepository;
     private final MainContentHotKeywordBatchService recommendBatchService;
+    private final PollOptionRepository pollOptionRepository;
 
     private final MainContentRepository mainContentRepository;
     private final ImageStorageClient imageStorageClient;
@@ -132,6 +136,8 @@ public class PostServiceImpl implements PostService {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
+        fillPollOptions(rows);
+
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
@@ -156,10 +162,66 @@ public class PostServiceImpl implements PostService {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
+        fillPollOptions(rows);
+
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
                 BoardItem::postId
+        );
+    }
+
+    private void fillPollOptions(List<BoardItem> items) {
+        List<Long> pollPostIds = items.stream()
+                .filter(item -> item.pollInfo() != null)
+                .map(BoardItem::postId)
+                .toList();
+
+        if (pollPostIds.isEmpty()) {
+            for (int i = 0; i < items.size(); i++) {
+                BoardItem item = items.get(i);
+                if (item.pollInfo() != null && item.pollInfo().title() == null) {
+                    // Record의 데이터를 복사하면서 pollInfo만 null로 바꾼 새 객체로 교체
+                    items.set(i, createNonPollItem(item));
+                }
+            }
+            return;
+        }
+
+        // 투표 옵션들을 IN 절로 한 번에 조회
+        List<PollOption> allOptions = pollOptionRepository.findAllByPollIdIn(pollPostIds);
+
+        // PostId별로 그룹화
+        Map<Long, List<BoardItem.OptionItem>> optionsMap = allOptions.stream()
+                .collect(Collectors.groupingBy(
+                        po -> po.getPoll().getId(),
+                        Collectors.mapping(po -> new BoardItem.OptionItem(
+                                po.getId(), po.getContent(), po.getVoteCount()
+                        ), Collectors.toList())
+                ));
+
+        // 데이터 매핑
+        for (int i = 0; i < items.size(); i++) {
+            BoardItem item = items.get(i);
+
+            if (item.pollInfo() != null && item.pollInfo().title() != null) {
+                // 투표 글: 옵션 리스트를 채워줌
+                List<BoardItem.OptionItem> options = optionsMap.getOrDefault(item.postId(), new ArrayList<>());
+                item.pollInfo().options().addAll(options);
+            } else {
+                // 일반 글: 빈 객체 대신 null로 교체
+                items.set(i, createNonPollItem(item));
+            }
+        }
+    }
+
+    private BoardItem createNonPollItem(BoardItem item) {
+        return new BoardItem(
+                item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                item.boardCategory(), item.createdAt(), item.isAnonymous(),
+                item.isLiked(), item.isBookmarked(), item.likeCount(),
+                item.commentCount(), item.viewCount(), item.userImageUrl(),
+                item.score(), item.postInfo(), null // pollInfo를 null로 꽂아버림
         );
     }
 
@@ -194,7 +256,7 @@ public class PostServiceImpl implements PostService {
     }
 
     private Instant popularSince() {
-        return Instant.now().minus(Duration.ofDays(14));
+        return Instant.now().minus(Duration.ofDays(30));
     }
 
     // ------- 유틸 -------
@@ -221,14 +283,13 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        if (translate) {
-            PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
 
+        if (translate) {
             String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());
             return new PostDetailResponse(postDetail, translatedContent);
-        } else {
-            return postRepository.findPostDetail(email, postId);
         }
+        return postDetail;
     }
 
     @Override
@@ -598,26 +659,6 @@ public class PostServiceImpl implements PostService {
         return result;
     }
 
-    private static final class LatestKey {
-        final Instant t;
-        final Long id;
-
-        LatestKey(Instant t, Long id) {
-            this.t = t;
-            this.id = id;
-        }
-    }
-
-    private static final class PopularKey {
-        final Long sc;
-        final Long id;
-
-        PopularKey(Long sc, Long id) {
-            this.sc = sc;
-            this.id = id;
-        }
-    }
-
     @Override
     @Transactional
     public void createAdminPost(String title, String content, String publishType,
@@ -709,8 +750,7 @@ public class PostServiceImpl implements PostService {
                 } catch (NumberFormatException e) {
                     log.warn("Invalid data-file-index: {}", dataFileIndex);
                 }
-            }
-            else if (originalSrc.startsWith("http")) {
+            } else if (originalSrc.startsWith("http")) {
                 cdnUrl = uploadUrlToStorage(originalSrc, contentId);
             }
 
@@ -807,5 +847,25 @@ public class PostServiceImpl implements PostService {
         );
 
         postReportRepository.save(postReport);
+    }
+
+    private static final class LatestKey {
+        final Instant t;
+        final Long id;
+
+        LatestKey(Instant t, Long id) {
+            this.t = t;
+            this.id = id;
+        }
+    }
+
+    private static final class PopularKey {
+        final Long sc;
+        final Long id;
+
+        PopularKey(Long sc, Long id) {
+            this.sc = sc;
+            this.id = id;
+        }
     }
 }

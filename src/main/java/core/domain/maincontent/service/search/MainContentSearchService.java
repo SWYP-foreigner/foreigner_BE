@@ -96,6 +96,7 @@ public class MainContentSearchService {
         log.info("[Recommendations] Fetching entities from dedicated table...");
 
         List<MainContentRecommendation> candidates = recommendationRepository.findTop100ByOrderByFrequencyDesc();
+        log.info(">>>> DB에서 조회된 실제 개수: " + candidates.size());
 
         if (candidates.isEmpty()) return List.of();
 
