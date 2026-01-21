@@ -18,17 +18,11 @@
         .hobby-item input { width: auto; margin-right: 8px; cursor: pointer; }
 
         .profile-grid { display: flex; gap: 15px; justify-content: start; flex-wrap: wrap; margin-top: 10px;}
-        .profile-option {
-            border: 2px solid #ddd; border-radius: 50%; overflow: hidden;
-            cursor: pointer; width: 80px; height: 80px; transition: all 0.2s; position: relative;
-        }
+        .profile-option { border: 2px solid #ddd; border-radius: 50%; overflow: hidden; cursor: pointer; width: 80px; height: 80px; transition: all 0.2s; position: relative; }
         .profile-option:hover { transform: scale(1.05); border-color: #228be6; }
         .profile-option img { width: 100%; height: 100%; object-fit: cover; }
         .profile-option.selected { border: 3px solid #228be6; box-shadow: 0 0 10px rgba(34, 139, 230, 0.4); }
-        .profile-option.selected::after {
-            content: '✔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #228be6; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 3px white;
-        }
+        .profile-option.selected::after { content: '✔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #228be6; font-weight: bold; font-size: 1.5rem; text-shadow: 0 0 3px white; }
 
         .upload-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px dashed #ced4da; margin-bottom: 15px; text-align: center; }
         .preview-container { display: none; margin-top: 10px; flex-direction: column; align-items: center; }
@@ -168,6 +162,16 @@
 
         <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #90caf9;">
             <h3 style="margin-top: 0; color: #0d47a1; font-size: 1.1rem;">🤖 AI 페르소나 설정</h3>
+
+            <div class="form-group">
+                <label for="aiType" style="color: #1565c0;">AI 활동 타입 (AiType)</label>
+                <select id="aiType" name="aiType">
+                    <option value="ALL" selected>ALL (1:1 및 그룹 채팅 모두 가능)</option>
+                    <option value="SOLO_ONLY">SOLO_ONLY (1:1 채팅 전용)</option>
+                    <option value="GROUP_ONLY">GROUP_ONLY (그룹 채팅 전용)</option>
+                </select>
+                <p class="note">* 기본값은 ALL입니다. 특정 상황에서만 동작하게 하려면 변경하세요.</p>
+            </div>
 
             <div class="form-group">
                 <label for="instruction" style="color: #1565c0;">시스템 프롬프트 (Instruction) *</label>

@@ -38,17 +38,22 @@ public class AiPersona {
     private boolean isActive = true;
 
     @Builder
-    public AiPersona(Long userId, String instruction, String backgroundInfo, Boolean isActive) {
+    public AiPersona(Long userId, AiType aiType, String instruction, String backgroundInfo, Boolean isActive) {
         this.userId = userId;
         this.instruction = instruction;
         this.backgroundInfo = backgroundInfo;
-        // 빌더에서 값을 넣지 않으면 기본값 true 유지, 넣으면 그 값 사용
+
+        if (aiType != null) {
+            this.aiType = aiType;
+        }
+
         if (isActive != null) {
             this.isActive = isActive;
         }
     }
 
-    public void updatePersona(String instruction, String backgroundInfo) {
+    public void updatePersona(AiType aiType, String instruction, String backgroundInfo) {
+        this.aiType = aiType;
         this.instruction = instruction;
         this.backgroundInfo = backgroundInfo;
     }
