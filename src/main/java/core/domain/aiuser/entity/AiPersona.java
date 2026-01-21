@@ -1,5 +1,6 @@
 package core.domain.aiuser.entity;
 
+import core.global.enums.AiType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -21,6 +22,10 @@ public class AiPersona {
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_type", nullable = false, length = 20)
+    private AiType aiType = AiType.ALL;
 
     // AI 페르소나 정의
     @Column(name = "instruction", columnDefinition = "TEXT", nullable = false)
