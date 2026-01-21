@@ -132,7 +132,6 @@
 
         stompClient.connect(headers, function(frame) {
             console.log('STOMP Connected');
-
             const roomListTopic = `/topic/user/${myUserId}/rooms`;
             stompClient.subscribe(roomListTopic, function(payload) {
                 const response = JSON.parse(payload.body);
@@ -140,7 +139,6 @@
                     loadRooms();
                 }
             });
-
         }, function(error) {
             console.error('STOMP Error:', error);
             setTimeout(connectStomp, 5000);
@@ -163,7 +161,7 @@
                     el.onclick = () => enterRoom(room);
 
                     const img = room.roomImageUrl || 'https://via.placeholder.com/50?text=U';
-                    const timeStr = formatTime(room.lastMessageTime);
+                    const timeStr = formatTime(room.lastMessageTime || room.createdAt);
                     const lastMsg = room.lastMessageContent || '(내용 없음)';
 
                     let displayUnread = room.unreadCount;
@@ -213,7 +211,18 @@
             .then(res => res.json())
             .then(messages => {
                 if (!Array.isArray(messages)) return;
-                messages.reverse().forEach(msg => renderMessage(msg));
+
+                if (messages.length > 0) {
+                    console.log(messages[0]);
+                }
+
+                messages.sort((a, b) => {
+                    const t1 = new Date(typeof a.sentAt === 'number' && a.sentAt < 10000000000 ? a.sentAt * 1000 : (a.sentAt || a.createdAt || 0));
+                    const t2 = new Date(typeof b.sentAt === 'number' && b.sentAt < 10000000000 ? b.sentAt * 1000 : (b.sentAt || b.createdAt || 0));
+                    return t1 - t2;
+                });
+
+                messages.forEach(msg => renderMessage(msg));
                 scrollToBottom();
             })
             .catch(err => console.error("Msg Load Fail:", err));
@@ -223,10 +232,8 @@
         if (stompClient && stompClient.connected) {
             currentSubscription = stompClient.subscribe(subscribeUrl, function(payload) {
                 const response = JSON.parse(payload.body);
-
                 if (response.type === 'NEW_MESSAGE' || response.type === 'MESSAGE') {
                     const msg = response.data ? response.data : response;
-
                     if (String(msg.senderId) !== String(myUserId)) {
                         renderMessage(msg);
                         scrollToBottom();
@@ -263,9 +270,11 @@
             nameHtml = `<div class="sender-name">${msg.senderFirstName || 'Unknown'}</div>`;
         }
 
-        const timeStr = formatTime(msg.sentAt);
+        const timeVal = msg.sentAt || msg.createdAt || msg.time;
+        const timeStr = formatTime(timeVal);
+
         const bubbleHtml = `<div class="msg-bubble">${contentHtml}</div>`;
-        const timeHtml = `<span class="timestamp">${timeStr}</span>`;
+        const timeHtml = `<span class="timestamp" style="min-width: 60px; text-align: ${isMine ? 'right' : 'left'}">${timeStr}</span>`;
 
         let innerHTML = '';
         if (isMine) {
@@ -319,10 +328,50 @@
         }, 50);
     }
 
-    function formatTime(isoString) {
-        if (!isoString) return '';
-        const date = new Date(isoString);
-        return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    function formatTime(val) {
+        if (!val) return '';
+
+        try {
+            let date;
+
+            if (typeof val === 'number') {
+                if (val < 10000000000) {
+                    val *= 1000;
+                }
+                date = new Date(val);
+            }
+            else if (Array.isArray(val)) {
+                date = new Date(Date.UTC(
+                    val[0], val[1] - 1, val[2],
+                    val[3] || 0, val[4] || 0, val[5] || 0
+                ));
+            }
+            else {
+                let dateStr = String(val);
+
+                if (dateStr.includes('.')) {
+                    dateStr = dateStr.replace(/(\.\d{3})\d+/, '$1');
+                }
+
+                if (dateStr.indexOf('T') === -1 && dateStr.indexOf(' ') !== -1) {
+                     dateStr = dateStr.replace(' ', 'T');
+                }
+
+                if (dateStr.indexOf('T') !== -1 && dateStr.indexOf('Z') === -1 && dateStr.indexOf('+') === -1) {
+                    dateStr += 'Z';
+                }
+
+                date = new Date(dateStr);
+            }
+
+            if (isNaN(date.getTime())) return '';
+
+            return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+        } catch (e) {
+            console.error("formatTime Error:", e);
+            return '';
+        }
     }
 </script>
 
