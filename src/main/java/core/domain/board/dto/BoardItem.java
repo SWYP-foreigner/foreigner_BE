@@ -4,6 +4,8 @@ import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Schema(name = "BoardResponse", description = "게시글 카드 응답")
 public record BoardItem(
@@ -46,12 +48,43 @@ public record BoardItem(
         @Schema(description = "작성자 프로필 이미지 URL(익명 시 null)", nullable = true, example = "https://cdn.example.com/u/alice.png")
         String userImageUrl,
 
-        @Schema(description = "콘텐츠 이미지 URL(없으면 null)", nullable = true, example = "https://cdn.example.com/p/123.jpg")
-        String contentImageUrl,
-
-        @Schema(description = "콘텐츠 이미지 갯수 ", nullable = true, example = "2")
-        Integer imageCount,
-
         @Schema(description = "인기 점수(인기 정렬 시 커서용, 없으면 null)", nullable = true, example = "987654321")
-        Long score
-) { }
+        Long score,
+
+        PostInfo postInfo,
+
+        PollInfo pollInfo
+) {
+    public record PostInfo(
+            @Schema(description = "콘텐츠 이미지 URL(없으면 null)", nullable = true, example = "https://cdn.example.com/p/123.jpg")
+            String contentImageUrl,
+            @Schema(description = "콘텐츠 이미지 갯수 ", nullable = true, example = "2")
+            Integer imageCount
+    ) {
+        public PostInfo() {
+            this(null, null);
+        }
+    }
+
+    // 투표 상세 정보 (사용자님이 주신 PollItem 기반)
+    public record PollInfo(
+            String title,
+            Instant closeAt,
+            long totalVoteCount,
+            List<OptionItem> options,
+            Long selectedOptionId
+    ) {
+        public PollInfo() {
+            this(null, null, 0L, new ArrayList<>(), null);
+        }
+    }
+
+    public record OptionItem(
+            Long id,
+            String content,
+            long voteCount
+    ) {
+        public OptionItem() {
+            this(null, null, 0L);
+        }
+    }}

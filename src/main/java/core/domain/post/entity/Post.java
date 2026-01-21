@@ -2,6 +2,7 @@ package core.domain.post.entity;
 
 import core.domain.board.entity.Board;
 import core.domain.comment.entity.Comment;
+import core.domain.poll.entity.Poll;
 import core.domain.post.dto.comunity.PostWriteForChatRequest;
 import core.domain.post.dto.comunity.PostWriteRequest;
 import core.domain.user.entity.User;
@@ -63,6 +64,9 @@ public class Post {
     @Column(name = "check_count", nullable = false)
     private Long checkCount = 0L;
 
+    @OneToOne(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Poll poll;
+
     @OneToMany(mappedBy = "post", orphanRemoval = true, cascade = CascadeType.ALL)
     private List<Comment> comments = new ArrayList<>();
 
@@ -88,6 +92,18 @@ public class Post {
         this.board = board;
         this.anonymous = false;
         this.checkCount = 0L;
+    }
+
+    public Post(String content, User author, Board board, Boolean anonymous) {
+        this.content = content;
+        this.author = author;
+        this.board = board;
+        this.anonymous = anonymous != null ? anonymous : false;
+        this.checkCount = 0L;
+    }
+
+    public void initPoll(Poll poll) {
+        this.poll = poll;
     }
 
     public void changeContent(String content) {

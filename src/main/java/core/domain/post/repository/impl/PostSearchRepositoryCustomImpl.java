@@ -1,11 +1,13 @@
 package core.domain.post.repository.impl;
 
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import core.domain.poll.entity.QPoll;
 import core.domain.post.dto.search.PostSearchProjection;
 import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.entity.QPost;
@@ -20,7 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static core.domain.board.entity.QBoard.board;
 import static core.domain.post.entity.QPost.post;
+import static core.domain.user.entity.QUser.user;
 
 @Repository
 @RequiredArgsConstructor
@@ -45,6 +49,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
     @Override
     public List<PostSearchProjection> search(PostSearchRequest request) {
         QPost p = post;
+        QPoll poll = QPoll.poll;
 
         // --- PGroonga 매치/점수(Double) ---
         var match = Expressions.booleanTemplate(
@@ -88,9 +93,15 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                         p.anonymous,
                         p.checkCount,
                         score,
-                        scoreRounded
+                        scoreRounded,
+                        poll.title,
+                        poll.closeAt,
+                        poll.totalVoteCount.coalesce(0L)
                 ))
                 .from(p)
+                .join(p.author, user)
+                .join(p.board, board)
+                .leftJoin(p.poll, poll)
                 .where(where)
                 .orderBy(scoreRounded.desc(), p.createdAt.desc(), p.id.desc())
                 .limit(request.limit() + 1L)
@@ -107,7 +118,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
         );
 
         // 2. QueryDSL 실행
-        List<com.querydsl.core.Tuple> fetch = jpaQueryFactory
+        List<Tuple> fetch = jpaQueryFactory
                 .select(termPath, p.id.count())
                 .from(p)
                 .where(

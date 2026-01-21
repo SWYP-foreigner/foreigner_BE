@@ -5,6 +5,8 @@ import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainPageContentResponse;
 import core.domain.maincontent.service.MainContentService;
+import core.domain.maincontent.service.search.MainContentKeywordExtractor;
+import core.domain.post.service.MainContentSuggestIndex;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.MainContentErrorDocs;
 import core.global.enums.KNewsContentType;
@@ -31,10 +33,15 @@ public class MainContentController {
 
     private final MainContentService mainContentService;
     private final FeatureUsageMetrics featureUsageMetrics;
+    private final MainContentKeywordExtractor newsExtractor;
+    private final MainContentSuggestIndex mainContentSuggestIndex;
 
-    MainContentController(MainContentService mainContentService, FeatureUsageMetrics featureUsageMetrics) {
+
+    MainContentController(MainContentService mainContentService, FeatureUsageMetrics featureUsageMetrics, MainContentKeywordExtractor newsExtractor, MainContentSuggestIndex mainContentSuggestIndex) {
         this.mainContentService = mainContentService;
         this.featureUsageMetrics = featureUsageMetrics;
+        this.newsExtractor = newsExtractor;
+        this.mainContentSuggestIndex = mainContentSuggestIndex;
     }
 
     @Operation(summary = "메인페이지 K-News 최신 3개 조회")
@@ -66,7 +73,7 @@ public class MainContentController {
     @GetMapping("/{type}/list")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<MainContentNewsListResponse>>> getCategoryNews(
             @PathVariable KNewsContentType type,
-            @Parameter(description = "정렬 옵션", example = "LATEST") @RequestParam(defaultValue = "LATEST") MainContentSortOption sort,
+            @Parameter(description = "정렬 옵션", example = "TRENDING") @RequestParam(defaultValue = "TRENDING") MainContentSortOption sort,
             @Parameter(description = "응답의 nextCursor를 그대로 입력(첫 페이지는 비움)", example = "eyJ0IjoiMjAyNS0wOC0yMVQxMjowMDowMFoiLCJpZCI6MTAxfQ")
             @RequestParam(required = false) String cursor,
             @Parameter(description = "페이지 크기(1~50)", example = "20") @RequestParam(defaultValue = "20") int size
@@ -93,9 +100,11 @@ public class MainContentController {
             @Parameter(description = "조회할 콘텐츠의 ID", required = true, example = "1")
             @PathVariable Long contentId
     ) {
-        featureUsageMetrics.recordMainPageUsage();
-
         MainPageContentResponse response = mainContentService.getMainContent(contentId);
+
+        featureUsageMetrics.recordMainPageUsage();
+        extractedKeyword(response.htmlContent(), 1);
+
         return ResponseEntity.ok(response);
     }
 
@@ -115,5 +124,13 @@ public class MainContentController {
                 ));
     }
 
+    private void extractedKeyword(String content, int score) {
+        if (content != null && !content.isBlank()) {
+            // 상위 K만 반영
+            int K = 8;
+            var phrases = newsExtractor.extract(content, K);
+            phrases.forEach(p -> mainContentSuggestIndex.upsert(p, score));
+        }
+    }
 
 }

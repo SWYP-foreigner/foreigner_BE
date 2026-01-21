@@ -16,9 +16,6 @@ import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,6 +47,7 @@ public class BoardController {
                     - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달하세요.
                     - 정렬: LATEST(기본) | POPULAR
                     - 전체 게시글 조회: boardId=1 → ALL
+                    - vote : 2, Quiz :3 
                     
                     요청 예시
                     1) 첫 페이지:
@@ -92,6 +90,7 @@ public class BoardController {
                         postService.getPostList(boardId, sort, cursor, size)
                 ));
     }
+
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     @CommunityErrorDocs({CommunityErrorCode.BOARD_NOT_FOUND,})
     @Operation(
@@ -101,28 +100,8 @@ public class BoardController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "성공",
-                    content = @Content(
-                            mediaType = "application/json",
-                            // 리스트 응답 예시
-                            examples = @ExampleObject(
-                                    name = "성공 예시",
-                                    value = """
-                                            {
-                                              "success": true,
-                                              "data": [
-                                                { "categoryId": 10, "name": "공지" },
-                                                { "categoryId": 11, "name": "자유게시판" },
-                                                { "categoryId": 12, "name": "QnA" }
-                                              ]
-                                            }
-                                            """
-                            )
-                    )
+                    description = "성공"
             ),
-            @ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
     })
     @GetMapping("/categories")
     public ResponseEntity<core.global.dto.ApiResponse<List<CategoryListResponse>>> getCategories() {
@@ -140,26 +119,7 @@ public class BoardController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "성공",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = PostWriteAnonymousAvailableResponse.class),
-                            examples = @ExampleObject(
-                                    value = """
-                                            {
-                                              "success": true,
-                                              "data": {
-                                                "boardId": 10,
-                                                "anonymousWritable": true
-                                              }
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(responseCode = "400", description = "잘못된 요청", content = @Content),
-            @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content),
-            @ApiResponse(responseCode = "404", description = "보드 없음", content = @Content)
+                    description = "성공")
     })
     @GetMapping("/{boardId}/write-options")
     public ResponseEntity<core.global.dto.ApiResponse<PostWriteAnonymousAvailableResponse>> getWriteOptions(
