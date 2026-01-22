@@ -115,7 +115,11 @@ public class UserAdminService {
      */
     @Transactional(readOnly = true)
     public Page<ChatRoomInfoDto> getChatRoomsForUser(Long userId, Pageable pageable) {
-        Page<ChatParticipant> participants = chatParticipantRepository.findByUserId(userId, pageable);
+        Page<ChatParticipant> participants = chatParticipantRepository.findByUserIdAndStatus(
+                userId,
+                ChatParticipantStatus.ACTIVE,
+                pageable
+        );
 
         return participants.map(participant -> {
             ChatRoom room = participant.getChatRoom();
