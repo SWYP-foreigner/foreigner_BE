@@ -86,9 +86,12 @@ jobs:
       - name: Dump service logs on failure
         if: failure()
         run: |
-          docker ps
-          docker logs $(docker ps -q --filter "name=postgres") || true
-          docker logs $(docker ps -q --filter "name=redis") || true
+          echo "=== PostgreSQL Logs ==="
+          # groonga 이미지를 사용하는 컨테이너의 로그를 직접 출력
+          docker logs $(docker ps -q --filter "ancestor=groonga/pgroonga:latest")
+          
+          echo "=== Redis Logs ==="
+          docker logs $(docker ps -q --filter "ancestor=redis:7")
 
   build:
     needs: [ preflight, quality-tests ]
