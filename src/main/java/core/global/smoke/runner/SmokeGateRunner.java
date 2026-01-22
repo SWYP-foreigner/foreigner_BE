@@ -135,7 +135,7 @@ public class SmokeGateRunner {
         Map<String, String> loginReq = Map.of(
                 "email", props.getAdmin().getEmail(),
                 "password", props.getAdmin().getPassword(),
-                "otpCode", otpCode
+                "code", otpCode
         );
 
         String loginUrl = props.getBaseUrl() + props.getAdmin().getLoginPath();
