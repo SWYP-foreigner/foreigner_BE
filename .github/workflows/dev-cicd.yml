@@ -223,6 +223,7 @@ jobs:
             SMOKE_ADMIN_EMAIL=${{secrets.SMOKE_ADMIN_EMAIL}}
             SMOKE_ADMIN_PW=${{secrets.SMOKE_ADMIN_PW}}
             SMOKE_ADMIN_LOGIN_URL=${{secrets.SMOKE_ADMIN_LOGIN_URL}}
+            ADMIN_OTP_SECRET=${{secrets.ADMIN_OTP_SECRET}}
             SPRING_PROFILES_ACTIVE=dev
             SPRINGDOC_ENABLED=false
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
