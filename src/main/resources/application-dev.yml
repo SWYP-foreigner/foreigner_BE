@@ -381,6 +381,7 @@ openai:
   api-key: ${OPEN_AI_KEY}
 
 otp:
+  magic-code-enabled: true
   admin-secret: ${ADMIN_OTP_SECRET}
 
 

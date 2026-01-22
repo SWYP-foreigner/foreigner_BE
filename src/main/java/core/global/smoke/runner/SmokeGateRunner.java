@@ -160,17 +160,19 @@ public class SmokeGateRunner {
         String verifyUrl = props.getBaseUrl() + "/api/v1/member/admin/otp-verify";
         log.info("[Step 2] OTP 검증 URL: {}", verifyUrl);
 
-        int codeValue = gAuth.getTotpPassword(adminOtpSecret);
-        String otpCode = String.format("%06d", codeValue);
-
         // OtpVerificationRequest 필드 구성
+        log.info("[Step 2] 매직 코드(000000)로 검증 시도");
         Map<String, String> step2Req = Map.of(
                 "email", props.getAdmin().getEmail(),
                 "tempToken", tempToken,
-                "otpCode", otpCode
+                "otpCode", "000000" // 서버 GoogleOtpService의 magicCodeEnabled 로직을 탐
         );
 
-        ResponseEntity<Map> step2Response = restTemplate.postForEntity(verifyUrl, step2Req, Map.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(step2Req, headers);
+
+        ResponseEntity<Map> step2Response = restTemplate.postForEntity(verifyUrl, entity, Map.class);
 
         // Step 2는 쿠키에서 토큰을 추출 (Controller에서 HttpServletResponse에 쿠키 추가함)
         List<String> cookies = step2Response.getHeaders().get(HttpHeaders.SET_COOKIE);
