@@ -1,5 +1,6 @@
 package core.domain.aiuser.entity;
 
+import core.global.enums.AiType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -22,6 +23,10 @@ public class AiPersona {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_type", nullable = false, length = 20)
+    private AiType aiType = AiType.ALL;
+
     // AI 페르소나 정의
     @Column(name = "instruction", columnDefinition = "TEXT", nullable = false)
     private String instruction; // 시스템 프롬프트 (스크립트)
@@ -33,17 +38,22 @@ public class AiPersona {
     private boolean isActive = true;
 
     @Builder
-    public AiPersona(Long userId, String instruction, String backgroundInfo, Boolean isActive) {
+    public AiPersona(Long userId, AiType aiType, String instruction, String backgroundInfo, Boolean isActive) {
         this.userId = userId;
         this.instruction = instruction;
         this.backgroundInfo = backgroundInfo;
-        // 빌더에서 값을 넣지 않으면 기본값 true 유지, 넣으면 그 값 사용
+
+        if (aiType != null) {
+            this.aiType = aiType;
+        }
+
         if (isActive != null) {
             this.isActive = isActive;
         }
     }
 
-    public void updatePersona(String instruction, String backgroundInfo) {
+    public void updatePersona(AiType aiType, String instruction, String backgroundInfo) {
+        this.aiType = aiType;
         this.instruction = instruction;
         this.backgroundInfo = backgroundInfo;
     }
