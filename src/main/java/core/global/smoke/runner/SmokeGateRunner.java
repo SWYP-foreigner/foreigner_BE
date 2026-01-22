@@ -74,6 +74,14 @@ public class SmokeGateRunner {
 
             try {
                 HttpHeaders headers = new HttpHeaders();
+
+                if (c.getPath().contains("/ws") || c.getName().toLowerCase().contains("websocket")) {
+                    headers.set("Upgrade", "websocket");
+                    headers.set("Connection", "Upgrade");
+                    headers.set("Sec-WebSocket-Key", "x3JJHMbDL1EzLkh9GBhXDw==");
+                    headers.set("Sec-WebSocket-Version", "13");
+                }
+
                 if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL")) {
                     headers.setBearerAuth(accessToken);
                 }
