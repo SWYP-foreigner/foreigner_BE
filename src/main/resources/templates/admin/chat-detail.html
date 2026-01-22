@@ -22,9 +22,11 @@
         .btn { padding: 5px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; text-decoration: none; display: inline-block;}
         .btn-danger { background-color: #fa5252; color: white; }
         .btn-danger:hover { background-color: #e03131; }
+        .btn-warning { background-color: #ffc107; color: #212529; font-weight: bold; }
+        .btn-warning:hover { background-color: #e0a800; }
+
         .btn-sm { font-size: 0.8rem; padding: 4px 8px; }
 
-        /* [추가] 사용자 링크 스타일 */
         .user-link { color: #228be6; text-decoration: none; font-weight: 500; transition: color 0.2s; }
         .user-link:hover { text-decoration: underline; color: #1864ab; }
 
@@ -35,6 +37,10 @@
         .pagination a { margin: 0 5px; color: #495057; text-decoration: none; padding: 5px 10px; border: 1px solid #dee2e6; border-radius: 4px; }
         .pagination a.active { background-color: #228be6; color: white; border-color: #228be6; }
         .pagination a:hover:not(.active) { background-color: #f1f3f5; }
+
+        .alert { padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px; }
+        .alert-success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
     </style>
 </head>
 <body>
@@ -48,6 +54,9 @@
         </form>
     </div>
 
+    <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
+    <div th:if="${errorMessage}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
     <div class="room-info" th:object="${chatRoom}">
         <p><strong>ID:</strong> <span th:text="*{id}"></span></p>
         <p><strong>방 이름:</strong> <span th:text="*{roomName}"></span></p>
@@ -58,22 +67,24 @@
     <h2>참여자 목록</h2>
     <table>
         <colgroup>
+            <col style="width: 10%;">
+            <col style="width: 30%;">
+            <col style="width: 30%;">
             <col style="width: 15%;">
-            <col style="width: 35%;">
-            <col style="width: 35%;">
             <col style="width: 15%;">
         </colgroup>
         <thead>
         <tr>
-            <th>참여자 ID</th>
+            <th>ID</th>
             <th>사용자 이름</th>
             <th>참여 시각</th>
             <th>상태</th>
+            <th>관리</th>
         </tr>
         </thead>
         <tbody>
         <tr th:if="${participantPage.isEmpty()}">
-            <td colspan="4" style="text-align: center; color: #999; padding: 20px;">참여자가 없습니다.</td>
+            <td colspan="5" style="text-align: center; color: #999; padding: 20px;">참여자가 없습니다.</td>
         </tr>
         <tr th:each="p : ${participantPage.content}">
             <td th:text="${p.participantId}"></td>
@@ -83,7 +94,18 @@
                    th:text="${p.userName}"></a>
             </td>
             <td th:text="${#temporals.format(p.joinedAt, 'yyyy-MM-dd HH:mm')}"></td>
+
             <td th:text="${p.status}"></td>
+
+            <td>
+                <form th:if="${p.status.name() == 'ACTIVE'}"
+                      th:action="@{/admin/chats/{roomId}/participants/{userId}/leave(roomId=${chatRoom.id}, userId=${p.userId})}"
+                      method="post"
+                      onsubmit="return confirm('이 참여자를 강제로 퇴장시키겠습니까?');">
+                    <button type="submit" class="btn btn-warning btn-sm">나가기</button>
+                </form>
+                <span th:if="${p.status.name() != 'ACTIVE'}" style="color: #adb5bd; font-size: 0.85rem;">-</span>
+            </td>
         </tr>
         </tbody>
     </table>
