@@ -1,5 +1,6 @@
 package core.domain.admin.controller;
 
+import core.domain.admin.dto.AiUserListDto;
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.comment.dto.RecentCommentDto;
@@ -8,6 +9,7 @@ import core.domain.user.dto.*;
 import core.domain.user.entity.User;
 import core.domain.user.service.UserAdminService;
 import core.domain.aiuser.entity.AiPersona;
+import core.global.enums.AiType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -145,15 +147,16 @@ public class UserAdminViewController {
             @RequestParam(value = "password", required = false) String password,
             @RequestParam(value = "profileFile", required = false) MultipartFile profileFile,
             @RequestParam(value = "instruction") String instruction,
-            @RequestParam(value = "backgroundInfo", required = false) String backgroundInfo
+            @RequestParam(value = "backgroundInfo", required = false) String backgroundInfo,
+            @RequestParam(value = "aiType", defaultValue = "ALL") AiType aiType
     ) {
-        userAdminService.createAiUser(request, password, profileFile, instruction, backgroundInfo);
+        userAdminService.createAiUser(request, password, profileFile, instruction, backgroundInfo, aiType);
         return "redirect:/admin/users";
     }
 
     @GetMapping("/ai/invite")
     public String inviteAiPage(Model model) {
-        List<User> aiUsers = userAdminService.getAiUsers();
+        List<AiUserListDto> aiUsers = userAdminService.getAiUsers();
         List<ChatRoom> chatRooms = userAdminService.getGroupChatRooms();
 
         model.addAttribute("aiUsers", aiUsers);
@@ -189,6 +192,8 @@ public class UserAdminViewController {
         model.addAttribute("instruction", persona != null ? persona.getInstruction() : "");
         model.addAttribute("backgroundInfo", persona != null ? persona.getBackgroundInfo() : "");
 
+        model.addAttribute("aiType", persona != null ? persona.getAiType() : AiType.ALL);
+
         addAiFormAttributes(model);
 
         return "admin/user-edit-ai";
@@ -203,6 +208,7 @@ public class UserAdminViewController {
             @RequestParam(value = "profileFile", required = false) MultipartFile profileFile,
             @RequestParam(value = "instruction") String instruction,
             @RequestParam(value = "backgroundInfo", required = false) String backgroundInfo,
+            @RequestParam(value = "aiType", defaultValue = "ALL") AiType aiType,
             RedirectAttributes redirectAttributes,
             Model model
     ) {
@@ -211,6 +217,7 @@ public class UserAdminViewController {
             model.addAttribute("userId", userId);
             model.addAttribute("instruction", instruction);
             model.addAttribute("backgroundInfo", backgroundInfo);
+            model.addAttribute("aiType", aiType);
 
             String errorMessage = bindingResult.getAllErrors().get(0).getDefaultMessage();
             model.addAttribute("errorMessage", "입력값 오류: " + errorMessage);
@@ -219,7 +226,7 @@ public class UserAdminViewController {
         }
 
         try {
-            userAdminService.updateAiUser(userId, request, password, profileFile, instruction, backgroundInfo);
+            userAdminService.updateAiUser(userId, request, password, profileFile, instruction, backgroundInfo, aiType);
             redirectAttributes.addFlashAttribute("successMessage", "AI 유저 및 페르소나 정보가 수정되었습니다.");
         } catch (Exception e) {
             log.error("AI 유저 수정 중 오류 발생 - UserId: {}", userId, e);
@@ -253,7 +260,7 @@ public class UserAdminViewController {
 
     @GetMapping("/ai")
     public String aiUserListPage(Model model) {
-        List<User> aiUsers = userAdminService.getAiUsers();
+        List<AiUserListDto> aiUsers = userAdminService.getAiUsers();
 
         model.addAttribute("aiUsers", aiUsers);
         return "admin/user-list-ai";

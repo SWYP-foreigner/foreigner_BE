@@ -1,5 +1,6 @@
 package core.domain.user.service;
 
+import core.domain.admin.dto.AiUserListDto;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.dto.RecentMessageDto;
 import core.domain.chat.entity.ChatParticipant;
@@ -28,10 +29,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.image.service.ProfileImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.ChatParticipantStatus;
-import core.global.enums.FollowStatus;
-import core.global.enums.ImageType;
-import core.global.enums.Role;
+import core.global.enums.*;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -251,7 +249,7 @@ public class UserAdminService {
 
     @Transactional
     public void createAiUser(UserSetupRequest dto, String password, MultipartFile profileFile,
-                             String instruction, String backgroundInfo) {
+                             String instruction, String backgroundInfo, AiType aiType) {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String aiEmail;
 
@@ -322,6 +320,7 @@ public class UserAdminService {
 
         AiPersona persona = AiPersona.builder()
                 .userId(aiUser.getId())
+                .aiType(aiType)
                 .instruction(instruction)
                 .backgroundInfo(backgroundInfo)
                 .isActive(true)
@@ -359,7 +358,7 @@ public class UserAdminService {
 
     @Transactional
     public void updateAiUser(Long userId, UserSetupRequest dto, String password, MultipartFile profileFile,
-                             String instruction, String backgroundInfo) {
+                             String instruction, String backgroundInfo, AiType aiType) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
@@ -401,10 +400,11 @@ public class UserAdminService {
                 .orElse(null);
 
         if (persona != null) {
-            persona.updatePersona(instruction, backgroundInfo);
+            persona.updatePersona(aiType, instruction, backgroundInfo);
         } else {
             AiPersona newPersona = AiPersona.builder()
                     .userId(userId)
+                    .aiType(aiType)
                     .instruction(instruction)
                     .backgroundInfo(backgroundInfo)
                     .isActive(true)
@@ -451,8 +451,18 @@ public class UserAdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> getAiUsers() {
-        return userRepository.findAllByUserRole(Role.AI);
+    public List<AiUserListDto> getAiUsers() {
+        List<User> aiUsers = userRepository.findAllByUserRole(Role.AI);
+        List<AiUserListDto> result = new ArrayList<>();
+
+        for (User user : aiUsers) {
+            AiPersona persona = aiPersonaRepository.findByUserId(user.getId()).orElse(null);
+            AiType type = (persona != null) ? persona.getAiType() : AiType.ALL;
+
+            result.add(new AiUserListDto(user, type));
+        }
+
+        return result;
     }
 
     @Transactional(readOnly = true)

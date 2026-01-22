@@ -13,15 +13,8 @@
         .form-group { margin-bottom: 25px; }
         label { display: block; font-weight: bold; margin-bottom: 10px; font-size: 1rem; }
 
-        .select2-container .select2-selection--single {
-            height: 45px !important;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            top: 8px !important;
-        }
+        .select2-container .select2-selection--single { height: 45px !important; padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { top: 8px !important; }
 
         .btn-group { margin-top: 40px; text-align: center; }
         .btn { padding: 12px 30px; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; color: white; transition: background 0.2s; }
@@ -65,10 +58,11 @@
         <div class="form-group">
             <label for="userId">1. 초대할 AI 유저 선택</label>
             <select id="userId" name="userId" required>
-                <option value=""></option> <option th:each="user : ${aiUsers}"
-                                                   th:value="${user.id}"
-                                                   th:text="${user.firstName} + ' ' + ${user.lastName} + ' (' + ${user.email} + ')'">
-            </option>
+                <option value=""></option>
+                <option th:each="user : ${aiUsers}"
+                        th:value="${user.id}"
+                        th:text="${'[' + user.aiType + '] ' + user.name}">
+                </option>
             </select>
             <p class="info-text" th:if="${aiUsers.isEmpty()}">⚠️ 생성된 AI 유저가 없습니다.</p>
         </div>

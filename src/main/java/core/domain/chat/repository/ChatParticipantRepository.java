@@ -67,4 +67,10 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
             "WHERE cp.chatRoom.id = :roomId " +
             "AND cp.status = 'ACTIVE'")
     List<ChatParticipant> findActiveParticipants(@Param("roomId") Long roomId);
+
+    @Query("SELECT DISTINCT cp.chatRoom.id " +
+            "FROM ChatParticipant cp " +
+            "WHERE cp.user.userRole = 'AI' " +
+            "AND cp.status = 'ACTIVE'")
+    List<Long> findAllAiParticipatedRoomIds();
 }

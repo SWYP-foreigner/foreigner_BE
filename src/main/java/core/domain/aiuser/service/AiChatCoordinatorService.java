@@ -30,15 +30,25 @@ public class AiChatCoordinatorService {
     private final AiThinkingStateManager thinkingStateManager;
 
     private static final SecureRandom secureRandom = new SecureRandom();
+
+    // 1. 유저 활동 판단 기준 (1시간)
+    // - 마지막 사람이 말한 지 1시간 이내면 'Active Mode' (AI 절제)
+    // - 1시간이 지났으면 'Revival/Playground Mode' (AI 티키타카 허용)
+    private static final int HUMAN_SILENCE_THRESHOLD_MINUTES = 60;
+
+    // 2. 최근 화자 판단 기준 (5분)
     private static final int ACTIVE_TALKER_WINDOW_MINUTES = 5;
+
+    // 3. 한 턴당 최대 빠른 응답 수
     private static final int MAX_FAST_REPLIES_PER_TURN = 2;
 
     public void coordinateReplies(Long roomId, Set<User> aiParticipants, MessageCreatedEvent lastEvent, String userMessage) {
 
         boolean isGroupChat = chatRoomRepository.isGroupChat(roomId);
 
+        // 🟢 [변경됨] 단순 확률이 아니라, 상황(사람 유무)에 따라 확률을 달리 적용
         if (isGroupChat && shouldSkipByProbabilityDecay(roomId)) {
-            log.info("💤 AI Chat Faded out (Probability Decay triggered) | RoomId: {}", roomId);
+            log.info("💤 AI Chat Faded out (Decay Logic triggered) | RoomId: {}", roomId);
             return;
         }
 
@@ -48,7 +58,7 @@ public class AiChatCoordinatorService {
         // 1. DB상 마지막 화자 (과거)
         Long lastAiSpeakerId = findLastAiSpeakerId(roomId);
 
-        // 2. 우선순위 정렬 (DB 기록 + 🟢 현재 생각 중인 AI 포함)
+        // 2. 우선순위 정렬 (DB 기록 + 현재 생각 중인 AI 포함)
         sortParticipantsByPriority(aiList, roomId, userMessage, lastAiSpeakerId);
 
         if (aiList.isEmpty()) return;
@@ -67,12 +77,10 @@ public class AiChatCoordinatorService {
             // 2. Quota(쿼터) 체크
             boolean isDirectlyMentioned = isMentioned(userMessage, aiUser.getFirstName());
             boolean isLastSpeaker = (lastAiSpeakerId != null && aiUser.getId().equals(lastAiSpeakerId));
-
-            // 🟢 [NEW] 현재 생각 중인 AI도 Last Speaker와 동급으로 대우 (쿼터 면제/우선권)
             boolean isThinkingNow = thinkingStateManager.isThinking(roomId, aiUser.getId());
 
             if (responseType == ResponseType.FAST) {
-                // 멘션도 아니고, 마지막 화자도 아니고, 지금 말하고 있는 애도 아니면 -> 쿼터 적용
+                // 멘션도 아니고, 마지막 화자도 아니고, 지금 생각 중인 애도 아니면 -> 쿼터 적용
                 if (!isDirectlyMentioned && !isLastSpeaker && !isThinkingNow) {
                     if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
                         responseType = ResponseType.SLOW;
@@ -98,6 +106,87 @@ public class AiChatCoordinatorService {
         }
     }
 
+    /**
+     * 🟢 [핵심 로직 변경] 상황별(Context-Aware) 확률 감쇠
+     * + ⏰ [추가됨] 시간 단절(Time Gap) 체크: 오래된 대화는 Streak에 포함하지 않음
+     */
+    private boolean shouldSkipByProbabilityDecay(Long roomId) {
+        // AI Streak 및 마지막 인간 대화 시간 파악을 위해 넉넉히 20개 조회
+        List<ChatMessage> history = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(roomId);
+
+        int aiStreak = 0;
+        Instant lastHumanChatTime = null;
+        Instant previousMsgTime = null; // 직전 메시지(현재 루프보다 더 최신 메시지)의 시간
+
+        for (ChatMessage msg : history) {
+            // 1. 시간 단절 체크 (대화가 끊긴 지 오래됐으면 Streak 계산 중단)
+            if (previousMsgTime != null) {
+                long gapMinutes = Duration.between(msg.getSentAt(), previousMsgTime).toMinutes();
+                if (gapMinutes >= HUMAN_SILENCE_THRESHOLD_MINUTES) { // 60분 이상 차이나면
+                    break; // 여기서 카운팅 종료! (예전 대화는 무시)
+                }
+            }
+            previousMsgTime = msg.getSentAt(); // 시간 갱신
+
+            // 2. 역할 확인
+            if (msg.getSender().getUserRole() == Role.AI) {
+                if (lastHumanChatTime == null) {
+                    aiStreak++; // 사람 나오기 전까지 AI 연속 발언 카운트
+                }
+            } else {
+                // 사람 발견! 시간 기록하고 루프 종료
+                lastHumanChatTime = msg.getSentAt();
+                break;
+            }
+        }
+
+        // 모드 결정: 마지막 인간 대화가 60분 이내인가?
+        boolean isHumanActive = false;
+        if (lastHumanChatTime != null) {
+            long minutesSinceHuman = Duration.between(lastHumanChatTime, Instant.now()).toMinutes();
+            isHumanActive = (minutesSinceHuman < HUMAN_SILENCE_THRESHOLD_MINUTES);
+        } else {
+            // 사람이 아예 말한 적 없거나(null), 위 루프에서 끊겨서 null인 경우
+            // -> 즉, 아주 오랫동안 사람이 없었으므로 Revival 모드로 간주
+            isHumanActive = false;
+        }
+
+        // 상황에 맞는 확률 테이블 적용
+        int survivalProb = isHumanActive
+                ? getActiveModeProbability(aiStreak)   // 유저 있을 때 (엄격)
+                : getRevivalModeProbability(aiStreak); // 죽은 방 일 때 (널널)
+
+        // 주사위 굴리기 (확률보다 높으면 Skip)
+        return secureRandom.nextInt(100) >= survivalProb;
+    }
+
+    /**
+     * [Active Mode] 유저 대화 중: AI는 조미료 역할만 하고 빠르게 빠짐
+     */
+    private int getActiveModeProbability(int streak) {
+        return switch (streak) {
+            case 0 -> 100; // 첫 반응은 무조건
+            case 1 -> 80;  // 티키
+            case 2 -> 40;  // 타카 (여기서부터 급격히 감소)
+            case 3 -> 10;  // 뇌절 방지
+            default -> 0;
+        };
+    }
+
+    /**
+     * [Revival Mode] 유저 부재 중: AI끼리 대화를 길게 이어가며 분위기 조성
+     */
+    private int getRevivalModeProbability(int streak) {
+        return switch (streak) {
+            case 0, 1, 2 -> 100; // 초반 3턴은 무조건 이어감
+            case 3, 4 -> 90;     // 5턴까지도 높은 확률 유지
+            case 5 -> 70;        // 슬슬 마무리 각
+            case 6 -> 50;
+            case 7 -> 20;
+            default -> 0;
+        };
+    }
+
     private Long findLastAiSpeakerId(Long roomId) {
         List<ChatMessage> history = chatMessageRepository.findTop10ByChatRoomIdOrderBySentAtDesc(roomId);
         for (ChatMessage msg : history) {
@@ -108,10 +197,11 @@ public class AiChatCoordinatorService {
         return null;
     }
 
-    // 정렬 로직 (메모리 상태 'Thinking' 확인 추가)
     private void sortParticipantsByPriority(List<User> aiList, Long roomId, String userMessage, Long lastAiSpeakerId) {
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
         Set<Long> activeTalkerIds = new HashSet<>();
+
+        // Active Talker 미리 조회 (쿼리 최적화 가능 포인트지만 일단 유지)
         for (User ai : aiList) {
             if (chatMessageRepository.existsBySenderIdAndChatRoomIdAndSentAtAfter(ai.getId(), roomId, fiveMinutesAgo)) {
                 activeTalkerIds.add(ai.getId());
@@ -125,8 +215,7 @@ public class AiChatCoordinatorService {
             if (u1Mentioned && !u2Mentioned) return -1;
             if (!u1Mentioned && u2Mentioned) return 1;
 
-            // 🟢 2순위: 현재 생각 중(Processing)이거나 직전 화자(Last Speaker)
-            // (DB에 아직 안 들어갔어도, 지금 답변 생성 중이면 우선권을 줌)
+            // 2순위: 현재 생각 중이거나 직전 화자
             boolean u1Target = (lastAiSpeakerId != null && u1.getId().equals(lastAiSpeakerId))
                     || thinkingStateManager.isThinking(roomId, u1.getId());
             boolean u2Target = (lastAiSpeakerId != null && u2.getId().equals(lastAiSpeakerId))
@@ -147,7 +236,6 @@ public class AiChatCoordinatorService {
 
     private ResponseType determineResponseType(User aiUser, Long roomId, String userMessage, boolean isMainSpeaker) {
         if (thinkingStateManager.isThinking(roomId, aiUser.getId())) return ResponseType.FAST;
-
         if (isMentioned(userMessage, aiUser.getFirstName())) return ResponseType.FAST;
 
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
@@ -159,12 +247,10 @@ public class AiChatCoordinatorService {
         return (secureRandom.nextInt(100) < 30) ? ResponseType.FAST : ResponseType.SLOW;
     }
 
-    //  스케줄링 시 상태 마킹(Start) 및 해제(End) 추가
     private void scheduleFastResponse(User aiUser, MessageCreatedEvent event, String userMessage, boolean isMainSpeaker, long delayMs) {
         Instant executionTime = Instant.now().plusMillis(delayMs);
         Long roomId = event.messageResponse().roomId();
 
-        // 1. 스케줄링 등록 즉시 마킹 (순서 보장)
         thinkingStateManager.markAsThinking(roomId, aiUser.getId());
 
         taskScheduler.schedule(() -> {
@@ -173,7 +259,6 @@ public class AiChatCoordinatorService {
             } catch (Exception e) {
                 log.error("Fast Response Error", e);
             } finally {
-                // 2. 작업이 끝나면(성공이든 실패든) 무조건 해제
                 thinkingStateManager.finishThinking(roomId, aiUser.getId());
             }
         }, executionTime);
@@ -210,28 +295,6 @@ public class AiChatCoordinatorService {
         long thinkingVariance = secureRandom.nextLong(0, 1000);
 
         return baseReactionTime + readingTime + thinkingVariance;
-    }
-
-    private boolean shouldSkipByProbabilityDecay(Long roomId) {
-        List<ChatMessage> history = chatMessageRepository.findTop5ByChatRoomIdOrderBySentAtDesc(roomId);
-        int aiStreak = 0;
-        for (ChatMessage msg : history) {
-            if (msg.getSender().getUserRole() == Role.AI) {
-                aiStreak++;
-            } else {
-                break;
-            }
-        }
-        int survivalProb;
-        switch (aiStreak) {
-            case 0: survivalProb = 100; break;
-            case 1: survivalProb = 80;  break;
-            case 2: survivalProb = 50;  break;
-            case 3: survivalProb = 10;  break;
-            default: survivalProb = 0;  break;
-        }
-        int roll = secureRandom.nextInt(100);
-        return roll >= survivalProb;
     }
 
     private boolean isMentioned(String message, String name) {
