@@ -34,4 +34,10 @@ public class AiThinkingStateManager {
         Set<Long> thinkingAis = thinkingRegistry.get(roomId);
         return thinkingAis != null && thinkingAis.contains(aiUserId);
     }
+
+    // 방에 생각 중인 AI가 한 명이라도 있는지 확인
+    public boolean isAnyAiThinking(Long roomId) {
+        Set<Long> thinkingAis = thinkingRegistry.get(roomId);
+        return thinkingAis != null && !thinkingAis.isEmpty();
+    }
 }

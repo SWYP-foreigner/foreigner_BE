@@ -5,7 +5,7 @@
     <title>AI 유저 목록</title>
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background-color: #f8f9fa; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         h1 { border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -16,6 +16,11 @@
         tr.clickable-row:hover { background-color: #e7f5ff; }
 
         .badge-ai { background-color: #28a745; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+
+        .badge-type { padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; border: 1px solid; }
+        .type-ALL { background-color: #e7f5ff; color: #1c7ed6; border-color: #a5d8ff; }
+        .type-SOLO_ONLY { background-color: #e6fcf5; color: #0ca678; border-color: #96f2d7; }
+        .type-GROUP_ONLY { background-color: #f3f0ff; color: #7950f2; border-color: #d0bfff; }
 
         .btn-create { background-color: #007bff; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9rem; }
         .btn-create:hover { background-color: #0056b3; }
@@ -41,9 +46,9 @@
     <table th:unless="${#lists.isEmpty(aiUsers)}">
         <thead>
         <tr>
-            <th style="width: 80px;">ID</th>
+            <th style="width: 60px;">ID</th>
             <th>이름</th>
-            <th>사용 목적</th>
+            <th>활동 타입</th> <th>사용 목적</th>
             <th>언어</th>
             <th>가입일</th>
             <th>상태</th>
@@ -54,9 +59,16 @@
             th:onclick="|location.href='@{/admin/users/{id}(id=${user.id})}'|">
 
             <td th:text="${user.id}"></td>
+
             <td>
-                <span th:text="${user.firstName + ' ' + user.lastName}" style="font-weight: bold;"></span>
+                <span th:text="${user.name}" style="font-weight: bold;"></span>
             </td>
+
+            <td>
+                <span th:class="'badge-type type-' + ${user.aiType}"
+                      th:text="${user.aiType}">ALL</span>
+            </td>
+
             <td th:text="${user.purpose}"></td>
             <td th:text="${user.language}"></td>
             <td th:text="${#temporals.format(user.createdAt, 'yyyy-MM-dd')}"></td>
