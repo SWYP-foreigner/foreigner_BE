@@ -138,8 +138,11 @@ public class SmokeGateRunner {
                 "otpCode", otpCode
         );
 
+        String loginUrl = props.getBaseUrl() + props.getAdmin().getLoginPath();
+        log.info("로그인 시도 URL: {}", loginUrl);
+
         ResponseEntity<String> response = restTemplate.postForEntity(
-                props.getAdmin().getLoginPath(),
+                loginUrl,
                 loginReq,
                 String.class
         );
