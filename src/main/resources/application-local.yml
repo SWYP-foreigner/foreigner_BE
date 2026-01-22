@@ -174,8 +174,7 @@ openai:
   api-key: ${OPEN_AI_KEY}
 
 otp:
-  issuer: "Kori-Admin (Local)"
-  magic-code-enabled: true
+  admin-secret: ${ADMIN_OTP_SECRET}
 
 encryption:
   secret: ${ENCRYPTION_SECRET}

@@ -1,8 +1,10 @@
 package core.global.smoke.runner;
 
+import com.warrenstrange.googleauth.GoogleAuthenticator;
 import core.global.smoke.dto.SmokeItem;
 import core.global.smoke.dto.SmokeResult;
 import core.global.smoke.utils.SmokeProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -17,6 +19,10 @@ public class SmokeGateRunner {
 
     private final SmokeProperties props;
     private final RestTemplate restTemplate;
+    private final GoogleAuthenticator gAuth = new GoogleAuthenticator();
+
+    @Value("${otp.admin-secret}")
+    private String adminOtpSecret;
 
     public SmokeGateRunner(SmokeProperties props, RestTemplate restTemplate) {
         this.props = props;
@@ -119,9 +125,13 @@ public class SmokeGateRunner {
     // 관리자 토큰 발급 로직
     private String fetchAdminToken() {
         // 로그인 API 응답 구조에 맞는 DTO 필요 (예: LoginResponse.accessToken)
+        int code = gAuth.getTotpPassword(adminOtpSecret);
+        String otpCode = String.format("%06d", code);
+
         Map<String, String> loginReq = Map.of(
                 "email", props.getAdmin().getEmail(),
-                "password", props.getAdmin().getPassword()
+                "password", props.getAdmin().getPassword(),
+                "otpCode", otpCode
         );
 
         try {
@@ -143,7 +153,7 @@ public class SmokeGateRunner {
                     .orElseThrow(() -> new RuntimeException("accessToken cookie not found"));
 
         } catch (Exception e) {
-            throw new RuntimeException("Admin Login Failed", e);
+            throw new RuntimeException("Admin Login Failed with Real OTP", e);
         }
     }
 
