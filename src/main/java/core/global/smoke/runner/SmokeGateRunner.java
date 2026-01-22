@@ -4,6 +4,7 @@ import com.warrenstrange.googleauth.GoogleAuthenticator;
 import core.global.smoke.dto.SmokeItem;
 import core.global.smoke.dto.SmokeResult;
 import core.global.smoke.utils.SmokeProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class SmokeGateRunner {
 
@@ -33,10 +35,14 @@ public class SmokeGateRunner {
         long started = System.currentTimeMillis();
         String accessToken = null;
 
+        log.info("===== Smoke Test 시작 (모드: {}) =====", mode);
+
         if ("full".equalsIgnoreCase(mode)) {
             try {
                 accessToken = fetchAdminToken();
+                log.info("관리자 인증 성공");
             } catch (Exception e) {
+                log.error("관리자 인증 실패: {}", e.getMessage());
                 return createLoginFailureResult(mode, started, e);
             }
         }
@@ -45,27 +51,28 @@ public class SmokeGateRunner {
                 ? props.getFull()
                 : props.getGate();
 
-        if (cases == null) cases = List.of();
+        if (cases == null) {
+            log.warn("실행할 테스트 케이스가 없습니다.");
+            cases = List.of();
+        }
 
-        // 성공/실패 리스트 분리
         List<SmokeItem> passedItems = new ArrayList<>();
         List<SmokeItem> failedItems = new ArrayList<>();
 
         int passed = 0;
         int failed = 0;
-        Duration perRequestTimeout = Duration.ofSeconds(3);
 
         for (var c : cases) {
-            if ("LOGIN".equalsIgnoreCase(c.getType())) {
-                continue;
-            }
+            if ("LOGIN".equalsIgnoreCase(c.getType())) continue;
 
             long s = System.currentTimeMillis();
-            try {
-                String targetUrl = c.getType().equalsIgnoreCase("EXTERNAL")
-                        ? c.getPath()
-                        : props.getBaseUrl() + c.getPath();
+            String targetUrl = c.getType().equalsIgnoreCase("EXTERNAL")
+                    ? c.getPath()
+                    : props.getBaseUrl() + c.getPath();
 
+            log.info("[테스트 중] {} -> {} {}", c.getName(), c.getMethod(), targetUrl);
+
+            try {
                 HttpHeaders headers = new HttpHeaders();
                 if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL")) {
                     headers.setBearerAuth(accessToken);
@@ -76,8 +83,6 @@ public class SmokeGateRunner {
 
                 HttpEntity<Object> requestEntity = new HttpEntity<>(c.getBody(), headers);
 
-                // 3. RestTemplate 호출 (WebClient.exchange...block 대체)
-                // c.getMethod()가 "GET", "POST" 등의 문자열로 들어오므로 HttpMethod로 변환
                 ResponseEntity<String> response = restTemplate.exchange(
                         targetUrl,
                         HttpMethod.valueOf(c.getMethod().toUpperCase()),
@@ -96,35 +101,34 @@ public class SmokeGateRunner {
                 if (ok) {
                     passed++;
                     passedItems.add(item);
+                    log.info("  >> [성공] 결과: {}, 소요시간: {}ms", status, (System.currentTimeMillis() - s));
                 } else {
                     failed++;
                     failedItems.add(item);
+                    log.warn("  >> [실패] 예상상태: {}, 실제상태: {}", c.getExpectedStatus(), status);
                 }
             } catch (Exception e) {
                 failed++;
+                String errorMsg = e.getClass().getSimpleName() + ": " + safeMsg(e.getMessage());
                 failedItems.add(new SmokeItem(
                         c.getName(), c.getMethod(), c.getPath(),
-                        null, System.currentTimeMillis() - s, false,
-                        e.getClass().getSimpleName() + ": " + safeMsg(e.getMessage())
+                        null, System.currentTimeMillis() - s, false, errorMsg
                 ));
+                log.error("  >> [예외 발생] 메시지: {}", errorMsg);
             }
         }
 
+        log.info("===== Smoke Test 완료 (성공: {}, 실패: {}, 총 소요시간: {}ms) =====",
+                passed, failed, (System.currentTimeMillis() - started));
+
         return new SmokeResult(
-                mode,
-                (failed == 0),
-                cases.size(),
-                passed,
-                failed,
-                System.currentTimeMillis() - started,
-                passedItems,
-                failedItems
+                mode, (failed == 0), cases.size(), passed, failed,
+                System.currentTimeMillis() - started, passedItems, failedItems
         );
     }
 
-    // 관리자 토큰 발급 로직
     private String fetchAdminToken() {
-        // 로그인 API 응답 구조에 맞는 DTO 필요 (예: LoginResponse.accessToken)
+        log.info("관리자 OTP 토큰 생성 및 로그인 시도 중...");
         int code = gAuth.getTotpPassword(adminOtpSecret);
         String otpCode = String.format("%06d", code);
 
@@ -134,27 +138,22 @@ public class SmokeGateRunner {
                 "otpCode", otpCode
         );
 
-        try {
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    props.getAdmin().getLoginPath(),
-                    loginReq,
-                    String.class
-            );
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                props.getAdmin().getLoginPath(),
+                loginReq,
+                String.class
+        );
 
-            List<String> cookies = response.getHeaders().get("Set-Cookie");
-            if (cookies == null || cookies.isEmpty()) {
-                throw new RuntimeException("No Set-Cookie header found");
-            }
-
-            return cookies.stream()
-                    .filter(cookie -> cookie.startsWith("accessToken="))
-                    .map(cookie -> cookie.split(";")[0].split("=")[1])
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("accessToken cookie not found"));
-
-        } catch (Exception e) {
-            throw new RuntimeException("Admin Login Failed with Real OTP", e);
+        List<String> cookies = response.getHeaders().get("Set-Cookie");
+        if (cookies == null || cookies.isEmpty()) {
+            throw new RuntimeException("쿠키 헤더(Set-Cookie)가 응답에 없습니다.");
         }
+
+        return cookies.stream()
+                .filter(cookie -> cookie.startsWith("accessToken="))
+                .map(cookie -> cookie.split(";")[0].split("=")[1])
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("accessToken 쿠키를 찾을 수 없습니다."));
     }
 
     private SmokeResult createLoginFailureResult(String mode, long started, Exception e) {
