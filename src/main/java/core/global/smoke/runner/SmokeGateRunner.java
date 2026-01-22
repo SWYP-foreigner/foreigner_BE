@@ -128,35 +128,64 @@ public class SmokeGateRunner {
     }
 
     private String fetchAdminToken() {
-        log.info("관리자 OTP 토큰 생성 및 로그인 시도 중...");
-        int code = gAuth.getTotpPassword(adminOtpSecret);
-        String otpCode = String.format("%06d", code);
+        log.info("===== 관리자 2단계 인증 시작 =====");
 
-        Map<String, String> loginReq = Map.of(
-                "email", props.getAdmin().getEmail(),
-                "password", props.getAdmin().getPassword(),
-                "code", otpCode
-        );
-
+        // [Step 1] ID/PW 로그인 시도
         String loginUrl = props.getBaseUrl() + props.getAdmin().getLoginPath();
-        log.info("로그인 시도 URL: {}", loginUrl);
+        log.info("[Step 1] 로그인 시도 URL: {}", loginUrl);
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                loginUrl,
-                loginReq,
-                String.class
+        Map<String, String> step1Req = Map.of(
+                "email", props.getAdmin().getEmail(),
+                "password", props.getAdmin().getPassword()
         );
 
-        List<String> cookies = response.getHeaders().get("Set-Cookie");
-        if (cookies == null || cookies.isEmpty()) {
-            throw new RuntimeException("쿠키 헤더(Set-Cookie)가 응답에 없습니다.");
+        // ApiResponse<AdminLoginStep1Response> 파싱
+        ResponseEntity<Map> step1Response = restTemplate.postForEntity(loginUrl, step1Req, Map.class);
+        Map<String, Object> step1Body = step1Response.getBody();
+
+        if (step1Body == null || step1Body.get("data") == null) {
+            throw new RuntimeException("Step 1 응답 데이터가 없습니다.");
         }
 
-        return cookies.stream()
+        // AdminLoginStep1Response DTO 내부의 tempToken 추출
+        Map<String, Object> data1 = (Map<String, Object>) step1Body.get("data");
+        String tempToken = (String) data1.get("tempToken");
+
+        if (tempToken == null) {
+            throw new RuntimeException("Step 1 실패: tempToken이 응답에 포함되지 않았습니다.");
+        }
+        log.info("[Step 1] 성공: tempToken 획득 완료");
+
+        // [Step 2] OTP 검증 시도
+        String verifyUrl = props.getBaseUrl() + "/api/v1/member/admin/otp-verify";
+        log.info("[Step 2] OTP 검증 URL: {}", verifyUrl);
+
+        int codeValue = gAuth.getTotpPassword(adminOtpSecret);
+        String otpCode = String.format("%06d", codeValue);
+
+        // OtpVerificationRequest 필드 구성
+        Map<String, String> step2Req = Map.of(
+                "email", props.getAdmin().getEmail(),
+                "tempToken", tempToken,
+                "otpCode", otpCode
+        );
+
+        ResponseEntity<Map> step2Response = restTemplate.postForEntity(verifyUrl, step2Req, Map.class);
+
+        // Step 2는 쿠키에서 토큰을 추출 (Controller에서 HttpServletResponse에 쿠키 추가함)
+        List<String> cookies = step2Response.getHeaders().get(HttpHeaders.SET_COOKIE);
+        if (cookies == null || cookies.isEmpty()) {
+            throw new RuntimeException("Step 2 실패: 응답 헤더에 Set-Cookie가 없습니다.");
+        }
+
+        String accessToken = cookies.stream()
                 .filter(cookie -> cookie.startsWith("accessToken="))
                 .map(cookie -> cookie.split(";")[0].split("=")[1])
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("accessToken 쿠키를 찾을 수 없습니다."));
+
+        log.info("===== 관리자 2단계 인증 최종 성공 =====");
+        return accessToken;
     }
 
     private SmokeResult createLoginFailureResult(String mode, long started, Exception e) {
