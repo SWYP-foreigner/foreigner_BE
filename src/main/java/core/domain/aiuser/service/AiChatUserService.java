@@ -13,6 +13,7 @@ import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
 import core.global.enums.MessageType;
+import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,8 +34,18 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AiChatUserService {
 
+    private static final int ACTIVE_CONVERSATION_MINUTES = 30; // 30분 이내면 대화 중으로 간주
+    private static final int REVIVAL_CRITERIA_MINUTES = 120;   // 2시간(120분) 이상 침묵 시 부활 모드
+
     private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(gpt|openai|ai|language model|인공지능|언어 모델)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(ignore|instruction|system|override|무시해|명령)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
+
+    private static final Pattern KOREAN_JOSA_PATTERN = Pattern.compile("(은|는|이|가|을|를|의|에|에서|로|으로|과|와|도|만|보다|처럼|까지|마저|조차|이랑|랑|이나|나|인데|일까|인가|입니다|에요|데요|한테|에게|께|이랑)$");
+
+    private static final List<String> STOP_WORDS = List.of(
+            "진짜", "정말", "너무", "그냥", "아니", "근데", "오늘", "지금", "혹시", "다들", "안녕",
+            "ㅋㅋ", "ㅎㅎ", "ㅠㅠ", "어때", "무슨", "어떤", "뭔데", "있어", "없어", "좋아", "싫어"
+    );
 
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
@@ -42,7 +53,7 @@ public class AiChatUserService {
     private final ChatRoomRepository chatRoomRepository;
     private final AiClient aiClient;
     private final TransactionTemplate transactionTemplate;
-    private final AiPromptManager aiPromptManager; // 🟢 [NEW] 프롬프트 매니저 주입
+    private final AiPromptManager aiPromptManager;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     public boolean processAiResponse(User aiUser, MessageCreatedEvent event, String combinedUserMessage, boolean isMainSpeaker) {
@@ -120,7 +131,6 @@ public class AiChatUserService {
                 .count();
         boolean isLooping = loopCount >= 3;
 
-        // 응답 여부 판단 (Tiki-Taka Logic Included)
         if (!shouldReply(combinedUserMessage, aiUser, chatRoomId, isMainSpeaker, isGroupChat, historyDesc)) {
             return null;
         }
@@ -128,7 +138,6 @@ public class AiChatUserService {
         List<ChatMessage> historyAsc = new ArrayList<>(historyDesc);
         Collections.reverse(historyAsc);
 
-        // 🟢 [NEW] 프롬프트 생성 위임
         AiPersona persona = aiPersonaRepository.findByUserId(aiUser.getId()).orElse(null);
         String systemPrompt = aiPromptManager.buildSystemPrompt(aiUser, persona, historyAsc);
 
@@ -141,6 +150,7 @@ public class AiChatUserService {
         return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
 
+    // 🟢 [Logic] 시간 상수 적용 및 정규식 토픽 오너 판단
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
@@ -148,105 +158,188 @@ public class AiChatUserService {
             log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
-
         if (!isGroupChat) {
             log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
             return true;
         }
 
-        if (message.trim().startsWith("@") && !isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
-            log.info("AI [{}] 🔴 Skip: Mentioned someone else.", aiName);
-            return false;
-        }
-
-        long aiDuplicateCount = recentHistory.stream()
-                .limit(5)
-                .filter(msg -> msg.getContent().trim().equals(message.trim()))
-                .count();
+        long aiDuplicateCount = recentHistory.stream().limit(5)
+                .filter(msg -> msg.getContent().trim().equals(message.trim())).count();
         if (aiDuplicateCount >= 2) {
             log.info("AI [{}] 🔴 Skip: Parrot protection.", aiName);
             return false;
         }
 
-        boolean isHobbyTriggered = false;
-        String hobby = aiUser.getHobby();
-        if (hobby != null && !hobby.isBlank()) {
-            for (String h : hobby.split(",")) {
-                if (message.contains(h.trim())) {
-                    isHobbyTriggered = true;
-                    break;
+        boolean isPrevSenderAi = false;
+        boolean isReplyToUser = false;
+        boolean isRevivalAttempt = false;
+        long minutesDiff = 0;
+
+        if (!recentHistory.isEmpty()) {
+            ChatMessage currentMsg = recentHistory.get(0);
+            isPrevSenderAi = isAi(currentMsg.getSender());
+
+            if (isPrevSenderAi) {
+                ChatMessage targetMsg = null;
+                for (int i = 1; i < Math.min(recentHistory.size(), 10); i++) {
+                    ChatMessage pastMsg = recentHistory.get(i);
+                    if (!pastMsg.getSender().getId().equals(currentMsg.getSender().getId())) {
+                        targetMsg = pastMsg;
+                        break;
+                    }
+                }
+
+                if (targetMsg != null) {
+                    minutesDiff = java.time.Duration.between(
+                            targetMsg.getSentAt(),
+                            currentMsg.getSentAt()
+                    ).toMinutes();
+
+                    if (minutesDiff >= REVIVAL_CRITERIA_MINUTES) {
+                        isRevivalAttempt = true;
+                        isReplyToUser = false;
+                        log.info("AI [{}] Context: Revival Attempt Detected! (Gap: {} mins)", aiName, minutesDiff);
+                    } else if (minutesDiff < ACTIVE_CONVERSATION_MINUTES) {
+                        isReplyToUser = !isAi(targetMsg.getSender());
+                    } else {
+                        isReplyToUser = false;
+                    }
+                } else {
+                    isRevivalAttempt = true;
+                }
+            } else {
+                if (recentHistory.size() >= 2) {
+                    ChatMessage prevMsg = recentHistory.get(1);
+                    minutesDiff = java.time.Duration.between(
+                            prevMsg.getSentAt(),
+                            currentMsg.getSentAt()
+                    ).toMinutes();
                 }
             }
         }
 
-        // 티키타카 모드 감지 (연속 채팅 대응)
-        boolean isReplyToMe = false;
+        boolean isUserToUserActive = !isPrevSenderAi && (recentHistory.size() >= 2) && (minutesDiff < ACTIVE_CONVERSATION_MINUTES);
+
+        // 🟢 정규식 기반 토픽 오너 판단 호출
+        boolean isTopicOwner = isTopicOwner(message, aiUser.getId(), recentHistory);
+        boolean isContextOwner = false;
+
         if (!recentHistory.isEmpty()) {
-            Long currentSenderId = recentHistory.get(0).getSender().getId();
-            // Index 1부터 과거로 탐색 (최대 7개)
-            for (int i = 1; i < Math.min(recentHistory.size(), 7); i++) {
+            for (int i = 1; i < Math.min(recentHistory.size(), 5); i++) {
                 ChatMessage pastMsg = recentHistory.get(i);
-                Long pastSenderId = pastMsg.getSender().getId();
-
-                if (pastSenderId.equals(currentSenderId)) continue; // 연속 메시지 건너뜀
-
-                if (pastSenderId.equals(aiUser.getId())) {
-                    isReplyToMe = true;
+                if (!pastMsg.getSender().getId().equals(recentHistory.get(0).getSender().getId())) {
+                    if (pastMsg.getSender().getId().equals(aiUser.getId())) {
+                        isContextOwner = true;
+                    }
+                    break;
                 }
-                break;
             }
         }
 
         int prob;
         String reason;
 
-        if (isReplyToMe) {
-            prob = 100;
-            reason = "Tiki-Taka (Reply to AI)";
-        } else if (isHobbyTriggered) {
-            prob = 100;
-            reason = "Hobby Trigger (Active)";
+        if (isTopicOwner) {
+            prob = 100; reason = "🎯 Topic Owner";
+        } else if (isContextOwner) {
+            prob = 100; reason = "👑 Context Owner";
+        } else if (isGroupCall(message)) {
+            prob = 70; reason = "📢 Group Call";
         } else if (isMainSpeaker) {
-            if (message.contains("?") || isGroupCall(message)) {
-                prob = 80;
-                reason = "Main Speaker (Question/Call - Active)";
+            if (isUserToUserActive) {
+                prob = 5; reason = "🤫 Main Speaker (User-to-User Silence)";
             } else {
-                prob = 50;
-                reason = "Main Speaker (Chatter - Active)";
+                if (message.contains("?") || message.endsWith("?")) {
+                    prob = 90; reason = "🔥 Main Speaker (Q)";
+                } else {
+                    prob = 60; reason = "🔥 Main Speaker (A)";
+                }
             }
         } else {
-            if (isGroupCall(message)) {
-                prob = 80;
-                reason = "Lurker (Group Call - Active)";
+            if (isPrevSenderAi) {
+                if (isRevivalAttempt) {
+                    prob = 85; reason = "🚑 Revival Support";
+                } else if (isReplyToUser) {
+                    prob = 5; reason = "🤫 Shush! (User-AI Talk)";
+                } else {
+                    prob = 35; reason = "🎉 Party Mode";
+                }
             } else {
-                prob = 20;
-                reason = "Lurker Injection (Active)";
+                prob = 2; reason = "🧊 Strict Mode";
             }
         }
 
-        // 피로도 체크 (Main Speaker 질문 무시 로직 적용)
-        if (!isReplyToMe) {
-            boolean talkedRecently = recentHistory.stream()
-                    .limit(4)
-                    .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
+        boolean ignoreFatigue = isTopicOwner || isRevivalAttempt || isContextOwner;
 
+        if (!isMentioned(message, aiUser.getFirstName(), aiUser.getLastName()) && !ignoreFatigue) {
+            boolean talkedRecently = recentHistory.stream().limit(4)
+                    .anyMatch(msg -> msg.getSender().getId().equals(aiUser.getId()));
             if (talkedRecently) {
-                if (isMainSpeaker && (message.contains("?") || isGroupCall(message))) {
-                    log.info("AI [{}] ⚡ Fatigue Ignored (Main Speaker + Question).", aiName);
-                } else {
-                    prob = prob / 2;
-                    reason += " + Fatigue Penalty";
-                }
+                prob = prob / 2;
+                reason += " + Fatigue";
             }
         }
 
         int roll = secureRandom.nextInt(100);
         boolean result = roll < prob;
-
-        log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).",
-                aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
-
+        log.info("AI [{}] {} Logic: {} (Prob: {}%, Roll: {}).", aiName, result ? "🟢 Reply:" : "🔴 Skip:", reason, prob, roll);
         return result;
+    }
+
+    // 🟢 [Logic] 정규식 기반 토픽 오너 판단 (KOMORAN 제거됨)
+    private boolean isTopicOwner(String userMessage, Long aiUserId, List<ChatMessage> history) {
+        if (userMessage == null || userMessage.isBlank()) return false;
+
+        // 1. 키워드 추출 (Regex 사용)
+        List<String> userKeywords = extractKeywords(userMessage);
+
+        if (userKeywords.isEmpty()) return false;
+
+        // 2. 매칭 검사
+        for (int i = 1; i < Math.min(history.size(), 10); i++) {
+            ChatMessage msg = history.get(i);
+            if (!msg.getSender().getId().equals(aiUserId)) continue;
+
+            String myContent = msg.getContent();
+            if (myContent == null) continue;
+
+            for (String keyword : userKeywords) {
+                if (myContent.contains(keyword)) return true;
+
+                // 내 메시지에서도 조사를 뗀 단어와 매칭 시도
+                String[] myWords = myContent.split("\\s+");
+                for (String myWord : myWords) {
+                    if (stripJosa(myWord).equals(keyword)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // 🟢 [Helper] 키워드 추출
+    private List<String> extractKeywords(String message) {
+        String[] words = message.split("\\s+");
+        List<String> keywords = new ArrayList<>();
+
+        for (String word : words) {
+            String cleanWord = word.replaceAll("[^가-힣a-zA-Z0-9]", "");
+            String noun = stripJosa(cleanWord);
+
+            if (noun.length() >= 2 && !STOP_WORDS.contains(noun)) {
+                keywords.add(noun);
+            }
+        }
+        return keywords;
+    }
+
+    // 🟢 [Helper] 조사 제거
+    private String stripJosa(String word) {
+        return KOREAN_JOSA_PATTERN.matcher(word).replaceAll("");
+    }
+
+    private boolean isAi(User user) {
+        if (user == null) return false;
+        return Role.AI.equals(user.getUserRole());
     }
 
     private static final List<String> GROUP_CALL_KEYWORDS = List.of(
