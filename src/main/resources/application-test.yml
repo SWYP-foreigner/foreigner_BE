@@ -386,3 +386,7 @@ otp:
 
 encryption:
   secret: ${ENCRYPTION_SECRET}
+
+
+otp:
+  admin-secret: ${ADMIN_OTP_SECRET}

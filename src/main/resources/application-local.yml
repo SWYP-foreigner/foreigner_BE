@@ -1,7 +1,8 @@
 spring:
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
+    out-of-order: true
   config:
     activate:
       on-profile: local
@@ -49,11 +50,11 @@ spring:
         enabled: false
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
-        format_sql: false
+        format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:

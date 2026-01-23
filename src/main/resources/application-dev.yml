@@ -371,16 +371,16 @@ smoke:
 
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
-      type: "INTERNAL"
-      method: "GET"
       path: "/ws"
-      expectedStatus: 400 # WebSocket은 일반 GET으로 찌르면 400(Bad Request) 반환이 정상 생존 신호
+      method: "GET"
+      expectedStatus: 101
 
 
 openai:
   api-key: ${OPEN_AI_KEY}
 
 otp:
+  magic-code-enabled: true
   admin-secret: ${ADMIN_OTP_SECRET}
 
 

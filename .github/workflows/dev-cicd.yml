@@ -86,9 +86,12 @@ jobs:
       - name: Dump service logs on failure
         if: failure()
         run: |
-          docker ps
-          docker logs $(docker ps -q --filter "name=postgres") || true
-          docker logs $(docker ps -q --filter "name=redis") || true
+          echo "=== PostgreSQL Logs ==="
+          # groonga 이미지를 사용하는 컨테이너의 로그를 직접 출력
+          docker logs $(docker ps -q --filter "ancestor=groonga/pgroonga:latest")
+          
+          echo "=== Redis Logs ==="
+          docker logs $(docker ps -q --filter "ancestor=redis:7")
 
   build:
     needs: [ preflight, quality-tests ]
@@ -223,6 +226,7 @@ jobs:
             SMOKE_ADMIN_EMAIL=${{secrets.SMOKE_ADMIN_EMAIL}}
             SMOKE_ADMIN_PW=${{secrets.SMOKE_ADMIN_PW}}
             SMOKE_ADMIN_LOGIN_URL=${{secrets.SMOKE_ADMIN_LOGIN_URL}}
+            ADMIN_OTP_SECRET=${{secrets.ADMIN_OTP_SECRET}}
             SPRING_PROFILES_ACTIVE=dev
             SPRINGDOC_ENABLED=false
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
