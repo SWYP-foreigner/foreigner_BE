@@ -373,7 +373,7 @@ smoke:
     - name: "Infra-WebSocket-Endpoint"
       path: "/ws"
       method: "GET"
-      expectedStatus: 101
+      expectedStatus: 200
 
 
 openai:

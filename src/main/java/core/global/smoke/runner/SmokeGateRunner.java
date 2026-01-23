@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,10 +22,7 @@ public class SmokeGateRunner {
 
     private final SmokeProperties props;
     private final RestTemplate restTemplate;
-    private final GoogleAuthenticator gAuth = new GoogleAuthenticator();
-
-    @Value("${otp.admin-secret}")
-    private String adminOtpSecret;
+    private final StandardWebSocketClient wsClient = new StandardWebSocketClient();
 
     public SmokeGateRunner(SmokeProperties props, RestTemplate restTemplate) {
         this.props = props;
@@ -70,17 +68,15 @@ public class SmokeGateRunner {
                     ? c.getPath()
                     : props.getBaseUrl() + c.getPath();
 
+            if (isWebSocketCase(c)) {
+                handleWebSocketCheck(c, accessToken, s, passedItems, failedItems);
+                continue;
+            }
+
             log.info("[테스트 중] {} -> {} {}", c.getName(), c.getMethod(), targetUrl);
 
             try {
                 HttpHeaders headers = new HttpHeaders();
-
-                if (c.getPath().contains("/ws") || c.getName().toLowerCase().contains("websocket")) {
-                    headers.set("Upgrade", "websocket");
-                    headers.set("Connection", "Upgrade");
-                    headers.set("Sec-WebSocket-Key", "x3JJHMbDL1EzLkh9GBhXDw==");
-                    headers.set("Sec-WebSocket-Version", "13");
-                }
 
                 if (accessToken != null && !c.getType().equalsIgnoreCase("EXTERNAL")) {
                     headers.setBearerAuth(accessToken);
@@ -210,6 +206,52 @@ public class SmokeGateRunner {
                 List.of(),           // passedItems (빈 리스트)
                 List.of(loginError)  // failedItems (로그인 에러 항목 포함)
         );
+    }
+
+    private boolean isWebSocketCase(SmokeProperties.Case c) {
+        String path = c.getPath() != null ? c.getPath().toLowerCase() : "";
+        String name = c.getName() != null ? c.getName().toLowerCase() : "";
+        // 경로에 /ws가 포함되거나 이름에 websocket이 들어있으면 WS 케이스로 간주
+        return path.contains("/ws") || name.contains("websocket");
+    }
+
+    /**
+     * 실제 WebSocket Handshake를 시도하여 엔드포인트 생존을 확인합니다.
+     */
+    private void handleWebSocketCheck(SmokeProperties.Case c, String accessToken, long start,
+                                      List<SmokeItem> passedItems, List<SmokeItem> failedItems) {
+        // http:// -> ws://, https:// -> wss:// 로 프로토콜 변환
+        String wsUrl = props.getBaseUrl().replace("http", "ws") + c.getPath();
+        log.info("[WS 테스트 중] {} -> {}", c.getName(), wsUrl);
+
+        try {
+            org.springframework.web.socket.WebSocketHttpHeaders wsHeaders = new org.springframework.web.socket.WebSocketHttpHeaders();
+            if (accessToken != null) {
+                wsHeaders.setBearerAuth(accessToken);
+            }
+
+            // 1. Handshake 시도
+            // 2. 최대 5초 대기 (.get)
+            // 3. 연결 성공 시 즉시 종료 (.close)
+            wsClient.execute(new org.springframework.web.socket.handler.TextWebSocketHandler(), wsHeaders, java.net.URI.create(wsUrl))
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .close();
+
+            SmokeItem item = new SmokeItem(
+                    c.getName(), "WS", c.getPath(),
+                    101, System.currentTimeMillis() - start, true, null
+            );
+            passedItems.add(item);
+            log.info("  >> [성공] WebSocket 연결 가능 확인 (101)");
+
+        } catch (Exception e) {
+            String errorMsg = "WS_ERROR: " + safeMsg(e.getMessage());
+            failedItems.add(new SmokeItem(
+                    c.getName(), "WS", c.getPath(),
+                    null, System.currentTimeMillis() - start, false, errorMsg
+            ));
+            log.error("  >> [실패] WebSocket 연결 오류: {}", errorMsg);
+        }
     }
 
     private String safeMsg(String msg) {
