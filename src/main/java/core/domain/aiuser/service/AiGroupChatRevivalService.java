@@ -45,10 +45,11 @@ public class AiGroupChatRevivalService {
 
     private final TransactionTemplate transactionTemplate;
 
+
     private static final SecureRandom secureRandom = new SecureRandom();
 
     // 1. 침묵 기준 시간
-    private static final long SILENCE_THRESHOLD_MINUTES = 240;
+    private static final long SILENCE_THRESHOLD_MINUTES = 720;
 
     // 2. 스케줄러 실행 주기
     @Scheduled(cron = "0 0 * * * *")
