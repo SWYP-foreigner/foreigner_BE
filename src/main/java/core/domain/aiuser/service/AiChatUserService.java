@@ -14,6 +14,9 @@ import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
 import core.global.enums.MessageType;
 import core.global.enums.Role;
+import kr.co.shineware.nlp.komoran.constant.DEFAULT_MODEL;
+import kr.co.shineware.nlp.komoran.core.Komoran;
+import kr.co.shineware.nlp.komoran.model.KomoranResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,17 +38,19 @@ import java.util.regex.Pattern;
 public class AiChatUserService {
 
     private static final int ACTIVE_CONVERSATION_MINUTES = 30; // 30분 이내면 대화 중으로 간주
-    private static final int REVIVAL_CRITERIA_MINUTES = 120;   // 2시간(120분) 이상 침묵 시 부활 모드
+    private static final int REVIVAL_CRITERIA_MINUTES = 120;   // 2시간 이상 침묵 시 부활 모드
 
     private static final Pattern AI_IDENTITY_PATTERN = Pattern.compile("(gpt|openai|ai|language model|인공지능|언어 모델)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern JAILBREAK_PATTERN = Pattern.compile("(ignore|instruction|system|override|무시해|명령)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
-    private static final Pattern KOREAN_JOSA_PATTERN = Pattern.compile("(은|는|이|가|을|를|의|에|에서|로|으로|과|와|도|만|보다|처럼|까지|마저|조차|이랑|랑|이나|나|인데|일까|인가|입니다|에요|데요|한테|에게|께|이랑)$");
-
+    // 불용어 목록
     private static final List<String> STOP_WORDS = List.of(
             "진짜", "정말", "너무", "그냥", "아니", "근데", "오늘", "지금", "혹시", "다들", "안녕",
             "ㅋㅋ", "ㅎㅎ", "ㅠㅠ", "어때", "무슨", "어떤", "뭔데", "있어", "없어", "좋아", "싫어"
     );
+
+    // 🟢 KOMORAN 인스턴스 (Static Final로 메모리 절약)
+    private static final Komoran komoran = new Komoran(DEFAULT_MODEL.FULL);
 
     private final ChatMessageService chatMessageService;
     private final AiPersonaRepository aiPersonaRepository;
@@ -150,7 +155,7 @@ public class AiChatUserService {
         return PromptMapper.buildInput(systemPrompt, historyAsc, combinedUserMessage, aiUser.getId());
     }
 
-    // 🟢 [Logic] 시간 상수 적용 및 정규식 토픽 오너 판단
+    // 🟢 [Logic] 시간 상수 적용 + KOMORAN + 확률 조정(20%)
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
@@ -218,9 +223,10 @@ public class AiChatUserService {
             }
         }
 
+        // 유저 간 활성 대화인지 판별
         boolean isUserToUserActive = !isPrevSenderAi && (recentHistory.size() >= 2) && (minutesDiff < ACTIVE_CONVERSATION_MINUTES);
 
-        // 🟢 정규식 기반 토픽 오너 판단 호출
+        // 🟢 KOMORAN 기반 토픽 오너 판단
         boolean isTopicOwner = isTopicOwner(message, aiUser.getId(), recentHistory);
         boolean isContextOwner = false;
 
@@ -262,7 +268,8 @@ public class AiChatUserService {
                 } else if (isReplyToUser) {
                     prob = 5; reason = "🤫 Shush! (User-AI Talk)";
                 } else {
-                    prob = 35; reason = "🎉 Party Mode";
+                    prob = 20;
+                    reason = "🎉 Party Mode";
                 }
             } else {
                 prob = 2; reason = "🧊 Strict Mode";
@@ -286,55 +293,39 @@ public class AiChatUserService {
         return result;
     }
 
-    // 🟢 [Logic] 정규식 기반 토픽 오너 판단 (KOMORAN 제거됨)
+    // 🟢 [Logic] KOMORAN 형태소 분석기 활용
     private boolean isTopicOwner(String userMessage, Long aiUserId, List<ChatMessage> history) {
         if (userMessage == null || userMessage.isBlank()) return false;
 
-        // 1. 키워드 추출 (Regex 사용)
-        List<String> userKeywords = extractKeywords(userMessage);
+        try {
+            // 1. 형태소 분석 및 명사 추출 (NNG, NNP)
+            KomoranResult result = komoran.analyze(userMessage);
+            List<String> userKeywords = result.getNouns();
 
-        if (userKeywords.isEmpty()) return false;
+            // 2. 불용어 및 2글자 미만 필터링
+            userKeywords = userKeywords.stream()
+                    .filter(k -> k.length() >= 2 && !STOP_WORDS.contains(k))
+                    .toList();
 
-        // 2. 매칭 검사
-        for (int i = 1; i < Math.min(history.size(), 10); i++) {
-            ChatMessage msg = history.get(i);
-            if (!msg.getSender().getId().equals(aiUserId)) continue;
+            if (userKeywords.isEmpty()) return false;
 
-            String myContent = msg.getContent();
-            if (myContent == null) continue;
+            // 3. 매칭 검사
+            for (int i = 1; i < Math.min(history.size(), 10); i++) {
+                ChatMessage msg = history.get(i);
+                if (!msg.getSender().getId().equals(aiUserId)) continue;
 
-            for (String keyword : userKeywords) {
-                if (myContent.contains(keyword)) return true;
+                String myContent = msg.getContent();
+                if (myContent == null) continue;
 
-                // 내 메시지에서도 조사를 뗀 단어와 매칭 시도
-                String[] myWords = myContent.split("\\s+");
-                for (String myWord : myWords) {
-                    if (stripJosa(myWord).equals(keyword)) return true;
+                for (String keyword : userKeywords) {
+                    if (myContent.contains(keyword)) return true;
                 }
             }
+        } catch (Exception e) {
+            log.warn("Komoran Analysis Failed: {}", e.getMessage());
+            return false;
         }
         return false;
-    }
-
-    // 🟢 [Helper] 키워드 추출
-    private List<String> extractKeywords(String message) {
-        String[] words = message.split("\\s+");
-        List<String> keywords = new ArrayList<>();
-
-        for (String word : words) {
-            String cleanWord = word.replaceAll("[^가-힣a-zA-Z0-9]", "");
-            String noun = stripJosa(cleanWord);
-
-            if (noun.length() >= 2 && !STOP_WORDS.contains(noun)) {
-                keywords.add(noun);
-            }
-        }
-        return keywords;
-    }
-
-    // 🟢 [Helper] 조사 제거
-    private String stripJosa(String word) {
-        return KOREAN_JOSA_PATTERN.matcher(word).replaceAll("");
     }
 
     private boolean isAi(User user) {
