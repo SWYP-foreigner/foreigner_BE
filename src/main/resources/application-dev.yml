@@ -371,6 +371,7 @@ smoke:
 
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
+      type: "INTERNAL"
       path: "/ws"
       method: "GET"
       expectedStatus: 200
