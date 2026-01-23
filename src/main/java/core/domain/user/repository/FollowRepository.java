@@ -102,5 +102,9 @@ public interface FollowRepository extends JpaRepository<Follow,Long> {
 
     @Query("SELECT f FROM Follow f WHERE (f.user = :u1 AND f.following = :u2) OR (f.user = :u2 AND f.following = :u1)")
     Optional<Follow> findAnyRelation(@Param("u1") User u1, @Param("u2") User u2);
-
+    @Query("SELECT f FROM Follow f " +
+            "WHERE (f.user = :me AND f.following = :other) " +
+            "OR (f.user = :other AND f.following = :me) " +
+            "ORDER BY CASE WHEN f.status = 'ACCEPTED' THEN 1 ELSE 2 END ASC")
+    List<Follow> findAllRelations(@Param("me") User me, @Param("other") User other);
 }

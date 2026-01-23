@@ -166,23 +166,27 @@ public class FollowService {
     }
 
     private FriendType determineFriendType(User me, User other) {
-        // 1. 누가 보냈든 관계 레코드 하나를 가져옴
-        Follow follow = followRepository.findAnyRelation(me, other).orElse(null);
+        // 1. 모든 관계를 가져옴 (최대 2개 가능)
+        List<Follow> relations = followRepository.findAllRelations(me, other);
 
-        if (follow == null) return FriendType.NONE;
+        if (relations.isEmpty()) return FriendType.NONE;
 
-        // 2. 수락된 상태면 무조건 친구 (누가 보냈든 상관없음)
-        if (follow.getStatus() == FollowStatus.ACCEPTED) {
-            return FriendType.FRIEND;
-        }
+        // 2. 하나라도 ACCEPTED가 있으면 친구 (맞팔 상태 포함)
+        boolean isAccepted = relations.stream()
+                .anyMatch(f -> f.getStatus() == FollowStatus.ACCEPTED);
+        if (isAccepted) return FriendType.FRIEND;
 
-        // 3. 대기 중(PENDING)일 때만 방향 확인
-        if (follow.getStatus() == FollowStatus.PENDING) {
-            // 내가 보낸 거면 FOLLOWING, 내가 받은 거면 FOLLOWED
-            return follow.getUser().getId().equals(me.getId()) ? FriendType.FOLLOWING : FriendType.FOLLOWED;
-        }
 
-        return FriendType.NONE;
+        Optional<Follow> myRequest = relations.stream()
+                .filter(f -> f.getUser().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING)
+                .findFirst();
+
+        if (myRequest.isPresent()) return FriendType.FOLLOWING;
+
+        boolean theyRequested = relations.stream()
+                .anyMatch(f -> f.getFollowing().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING);
+
+        return theyRequested ? FriendType.FOLLOWED : FriendType.NONE;
     }
 
     /**
