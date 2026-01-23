@@ -318,22 +318,23 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     @Modifying(clearAutomatically = true)
     @Query(value = """
-        UPDATE users u
-        JOIN (
-            SELECT 
-                cp.user_id,
-                COALESCE(
-                    SUM(CASE WHEN cm.sender_id = cp.user_id THEN 1.0 ELSE 0.0 END) 
-                    / NULLIF(COUNT(cm.message_id), 0)
-                , 0.0) as calculated_rate
-            FROM chat_participant cp
-            JOIN chat_room cr ON cp.chatroom_id = cr.chatroom_id
-            JOIN chat_message cm ON cr.chatroom_id = cm.chatroom_id
-            WHERE cr.is_group = false  -- 1:1 채팅만 반영
-            GROUP BY cp.user_id
-        ) stats ON u.id = stats.user_id
-        SET u.reply_rate = stats.calculated_rate
-    """, nativeQuery = true)
+    UPDATE users u
+    SET reply_rate = stats.calculated_rate
+    FROM (
+        SELECT 
+            cp.user_id,
+            COALESCE(
+                SUM(CASE WHEN cm.sender_id = cp.user_id THEN 1.0 ELSE 0.0 END) 
+                / NULLIF(COUNT(cm.message_id), 0)
+            , 0.0) as calculated_rate
+        FROM chat_participant cp
+        JOIN chat_room cr ON cp.chatroom_id = cr.chatroom_id
+        JOIN chat_message cm ON cr.chatroom_id = cm.chatroom_id
+        WHERE cr.is_group = false
+        GROUP BY cp.user_id
+    ) stats
+    WHERE u.user_id = stats.user_id
+""", nativeQuery = true)
     void updateReplyRatesBulk();
 
 }
