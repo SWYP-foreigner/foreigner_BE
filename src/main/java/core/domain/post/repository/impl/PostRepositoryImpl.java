@@ -12,6 +12,7 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
 import core.domain.poll.entity.QPoll;
+import core.domain.poll.entity.QPollOption;
 import core.domain.poll.entity.QVoteRecord;
 import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.admin.PostListForAdminResponse;
@@ -59,6 +60,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final LikeType LIKE_TYPE_POST = LikeType.POST;
     private static final QPoll poll = QPoll.poll;
     private static final QVoteRecord voteRecord = QVoteRecord.voteRecord;
+    private static final QPollOption pollOption = QPollOption.pollOption;
 
     private final JPAQueryFactory query;
 
@@ -110,7 +112,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
-                                selectedOptionIdSubQuery(userId)
+                                selectedOptionIdSubQuery(userId),
+                                correctOptionIdIfVoted(userId)
                         )
                 ))
                 .from(post)
@@ -220,7 +223,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()), // 서비스에서 채우기 위한 가변 리스트
-                                selectedOptionIdSubQuery(userId)
+                                selectedOptionIdSubQuery(userId),
+                                correctOptionIdIfVoted(userId)
                         )
                 ))
                 .from(post)
@@ -732,5 +736,33 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
             result = (result == null) ? e : result.and(e);
         }
         return result;
+    }
+
+    private Expression<Long> correctOptionIdIfVoted(Long userId) {
+        if (userId == null) {
+            return Expressions.nullExpression();
+        }
+
+        // 1. 해당 유저가 이 투표(poll)에 참여했는지 확인하는 조건
+        BooleanExpression userHasVoted = JPAExpressions
+                .selectOne()
+                .from(voteRecord)
+                .where(voteRecord.user.id.eq(userId)
+                        .and(voteRecord.poll.id.eq(poll.id)))
+                .exists();
+
+        // 2. 해당 투표의 정답 Option ID를 찾는 서브쿼리
+        QPollOption qOption = new QPollOption("correctOpt");
+        Expression<Long> correctAnswerId = JPAExpressions
+                .select(qOption.id)
+                .from(qOption)
+                .where(qOption.poll.id.eq(poll.id)
+                        .and(qOption.isCorrect.isTrue())); // 정답인 항목 찾기
+
+        // 3. CaseBuilder: 투표했으면 정답 ID 반환, 안 했으면 null 반환
+        return new CaseBuilder()
+                .when(userHasVoted)
+                .then(correctAnswerId)
+                .otherwise(Expressions.nullExpression());
     }
 }

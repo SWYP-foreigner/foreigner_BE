@@ -31,7 +31,10 @@ public record PollItem(
         List<OptionItem> options,
 
         @Schema(description = "현재 사용자가 선택한 항목 ID (미참여 시 null)", nullable = true, example = "1")
-        Long selectedOptionId
+        Long selectedOptionId,
+
+        @Schema(description = "정답 정보 옵션 ID", example = "1")
+        Long correctOptionId
 ) {
     @Schema(name = "PollOptionItem", description = "투표 선택지 상세 정보")
     public record OptionItem(

@@ -43,7 +43,7 @@ public class PollService {
 
     @Transactional(readOnly = true)
     public PollItem getTodayPoll(PollType type) {
-        Poll poll = pollRepository.findFirstByTypeOrderByCreatedAtDesc(type)
+        Poll poll = pollRepository.findLatestPollByType(type)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
 
         Long selectedOptionId = getCurrentUser()
@@ -51,10 +51,16 @@ public class PollService {
                 .map(recordResult -> recordResult.getPollOption().getId())
                 .orElse(null);
 
-        return mapToPollItem(poll, selectedOptionId);
+        Long correctOptionId = null;
+        if (selectedOptionId != null) {
+            correctOptionId = pollOptionRepository.findCorrectOptionId(poll.getId())
+                    .orElse(null);
+        }
+
+        return mapToPollItem(poll, selectedOptionId, correctOptionId);
     }
 
-    private PollItem mapToPollItem(Poll poll, Long selectedOptionId) {
+    private PollItem mapToPollItem(Poll poll, Long selectedOptionId, Long correctOptionId) {
         List<PollItem.OptionItem> optionItems = poll.getOptions().stream()
                 .map(opt -> new PollItem.OptionItem(opt.getId(), opt.getContent(), opt.getVoteCount()))
                 .toList();
@@ -67,7 +73,8 @@ public class PollService {
                 poll.getCloseAt(),
                 poll.getTotalVoteCount(),
                 optionItems,
-                selectedOptionId
+                selectedOptionId,
+                correctOptionId
         );
     }
 

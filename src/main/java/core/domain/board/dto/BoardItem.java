@@ -80,10 +80,12 @@ public record BoardItem(
             @Schema(description = "투표 선택지 목록")
             List<OptionItem> options,
             @Schema(description = "로그인 사용자가 선택한 선택지 ID (미참여 시 null)", example = "1")
-            Long selectedOptionId
+            Long selectedOptionId,
+            @Schema(description = "정답 정보 옵션 ID", example = "1")
+            Long correctOptionId
     ) {
         public PollInfo() {
-            this(null, null, 0L, new ArrayList<>(), null);
+            this(null, null, 0L, new ArrayList<>(), null, null);
         }
     }
 
