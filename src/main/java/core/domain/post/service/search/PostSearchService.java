@@ -7,6 +7,7 @@ import core.domain.board.dto.BoardItem;
 import core.domain.board.repository.BoardRepository;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.comment.repository.CommentRepository;
+import core.domain.poll.entity.PollOption;
 import core.domain.poll.repository.PollOptionRepository;
 import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.dto.search.PostSearchProjection;
@@ -110,15 +111,10 @@ public class PostSearchService {
         Set<Long> likedPostIds = new HashSet<>(likeRepository.findLikedPostIdsByUserId(user.getId(), postIds));
         Set<Long> bookmarkedPostIds = new HashSet<>(bookmarkRepository.findBookmarkedPostIdsByUserId(user.getId(), postIds));
 
-        Map<Long, List<BoardItem.OptionItem>> pollOptionsMap = Collections.emptyMap();
+        Map<Long, List<PollOption>> pollOptionsMap = Collections.emptyMap(); // Type 변경됨
         if (!pollPostIds.isEmpty()) {
             pollOptionsMap = pollOptionRepository.findAllByPollIdIn(pollPostIds).stream()
-                    .collect(Collectors.groupingBy(
-                            po -> po.getPoll().getId(),
-                            Collectors.mapping(po -> new BoardItem.OptionItem(
-                                    po.getId(), po.getContent(), po.getVoteCount()
-                            ), Collectors.toList())
-                    ));
+                    .collect(Collectors.groupingBy(po -> po.getPoll().getId()));
         }
 
         Map<Long, Long> userSelectedOptions = Collections.emptyMap();
@@ -134,14 +130,41 @@ public class PostSearchService {
 
         // 7. 최종 DTO 조립
         final var finalUserVotes = userSelectedOptions;
-        final var finalOptionsMap = pollOptionsMap;
+        final var finalRawOptionsMap = pollOptionsMap;
+
         List<SearchResultView> items = contentProjections.stream().map(p -> {
             BoardItem.PollInfo pollInfo = null;
             if (p.pollTitle() != null) {
+                Long pollId = p.postId(); // 1:1 관계라 postId를 pollId로 사용
+
+                List<PollOption> rawOptions = finalRawOptionsMap.getOrDefault(pollId, List.of());
+
+                Long selectedOptionId = finalUserVotes.get(pollId);
+
+                Long correctOptionId = null;
+                if (selectedOptionId != null) {
+                    correctOptionId = rawOptions.stream()
+                            .filter(PollOption::getIsCorrect)
+                            .map(PollOption::getId)
+                            .findFirst()
+                            .orElse(null);
+                }
+
+                List<BoardItem.OptionItem> optionDtos = rawOptions.stream()
+                        .map(opt -> new BoardItem.OptionItem(
+                                opt.getId(),
+                                opt.getContent(),
+                                opt.getVoteCount()
+                        ))
+                        .toList();
+
                 pollInfo = new BoardItem.PollInfo(
-                        p.pollTitle(), p.pollCloseAt(), p.pollTotalCount(),
-                        new ArrayList<>(finalOptionsMap.getOrDefault(p.postId(), List.of())),
-                        finalUserVotes.get(p.postId())
+                        p.pollTitle(),
+                        p.pollCloseAt(),
+                        p.pollTotalCount(),
+                        optionDtos,
+                        selectedOptionId,
+                        correctOptionId
                 );
             }
 
