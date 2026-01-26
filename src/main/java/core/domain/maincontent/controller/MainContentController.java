@@ -124,6 +124,14 @@ public class MainContentController {
                 ));
     }
 
+    @GetMapping("/categories")
+    public ResponseEntity<core.global.dto.ApiResponse<List<KNewsCategoryListResponse>>> getCategories() {
+        return ResponseEntity.ok(
+                core.global.dto.ApiResponse.success(
+                        mainContentService.getCategories()
+                ));
+    }
+
     private void extractedKeyword(String content, int score) {
         if (content != null && !content.isBlank()) {
             // 상위 K만 반영
