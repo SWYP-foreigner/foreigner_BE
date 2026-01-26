@@ -205,11 +205,36 @@ public class PostServiceImpl implements PostService {
             BoardItem item = items.get(i);
 
             if (item.pollInfo() != null && item.pollInfo().title() != null) {
-                // 투표 글: 옵션 리스트를 채워줌
-                List<BoardItem.OptionItem> options = optionsMap.getOrDefault(item.postId(), new ArrayList<>());
-                item.pollInfo().options().addAll(options);
+
+                // 해당 게시글에 맞는 옵션 리스트만 가져오기 (없으면 빈 리스트)
+                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.postId(), List.of());
+
+                // 🔥 핵심 수정: addAll() 대신 PollInfo와 BoardItem을 새로 생성합니다.
+                // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
+                BoardItem.PollInfo newPollInfo = new BoardItem.PollInfo(
+                        item.pollInfo().title(),
+                        item.pollInfo().closeAt(),
+                        item.pollInfo().totalVoteCount(),
+                        specificOptions, // ✅ DB에서 가져온 "내 옵션"만 주입
+                        item.pollInfo().selectedOptionId(),
+                        item.pollInfo().correctOptionId()
+                );
+
+                // BoardItem도 새로 생성해서 리스트 교체
+                BoardItem newItem = new BoardItem(
+                        item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                        item.boardCategory(), item.createdAt(), item.isAnonymous(),
+                        item.isLiked(), item.isBookmarked(), item.likeCount(),
+                        item.commentCount(), item.viewCount(), item.userImageUrl(),
+                        item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                        item.postInfo(),
+                        newPollInfo // ✅ 교체된 PollInfo
+                );
+
+                items.set(i, newItem); // 리스트의 요소를 교체
+
             } else {
-                // 일반 글: 빈 객체 대신 null로 교체
+                // 투표 없는 글 처리
                 items.set(i, createNonPollItem(item));
             }
         }
@@ -221,7 +246,8 @@ public class PostServiceImpl implements PostService {
                 item.boardCategory(), item.createdAt(), item.isAnonymous(),
                 item.isLiked(), item.isBookmarked(), item.likeCount(),
                 item.commentCount(), item.viewCount(), item.userImageUrl(),
-                item.score(), item.postInfo(), null // pollInfo를 null로 꽂아버림
+                item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                item.postInfo(), null // pollInfo를 null로 꽂아버림
         );
     }
 
@@ -283,7 +309,7 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(user.getId(), postId);
 
         if (translate) {
             String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());

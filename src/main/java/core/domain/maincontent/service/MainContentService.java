@@ -1,9 +1,12 @@
 package core.domain.maincontent.service;
 
+import core.domain.board.dto.CategoryListResponse;
+import core.domain.maincontent.controller.KNewsCategoryListResponse;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
 import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.entity.MainContent;
+import core.global.enums.BoardCategory;
 import core.global.enums.KNewsContentType;
 
 import core.domain.maincontent.dto.MainPageContentResponse;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -178,6 +182,13 @@ public class MainContentService {
         if (idObj instanceof Number n) id = n.longValue();
         return new PopularKey(sc, id);
     }
+
+    public List<KNewsCategoryListResponse> getCategories() {
+        return Arrays.stream(KNewsContentType.values())
+                .map(KNewsCategoryListResponse::new)
+                .toList();
+    }
+
     private static final class LatestKey {
         final Instant t;
         final Long id;

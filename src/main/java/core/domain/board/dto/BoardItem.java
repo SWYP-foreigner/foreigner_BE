@@ -51,6 +51,11 @@ public record BoardItem(
         @Schema(description = "인기 점수 (인기 정렬 시 커서값으로 활용)", nullable = true, example = "987654321")
         Long score,
 
+        @Schema(description = "임시 컬럼 대표 이미지 URL", nullable = true, example = "https://cdn.example.com/p/123.jpg")
+        String contentImageUrl,
+        @Schema(description = "임시 컬럼 첨부된 이미지 총 개수", nullable = true, example = "2")
+        Integer imageCount,
+
         @Schema(description = "커뮤니티 게시글 상세 정보 (일반 게시글일 경우)")
         PostInfo postInfo,
 
@@ -80,10 +85,12 @@ public record BoardItem(
             @Schema(description = "투표 선택지 목록")
             List<OptionItem> options,
             @Schema(description = "로그인 사용자가 선택한 선택지 ID (미참여 시 null)", example = "1")
-            Long selectedOptionId
+            Long selectedOptionId,
+            @Schema(description = "정답 정보 옵션 ID", example = "1")
+            Long correctOptionId
     ) {
         public PollInfo() {
-            this(null, null, 0L, new ArrayList<>(), null);
+            this(null, null, 0L, new ArrayList<>(), null, null);
         }
     }
 
