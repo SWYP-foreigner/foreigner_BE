@@ -226,7 +226,8 @@ public class PostServiceImpl implements PostService {
                         item.boardCategory(), item.createdAt(), item.isAnonymous(),
                         item.isLiked(), item.isBookmarked(), item.likeCount(),
                         item.commentCount(), item.viewCount(), item.userImageUrl(),
-                        item.score(), item.postInfo(),
+                        item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                        item.postInfo(),
                         newPollInfo // ✅ 교체된 PollInfo
                 );
 
@@ -245,7 +246,8 @@ public class PostServiceImpl implements PostService {
                 item.boardCategory(), item.createdAt(), item.isAnonymous(),
                 item.isLiked(), item.isBookmarked(), item.likeCount(),
                 item.commentCount(), item.viewCount(), item.userImageUrl(),
-                item.score(), item.postInfo(), null // pollInfo를 null로 꽂아버림
+                item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                item.postInfo(), null // pollInfo를 null로 꽂아버림
         );
     }
 
@@ -307,7 +309,7 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(user.getId(), postId);
 
         if (translate) {
             String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());

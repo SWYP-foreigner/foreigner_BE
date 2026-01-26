@@ -51,6 +51,11 @@ public record BoardItem(
         @Schema(description = "인기 점수 (인기 정렬 시 커서값으로 활용)", nullable = true, example = "987654321")
         Long score,
 
+        @Schema(description = "임시 컬럼 대표 이미지 URL", nullable = true, example = "https://cdn.example.com/p/123.jpg")
+        String contentImageUrl,
+        @Schema(description = "임시 컬럼 첨부된 이미지 총 개수", nullable = true, example = "2")
+        Integer imageCount,
+
         @Schema(description = "커뮤니티 게시글 상세 정보 (일반 게시글일 경우)")
         PostInfo postInfo,
 

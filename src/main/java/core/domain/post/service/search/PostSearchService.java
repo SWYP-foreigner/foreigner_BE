@@ -178,6 +178,8 @@ public class PostSearchService {
                     p.viewCount(),
                     userImageUrls.get(p.authorId()),
                     p.scoreRounded(),
+                    contentThumbnails.get(p.postId()),
+                    contentImageCounts.getOrDefault(p.postId(), 0),
                     new BoardItem.PostInfo(contentThumbnails.get(p.postId()),
                             contentImageCounts.getOrDefault(p.postId(), 0)),
                     pollInfo

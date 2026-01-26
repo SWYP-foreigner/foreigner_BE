@@ -99,6 +99,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.checkCount,     // 12. viewCount
                         nullIfAnonymous(userImageUrlExpr()), // 13. userImageUrl
                         Expressions.asNumber(0L), // 14. score (최신순은 0)
+                        firstPostImageUrlExpr(),
+                        postImageCountExpr(),
 
                         // 15. PostInfo 생성
                         Projections.constructor(BoardItem.PostInfo.class,
@@ -210,6 +212,8 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.checkCount,                // 12. viewCount
                         nullIfAnonymous(userImageUrlExpr()), // 13. userImageUrl
                         score,                          // 14. score (계산된 점수)
+                        firstPostImageUrlExpr(),
+                        postImageCountExpr(),
 
                         // 15. PostInfo (이미지 정보)
                         Projections.constructor(BoardItem.PostInfo.class,
@@ -239,7 +243,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     @Override
-    public PostDetailResponse findPostDetail(String email, Long postId) {
+    public PostDetailResponse findPostDetail(Long userId, Long postId) {
         QImage userImage = new QImage("u");
         QImage subUserImage = new QImage("subUserImage");
 
@@ -279,9 +283,12 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         );
 
         Expression<String> linkExpr = Expressions.constant("CHAT LINK");
-        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerEmail(email);
-        Expression<Boolean> likedByMe = likedByViewerEmail(email);
-        BooleanExpression notBlocked = notBlockedByViewerEmail(email);
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
+        Expression<Boolean> likedByMe = likedByViewerId(userId);
+        BooleanExpression notBlocked = notBlockedByViewerId(userId);
+
+        Expression<Long> selectedOptionIdExpr = selectedOptionIdSubQuery(userId);
+        Expression<Long> correctOptionIdExpr = correctOptionIdIfVoted(userId);
 
 
         List<Tuple> rows = query
@@ -301,17 +308,24 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.checkCount,
                         userImageUrlExpr,
                         image.url,
-                        imageCountExpr
+                        imageCountExpr,
+
+                        poll.title,
+                        poll.closeAt,
+                        poll.totalVoteCount.coalesce(0L),
+                        selectedOptionIdExpr,
+                        correctOptionIdExpr
                 )
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
+                .leftJoin(post.poll, poll)
                 .leftJoin(image).on(
                         image.imageType.eq(IMAGE_TYPE_POST)
                                 .and(image.relatedId.eq(post.id))
                 )
                 .where(allOf(post.id.eq(postId), notBlocked))
-                .orderBy(image.id.asc())
+                .orderBy(image.orderIndex.asc().nullsLast())
                 .fetch();
 
         if (rows.isEmpty()) {
@@ -337,10 +351,33 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         String userImageUrl = t0.get(userImageUrlExpr);
         Integer imageCount = t0.get(imageCountExpr);
 
+        String pollTitle = t0.get(poll.title);
+        Instant pollCloseAt = t0.get(poll.closeAt);
+        Long pollTotalVote = t0.get(poll.totalVoteCount.coalesce(0L));
+        Long mySelectedOption = t0.get(selectedOptionIdExpr);
+        Long correctAnswer = t0.get(correctOptionIdExpr);
+
         List<String> contentImageUrls = rows.stream()
                 .map(r -> r.get(image.url))
                 .filter(Objects::nonNull)
                 .toList();
+
+        List<PostDetailResponse.OptionItem> pollOptions = new ArrayList<>();
+
+        if (pollTitle != null) {
+            // Poll 엔티티가 @MapsId로 Post와 ID를 공유하므로 postId로 조회 가능
+            pollOptions = query
+                    .select(Projections.constructor(PostDetailResponse.OptionItem.class,
+                            pollOption.id,
+                            pollOption.content,
+                            pollOption.voteCount
+                    ))
+                    .from(pollOption)
+                    .where(pollOption.poll.id.eq(postId)) // PostID == PollID
+                    .orderBy(pollOption.id.asc())
+                    .fetch();
+        }
+
 
         return new PostDetailResponse(
                 id,
@@ -358,7 +395,21 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 viewCount,
                 userImageUrl,
                 contentImageUrls,
-                imageCount
+                imageCount,
+                new PostDetailResponse.PostInfo(
+                        contentImageUrls,
+                        imageCount
+                ),
+
+                // 16. PollInfo 생성 (투표 정보가 없으면 null)
+                (pollTitle != null) ? new PostDetailResponse.PollInfo(
+                        pollTitle,
+                        pollCloseAt,
+                        pollTotalVote,
+                        pollOptions,
+                        mySelectedOption,
+                        correctAnswer
+                ) : null
         );
     }
 
@@ -546,19 +597,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .notExists();
     }
 
-
-    private BooleanExpression notBlockedByViewerEmail(String email) {
-        if (email == null || email.isBlank()) return null;
-        QBlockPost bp = blockPost;
-        return JPAExpressions
-                .selectOne()
-                .from(bp)
-                .where(
-                        bp.user.email.eq(email)
-                                .and(bp.post.id.eq(post.id))
-                )
-                .notExists();
-    }
 
     private BooleanExpression visibleTo(Long userId) {
         if (userId == null) return null; // 비로그인
