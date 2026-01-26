@@ -1,5 +1,4 @@
--- 1. 충돌 방지를 위해 이동 대상인 QUIZ(8)와 VOTE(9)를 임시 값(음수)으로 변경합니다.
--- 이렇게 하면 8번과 9번 자리가 비게 되어 기존 데이터가 이동할 공간이 생깁니다.
+-- 1. 먼저 순서를 바꿀 대상인 QUIZ(8)와 VOTE(9)를 임시 음수 값으로 대피시킵니다.
 UPDATE board
 SET board_id = -8
 WHERE board_id = 8;
@@ -8,14 +7,23 @@ UPDATE board
 SET board_id = -9
 WHERE board_id = 9;
 
--- 2. 기존 2번부터 7번까지의 게시판을 2칸씩 아래로 내립니다.
--- 2번 -> 4번, ... , 7번 -> 9번으로 변경됩니다.
+-- 2. 아래로 밀려날 기존 2번~7번 데이터들도 충돌 방지를 위해 일단 음수로 변경합니다.
+-- (예: 2 -> -2, 7 -> -7)
 UPDATE board
-SET board_id = board_id + 2
+SET board_id = -board_id
 WHERE board_id >= 2
   AND board_id <= 7;
 
--- 3. 임시로 대피시켜 두었던 QUIZ와 VOTE를 목표한 위치인 2번과 3번으로 변경합니다.
+-- 3. 음수로 대피했던 기존 데이터(-2 ~ -7)를 양수로 되돌리면서 +2를 더해 위치를 이동시킵니다.
+-- 식: (-board_id) + 2
+-- 예: -2 -> 2 + 2 = 4
+-- 예: -7 -> 7 + 2 = 9
+UPDATE board
+SET board_id = (-board_id) + 2
+WHERE board_id <= -2
+  AND board_id >= -7;
+
+-- 4. 마지막으로 대피해 있던 QUIZ(-8)와 VOTE(-9)를 빈자리인 2, 3번으로 이동시킵니다.
 UPDATE board
 SET board_id = 2
 WHERE board_id = -8;
