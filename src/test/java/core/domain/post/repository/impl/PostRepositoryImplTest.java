@@ -231,10 +231,10 @@ public class PostRepositoryImplTest {
                 .build();
         imageRepository.saveAll(List.of(img1, img2));
 
-        String viewerEmail = user1.getEmail();
+        Long viewId = user1.getId();
 
         // when
-        PostDetailResponse detail = postRepositoryImpl.findPostDetail(viewerEmail, p1.getId());
+        PostDetailResponse detail = postRepositoryImpl.findPostDetail(viewId, p1.getId());
 
         // then
         assertThat(detail).isNotNull();
