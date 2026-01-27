@@ -120,7 +120,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     Long countSendMessageUsersLast1Day();
 
     Page<ChatMessage> findAllByChatRoomId(Long chatRoomId, Pageable pageable);
-    @Query("SELECT m FROM ChatMessage m JOIN FETCH m.chatRoom WHERE m.chatRoom.id = :chatRoomId ORDER BY m.sentAt DESC")
+    @EntityGraph(attributePaths = {"sender"})
     List<ChatMessage> findTop20ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
 
     @Query("SELECT cm.chatRoom.isGroup, COUNT(cm) " +
