@@ -88,7 +88,7 @@ public class PollService {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
 
-        if (poll.getCloseAt().isBefore(Instant.now())) {
+        if (poll.isClosed()) {
             throw new BusinessException(CommunityErrorCode.POLL_ALREADY_CLOSED);
         }
 
