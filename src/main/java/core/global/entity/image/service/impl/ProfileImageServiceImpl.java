@@ -93,8 +93,6 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
         publishImageModerationEvent(finalKey, existingImage);
 
-        // 10) 저장
-        saveImageInDB(userId, ImageType.USER, finalKey);
         log.info("[Profile Setup] 유저 프로필 이미지 저장 성공 - userId: {}, finalKey: {}", userId, finalKey);
     }
 
