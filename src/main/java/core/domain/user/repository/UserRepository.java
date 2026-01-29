@@ -34,7 +34,6 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
             "AND u.lastSeenAt >= :limitTime " +
 
             // [프로필 완성 조건] (빈 문자열이나 null이 아닌 경우)
-            "AND u.purpose IS NOT NULL AND u.purpose <> '' " +
             "AND u.country IS NOT NULL AND u.country <> '' " +
             "AND u.birthdate IS NOT NULL AND u.birthdate <> '' " +
             "AND u.language IS NOT NULL AND u.language <> '' " +
