@@ -134,7 +134,7 @@ public class UserAdminViewController {
 
     @GetMapping("/create-ai")
     public String createAiUserPage(Model model) {
-        model.addAttribute("setupRequest", new UserSetupRequest(null, null, null, null, null, null, null, null, null, null, null));
+        model.addAttribute("setupRequest", new UserSetupRequest(null, null, null, null, null, null, null, null, null, null));
 
         addAiFormAttributes(model);
 

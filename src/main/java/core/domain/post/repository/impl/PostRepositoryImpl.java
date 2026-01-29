@@ -14,9 +14,9 @@ import core.domain.comment.entity.QComment;
 import core.domain.poll.entity.QPoll;
 import core.domain.poll.entity.QPollOption;
 import core.domain.poll.entity.QVoteRecord;
-import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.admin.PostListForAdminResponse;
 import core.domain.post.dto.admin.PostSearchForAdminRequest;
+import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.comunity.UserPostItem;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.QBlockPost;
@@ -37,15 +37,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.time.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static core.domain.post.entity.QBlockPost.blockPost;
-
 import static core.domain.bookmark.entity.QBookmark.bookmark;
+import static core.domain.post.entity.QBlockPost.blockPost;
 
 @Repository
 @RequiredArgsConstructor

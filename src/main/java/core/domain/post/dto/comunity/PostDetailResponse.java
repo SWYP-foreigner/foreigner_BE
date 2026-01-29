@@ -1,6 +1,5 @@
 package core.domain.post.dto.comunity;
 
-import core.domain.board.dto.BoardItem;
 import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -10,8 +9,8 @@ import java.util.List;
 
 @Schema(description = "게시글 상세 응답")
 public record PostDetailResponse(
-        @Schema(description = "ID", example = "1")
-        Long postId,
+        @Schema(description = "게시글 / 투표 / 퀴즈 ID", example = "1")
+        Long id,
 
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
@@ -68,7 +67,7 @@ public record PostDetailResponse(
 
     public PostDetailResponse(PostDetailResponse postDetail, String translatedContent) {
         this(
-                postDetail.postId(),
+                postDetail.id(),
                 translatedContent,
                 postDetail.authorId(),
                 postDetail.authorName(),
@@ -126,7 +125,7 @@ public record PostDetailResponse(
     @Schema(description = "투표 선택지 정보")
     public record OptionItem(
             @Schema(description = "선택지 ID", example = "1")
-            Long id,
+            Long optionId,
             @Schema(description = "선택지 내용", example = "Java")
             String content,
             @Schema(description = "해당 항목 투표 수", example = "45")

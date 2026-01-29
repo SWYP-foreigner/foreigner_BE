@@ -10,7 +10,6 @@ import java.time.Instant;
 public class AiUserListDto {
     private Long id;
     private String name;
-    private String purpose;
     private String language;
     private Instant createdAt;
     private AiType aiType;
@@ -18,7 +17,6 @@ public class AiUserListDto {
     public AiUserListDto(User user, AiType aiType) {
         this.id = user.getId();
         this.name = user.getFirstName() + " " + user.getLastName();
-        this.purpose = user.getPurpose();
         this.language = user.getLanguage();
         this.createdAt = user.getCreatedAt();
         this.aiType = aiType != null ? aiType : AiType.ALL;

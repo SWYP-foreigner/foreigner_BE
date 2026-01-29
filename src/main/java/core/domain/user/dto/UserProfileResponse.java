@@ -12,12 +12,11 @@ public record UserProfileResponse(
         String birthday,
         String country,
         String introduction,
-        String purpose,
         List<String> language,
         List<String> hobby,
         String imageKey
 ) {
     public UserProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey) {
-        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(),u.getBirthdate(), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
+        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(),u.getBirthdate(), u.getCountry(), u.getIntroduction(), languages, hobbies, imageKey);
     }
 }

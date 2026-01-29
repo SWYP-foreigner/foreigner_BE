@@ -274,7 +274,6 @@ public class UserService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
-        user.updatePurpose(dto.purpose());
         String v = dto.introduction();
         user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
@@ -610,9 +609,6 @@ public class UserService {
             String v = dto.introduction().trim();
             user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
         }
-        if (notBlank(dto.purpose())) {
-            user.updatePurpose(dto.purpose());
-        }
 
 // UserLanguageDTO dto를 받는 메서드 내부 (updateUserLanguage 로직)
 
@@ -708,9 +704,7 @@ public class UserService {
             String v = dto.introduction().trim();
             user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v); // 컬럼 길이 보호
         }
-        if (notBlank(dto.purpose())) {
-            user.updatePurpose(dto.purpose());
-        }
+
 
         if (dto.language() != null && !dto.language().isEmpty()) {
             List<String> languages = dto.language().stream()
@@ -947,7 +941,6 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean completed = user.getBirthdate() != null
-                            && user.getPurpose() != null
                             && user.getIntroduction() != null
                             && user.getLanguage() != null
                             && user.getHobby() != null

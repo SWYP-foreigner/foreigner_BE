@@ -39,9 +39,6 @@ public record UserProfileEditDto(
         @Schema(description = "자기소개 (최대 70자)", example = "열정적인 개발자입니다.")
         String introduction,
 
-        @Schema(description = "사용 목적", example = "언어 학습")
-        String purpose,
-
         @Schema(description = "사용 가능한 언어 목록", example = "[\"english(en)\", \"korean(ko)\"]")
         List<String> language,
 
@@ -59,7 +56,6 @@ public record UserProfileEditDto(
                 user.getBirthdate(),
                 user.getCountry(),
                 user.getIntroduction(),
-                user.getPurpose(),
                 languages,
                 hobbies,
                 imageKey

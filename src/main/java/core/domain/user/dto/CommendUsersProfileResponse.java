@@ -12,13 +12,12 @@ public record CommendUsersProfileResponse(
         Integer birthday,
         String country,
         String introduction,
-        String purpose,
         List<String> language,
         List<String> hobby,
         String imageKey
 ) {
     public CommendUsersProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey) {
-        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
+        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()), u.getCountry(), u.getIntroduction(), languages, hobbies, imageKey);
     }
 
     private static Integer extractYear(String birthdate) {
