@@ -148,8 +148,7 @@ logging:
     org.springframework.http.converter: INFO
 
     # WebSocket/메시징은 운영에서 WARN 이상
-    org.springframework.web.socket: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.web.socket: WARN
     org.springframework.messaging: WARN
     org.apache.tomcat.websocket: WARN
 
