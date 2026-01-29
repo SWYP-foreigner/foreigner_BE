@@ -40,6 +40,8 @@ public record UserSetupRequest(
         @Schema(description = "자기소개 (최대 70자)", example = "열정적인 개발자입니다.")
         String introduction,
 
+        @Schema(description = "사용 목적", example = "언어 학습")
+        String purpose,
 
         @Schema(description = "사용자 이메일", example = "john.doe@example.com")
         @Email(message = "올바른 이메일 형식이 아닙니다.")
@@ -64,6 +66,7 @@ public record UserSetupRequest(
                 user.getBirthdate(),
                 user.getCountry(),
                 user.getIntroduction(),
+                user.getPurpose(),
                 user.getEmail(),
                 languages,
                 hobbies,

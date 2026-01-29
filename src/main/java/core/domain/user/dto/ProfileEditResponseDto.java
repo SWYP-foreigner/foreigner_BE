@@ -35,6 +35,8 @@ public class ProfileEditResponseDto {
     @Schema(description = "자기소개 (최대 70자)", example = "열정적인 개발자입니다.")
     private String introduction;
 
+    @Schema(description = "사용 목적", example = "언어 학습")
+    private String purpose;
 
     @Schema(description = "사용 가능한 언어 목록", example = "[\"english(en)\", \"korean(ko)\"]")
     private List<String> language;
@@ -63,6 +65,7 @@ public class ProfileEditResponseDto {
         this.birthday = user.getBirthdate();
         this.country = user.getCountry();
         this.introduction = user.getIntroduction();
+        this.purpose = user.getPurpose();
         this.language = languages;
         this.hobby = hobbies;
         this.imageKey = imageKey;

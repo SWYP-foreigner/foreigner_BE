@@ -11,6 +11,7 @@ public record ChatUserProfileResponse(
         String birthdate,
         String country,
         String introduction,
+        String purpose,
         String language,
         String hobby,
         String imageUrl
@@ -28,6 +29,7 @@ public record ChatUserProfileResponse(
                 user.getBirthdate(),
                 user.getCountry(),
                 user.getIntroduction(),
+                user.getPurpose(),
                 user.getLanguage(),
                 user.getHobby(),
                 imageUrls
