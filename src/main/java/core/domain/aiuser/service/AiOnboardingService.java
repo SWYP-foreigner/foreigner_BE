@@ -236,7 +236,6 @@ public class AiOnboardingService {
         return user.getBirthdate() != null
                 && user.getLastName() != null
                 && user.getFirstName() != null
-                && user.getPurpose() != null
                 && user.getIntroduction() != null
                 && user.getLanguage() != null
                 && user.getHobby() != null

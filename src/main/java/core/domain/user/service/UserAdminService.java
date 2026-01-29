@@ -270,7 +270,6 @@ public class UserAdminService {
                 .sex(dto.gender())
                 .birthdate(dto.birthday())
                 .country(dto.country())
-                .purpose(dto.purpose())
                 .introduction(dto.introduction())
                 .createdAt(Instant.now())
                 .build();
@@ -367,7 +366,6 @@ public class UserAdminService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
-        user.updatePurpose(dto.purpose());
         user.updateIntroduction(dto.introduction());
 
         if (StringUtils.hasText(password)) {
