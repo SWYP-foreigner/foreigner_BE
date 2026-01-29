@@ -157,6 +157,7 @@ logging:
     core.global.config.core.global.security.JwtTokenFilter: INFO
     core.global.search: INFO
 
+
 # 운영에서는 에러 본문 노출 금지
 server.error.include-message: always
 server.error.include-binding-errors: always

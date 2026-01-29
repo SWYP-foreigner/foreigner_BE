@@ -3,6 +3,7 @@ package core.domain.bookmark.service.impl;
 import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.entity.Bookmark;
 import core.domain.bookmark.repository.BookmarkRepository;
+import core.domain.bookmark.service.BookmarkService;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
@@ -12,6 +13,8 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageType;
 import core.global.enums.LikeType;
 import core.global.exception.BusinessException;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
@@ -201,7 +204,7 @@ class BookmarkServiceImplTest {
         BookmarkItem item1 = response.items().get(1); // b2
 
         assertThat(item0.bookmarkId()).isEqualTo(103L);
-        assertThat(item0.id()).isEqualTo(13L);
+        assertThat(item0.postId()).isEqualTo(13L);
         assertThat(item0.authorId()).isEqualTo(2L);
         assertThat(item0.authorName()).isEqualTo("Alice Kim");
         assertThat(item0.likeCount()).isEqualTo(5L);
@@ -211,7 +214,7 @@ class BookmarkServiceImplTest {
         assertThat(item0.isLiked()).isTrue();
 
         assertThat(item1.bookmarkId()).isEqualTo(102L);
-        assertThat(item1.id()).isEqualTo(12L);
+        assertThat(item1.postId()).isEqualTo(12L);
         assertThat(item1.authorId()).isEqualTo(1L);
         // p2는 anonymous=true 이므로 authorName은 "Anonymity"
         assertThat(item1.authorName()).isEqualTo("Anonymity");

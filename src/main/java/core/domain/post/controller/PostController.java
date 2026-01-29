@@ -144,7 +144,7 @@ public class PostController {
     @Operation(
             summary = "나의 게시글 리스트 조회",
             description = """
-                      - 정렬: createdAt DESC, id DESC
+                      - 정렬: createdAt DESC, postId DESC
                       - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
                     
                       요청 예시
