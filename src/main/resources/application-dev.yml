@@ -148,7 +148,8 @@ logging:
     org.springframework.http.converter: INFO
 
     # WebSocket/메시징은 운영에서 WARN 이상
-    org.springframework.web.socket: WARN
+    org.springframework.web.socket: DEBUG
+    org.springframework.security: DEBUG
     org.springframework.messaging: WARN
     org.apache.tomcat.websocket: WARN
 
@@ -156,6 +157,7 @@ logging:
     core: INFO
     core.global.config.core.global.security.JwtTokenFilter: INFO
     core.global.search: INFO
+
 
 # 운영에서는 에러 본문 노출 금지
 server.error.include-message: always
