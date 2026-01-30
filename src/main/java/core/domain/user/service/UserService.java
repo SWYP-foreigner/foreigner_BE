@@ -121,38 +121,62 @@ public class UserService {
     }
 
     public TokenRefreshResponse refreshTokens(String refreshToken) {
-        log.info("--- [토큰 재발급 Service] 시작 ---");
+        log.info("==================================================");
+        log.info(">>> [토큰 재발급 시작] 요청 토큰(일부): ...{}", refreshToken.substring(Math.max(0, refreshToken.length() - 10)));
 
+        // 1. 토큰 유효성 검사 (JWT 서명 및 만료 여부)
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            log.warn("유효하지 않은 리프레시 토큰 요청");
-            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 ErrorCode 사용
+            log.warn("<<< [재발급 실패] 유효하지 않은 토큰 (서명 불일치 or 만료됨)");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
 
+        // 2. 토큰 내부 정보(Claims) 확인 - 남은 시간 로깅
         Long userId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+        Date expiration = jwtTokenProvider.getExpiration(refreshToken);
+        long remainingTime = expiration.getTime() - System.currentTimeMillis();
+
+        log.info("    -> 사용자 ID: {}", userId);
+        log.info("    -> 토큰 만료까지 남은 시간: {}ms (약 {}분)", remainingTime, remainingTime / 1000 / 60);
+
+        // 3. 사용자 조회
         User user = userRepository.getUserById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        log.info("---  사용자 ID: {} {} {}  ---", user.getId(), user.getFirstName(), user.getLastName());
 
+
+        // 4. Redis 검증
         String storedRefreshToken = redisService.getRefreshToken(userId);
 
-        if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
-            log.warn("Redis의 리프레시 토큰과 불일치. 탈취 가능성. 사용자 ID: {}", userId);
-            redisService.deleteRefreshToken(userId);
+        // Redis에 토큰이 아예 없거나, 요청 들어온 토큰과 다를 때
+        if (storedRefreshToken == null) {
+            log.warn("<<< [재발급 실패] Redis에 저장된 토큰이 없음 (이미 로그아웃됨 or 만료됨). 사용자 ID: {}", userId);
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
+        if (!storedRefreshToken.equals(refreshToken)) {
+            log.warn("<<< [재발급 실패] Redis 토큰 불일치 (토큰 탈취 가능성). 사용자 ID: {}", userId);
+            log.warn("    -> 요청 토큰: ...{}", refreshToken.substring(Math.max(0, refreshToken.length() - 10)));
+            log.warn("    -> 저장 토큰: ...{}", storedRefreshToken.substring(Math.max(0, storedRefreshToken.length() - 10)));
 
+            redisService.deleteRefreshToken(userId); // 보안상 전체 삭제
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 5. 기존 토큰 삭제 (RTR 정책: 한 번 쓴 리프레시 토큰은 폐기)
         redisService.deleteRefreshToken(userId);
+        log.info("    -> 기존 Redis 토큰 삭제 완료");
 
+        // 6. 새 토큰 발급
         String newAccessToken = jwtTokenProvider.createAccessToken(userId, user.getUserRole().toString(), user.getEmail());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(userId);
 
-        Date expirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
-        long expirationMillis = expirationDate.getTime() - System.currentTimeMillis();
-        redisService.saveRefreshToken(userId, newRefreshToken, expirationMillis);
+        Date newExpirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long newExpirationMillis = newExpirationDate.getTime() - System.currentTimeMillis();
 
-        log.info("--- [토큰 재발급 Service] 완료. 사용자 ID: {} ---", userId);
 
+        redisService.saveRefreshToken(userId, newRefreshToken, newExpirationMillis);
+
+        log.info("<<< [토큰 재발급 완료] 새 토큰 Redis 저장 완료 (만료: {}ms). 사용자 ID: {}", newExpirationMillis, userId);
+        log.info("==================================================");
         return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
     }
 

@@ -77,22 +77,24 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
         String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
 
-        Image existingImage = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+        Image targetImage = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
                 .orElse(null);
 
-        if (existingImage != null) {
-            // A. 이미 존재하면 -> URL 업데이트 (Dirty Checking으로 자동 저장됨)
-            log.info("[Profile Setup] 기존 이미지 업데이트 - ID: {}, New URL: {}", existingImage.getId(), finalUrl);
-            existingImage.updateUrl(finalUrl);
-
+        if (targetImage != null) {
+            // A. 이미 존재하면 -> URL 업데이트
+            log.info("[Profile Setup] 기존 이미지 업데이트 - ID: {}, New URL: {}", targetImage.getId(), finalUrl);
+            targetImage.updateUrl(finalUrl);
         } else {
             // B. 없으면 -> 새로 생성 및 저장
             log.info("[Profile Setup] 새 이미지 생성 및 저장 - userId: {}", userId);
             saveImageInDB(userId, ImageType.USER, finalKey); // 기존 save 메서드 활용 (단, 내부 로직 확인 필요)
         }
+        saveImageInDB(userId, ImageType.USER, finalKey);
 
-        publishImageModerationEvent(finalKey, existingImage);
+        targetImage = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .orElse(null);
 
+        publishImageModerationEvent(finalKey, targetImage);
         log.info("[Profile Setup] 유저 프로필 이미지 저장 성공 - userId: {}, finalKey: {}", userId, finalKey);
     }
 
@@ -420,7 +422,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
                     // 실패해도 치명적이지 않으므로 경고만
                     log.warn("[UPI] old_s3_delete_ignored userId={} url={} err={}", userId, old.getUrl(), e.getMessage());
                 }
-            }else {
+            } else {
                 log.info("[S3삭제 - skip] 기존 이미지가 기본 이미지(default)이므로 삭제하지 않습니다. url: {}", oldUrl);
             }
         });
