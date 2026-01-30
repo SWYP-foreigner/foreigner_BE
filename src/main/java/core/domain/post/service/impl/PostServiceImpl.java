@@ -141,7 +141,7 @@ public class PostServiceImpl implements PostService {
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
-                BoardItem::postId
+                BoardItem::id
         );
     }
 
@@ -167,14 +167,14 @@ public class PostServiceImpl implements PostService {
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
-                BoardItem::postId
+                BoardItem::id
         );
     }
 
     private void fillPollOptions(List<BoardItem> items) {
         List<Long> pollPostIds = items.stream()
                 .filter(item -> item.pollInfo() != null)
-                .map(BoardItem::postId)
+                .map(BoardItem::id)
                 .toList();
 
         if (pollPostIds.isEmpty()) {
@@ -207,7 +207,7 @@ public class PostServiceImpl implements PostService {
             if (item.pollInfo() != null && item.pollInfo().title() != null) {
 
                 // 해당 게시글에 맞는 옵션 리스트만 가져오기 (없으면 빈 리스트)
-                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.postId(), List.of());
+                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.id(), List.of());
 
                 // 🔥 핵심 수정: addAll() 대신 PollInfo와 BoardItem을 새로 생성합니다.
                 // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
@@ -222,7 +222,7 @@ public class PostServiceImpl implements PostService {
 
                 // BoardItem도 새로 생성해서 리스트 교체
                 BoardItem newItem = new BoardItem(
-                        item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                        item.id(), item.contentPreview(), item.authorId(), item.authorName(),
                         item.boardCategory(), item.createdAt(), item.isAnonymous(),
                         item.isLiked(), item.isBookmarked(), item.likeCount(),
                         item.commentCount(), item.viewCount(), item.userImageUrl(),
@@ -242,7 +242,7 @@ public class PostServiceImpl implements PostService {
 
     private BoardItem createNonPollItem(BoardItem item) {
         return new BoardItem(
-                item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                item.id(), item.contentPreview(), item.authorId(), item.authorName(),
                 item.boardCategory(), item.createdAt(), item.isAnonymous(),
                 item.isLiked(), item.isBookmarked(), item.likeCount(),
                 item.commentCount(), item.viewCount(), item.userImageUrl(),
@@ -575,7 +575,7 @@ public class PostServiceImpl implements PostService {
         String nextCursor = hasNext
                 ? CursorCodec.encode(Map.of(
                 "t", last.createdAt().toString(),
-                "id", last.postId()
+                "id", last.id()
         ))
                 : null;
 
