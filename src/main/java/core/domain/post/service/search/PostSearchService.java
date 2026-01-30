@@ -194,7 +194,7 @@ public class PostSearchService {
             nextCursor = safeEncode(Map.of(
                     "sc", last.score(),
                     "t", last.item().createdAt(),
-                    "id", last.item().postId()
+                    "id", last.item().id()
             ));
         }
 

@@ -204,7 +204,7 @@ class BookmarkServiceImplTest {
         BookmarkItem item1 = response.items().get(1); // b2
 
         assertThat(item0.bookmarkId()).isEqualTo(103L);
-        assertThat(item0.postId()).isEqualTo(13L);
+        assertThat(item0.id()).isEqualTo(13L);
         assertThat(item0.authorId()).isEqualTo(2L);
         assertThat(item0.authorName()).isEqualTo("Alice Kim");
         assertThat(item0.likeCount()).isEqualTo(5L);
@@ -214,7 +214,7 @@ class BookmarkServiceImplTest {
         assertThat(item0.isLiked()).isTrue();
 
         assertThat(item1.bookmarkId()).isEqualTo(102L);
-        assertThat(item1.postId()).isEqualTo(12L);
+        assertThat(item1.id()).isEqualTo(12L);
         assertThat(item1.authorId()).isEqualTo(1L);
         // p2는 anonymous=true 이므로 authorName은 "Anonymity"
         assertThat(item1.authorName()).isEqualTo("Anonymity");

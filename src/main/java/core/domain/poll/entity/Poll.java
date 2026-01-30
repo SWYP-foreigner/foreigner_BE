@@ -72,7 +72,7 @@ public class Poll {
         this.title = request.title();
         this.description = request.description();
         this.type = PollType.QUIZ;
-        this.closeAt = Instant.now().plus(3, ChronoUnit.DAYS); // 기본 3일 뒤 마감
+        this.closeAt = null;
         this.author = user;
 
         post.initPoll(this);
@@ -83,6 +83,10 @@ public class Poll {
                 this.addOption(request.options().get(i), isCorrect);
             }
         }
+    }
+
+    public boolean isClosed() {
+        return this.closeAt != null && this.closeAt.isBefore(Instant.now());
     }
 
     public void incrementTotalCount() {

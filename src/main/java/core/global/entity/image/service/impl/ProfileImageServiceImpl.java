@@ -94,9 +94,7 @@ public class ProfileImageServiceImpl implements ProfileImageService {
                     .orElse(null);
         }
 
-        // 이제 targetImage는 절대 null이 아닙니다.
         publishImageModerationEvent(finalKey, targetImage);
-
         log.info("[Profile Setup] 유저 프로필 이미지 저장 성공 - userId: {}, finalKey: {}", userId, finalKey);
     }
 

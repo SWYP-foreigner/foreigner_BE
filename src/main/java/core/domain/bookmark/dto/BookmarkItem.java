@@ -11,7 +11,7 @@ public record BookmarkItem(
         Long bookmarkId,
 
         @Schema(description = "게시물 ID", example = "100")
-        Long postId,
+        Long id,
 
         @Schema(description = "작성자 ID", example = "100")
         Long authorId,
