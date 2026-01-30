@@ -119,7 +119,6 @@ public class UserService {
 
         log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
     }
-
     public TokenRefreshResponse refreshTokens(String refreshToken) {
         log.info("==================================================");
         log.info(">>> [토큰 재발급 시작] 요청 토큰(일부): ...{}", refreshToken.substring(Math.max(0, refreshToken.length() - 10)));
@@ -141,7 +140,6 @@ public class UserService {
         // 3. 사용자 조회
         User user = userRepository.getUserById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
 
         // 4. Redis 검증
         String storedRefreshToken = redisService.getRefreshToken(userId);
@@ -172,14 +170,13 @@ public class UserService {
         Date newExpirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
         long newExpirationMillis = newExpirationDate.getTime() - System.currentTimeMillis();
 
-
         redisService.saveRefreshToken(userId, newRefreshToken, newExpirationMillis);
 
         log.info("<<< [토큰 재발급 완료] 새 토큰 Redis 저장 완료 (만료: {}ms). 사용자 ID: {}", newExpirationMillis, userId);
         log.info("==================================================");
+
         return new TokenRefreshResponse(newAccessToken, newRefreshToken, userId);
     }
-
     public User create(UserCreateDto memberCreateDto) {
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
