@@ -128,7 +128,7 @@ public class PostRepositoryImplTest {
 
         // createdAt desc, id desc 기준으로 정렬되었다고 가정 (엔티티 생성 순서 p1 < p2 < p3)
         assertThat(items)
-                .extracting(BoardItem::id)
+                .extracting(BoardItem::postId)
                 .containsExactly(p3.getId(), p2.getId(), p1.getId());
     }
 
@@ -153,13 +153,13 @@ public class PostRepositoryImplTest {
                 user1.getId(),
                 board.getId(),
                 lastOfFirst.createdAt(),
-                lastOfFirst.id(),
+                lastOfFirst.postId(),
                 2
         );
 
         // 남은 한 개만 와야 함
         assertThat(second).hasSize(1);
-        assertThat(second.get(0).id()).isEqualTo(p1.getId());
+        assertThat(second.get(0).postId()).isEqualTo(p1.getId());
     }
 
     @Test
@@ -184,7 +184,7 @@ public class PostRepositoryImplTest {
         );
 
         assertThat(items)
-                .extracting(BoardItem::id)
+                .extracting(BoardItem::postId)
                 .containsExactly(
                         p2.getId(), // 3 likes
                         p3.getId(), // 2 likes
@@ -263,7 +263,7 @@ public class PostRepositoryImplTest {
         // then
         // user1은 p1만 작성했다고 가정
         assertThat(first).hasSize(1);
-        assertThat(first.get(0).id()).isEqualTo(p1.getId());
+        assertThat(first.get(0).postId()).isEqualTo(p1.getId());
     }
 
     @Test
@@ -283,7 +283,7 @@ public class PostRepositoryImplTest {
         List<UserPostItem> second = postRepositoryImpl.findMyPostsNextByEmail(
                 user1.getEmail(),
                 lastOfFirst.createdAt(),
-                lastOfFirst.id(),
+                lastOfFirst.postId(),
                 2
         );
 
