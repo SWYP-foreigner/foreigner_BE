@@ -60,6 +60,30 @@ public class PollController {
         ));
     }
 
+
+    @Operation(summary = "투표 수정", description = "투표를 수정합니다.")
+    @PutMapping("/vote")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> updateVote(
+            @RequestBody VoteUpdateRequest request
+    ) {
+
+        Long pollId = pollService.updateVote(request);
+
+        return ResponseEntity.ok(ApiResponse.success(pollId));
+    }
+
+    @Operation(summary = "관리자용 퀴즈 수정", description = "관리자 권한으로 퀴즈를 수정합니다.")
+    @PutMapping("/quiz")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> updateQuiz(
+            @RequestBody QuizUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                pollService.updateQuiz(request)
+        ));
+    }
+
     @Operation(summary = "투표, 퀴즈 참여 후 결과 조회", description = "투표, 퀴즈 참여 후 결과를 제공합니다.")
     @PostMapping("/{pollId}/participate")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})

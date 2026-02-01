@@ -1,5 +1,7 @@
 package core.domain.poll.entity;
 
+import core.domain.poll.controller.QuizUpdateRequest;
+import core.domain.poll.controller.VoteUpdateRequest;
 import core.domain.poll.dto.VoteWriteRequest;
 import core.domain.poll.dto.QuizWriteRequest;
 import core.domain.post.entity.Post;
@@ -101,5 +103,15 @@ public class Poll {
     public void addOption(String content, boolean isCorrect) {
         PollOption option = new PollOption(this, content, isCorrect);
         this.options.add(option);
+    }
+
+    public void updatePoll(VoteUpdateRequest request) {
+        this.title = request.title();
+        this.description = request.description();
+    }
+
+    public void updatePoll(QuizUpdateRequest request) {
+        this.title = request.title();
+        this.description = request.description();
     }
 }
