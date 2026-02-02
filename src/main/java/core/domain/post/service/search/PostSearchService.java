@@ -156,10 +156,12 @@ public class PostSearchService {
                                 opt.getContent(),
                                 opt.getVoteCount()
                         ))
+                        .sorted(Comparator.comparing(BoardItem.OptionItem::optionId))
                         .toList();
 
                 pollInfo = new BoardItem.PollInfo(
                         p.pollTitle(),
+                        p.pollDescription(),
                         p.pollCloseAt(),
                         p.pollTotalCount(),
                         optionDtos,
