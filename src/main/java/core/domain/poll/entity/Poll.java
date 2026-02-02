@@ -1,7 +1,9 @@
 package core.domain.poll.entity;
 
-import core.domain.poll.dto.QuizWriteRequest;
+import core.domain.poll.controller.QuizUpdateRequest;
+import core.domain.poll.controller.VoteUpdateRequest;
 import core.domain.poll.dto.VoteWriteRequest;
+import core.domain.poll.dto.QuizWriteRequest;
 import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import core.global.enums.PollType;
@@ -55,7 +57,7 @@ public class Poll {
         this.title = request.title();
         this.description = request.description();
         this.type = PollType.VOTE;
-        this.closeAt = null;
+        this.closeAt = Instant.now().plus(3, ChronoUnit.DAYS); // 기본 3일 뒤 마감
         this.author = user;
 
         post.initPoll(this);
@@ -72,7 +74,7 @@ public class Poll {
         this.title = request.title();
         this.description = request.description();
         this.type = PollType.QUIZ;
-        this.closeAt = Instant.now().plus(3, ChronoUnit.DAYS); // 기본 3일 뒤 마감
+        this.closeAt = null;
         this.author = user;
 
         post.initPoll(this);
@@ -101,5 +103,15 @@ public class Poll {
     public void addOption(String content, boolean isCorrect) {
         PollOption option = new PollOption(this, content, isCorrect);
         this.options.add(option);
+    }
+
+    public void updatePoll(VoteUpdateRequest request) {
+        this.title = request.title();
+        this.description = request.description();
+    }
+
+    public void updatePoll(QuizUpdateRequest request) {
+        this.title = request.title();
+        this.description = request.description();
     }
 }

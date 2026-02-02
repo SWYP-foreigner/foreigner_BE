@@ -1,5 +1,6 @@
 package core.domain.post.dto.comunity;
 
+import core.domain.board.dto.BoardItem;
 import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -9,7 +10,7 @@ import java.util.List;
 
 @Schema(description = "게시글 상세 응답")
 public record PostDetailResponse(
-        @Schema(description = "게시글 / 투표 / 퀴즈 ID", example = "1")
+        @Schema(description = "ID", example = "1")
         Long id,
 
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
