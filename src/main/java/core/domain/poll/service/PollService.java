@@ -28,6 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,6 +65,7 @@ public class PollService {
     private PollItem mapToPollItem(Poll poll, Long selectedOptionId, Long correctOptionId) {
         List<PollItem.OptionItem> optionItems = poll.getOptions().stream()
                 .map(opt -> new PollItem.OptionItem(opt.getId(), opt.getContent(), opt.getVoteCount()))
+                .sorted(Comparator.comparing(PollItem.OptionItem::optionId))
                 .toList();
 
         return new PollItem(
@@ -137,7 +139,9 @@ public class PollService {
                         opt.getId(),
                         opt.getVoteCount(),
                         poll.calculatePercentage(opt.getVoteCount())
-                )).toList();
+                ))
+                .sorted(Comparator.comparing(PollResultResponse.OptionResult::optionId))
+                .toList();
 
         return new PollResultResponse(poll.getId(), poll.getType(), isCorrect, correctOptionId, results);
     }

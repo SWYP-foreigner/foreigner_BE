@@ -78,6 +78,8 @@ public record BoardItem(
     public record PollInfo(
             @Schema(description = "투표 제목", example = "가장 선호하는 언어는?")
             String title,
+            @Schema(description = "투표 설명", example = "가장 선호하는 언어는 무엇인가요?")
+            String description,
             @Schema(description = "투표 마감 시간", example = "2025-09-20T12:00:00Z")
             Instant closeAt,
             @Schema(description = "총 투표 수", example = "150")
@@ -90,7 +92,7 @@ public record BoardItem(
             Long correctOptionId
     ) {
         public PollInfo() {
-            this(null, null, 0L, new ArrayList<>(), null, null);
+            this(null, null, null, 0L, new ArrayList<>(), null, null);
         }
     }
 

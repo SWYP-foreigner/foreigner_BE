@@ -16,6 +16,7 @@ public record PostSearchProjection(
         double rawScore,
         long scoreRounded,
         String pollTitle,
+        String pollDescription,
         Instant pollCloseAt,
         Long pollTotalCount
 ) {}
