@@ -1004,4 +1004,42 @@ public class ChatMessageService {
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
     }
+
+    @Transactional // [치명적 1] 이 긴 작업이 끝날 때까지 DB 커넥션을 절대 안 놔줌
+    public void sendBroadCastMessageAntiPattern(SendMessageRequest req) {
+        // 1. 메시지 저장 (Insert)
+        // (기존 saveMessage 메서드 활용한다고 가정)
+        // ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());
+        log.info("[LoadTest] Start processing for Room: {}", req.roomId());
+
+        // [치명적 2] 방에 있는 1000명을 전부 긁어옴 (접속 여부 상관없이)
+        List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomId(req.roomId());
+
+        for (ChatParticipant p : participants) {
+            // 본인한테는 안 보냄
+            if (p.getUser().getId().equals(req.senderId())) continue;
+
+            // [치명적 3] Loop 안에서 DB 조회 (N+1 문제 시뮬레이션)
+            // 예: 차단 여부 등을 매번 DB 찔러서 확인한다고 가정
+            // boolean isBlocked = blockRepository.existsBy... (생략)
+
+            // [치명적 4] 번역 API 호출 Mocking (가장 큰 병목)
+            if (p.isTranslateEnabled()) {
+                mockExternalTranslationApi();
+            }
+
+            // 실제 전송 로직은 생략 (Log만 찍음)
+            // log.debug("Sent to {}", p.getUser().getId());
+        }
+        log.info("[LoadTest] Finished processing for Room: {}", req.roomId());
+    }
+
+    // 외부 번역 API가 0.2초 걸린다고 가정하는 Mock 메서드
+    private void mockExternalTranslationApi() {
+        try {
+            Thread.sleep(200); // 0.2초 멈춤 (Network Latency 시뮬레이션)
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }
