@@ -95,6 +95,7 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                         score,
                         scoreRounded,
                         poll.title,
+                        poll.description,
                         poll.closeAt,
                         poll.totalVoteCount.coalesce(0L)
                 ))

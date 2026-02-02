@@ -39,7 +39,7 @@ public record PollItem(
     @Schema(name = "PollOptionItem", description = "투표 선택지 상세 정보")
     public record OptionItem(
             @Schema(description = "선택지 ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-            Long id,
+            Long optionId,
 
             @Schema(description = "선택지 텍스트 내용", example = "Java", requiredMode = Schema.RequiredMode.REQUIRED)
             String content,

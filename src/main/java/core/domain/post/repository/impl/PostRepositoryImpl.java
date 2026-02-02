@@ -112,6 +112,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         // 16. PollInfo 생성 (투표 정보가 없으면 null)
                         Projections.constructor(BoardItem.PollInfo.class,
                                 poll.title,
+                                poll.description,
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
@@ -225,6 +226,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         // 16. PollInfo (투표 정보)
                         Projections.constructor(BoardItem.PollInfo.class,
                                 poll.title,
+                                poll.description,
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()), // 서비스에서 채우기 위한 가변 리스트
@@ -312,6 +314,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         imageCountExpr,
 
                         poll.title,
+                        poll.description,
                         poll.closeAt,
                         poll.totalVoteCount.coalesce(0L),
                         selectedOptionIdExpr,
@@ -353,6 +356,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Integer imageCount = t0.get(imageCountExpr);
 
         String pollTitle = t0.get(poll.title);
+        String pollDescription = t0.get(poll.description);
         Instant pollCloseAt = t0.get(poll.closeAt);
         Long pollTotalVote = t0.get(poll.totalVoteCount.coalesce(0L));
         Long mySelectedOption = t0.get(selectedOptionIdExpr);
@@ -405,6 +409,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 // 16. PollInfo 생성 (투표 정보가 없으면 null)
                 (pollTitle != null) ? new PostDetailResponse.PollInfo(
                         pollTitle,
+                        pollDescription,
                         pollCloseAt,
                         pollTotalVote,
                         pollOptions,
