@@ -2,9 +2,11 @@ package core.domain.chat.service;
 
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
+import core.domain.chat.entity.ChatMessageTranslation;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.BlockUser;
@@ -33,6 +35,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +70,7 @@ public class ChatMessageService {
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
     private final BlockRepository blockRepository;
+    private final ChatMessageTranslationRepository chatMessageTranslationRepository;
 
     // Service
     private final UserRoleDetectService userRoleDetectService;
@@ -1004,42 +1008,116 @@ public class ChatMessageService {
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
     }
+    /**
+     * ⚠️ [성능 테스트용] 의도된 안 좋은 코드 (Anti-Pattern 집합체)
+     * 1. Transaction 범위가 너무 넓음 (외부 API 호출 포함)
+     * 2. for문 내부에서 DB 조회 (N+1 문제)
+     * 3. for문 내부에서 동기식 번역 호출 (Blocking)
+     * 4. Batch Insert 미사용
+     */
+    private final TranslationService externalTranslationService;
+    private final SimpMessagingTemplate messagingTemplate;
+    @Transactional // ❌ 1. 거대한 트랜잭션 시작
+    public void sendMessageBad(SendMessageRequest req) {
 
-    @Transactional // [치명적 1] 이 긴 작업이 끝날 때까지 DB 커넥션을 절대 안 놔줌
-    public void sendBroadCastMessageAntiPattern(SendMessageRequest req) {
-        // 1. 메시지 저장 (Insert)
-        // (기존 saveMessage 메서드 활용한다고 가정)
-        // ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());
-        log.info("[LoadTest] Start processing for Room: {}", req.roomId());
+        // 1. 기본 데이터 조회 및 저장
+        ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // [치명적 2] 방에 있는 1000명을 전부 긁어옴 (접속 여부 상관없이)
-        List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomId(req.roomId());
+        ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
+        chatMessageRepository.save(message);
+        chatRoom.updateLastMessageSentAt(message.getSentAt());
+        checkSpamSync(message);
+        List<ChatParticipant> participants = chatRoom.getParticipants();
 
-        for (ChatParticipant p : participants) {
-            // 본인한테는 안 보냄
-            if (p.getUser().getId().equals(req.senderId())) continue;
+        // 🛑 [지옥의 루프]
+        for (ChatParticipant participant : participants) {
+            User recipient = participant.getUser();
 
-            // [치명적 3] Loop 안에서 DB 조회 (N+1 문제 시뮬레이션)
-            // 예: 차단 여부 등을 매번 DB 찔러서 확인한다고 가정
-            // boolean isBlocked = blockRepository.existsBy... (생략)
+            if (recipient.getId().equals(sender.getId())) continue;
+            if (checkBlockInDb(sender.getId(), recipient.getId())) continue;
 
-            // [치명적 4] 번역 API 호출 Mocking (가장 큰 병목)
-            if (p.isTranslateEnabled()) {
-                mockExternalTranslationApi();
+            String contentToSend = message.getContent();
+
+            // ❌ 3. [수정됨] 외부 번역 API 호출 흉내 (Blocking I/O - 200ms 고정)
+            // 실제 API 대신 Thread.sleep으로 지연 시간만 흉내 냅니다.
+            if (participant.isTranslateEnabled() && recipient.getTranslateLanguage() != null) {
+                String targetLang = recipient.getTranslateLanguage();
+
+                // 👇 여기가 변경된 부분입니다! (Mock 호출)
+                String translatedText = translateSync(contentToSend, targetLang);
+
+                if (translatedText != null) {
+                    contentToSend = translatedText;
+                    // ❌ 4. 건건이 Insert
+                    chatMessageTranslationRepository.save(new ChatMessageTranslation(
+                            message.getId(), targetLang, contentToSend
+                    ));
+                }
             }
 
-            // 실제 전송 로직은 생략 (Log만 찍음)
-            // log.debug("Sent to {}", p.getUser().getId());
+            // ❌ 5. 동기식 알림 전송 (50ms)
+            sendNotificationSync(recipient, contentToSend);
+
+            // 6. 소켓 전송
+            ChatMessageResponse response = new ChatMessageResponse(
+                    message.getId(), chatRoom.getId(), sender.getId(),
+                    message.getContent(), contentToSend, message.getSentAt(),
+                    sender.getFirstName(), sender.getLastName(), null,
+                    message.getMessageType(), null, null
+            );
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", response);
         }
-        log.info("[LoadTest] Finished processing for Room: {}", req.roomId());
     }
 
-    // 외부 번역 API가 0.2초 걸린다고 가정하는 Mock 메서드
-    private void mockExternalTranslationApi() {
+    private String translateSync(String content, String targetLang) {
         try {
-            Thread.sleep(200); // 0.2초 멈춤 (Network Latency 시뮬레이션)
+            // 실제 네트워크 통신 시간 + 번역 처리 시간 (약 200ms 가정)
+            // 이 시간 동안 DB Connection을 계속 물고 있게 됩니다.
+            Thread.sleep(200);
+
+            // 그럴싸한 번역 결과 리턴
+            return "[Translated to " + targetLang + "] " + content;
+
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
+            return content;
         }
+    }
+
+
+    // ⛔ [가짜 알림 전송] FCM/APNS 통신 지연을 흉내 냅니다.
+    private void sendNotificationSync(User recipient, String message) {
+        try {
+            // 실제 네트워크 통신처럼 50ms 딜레이를 줍니다.
+            Thread.sleep(50);
+            log.info("🔔 알림 전송 완료 (동기): to User {}", recipient.getId());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    private void checkSpamSync(ChatMessage message) {
+        try {
+            // Perspective API 호출 시간 흉내 (약 100ms)
+            Thread.sleep(100);
+
+            String content = message.getContent();
+            // 간단한 키워드로 스팸 감지 흉내
+            boolean needsAiCheck = (content.contains("http") || content.contains("www"));
+
+            if (needsAiCheck) {
+                log.warn("⚠️ [Mock] AI Spam Detected (Sync): messageId={}", message.getId());
+                // 신고 로직도 여기서 동기로 처리한다고 가정 (DB insert 시간 등)
+                // chatMemberService.reportChat(...) 대신 로그만 찍거나 추가 sleep
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private boolean checkBlockInDb(Long senderId, Long recipientId) {
+        return false;
     }
 }

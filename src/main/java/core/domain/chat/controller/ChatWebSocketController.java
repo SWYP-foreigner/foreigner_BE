@@ -87,4 +87,22 @@ public class ChatWebSocketController {
     public void sendMediaMessage(SendMediaMessageRequest req) {
         chatService.processAndSendMediaMessage(req);
     }
+
+    /**
+     * [성능 테스트용] 최적화되지 않은 레거시 버전
+     * 경로: /app/chat.sendMessageBad
+     */
+    @MessageMapping("/chat.sendMessageBad")
+    public void sendMessageBad(
+            @Payload SendMessageRequest req,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        log.info("Legacy Sending: User {}", principal.getUserId());
+        try {
+            // "안 좋은" 서비스 호출
+            chatService.sendMessageBad(req);
+        } catch (Exception e) {
+            log.error("Legacy Send Fail", e);
+        }
+    }
 }
