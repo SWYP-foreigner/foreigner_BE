@@ -16,6 +16,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
+import core.domain.user.repository.AdminOtpRepository;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -105,6 +106,7 @@ public class UserService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserFeedbackRepository userFeedbackRepository;
+    private final AdminOtpRepository adminOtpRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -793,7 +795,7 @@ public class UserService {
             bookmarkRepository.deleteAllByPostIn(userPosts);
             postRepository.deleteAll(userPosts);
         }
-
+        adminOtpRepository.deleteByUserId(userId);
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
