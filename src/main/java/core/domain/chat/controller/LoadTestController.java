@@ -22,7 +22,7 @@ public class LoadTestController {
         long start = System.currentTimeMillis();
 
         // 문제의 그 메서드 호출
-        chatService.sendBroadCastMessageAntiPattern(req);
+        chatService.sendMessageBad(req);
 
         long end = System.currentTimeMillis();
         long duration = end - start;
