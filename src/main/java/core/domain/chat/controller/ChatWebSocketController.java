@@ -41,7 +41,6 @@ public class ChatWebSocketController {
     public void sendMessage(
             @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info(String.valueOf(principal.getUserId()));
         try {
             chatService.processAndSendChatMessage(req);
         } catch (Exception e) {

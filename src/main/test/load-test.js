@@ -13,7 +13,7 @@ export const options = {
             startVUs: 0,
             stages: [
                 { duration: '10s', target: 300 },
-                { duration: '1m',  target: 300 },
+                { duration: '3m',  target: 300 },
                 { duration: '10s', target: 0 },
             ],
             gracefulRampDown: '10s',
@@ -21,9 +21,9 @@ export const options = {
     },
 };
 
-const BASE_URL = 'ws://localhost:8080/ws'; // ⚠️ 주의: 경로 확인 (ws-stomp 인지 ws 인지)
+const BASE_URL = 'ws://localhost:8080/ws';
 const ROOM_ID = '9999';
-const START_USER_ID = 2693;
+const START_USER_ID = 2605;
 
 function makeStompFrame(command, headers, body) {
     let frame = command + '\n';
@@ -43,7 +43,8 @@ export default function () {
     const isTalker = (__VU % 3 === 0);
 
     const params = {
-        headers: { 'user-id': userId.toString() },
+        headers: { 'user-id': userId.toString(),'Origin': 'https://test.ko-ri.cloud' },
+
         tags: { my_tag: 'chat_test' },
     };
 
@@ -60,9 +61,10 @@ export default function () {
             if (message.includes("CONNECTED")) {
                 const subscribeFrame = makeStompFrame('SUBSCRIBE', {
                     'id': 'sub-0',
-                    'destination': '/topic/user/' + userId + '/messages' // ⚠️ 중요: 개인 큐 구독 확인
+                    'destination': `/topic/user/${userId}/${ROOM_ID}/messages`
                 });
                 socket.send(subscribeFrame);
+                console.log(`[User ${userId}] Subscribed to /topic/user/${userId}/${ROOM_ID}/messages`);
 
                 if (isTalker) {
                     socket.setInterval(function timeout() {
@@ -77,7 +79,7 @@ export default function () {
                         });
 
                         const sendFrame = makeStompFrame('SEND', {
-                            'destination': '/app/chat.sendMessageBad',
+                            'destination': '/app/chat.sendMessage',
                             'content-type': 'application/json'
                         }, chatContent);
 

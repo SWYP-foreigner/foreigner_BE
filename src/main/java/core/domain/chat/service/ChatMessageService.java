@@ -54,6 +54,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -268,18 +269,22 @@ public class ChatMessageService {
         // 외부 번역 서비스 호출 (병렬)
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
-                    try {
-                        List<String> res = translationService.translateMessages(List.of(originalContent), lang);
-                        if (!res.isEmpty()) {
-                            resultMap.put(lang, res.get(0));
-                        }
-                    } catch (Exception e) {
-                        log.error("Translation failed for lang: {}", lang, e);
+                    // 이 내부의 sleep(200ms)은 가상 스레드를 'Pinn' 시키지 않고
+                    // 물리 스레드를 반납하게 설계되어야 함
+                    List<String> res = translationService.translateMessages(List.of(originalContent), lang);
+                    if (!res.isEmpty()) {
+                        resultMap.put(lang, res.get(0));
                     }
                 }))
                 .toList();
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .get(2, TimeUnit.SECONDS); // 무한 대기 방지
+        } catch (Exception e) {
+            log.error("번역 시간 초과 혹은 에러");
+        }
+
         return resultMap;
     }
 
