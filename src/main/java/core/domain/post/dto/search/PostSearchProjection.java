@@ -18,5 +18,6 @@ public record PostSearchProjection(
         String pollTitle,
         String pollDescription,
         Instant pollCloseAt,
-        Long pollTotalCount
+        Long pollTotalCount,
+        Long correctOptionId
 ) {}
