@@ -141,14 +141,7 @@ public class PostSearchService {
 
                 Long selectedOptionId = finalUserVotes.get(pollId);
 
-                Long correctOptionId = null;
-                if (selectedOptionId != null) {
-                    correctOptionId = rawOptions.stream()
-                            .filter(PollOption::getIsCorrect)
-                            .map(PollOption::getId)
-                            .findFirst()
-                            .orElse(null);
-                }
+                Long correctOptionId = p.correctOptionId();
 
                 List<BoardItem.OptionItem> optionDtos = rawOptions.stream()
                         .map(opt -> new BoardItem.OptionItem(

@@ -57,7 +57,7 @@ public class Poll {
         this.title = request.title();
         this.description = request.description();
         this.type = PollType.VOTE;
-        this.closeAt = Instant.now().plus(3, ChronoUnit.DAYS); // 기본 3일 뒤 마감
+        this.closeAt = null;
         this.author = user;
 
         post.initPoll(this);
@@ -74,7 +74,7 @@ public class Poll {
         this.title = request.title();
         this.description = request.description();
         this.type = PollType.QUIZ;
-        this.closeAt = null;
+        this.closeAt = Instant.now().plus(3, ChronoUnit.DAYS); // 기본 3일 뒤 마감
         this.author = user;
 
         post.initPoll(this);
