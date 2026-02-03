@@ -139,7 +139,7 @@ google:
 
 logging:
   level:
-    root: warn
+    root: INFO
 
     # 프레임워크 소음 차단
     org.hibernate.SQL: OFF
@@ -383,10 +383,7 @@ openai:
 otp:
   issuer: "Kori-Admin (Test)"
   magic-code-enabled: false
-
+  admin-secret: ${ADMIN_OTP_SECRET}
 encryption:
   secret: ${ENCRYPTION_SECRET}
 
-
-otp:
-  admin-secret: ${ADMIN_OTP_SECRET}

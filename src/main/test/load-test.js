@@ -21,6 +21,7 @@ export const options = {
     },
 };
 
+//const BASE_URL = 'wss://test.ko-ri.cloud/ws';
 const BASE_URL = 'ws://localhost:8080/ws';
 const ROOM_ID = '9999';
 const START_USER_ID = 2605;
