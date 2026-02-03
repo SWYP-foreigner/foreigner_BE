@@ -783,30 +783,32 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private Expression<Long> correctOptionIdIfVoted(Long userId) {
-        if (userId == null) {
-            return Expressions.nullExpression();
-        }
+        QPollOption qOption = new QPollOption("correctOpt");
+        Instant now = Instant.now();
 
-        // 1. 해당 유저가 이 투표(poll)에 참여했는지 확인하는 조건
-        BooleanExpression userHasVoted = JPAExpressions
-                .selectOne()
+        // 1. 해당 투표의 정답 ID를 찾는 서브쿼리
+        Expression<Long> correctAnswerIdSubQuery = JPAExpressions
+                .select(qOption.id)
+                .from(qOption)
+                .where(qOption.poll.id.eq(poll.id)
+                        .and(qOption.isCorrect.isTrue()));
+
+        // 2. 투표가 마감되었는지 확인하는 조건 (closeAt < now)
+        BooleanExpression isClosed = poll.closeAt.before(now);
+
+        // 3. 사용자가 투표를 했는지 확인하는 조건
+        BooleanExpression hasVoted = (userId == null)
+                ? Expressions.FALSE
+                : JPAExpressions.selectOne()
                 .from(voteRecord)
                 .where(voteRecord.user.id.eq(userId)
                         .and(voteRecord.poll.id.eq(poll.id)))
                 .exists();
 
-        // 2. 해당 투표의 정답 Option ID를 찾는 서브쿼리
-        QPollOption qOption = new QPollOption("correctOpt");
-        Expression<Long> correctAnswerId = JPAExpressions
-                .select(qOption.id)
-                .from(qOption)
-                .where(qOption.poll.id.eq(poll.id)
-                        .and(qOption.isCorrect.isTrue())); // 정답인 항목 찾기
-
-        // 3. CaseBuilder: 투표했으면 정답 ID 반환, 안 했으면 null 반환
+        // 4. CaseBuilder: (마감됨 OR 투표함) 이면 정답 ID 반환, 아니면 null
         return new CaseBuilder()
-                .when(userHasVoted)
-                .then(correctAnswerId)
-                .otherwise(Expressions.nullExpression());
+                .when(isClosed.or(hasVoted))
+                .then(correctAnswerIdSubQuery)
+                .otherwise(Expressions.nullExpression(Long.class));
     }
 }

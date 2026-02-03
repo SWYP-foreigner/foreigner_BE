@@ -54,7 +54,7 @@ public class PollService {
                 .orElse(null);
 
         Long correctOptionId = null;
-        if (selectedOptionId != null) {
+        if (poll.isClosed() || selectedOptionId != null) {
             correctOptionId = pollOptionRepository.findCorrectOptionId(poll.getId())
                     .orElse(null);
         }
