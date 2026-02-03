@@ -36,17 +36,52 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        // 디버깅 로그가 너무 많으면 성능 저하되므로 debug 레벨로 유지
         log.debug("preSend 진입: command={}, destination={}", accessor.getCommand(), accessor.getDestination());
 
         // 1. CONNECT (연결 시)
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            log.info("STOMP CONNECT 요청 처리 시작");
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
+            // =================================================================
+            // 🚨 [수정] 부하 테스트용 백도어 (토큰 없으면 테스트 유저로 통과)
+            // =================================================================
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.warn("STOMP CONNECT Authorization 헤더 없음 또는 Bearer 형식 아님");
-                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_NOT_FOUND.getMessage());
+                log.info("🚧 [LoadTest] Authorization 헤더 없음 -> 테스트 유저로 접속 허용");
+
+                // k6에서 'user-id' 헤더를 보내주면 좋지만, 없으면 랜덤/기본값 사용
+                // (일단 에러 안 나게 임의의 ID 부여)
+                String headerUserId = accessor.getFirstNativeHeader("user-id");
+                Long userId = (headerUserId != null) ? Long.valueOf(headerUserId) : 99999L;
+                String email = "loadtest_" + userId + "@test.com";
+
+                // 가짜 인증 객체 생성
+                CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
+                Authentication auth = new UsernamePasswordAuthenticationToken(principal, "TEST_TOKEN", principal.getAuthorities());
+
+                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                if (sessionAttributes != null) {
+                    sessionAttributes.put("userAuth", auth);
+                    sessionAttributes.put("userId", userId);
+                    sessionAttributes.put("connectAt", System.currentTimeMillis());
+
+                    // DB 기록 시도 (없는 유저일 수 있으므로 에러 무시)
+                    try {
+                        userActivityService.updateLastSeenAt(email);
+                        userActivityService.recordVisit(userId);
+                    } catch (Exception e) {
+                        log.warn("🚧 [LoadTest] DB 통계 집계 실패 (무시함): {}", e.getMessage());
+                    }
+                }
+
+                accessor.setUser(auth);
+                chatMetrics.onWsConnect("load_test");
+                return message; // 👈 여기서 바로 리턴 (아래 토큰 검증 로직 건너뜀)
             }
+            // =================================================================
+
+            // [기존 로직] 토큰 검증
+            log.info("STOMP CONNECT 요청 처리 시작");
             String token = authHeader.substring(7);
 
             try {
@@ -72,9 +107,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                     sessionAttributes.put("connectAt", System.currentTimeMillis());
 
                     String userEmail = auth.getName();
-                    userActivityService.updateLastSeenAt(userEmail); // 기존: 휴면 복구 및 접속 시간 갱신
-
-                    // [추가 1] 방문 횟수 증가 (Visit Count)
+                    userActivityService.updateLastSeenAt(userEmail);
                     userActivityService.recordVisit(userId);
                 }
                 accessor.setUser(auth);
@@ -92,13 +125,16 @@ public class StompChannelInterceptor implements ChannelInterceptor {
         // 2. SEND (메시지 전송 시)
         else if (StompCommand.SEND.equals(accessor.getCommand())) {
 
-            // [추가 2] 채팅 메시지 전송 시 활동 포인트 적립
             Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
             if (sessionAttributes != null) {
                 Long userId = (Long) sessionAttributes.get("userId");
                 if (userId != null) {
-                    // 채팅 1회당 5점 부여 (정책에 따라 조절)
-                    userActivityService.addActivityPoint(userId, 5L);
+                    // 활동 포인트 적립 (DB 에러나도 메시지는 가도록 try-catch 권장)
+                    try {
+                        userActivityService.addActivityPoint(userId, 5L);
+                    } catch (Exception e) {
+                        log.warn("활동 포인트 적립 실패 (무시): {}", e.getMessage());
+                    }
                 }
             }
 

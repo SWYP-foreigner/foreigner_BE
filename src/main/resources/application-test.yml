@@ -139,7 +139,7 @@ google:
 
 logging:
   level:
-    root: INFO
+    root: warn
 
     # 프레임워크 소음 차단
     org.hibernate.SQL: OFF
