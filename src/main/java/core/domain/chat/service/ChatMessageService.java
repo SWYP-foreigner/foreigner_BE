@@ -1083,7 +1083,6 @@ public class ChatMessageService {
             // 이 시간 동안 DB Connection을 계속 물고 있게 됩니다.
             Thread.sleep(200);
 
-            // 그럴싸한 번역 결과 리턴
             return "[Translated to " + targetLang + "] " + content;
 
         } catch (InterruptedException e) {
@@ -1098,7 +1097,6 @@ public class ChatMessageService {
         try {
             // 실제 네트워크 통신처럼 50ms 딜레이를 줍니다.
             Thread.sleep(50);
-            log.info("🔔 알림 전송 완료 (동기): to User {}", recipient.getId());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -1113,7 +1111,6 @@ public class ChatMessageService {
             boolean needsAiCheck = (content.contains("http") || content.contains("www"));
 
             if (needsAiCheck) {
-                log.warn("⚠️ [Mock] AI Spam Detected (Sync): messageId={}", message.getId());
                 // 신고 로직도 여기서 동기로 처리한다고 가정 (DB insert 시간 등)
                 // chatMemberService.reportChat(...) 대신 로그만 찍거나 추가 sleep
             }

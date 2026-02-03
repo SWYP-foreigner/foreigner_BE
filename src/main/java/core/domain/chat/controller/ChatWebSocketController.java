@@ -96,9 +96,7 @@ public class ChatWebSocketController {
             @Payload SendMessageRequest req,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        log.info("Legacy Sending: User {}", principal.getUserId());
         try {
-            // "안 좋은" 서비스 호출
             chatService.sendMessageBad(req);
         } catch (Exception e) {
             log.error("Legacy Send Fail", e);
