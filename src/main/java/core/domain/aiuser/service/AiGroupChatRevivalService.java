@@ -45,10 +45,11 @@ public class AiGroupChatRevivalService {
 
     private final TransactionTemplate transactionTemplate;
 
+
     private static final SecureRandom secureRandom = new SecureRandom();
 
     // 1. 침묵 기준 시간
-    private static final long SILENCE_THRESHOLD_MINUTES = 240;
+    private static final long SILENCE_THRESHOLD_MINUTES = 720;
 
     // 2. 스케줄러 실행 주기
     @Scheduled(cron = "0 0 * * * *")
@@ -87,32 +88,62 @@ public class AiGroupChatRevivalService {
             List<User> aiParticipants = chatRoomRepository.findAiParticipantsByRoomId(room.getId());
             if (aiParticipants.isEmpty()) return null;
 
-            // 2. 메시지 조회 및 정렬
+            // 2. 메시지 조회 (최신 20개 가져와서 시간순 정렬)
+            // Repository 메서드명: findTop20ByChatRoomIdOrderBySentAtDesc
             List<ChatMessage> lastMessages = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(room.getId());
-            Collections.reverse(lastMessages);
+            Collections.reverse(lastMessages); // 과거 -> 최신 순으로 정렬 변경
 
-            // 3. 발화자 선정
-            User initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
+            // ==========================================================
+            // 🚨 [수정됨] 3. 발화자 선정 (Entity 구조 반영 + 스킵 로직)
+            // ==========================================================
+            User initiatorAi;
 
-            // 🚨 [핵심] Lazy Loading 강제 초기화 (Hibernate 초기화)
-            // 프롬프트 만들 때 필요한 정보를 여기서 미리 다 건드려서 로딩해둡니다.
+            if (lastMessages.isEmpty()) {
+                // 메시지가 하나도 없으면 아무나 선정
+                initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
+            } else {
+                // 가장 최근 메시지 (리스트를 뒤집었으므로 마지막 요소가 최신)
+                ChatMessage lastMsg = lastMessages.get(lastMessages.size() - 1);
+
+                // ⚠️ Entity 수정 반영: User 객체에서 ID 추출
+                Long lastSenderId = lastMsg.getSender().getId();
+
+                // "마지막에 말한 AI"를 제외한 후보군 생성
+                List<User> candidates = aiParticipants.stream()
+                        .filter(ai -> !ai.getId().equals(lastSenderId))
+                        .collect(Collectors.toList());
+
+                if (!candidates.isEmpty()) {
+                    // 후보가 있다면 그 중에서 랜덤 선정 (티키타카)
+                    initiatorAi = candidates.get(secureRandom.nextInt(candidates.size()));
+                } else {
+                    // 🛑 후보가 없다면? (방금 말한 애가 유일한 AI인 경우 등) -> 스킵!
+                    log.info("🚫 Revival Skipped: Room[{}] AI[{}] already spoke last.", room.getId(), lastSenderId);
+                    return null; // 트랜잭션 종료 및 스킵
+                }
+            }
+            // ==========================================================
+
+            // 4. Lazy Loading 강제 초기화 (User 정보 및 Persona)
+            // 프롬프트 생성 시 필요한 정보들을 미리 로딩
             String hobby = initiatorAi.getHobby();
             String country = initiatorAi.getCountry();
+
             AiPersona persona = aiPersonaRepository.findByUserId(initiatorAi.getId()).orElse(null);
             if (persona != null) {
-                persona.getInstruction(); // Lazy 로딩 트리거
+                persona.getInstruction(); // LOB 데이터 등 Lazy 로딩 트리거
             }
 
             return new RevivalContext(initiatorAi, persona, lastMessages);
         });
 
+        // context가 null이면(후보가 없어서 스킵된 경우) 메서드 종료
         if (context == null) return;
 
-        // 🧠 [2단계] AI 생성 (트랜잭션 X - DB 연결 없이 맘 편히 오래 걸려도 됨)
-        // 이 구간에서는 DB 커넥션을 점유하지 않습니다.
+        // 🧠 [2단계] AI 메시지 생성 (DB 연결 불필요 구간)
         String revivalMessage = generateDynamicRevivalMessage(context.aiUser, context.persona, context.lastMessages);
 
-        // 💾 [3단계] 메시지 전송 (트랜잭션 O - 이미 ChatMessageService에 걸려있음)
+        // 💾 [3단계] 메시지 전송 (트랜잭션 O)
         SendMessageRequest request = new SendMessageRequest(
                 room.getId(),
                 context.aiUser.getId(),
@@ -169,10 +200,105 @@ public class AiGroupChatRevivalService {
     }
 
     private static final String[] FALLBACK_TOPICS = {
-            "여기 너무 조용한 거 아니야? 다들 뭐해?",
-            "심심한 사람 있어? 나랑 놀자",
-            "다들 밥은 먹었어?",
-            "넷플릭스에서 볼만한거 추천좀 해줘",
-            "Hi guys! It's so quiet here. Anyone awake?"
+            "뭐해?",
+            "뭐하니",
+            "hmmm",
+            "hi",
+            "Hi guys!",
+            "Anyone awake?",
+            // Korean Version
+            "다들 자니?",
+            "심심하다",
+            "하이",
+            "반가워요!",
+            "다들 뭐해요?",
+            "누구 없나",
+            "배고프다...",
+            "오늘 날씨 어때요?",
+            "안녕 안녕",
+            "다들 밥 먹었어?",
+            "심심한 사람",
+            "하이",
+            "좋은 아침!",
+            "굿밤",
+            "졸리다",
+            "누구 대화하자",
+            "반가워",
+            "인사해줘요",
+            "헬로",
+            "궁금한게 있어",
+            "다들 뭐함",
+            "처음 온 사람?",
+            "뭐하고 놀까",
+            "노래 추천좀",
+            "다들 오늘 하루 어땠어?",
+            "다들 있는 곳 날씨 어때?",
+            "다들 자나보네",
+            "안뇽",
+            "zzz",
+            "좋은날!!",
+            "뭐 재미있는거 없나",
+            "웃긴 얘기 해줄 사람",
+            "배고프다",
+            "게임 추천좀",
+            "드라마 추천 해 줄 사람?",
+            "안녕들 하신가",
+            "심심하네",
+            "같이 놀자",
+            "질문 있어!",
+            "하이요",
+            "반갑습니다",
+            "뭐해 다들?",
+            "깨어있는 사람?",
+            // English Version
+            "Hey!",
+            "What's up?",
+            "Hi there",
+            "Hello everyone!",
+            "Anyone here?",
+            "How's it going?",
+            "Bored...",
+            "Hi guys!",
+            "Good morning",
+            "Good night",
+            "What are you doing?",
+            "Anybody awake?",
+            "How are you?",
+            "Hey hey",
+            "Need someone to talk to",
+            "Anyone active?",
+            "What's the vibe?",
+            "Hellooo",
+            "Yo",
+            "Sup",
+            "Feeling bored",
+            "How's your day?",
+            "Any plans today?",
+            "Where is everyone?",
+            "Let's chat",
+            "What's everyone up to?",
+            "Can you hear me?",
+            "Anyone online?",
+            "Vibe check",
+            "Hope you're well",
+            "Busy?",
+            "Talk to me",
+            "How's life?",
+            "Hey friends",
+            "Just saying hi",
+            "What's new?",
+            "Peace",
+            "Having a good day?",
+            "Can't sleep",
+            "Hi hi",
+            "What's the tea?",
+            "So bored right now",
+            "Still awake?",
+            "Say something!",
+            "Helloooo?",
+            "Anyone want to talk?",
+            "Is it just me or is it quiet?",
+            "Yo yo",
+            "Have a nice day!"
     };
 }
