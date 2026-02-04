@@ -14,8 +14,8 @@ export const options = {
 };
 
 // 서버 주소 (환경에 맞게 수정)
-const BASE_URL = "http://localhost:8080/api/v1/chat";
-const WS_URL = "ws://localhost:8080/plain-ws/chat";
+const BASE_URL = "https://test.ko-ri.cloud/api/v1/chat";
+const WS_URL = "wss://test.ko-ri.cloud/ws";
 
 export default function () {
     const combo = validCombinations[Math.floor(Math.random() * validCombinations.length)];
