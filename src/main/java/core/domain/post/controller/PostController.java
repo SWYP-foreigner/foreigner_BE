@@ -126,7 +126,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
     })
     @DeleteMapping("/posts/{postId}")
-    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.POST_DELETE_FORBIDDEN})
+    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.POST_DELETE_FORBIDDEN, CommunityErrorCode.VOTE_RECORD_EXISTED})
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     @ImageErrorCodeDocs({ImageErrorCode.IMAGE_FOLDER_DELETE_FAILED})
     public ResponseEntity<core.global.dto.ApiResponse<?>> deletePost(
