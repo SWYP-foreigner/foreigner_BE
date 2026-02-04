@@ -10,6 +10,7 @@ import core.global.enums.PollType;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +22,11 @@ import org.springframework.web.bind.annotation.*;
 @GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class PollController {
     private final PollService pollService;
+    private final FeatureUsageMetrics featureUsageMetrics;
 
-    PollController(PollService pollService) {
+    PollController(PollService pollService, FeatureUsageMetrics featureUsageMetrics) {
         this.pollService = pollService;
+        this.featureUsageMetrics = featureUsageMetrics;
     }
 
     @Operation(summary = "오늘의 투표/퀴즈 조회", description = "최신 투표 또는 퀴즈를 1건 조회합니다.")
@@ -32,6 +35,8 @@ public class PollController {
     public ResponseEntity<ApiResponse<PollItem>> getTodayPoll(
             @RequestParam PollType type // VOTE 또는 QUIZ
     ) {
+        featureUsageMetrics.recordCommunityUsage();
+
         return ResponseEntity.ok(ApiResponse.success(
                 pollService.getTodayPoll(type)
         ));
@@ -43,6 +48,7 @@ public class PollController {
     public ResponseEntity<ApiResponse<Long>> createVote(
             @RequestBody VoteWriteRequest request
     ) {
+        featureUsageMetrics.recordCommunityUsage();
 
         Long pollId = pollService.createVote(request);
 
@@ -67,6 +73,7 @@ public class PollController {
     public ResponseEntity<ApiResponse<Long>> updateVote(
             @RequestBody VoteUpdateRequest request
     ) {
+        featureUsageMetrics.recordCommunityUsage();
 
         Long pollId = pollService.updateVote(request);
 
@@ -92,6 +99,7 @@ public class PollController {
             @PathVariable Long pollId,
             @RequestBody PollParticipateRequest request
     ) {
+        featureUsageMetrics.recordCommunityUsage();
         return ResponseEntity.ok(ApiResponse.success(
                 pollService.participate(pollId, request.optionId())
         ));

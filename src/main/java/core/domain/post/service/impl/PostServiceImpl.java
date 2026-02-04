@@ -9,6 +9,7 @@ import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.poll.entity.PollOption;
 import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
@@ -92,6 +93,7 @@ public class PostServiceImpl implements PostService {
     private final PostReportRepository postReportRepository;
     private final MainContentHotKeywordBatchService recommendBatchService;
     private final PollOptionRepository pollOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
 
     private final MainContentRepository mainContentRepository;
     private final ImageStorageClient imageStorageClient;
@@ -487,12 +489,15 @@ public class PostServiceImpl implements PostService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
+        }
+
+        if(voteRecordRepository.existsByPollId(post.getPoll().getId())){
+            throw new BusinessException(CommunityErrorCode.VOTE_RECORD_EXISTED);
         }
 
         String folderPrefix = "posts/" + postId;
