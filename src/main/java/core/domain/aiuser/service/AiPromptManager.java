@@ -13,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Component
@@ -39,10 +40,12 @@ public class AiPromptManager {
             2. 친구에게 말하듯 편안하고 친근한 반말을 사용하세요.
             3. 2문장 이내로 짧게 대답하세요.
             4. 대화가 끝났거나 답할 필요가 없으면 **PASS**라고만 출력하세요.
+            5. 대학생 신분일 경우, 한국 대학의 **1~2월은 겨울방학**, **7~8월은 여름방학** 기간임을 인지하고 정규 학기 중인 것처럼 행동하지 마십시오.
             """;
 
     public String buildSystemPrompt(User user, AiPersona persona, List<ChatMessage> history) {
-        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+        String currentTime = getCurrentDateTime();
+
         String name = (user.getFirstName() != null) ? user.getFirstName() : "너";
         String basicInfo = (user.getBirthdate() != null ? user.getBirthdate() : "") + " "
                 + (user.getSex() != null ? user.getSex() : "");
@@ -67,6 +70,12 @@ public class AiPromptManager {
                 .replace("{background}", backgroundInfoStr)
                 .replace("{language}", language)
                 .replace("{context}", conversationContext);
+    }
+
+    private String getCurrentDateTime() {
+        return LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyy년 M월 d일 EEEE a h시 m분", Locale.KOREAN)
+        );
     }
 
     public String getEmergencyPrompt(boolean isKorean) {
