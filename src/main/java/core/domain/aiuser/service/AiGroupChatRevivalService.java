@@ -183,7 +183,10 @@ public class AiGroupChatRevivalService {
             // 2. API 호출 (System / User 메시지 분리 권장)
             List<Map<String, Object>> input = List.of(
                     Map.of("role", "system", "content", prompt),
-                    Map.of("role", "user", "content", "지금 대화 맥락에 맞춰 자연스럽게 첫 마디를 건네주세요.")
+                    Map.of("role", "user", "content",
+                            "이곳은 여러 명이 있는 '단체 채팅방'입니다. " +
+                                    "특정 1명을 지칭('너')하지 말고, '너희', '다들' 등을 사용하여 그룹 전체에게 자연스럽게 대화를 유도하거나 질문을 던져주세요."
+                    )
             );
 
             String response = aiClient.generateResponse(input);
