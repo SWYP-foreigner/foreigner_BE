@@ -32,7 +32,16 @@ public class FastSocketSender {
      */
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
+        Long firstTargetId = recipientIds.get(0);
+        log.info("🎯 [Target] 전송해야 할 명단(첫번째): ID = {}", firstTargetId);
 
+        // 2. "현재 접속해 있는 사람" 중 아무나 한 명 잡아서 이름표를 까보자.
+        if (!userRegistry.getUsers().isEmpty()) {
+            SimpUser connectedUser = userRegistry.getUsers().iterator().next();
+            log.info("🔥 [Registry] 현재 접속중인 유저(이름표): Name = {}", connectedUser.getName());
+        } else {
+            log.info("🔥 [Registry] 현재 접속자가 0명입니다. (K6 연결이 끊겼거나 아직 안 들어옴)");
+        }
         // [Debug] 레지스트리 상태 샘플링 (첫 번째 유저가 누구인지 확인)
         // 로직이 안정화되면 주석 처리하세요.
         if (!userRegistry.getUsers().isEmpty() && log.isTraceEnabled()) {
