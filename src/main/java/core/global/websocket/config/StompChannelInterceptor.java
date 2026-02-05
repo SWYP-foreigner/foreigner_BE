@@ -57,7 +57,12 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
                 // 가짜 인증 객체 생성
                 CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
-                Authentication auth = new UsernamePasswordAuthenticationToken(principal, "TEST_TOKEN", principal.getAuthorities());
+                Authentication auth = new UsernamePasswordAuthenticationToken(principal, "TEST_TOKEN", principal.getAuthorities()) {
+                    @Override
+                    public String getName() {
+                        return String.valueOf(userId); // ID(3598)를 리턴하도록 강제 변경
+                    }
+                };;
 
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
                 if (sessionAttributes != null) {
