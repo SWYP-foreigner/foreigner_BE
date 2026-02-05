@@ -496,7 +496,7 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
         }
 
-        if(voteRecordRepository.existsByPollId(post.getPoll().getId())){
+        if (post.getPoll() != null && voteRecordRepository.existsByPollId(post.getPoll().getId())) {
             throw new BusinessException(CommunityErrorCode.VOTE_RECORD_EXISTED);
         }
 
