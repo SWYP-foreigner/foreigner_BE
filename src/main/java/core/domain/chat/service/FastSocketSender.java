@@ -41,20 +41,29 @@ public class FastSocketSender {
             log.error("JSON Serialization Failed", e);
             return;
         }
+        int successCount = 0; // 카운트 추가
+        int failCount = 0;    // 카운트 추가
 
-        // 2. 각 유저별로 세션 찾아서 전송 (네트워크 I/O 분산)
         for (Long userId : recipientIds) {
-            // 메모리에 있는 접속자 레지스트리에서 유저 조회 (DB 조회 아님, 매우 빠름)
             SimpUser user = userRegistry.getUser(String.valueOf(userId));
 
-            // 접속하지 않은 유저는 패스 (이 로직 덕분에 불필요한 전송 시도도 사라짐)
-            if (user == null) continue;
+            // [디버깅 로그 1] 유저를 못 찾았을 때
+            if (user == null) {
+                // 로그가 너무 많이 뜨면 100번에 한번만 찍게 조건 걸어도 됨
+                // log.warn("❌ User Not Found in Registry: {}", userId);
+                failCount++;
+                continue;
+            }
 
-            // 한 유저가 모바일/PC 등 여러 기기로 접속했을 수 있으므로 세션 루프
             for (SimpSession session : user.getSessions()) {
                 sendToSession(session.getId(), "/topic/user/" + userId + topicSuffix, payloadBytes);
+                successCount++;
             }
         }
+
+        // [디버깅 로그 2] 전체 결과 요약 (매우 중요)
+        log.info("📢 FastSocket 결과 - 대상: {}명, 성공(세션): {}개, 실패(못찾음): {}명 | Suffix: {}",
+                recipientIds.size(), successCount, failCount, topicSuffix);
     }
 
     private void sendToSession(String sessionId, String destination, byte[] payload) {

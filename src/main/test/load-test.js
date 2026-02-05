@@ -56,9 +56,11 @@ export default function () {
 
     const res = ws.connect(BASE_URL, params, function (socket) {
         socket.on('open', function open() {
+            // ★ 여기에 user-id를 넣어줘야 인터셉터가 읽습니다.
             const connectFrame = makeStompFrame('CONNECT', {
                 'accept-version': '1.2,1.1,1.0',
-                'heart-beat': '10000,10000'
+                'heart-beat': '10000,10000',
+                'user-id': userId.toString() // <--- 추가!
             });
             socket.send(connectFrame);
         });
