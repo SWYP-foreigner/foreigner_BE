@@ -88,4 +88,8 @@ public class Image {
         this.moderationStatus = status;
         this.moderationReason = reason;
     }
+
+    public void updateUrl(String finalUrl) {
+        this.url = finalUrl;
+    }
 }

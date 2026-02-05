@@ -66,12 +66,6 @@ public class ProfileImageServiceImpl implements ProfileImageService {
         // 1) 입력 검증
         validateProfileInput(userId, requestedKeyOrUrl);
 
-        if (imageRepository.existsByImageTypeAndRelatedId(ImageType.USER, userId)) {
-            log.info("중복 이미지 사용자 Id {}", userId);
-            imageRepository.deleteByImageTypeAndRelatedIdWithFlushing(ImageType.USER, userId);
-            log.info("[Profile Setup] 기존 이미지 삭제 완료 (Flush) - userId: {}", userId);
-        }
-
         // 2) URL/Key 판정 및 변환
         RequestInfo requestInfo = resolveRequestInfo(requestedKeyOrUrl);
 
@@ -80,12 +74,29 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
         // 5) 최종 후보 키/URL 계산 (버전드 키 전략)
         String candidateFinalKey = computeCandidateFinalKey(userId, requestInfo);
-
-        log.debug("[Profile Setup] 이미지 파일 이동 시도 - userId: {}, targetKey: {}", userId, candidateFinalKey);
         String finalKey = moveStagingProfileIfNecessary(userId, requestInfo, candidateFinalKey);
+        String finalUrl = buildCdnUrlFromKey(cdnBaseUrl, finalKey);
 
-        // 10) 저장
-        saveImageInDB(userId, ImageType.USER, finalKey);
+        Image targetImage = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                .orElse(null);
+
+        if (targetImage != null) {
+            // A. 이미 존재하면 -> URL 업데이트
+            log.info("[Profile Setup] 기존 이미지 업데이트 - ID: {}, New URL: {}", targetImage.getId(), finalUrl);
+            targetImage.updateUrl(finalUrl);
+        } else {
+            // B. 없으면 -> 새로 생성 및 저장
+            log.info("[Profile Setup] 새 이미지 생성 및 저장 - userId: {}", userId);
+            // saveImageInDB가 저장된 엔티티를 반환하도록 수정해야 합니다.
+            saveImageInDB(userId, ImageType.USER, finalKey);
+
+            targetImage = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
+                    .orElse(null);
+        }
+
+        // 이제 targetImage는 절대 null이 아닙니다.
+        publishImageModerationEvent(finalKey, targetImage);
+
         log.info("[Profile Setup] 유저 프로필 이미지 저장 성공 - userId: {}, finalKey: {}", userId, finalKey);
     }
 
@@ -428,14 +439,16 @@ public class ProfileImageServiceImpl implements ProfileImageService {
 
         log.info("[DB저장 - 완료] Image 엔티티 ID: {}", savedImage.getId());
 
+        return finalUrl;
+    }
+
+    private void publishImageModerationEvent(String finalKey, Image savedImage) {
         if (!storageClient.isDefaultUrlOrKey(finalKey)) {
             log.info("[유해성검사] 이벤트 발행 시작. ID: {}, Key: {}", savedImage.getId(), finalKey);
             eventPublisher.publishEvent(new ImageModerationEvent(savedImage.getId(), finalKey));
         } else {
             log.info("[유해성검사 - skip] 기본 이미지이므로 검사 생략");
         }
-
-        return finalUrl;
     }
 
     private String computeChatRoomCandidateFinalKey(Long chatRoomId, RequestInfo requestInfo) {

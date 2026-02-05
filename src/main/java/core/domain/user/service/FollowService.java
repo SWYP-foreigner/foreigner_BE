@@ -166,23 +166,27 @@ public class FollowService {
     }
 
     private FriendType determineFriendType(User me, User other) {
-        // 1. 누가 보냈든 관계 레코드 하나를 가져옴
-        Follow follow = followRepository.findAnyRelation(me, other).orElse(null);
+        // 1. 모든 관계를 가져옴 (최대 2개 가능)
+        List<Follow> relations = followRepository.findAllRelations(me, other);
 
-        if (follow == null) return FriendType.NONE;
+        if (relations.isEmpty()) return FriendType.NONE;
 
-        // 2. 수락된 상태면 무조건 친구 (누가 보냈든 상관없음)
-        if (follow.getStatus() == FollowStatus.ACCEPTED) {
-            return FriendType.FRIEND;
-        }
+        // 2. 하나라도 ACCEPTED가 있으면 친구 (맞팔 상태 포함)
+        boolean isAccepted = relations.stream()
+                .anyMatch(f -> f.getStatus() == FollowStatus.ACCEPTED);
+        if (isAccepted) return FriendType.FRIEND;
 
-        // 3. 대기 중(PENDING)일 때만 방향 확인
-        if (follow.getStatus() == FollowStatus.PENDING) {
-            // 내가 보낸 거면 FOLLOWING, 내가 받은 거면 FOLLOWED
-            return follow.getUser().getId().equals(me.getId()) ? FriendType.FOLLOWING : FriendType.FOLLOWED;
-        }
 
-        return FriendType.NONE;
+        Optional<Follow> myRequest = relations.stream()
+                .filter(f -> f.getUser().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING)
+                .findFirst();
+
+        if (myRequest.isPresent()) return FriendType.FOLLOWING;
+
+        boolean theyRequested = relations.stream()
+                .anyMatch(f -> f.getFollowing().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING);
+
+        return theyRequested ? FriendType.FOLLOWED : FriendType.NONE;
     }
 
     /**
@@ -211,7 +215,11 @@ public class FollowService {
                     log.warn("[ACCEPT FOLLOW] 대기 중인 팔로우 요청 없음: from={}, to={}", fromUser.getId(), toUser.getId());
                     return new BusinessException(UserErrorCode.FOLLOWER_NOT_FOUND);
                 });
-
+        followRepository.findByUserAndFollowingAndStatus(toUser, fromUser, FollowStatus.PENDING)
+                .ifPresent(reverseReq -> {
+                    followRepository.delete(reverseReq);
+                    log.info("[CLEANUP] 맞팔로우 성사로 인한 반대편 대기 요청 삭제: {} -> {}", toUser.getId(), fromUser.getId());
+                });
         follow.accept();
         log.info("[ACCEPT FOLLOW] 팔로우 요청 수락 완료: 신청자={}, 수락자={}", fromUser.getId(), toUser.getId());
         logFollowActivity(fromUser, toUser, FollowActionType.ACCEPT, "NOTIFICATION");
@@ -251,26 +259,41 @@ public class FollowService {
         log.info("[GET FOLLOWS] 요청 시작: 사용자={}, 상태={}, 팔로워 조회 여부={}", auth.getName(), status, isFollowers);
 
         String email = auth.getName();
-        User me = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
+
+        List<User> foundUsers = userRepository.findAllByEmail(email);
+
+        if (foundUsers.isEmpty()) {
+            log.warn("[GET FOLLOWS] 사용자 찾기 실패: email={}", email);
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        User me = foundUsers.stream()
+                .max(Comparator.comparing(User::getUpdatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(User::getId))
+                .orElse(foundUsers.get(0));
+
+        if (foundUsers.size() > 1) {
+            log.error("[DATA WARNING] 이메일 중복 데이터 발견! 로직은 정상 수행됩니다. email={}, count={}, selectedId={}",
+                    email, foundUsers.size(), me.getId());
+        }
+
 
         Stream<Follow> followStream;
 
         if (isFollowers) {
             followStream = followRepository.findByFollowingAndStatus(me, status).stream();
-        } else { // false이면 내가 팔로우하는 사람들을 조회
+        } else {
             followStream = followRepository.findByUserAndStatus(me, status).stream();
         }
 
         List<FollowDTO> result = followStream
                 .map(follow -> {
                     User targetUser = isFollowers ? follow.getUser() : follow.getFollowing();
+
                     FriendType type = determineFriendType(me, targetUser);
 
                     String imageKey = imageService.getUserProfileKey(targetUser.getId());
+
                     List<String> languages = (targetUser.getLanguage() != null && !targetUser.getLanguage().isBlank())
                             ? Arrays.stream(targetUser.getLanguage().split(","))
                             .map(String::trim)
@@ -296,7 +319,7 @@ public class FollowService {
                 })
                 .collect(Collectors.toList());
 
-        log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환", result.size());
+        log.info("[GET FOLLOWS] 조회 완료: 총 {}명의 사용자 반환 (Target User ID: {})", result.size(), me.getId());
         return result;
     }
 

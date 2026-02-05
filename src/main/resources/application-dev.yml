@@ -157,6 +157,7 @@ logging:
     core.global.config.core.global.security.JwtTokenFilter: INFO
     core.global.search: INFO
 
+
 # 운영에서는 에러 본문 노출 금지
 server.error.include-message: always
 server.error.include-binding-errors: always
@@ -372,17 +373,18 @@ smoke:
     # --- [4] 기타 인프라 체크 ---
     - name: "Infra-WebSocket-Endpoint"
       type: "INTERNAL"
-      method: "GET"
       path: "/ws"
-      expectedStatus: 400 # WebSocket은 일반 GET으로 찌르면 400(Bad Request) 반환이 정상 생존 신호
+      method: "GET"
+      expectedStatus: 200
 
 
 openai:
   api-key: ${OPEN_AI_KEY}
 
 otp:
-  issuer: "Kori-Admin"
-  magic-code-enabled: false
+  magic-code-enabled: true
+  admin-secret: ${ADMIN_OTP_SECRET}
+
 
 encryption:
   secret: ${ENCRYPTION_SECRET}

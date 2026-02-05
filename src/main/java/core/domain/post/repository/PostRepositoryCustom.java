@@ -16,7 +16,7 @@ public interface PostRepositoryCustom {
 
     List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size);
 
-    PostDetailResponse findPostDetail(String email, Long postId);
+    PostDetailResponse findPostDetail(Long userId, Long postId);
 
     List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne);
 

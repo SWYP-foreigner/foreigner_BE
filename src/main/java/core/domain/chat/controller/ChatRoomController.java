@@ -56,6 +56,17 @@ public class ChatRoomController {
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.ok(ApiResponse.success(ChatRoomResponse.from(room)));
     }
+    @PostMapping("/rooms/oneTone")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_CREATION_FAILED})
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> ChatcreateRoom(
+            @RequestBody CreateRoomRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        ChatRoom room = chatService.createRoom(principal.getUserId(), request.otherUserId());
+        featureUsageMetrics.recordChatUsage();
+        return ResponseEntity.ok(ApiResponse.success(ChatRoomResponse.from(room)));
+    }
 
     @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성합니다.")
     @ApiResponses({
