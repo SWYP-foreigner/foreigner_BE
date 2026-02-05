@@ -72,6 +72,7 @@ public class ChatMessageService {
     private final ImageRepository imageRepository;
     private final BlockRepository blockRepository;
     private final ChatMessageTranslationRepository chatMessageTranslationRepository;
+    private final FastSocketSender fastSocketSender;
 
     // Service
     private final UserRoleDetectService userRoleDetectService;
@@ -127,44 +128,45 @@ public class ChatMessageService {
             String userImageUrl = getUserProfileImage(sender.getId());
             List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            // 4. 수신자 그룹핑
+            // 4. 수신자 그룹핑 (언어별)
             Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
-
             List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
-            ChatMessageResponse savedMessageResponse = buildBaseMessageResponse(savedMessage, userImageUrl);
 
-            // 5. [수정됨] 병렬 번역 실행 (여기서는 저장하지 않고 '결과값'만 받아옵니다!)
-            Map<String, String> translatedContentsMap = new HashMap<>();
+            // 5. 병렬 번역 실행 (저장 X, 메모리상에 결과만 보유)
+            Map<String, String> finalTranslations = new HashMap<>();
             if (savedMessage.getMessageType() == MessageType.TEXT) {
-                // 주의: 여기서 내부적으로 save를 호출하던 translateAndCache 대신,
-                // 순수하게 번역만 해오는 메서드를 호출하거나, 로직을 분리해야 합니다.
-                translatedContentsMap = executePureParallelTranslations(
+                finalTranslations = executePureParallelTranslations(
                         savedMessage.getContent(), recipientsByLang.keySet()
                 );
             }
 
-            // 6. [수정됨] 트랜잭션 커밋 후 실행 (저장 + 전송)
-            // 이 시점에 DB에는 message가 확실히 있습니다.
+            // 6. 트랜잭션 커밋 후 실행 (이벤트 발행 및 비동기 저장)
             final Long messageId = savedMessage.getId();
-            final Map<String, String> finalTranslations = translatedContentsMap;
-            eventPublisher.publishEvent(new MessageCreatedEvent(savedMessageResponse, allRecipientIds));
+            final Map<String, String> translationsToSave = finalTranslations;
+            final String userImg = userImageUrl;
+
+            // 이벤트 발행 (기본 메시지 전송용)
+            // -> 여기서 ChatEventListener.handleMessageSent가 호출됨
+            ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, userImg);
+            eventPublisher.publishEvent(new MessageCreatedEvent(baseResponse, allRecipientIds));
+
+            // 커밋 후 동작: 번역 저장 및 언어별 전송
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    // A. 번역 결과 DB 저장 (이제 안전함!)
-                    finalTranslations.forEach((lang, content) ->
+                    // A. 번역 결과 DB 저장 (Async)
+                    translationsToSave.forEach((lang, content) ->
                             chatTranslationService.saveTranslationAsync(messageId, lang, content)
                     );
 
-                    // B. 메시지 전송 (기존 executeParallelDispatch 로직 이동)
-                    executeParallelDispatchAfterCommit(
-                            recipientsByLang, finalTranslations, savedMessage, userImageUrl
-                    );
+                    // B. [언어별 전송] 여기가 중요합니다!
+                    // 기본 메시지(MessageCreatedEvent)는 원문을 보내지만,
+                    // 번역이 필요한 사용자들에게는 '번역된 버전'을 따로 쏴줘야 합니다.
+                    executeParallelDispatchAfterCommit(recipientsByLang, translationsToSave, baseResponse);
                 }
             });
-
         } catch (Exception e) {
             log.error("Error in processAndSendChatMessage", e);
             throw e;
@@ -288,74 +290,57 @@ public class ChatMessageService {
         return resultMap;
     }
 
-    /**
-     * 그룹별로 메시지를 생성하고 비동기로 전송합니다.
-     * (DTO 수정 없이 Record 생성자 사용)
-     */
-    /**
-     * [수정됨] 커밋 후 실행되므로 TransactionSynchronizationManager 등록 부분 제거
-     */
+
+   /* [Zero-Copy 최적화 적용]
+            * 1. N+1 DB 조회(Race Condition Check) 제거 -> 서버 멈춤 현상 해결
+ * 2. 언어별(Language)로 DTO를 1번만 생성 -> 1,000번 반복되는 JSON 변환 제거
+ * 3. executeParallelDispatchAfterCommit 메서드 시그니처 유지
+ */
     private void executeParallelDispatchAfterCommit(
             Map<String, List<Long>> recipientsByLang,
-            Map<String, String> translatedContentsMap,
-            ChatMessage savedMessage,
-            String userImageUrl
+            Map<String, String> translations, // 번역 결과 Map ("en": "Hello", "ko": "안녕")
+            ChatMessageResponse baseResponse  // 기본 메시지 정보 (원문 포함)
     ) {
-        // 1. 데이터 추출 (이미 커밋된 상태라 Lazy Loading 걱정 덜하지만, 안전하게 ID 등 사용)
-        Long messageId = savedMessage.getId();
-        Long roomId = savedMessage.getChatRoom().getId();
-        Long senderId = savedMessage.getSender().getId();
-        String content = savedMessage.getContent();
-        Instant sentAt = savedMessage.getSentAt();
-        String senderFirstName = savedMessage.getSender().getFirstName();
-        String senderLastName = savedMessage.getSender().getLastName();
-        MessageType msgType = savedMessage.getMessageType();
-        // 2. 전송
-        for (Map.Entry<String, List<Long>> entry : recipientsByLang.entrySet()) {
-            String targetLang = entry.getKey();
-            List<Long> recipientIds = entry.getValue();
-            if (recipientIds.isEmpty()) continue;
+        // 언어별 그룹 루프 (최대 3~5회 반복 - CPU 부하 거의 없음)
+        recipientsByLang.forEach((lang, recipients) -> {
+            if (recipients == null || recipients.isEmpty()) return;
 
-            String translatedText = translatedContentsMap.get(targetLang);
-
-            ChatMessageResponse messageResponse = new ChatMessageResponse(
-                    messageId,
-                    roomId,
-                    senderId,
-                    content,            // originContent (텍스트 본문)
-                    translatedText,     // targetContent (번역본)
-                    sentAt,
-                    senderFirstName,
-                    senderLastName,
-                    userImageUrl,
-                    msgType,
-                    null,               // [NEW] mediaUrl: 텍스트 메시지이므로 null
-                    null                // [NEW] thumbnailUrl: 텍스트 메시지이므로 null
-            );
-            List<Long> actualRecipients = new ArrayList<>();
-
-            for (Long userId : recipientIds) {
-                // ★ 중요: 여기서 DB를 한 번 더 조회해서 현재 상태를 확인 (디버깅용)
-                // 성능이 걱정된다면 로그 레벨을 확인하거나, 의심될 때만 주석 해제
-                ChatParticipant currentParticipant = chatParticipantRepository
-                        .findByChatRoomIdAndUserId(roomId, userId)
-                        .orElse(null);
-
-                if (currentParticipant != null && currentParticipant.getStatus() == ChatParticipantStatus.LEFT) {
-                    // 🚨 범인 검거!
-                    log.warn("🕵️ [Race Condition 감지] 메시지 발송 명단에는 있었으나, 전송 시점에 '나가기' 상태임! | RoomId: {}, UserId: {}", roomId, userId);
-                    // 실제 운영 코드라면 여기서 continue; 해서 전송을 막아야 함
-                } else {
-                    actualRecipients.add(userId);
-                }
+            // 1. 번역문(targetContent) 결정
+            // "NONE"(번역안함)이거나 "SELF"(나)인 경우 null, 그 외에는 번역맵에서 가져옴
+            String targetContent = null;
+            if (!"NONE".equals(lang) && !"SELF".equals(lang)) {
+                targetContent = translations.get(lang);
             }
-            // 비동기 전송
-            CompletableFuture.runAsync(() ->
-                    chatSummaryService.sendSummaryToRecipientsInNewTx(messageResponse, recipientIds)
-            );
-        }
-    }
 
+            // 2. 언어별 맞춤 DTO 생성 (메모리 연산: 아주 빠름)
+            // 원문(originContent)은 유지하고, 번역문(targetContent)만 갈아끼웁니다.
+            ChatMessageResponse personalizedMsg = new ChatMessageResponse(
+                    baseResponse.id(),
+                    baseResponse.roomId(),
+                    baseResponse.senderId(),
+                    baseResponse.originContent(), // 원문 유지
+                    targetContent,                // 번역문 (있으면 넣고, 없으면 null)
+                    baseResponse.sentAt(),
+                    baseResponse.senderFirstName(),
+                    baseResponse.senderLastName(),
+                    baseResponse.senderImageUrl(), // DTO 필드명 확인 필요 (senderImageUrl vs userImageUrl)
+                    baseResponse.messageType(),
+                    baseResponse.mediaUrl(),
+                    baseResponse.thumbnailUrl()
+            );
+
+            // 3. 웹소켓 전송용 래퍼 생성
+            // 프론트엔드가 받는 JSON 형태: { "type": "NEW_MESSAGE", "data": { ... } }
+            TypedWebSocketResponse<ChatMessageResponse> payload =
+                    new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
+
+            // 4. [핵심] Zero-Copy 전송
+            // - 여기서 JSON 변환은 딱 1번만 일어납니다.
+            // - 생성된 byte[]를 N명(recipients)에게 쫙 뿌립니다.
+            String destinationSuffix = "/" + baseResponse.roomId() + "/messages";
+            fastSocketSender.sendToUsersFast(recipients, destinationSuffix, payload);
+        });
+    }
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         // 1. 참여자 검증
