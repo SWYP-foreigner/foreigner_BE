@@ -3,9 +3,9 @@ import { check, sleep } from 'k6';
 import { randomString, randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 import { Trend, Counter } from 'k6/metrics';
 
-// 그래프 생성
+// 메트릭 정의
 const chatLatency = new Trend('chat_msg_latency_ms');
-const errorCount = new Counter('errors'); // [추가] 에러 카운트용
+const errorCount = new Counter('errors');
 
 export const options = {
     scenarios: {
@@ -13,21 +13,21 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: 0,
             stages: [
-                // [수정] 10초는 너무 빠름. 1분 동안 천천히 200명 입장 (로그인 부하 분산)
+                // 1분 동안 200명 서서히 입장 (이 구간에서는 "없는 유저" 에러 발생 가능 -> 정상!)
                 { duration: '1m', target: 200 },
-                // [유지] 3분 동안 200명 유지하며 채팅 (실제 테스트 구간)
+                // 3분 동안 200명 풀 접속 유지 (이 구간 데이터가 중요)
                 { duration: '3m',  target: 200 },
-                // [유지] 10초 동안 퇴장
+                // 10초 동안 퇴장
                 { duration: '10s', target: 0 },
             ],
             gracefulRampDown: '10s',
         },
     },
 };
+
 const BASE_URL = 'wss://test.ko-ri.cloud/ws';
-//const BASE_URL = 'ws://localhost:8080/ws';
 const ROOM_ID = '9999';
-const START_USER_ID = 2605;
+const START_USER_ID = 2605; // ★ DB에 있는 유저 범위와 일치해야 함!
 
 function makeStompFrame(command, headers, body) {
     let frame = command + '\n';
@@ -35,80 +35,77 @@ function makeStompFrame(command, headers, body) {
         frame += key + ':' + headers[key] + '\n';
     }
     frame += '\n';
-    if (body) {
-        frame += body;
-    }
+    if (body) { frame += body; }
     frame += '\u0000';
     return frame;
 }
 
 export default function () {
     const userId = START_USER_ID + (__VU - 1);
-
-    // [변경] 발화자 비율 현실화: 3명 중 1명 -> 10명 중 1명 (10%)
-    // 200명 접속 시 약 20명만 떠듦 (나머지는 눈팅)
-    const isTalker = (__VU % 10 === 0);
+    const isTalker = (__VU % 10 === 0); // 10명 중 1명만 떠듦 (현실적)
 
     const params = {
-        headers: { 'user-id': userId.toString(),'Origin': 'https://test.ko-ri.cloud' },
+        headers: { 'user-id': userId.toString(), 'Origin': 'https://test.ko-ri.cloud' },
         tags: { my_tag: 'chat_test' },
     };
 
     const res = ws.connect(BASE_URL, params, function (socket) {
         socket.on('open', function open() {
-            // ★ 여기에 user-id를 넣어줘야 인터셉터가 읽습니다.
+            // 1. 연결 시도 (User-ID 헤더 포함)
             const connectFrame = makeStompFrame('CONNECT', {
                 'accept-version': '1.2,1.1,1.0',
                 'heart-beat': '10000,10000',
-                'user-id': userId.toString() // <--- 추가!
+                'user-id': userId.toString()
             });
             socket.send(connectFrame);
         });
 
         socket.on('message', function (message) {
+            // 2. 연결 성공 확인
             if (message.includes("CONNECTED")) {
+
+                // 3. 구독 (내 ID로 오는 메시지 듣기)
                 const subscribeFrame = makeStompFrame('SUBSCRIBE', {
                     'id': 'sub-0',
-                    'destination': `/topic/user/${userId}/${ROOM_ID}/messages`
-                    //'destination': `/topic/user/${userId}/messages`
+                    'destination': `/topic/user/${userId}/messages` // Suffix 주의 (서버 코드와 일치시킬 것)
                 });
                 socket.send(subscribeFrame);
-                // console.log(`[User ${userId}] Subscribed...`); // 로그 너무 많으면 주석
 
+                // 4. [핵심] 말하기 시작 (Talker인 경우만)
                 if (isTalker) {
-                    socket.setInterval(function timeout() {
-                        const sendTime = Date.now();
+                    // ★ 중요: 구독하자마자 쏘지 말고, 1초만 확실히 기다렸다가 주기적 전송 시작
+                    // 이렇게 하면 서버가 내 구독 정보를 완벽히 등록한 후에 메시지가 나갑니다.
+                    socket.setTimeout(function() {
 
-                        const chatContent = JSON.stringify({
-                            "roomId": ROOM_ID,
-                            "senderId": userId,
-                            // 내용 뒤에 __ts:시간 형식으로 붙임
-                            "content": `TestMsg__ts:${sendTime}`,
-                            //"targetLanguage": "en" // [옵션] 번역 부하 유발용 Payload
-                        });
+                        socket.setInterval(function timeout() {
+                            const sendTime = Date.now();
+                            const chatContent = JSON.stringify({
+                                "roomId": ROOM_ID,
+                                "senderId": userId,
+                                "content": `TestMsg__ts:${sendTime}`,
+                            });
 
-                        // [중요] 일반 전송(/sendMessage) 대신 부하 유발용(/sendMessageBad) 호출
-                        const sendFrame = makeStompFrame('SEND', {
-                            'destination': '/app/chat.sendMessage',
-                            //'destination': '/app/chat.sendMessageBad',
-                            'content-type': 'application/json'
-                        }, chatContent);
+                            const sendFrame = makeStompFrame('SEND', {
+                                'destination': '/app/chat.sendMessage',
+                                'content-type': 'application/json'
+                            }, chatContent);
 
-                        socket.send(sendFrame);
+                            socket.send(sendFrame);
 
-                        // [변경] 전송 간격 현실화: 3~10초 -> 5~15초 (사람의 타이핑 속도)
-                    }, randomIntBetween(5000, 15000));
+                            // 5초 ~ 15초 간격으로 채팅 입력 (사람 속도)
+                        }, randomIntBetween(5000, 15000));
+
+                    }, 1000); // 1초 대기 (안전장치)
                 }
             }
 
-            // 메시지 수신 시간 계산
+            // 5. 메시지 수신 (Latency 측정)
             if (message.includes("__ts:")) {
                 try {
                     const match = message.match(/__ts:(\d+)/);
                     if (match) {
                         const sentTime = parseInt(match[1]);
-                        const now = Date.now();
-                        const duration = now - sentTime;
+                        const duration = Date.now() - sentTime;
                         chatLatency.add(duration);
                     }
                 } catch (e) { }
@@ -117,11 +114,11 @@ export default function () {
 
         socket.on('error', (e) => {
             if (e.error() != "websocket: close 1000 (normal)") {
-                errorCount.add(1); // 에러 발생 시 카운트
-                // console.log(`Error: ${e.error()}`);
+                errorCount.add(1);
             }
         });
 
+        // 소켓 유지 시간 (사용자가 방에 머무는 시간)
         sleep(randomIntBetween(60, 180));
     });
 
