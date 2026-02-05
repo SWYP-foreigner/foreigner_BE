@@ -1,67 +1,70 @@
 package core.domain.chat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-
-// [수정 1] 여기가 핵심입니다. Spring Messaging의 채널을 가져와야 합니다.
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.MessageChannel;
-// (기존 org.htmlunit... 은 지우세요!)
-
-import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
-import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.messaging.simp.user.SimpSession;
+import org.springframework.messaging.simp.user.SimpUser;
+import org.springframework.messaging.simp.user.SimpUserRegistry; // [필수] 이거 추가
+import org.springframework.messaging.support.GenericMessage;
 import org.springframework.stereotype.Component;
-
-// [수정 2] javax.inject 대신 Spring의 Qualifier를 쓰는 것이 더 일반적입니다. (물론 javax도 동작은 합니다)
-import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class FastSocketSender {
 
+    private final MessageChannel clientOutboundChannel;
     private final ObjectMapper objectMapper;
-
-    // 스프링 웹소켓의 저수준(Low-Level) 채널을 직접 주입받습니다.
-    @Qualifier("clientOutboundChannel")
-    private final MessageChannel clientOutboundChannel; // 이제 Spring 타입과 일치합니다.
+    private final SimpUserRegistry userRegistry; // [필수] 접속자 정보 저장소
 
     /**
      * [Zero-Copy 전송]
-     * 객체를 JSON으로 1번만 변환한 뒤, 수신자 N명에게 바이트 배열만 복사해서 쏩니다.
-     * O(N)의 직렬화 비용을 O(1)로 만듭니다.
+     * 1. JSON 변환은 1번만 수행 (byte[])
+     * 2. 유저의 세션 ID를 조회하여 헤더에 주입
+     * 3. 채널에 직접 전송
      */
-    @Async("websocketExecutor") // 가상 스레드 권장
-    public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payload) {
+    public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
+        // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약 핵심)
+        byte[] payloadBytes;
         try {
-            // 1. [핵심] 무거운 JSON 직렬화를 루프 밖에서 딱 1번만 수행
-            byte[] payloadBytes = objectMapper.writeValueAsBytes(payload);
-
-            // 2. 가벼운 헤더만 생성하여 전송 (Payload는 재사용)
-            for (Long userId : recipientIds) {
-                // 프론트엔드 구독 주소: /topic/user/{userId}/{topicSuffix}
-                String destination = "/topic/user/" + userId + topicSuffix;
-
-                // STOMP 헤더 생성 (가벼움)
-                SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
-                accessor.setDestination(destination);
-                accessor.setLeaveMutable(true);
-
-                // Spring 내부 파싱 과정을 건너뛰고 바로 채널에 꽂아넣음
-                Message<byte[]> message = MessageBuilder.createMessage(payloadBytes, accessor.getMessageHeaders());
-
-                // [확인] 이제 send 메서드가 정상적으로 인식될 겁니다.
-                clientOutboundChannel.send(message);
-            }
-        } catch (Exception e) {
-            // 로그는 남기되, 전체 로직을 중단시키지 않음
-            // (실무에서는 @Slf4j log.error 사용 권장)
-            System.err.println("FastSocketSend Error: " + e.getMessage());
+            payloadBytes = objectMapper.writeValueAsBytes(payloadData);
+        } catch (JsonProcessingException e) {
+            log.error("JSON Serialization Failed", e);
+            return;
         }
+
+        // 2. 각 유저별로 세션 찾아서 전송 (네트워크 I/O 분산)
+        for (Long userId : recipientIds) {
+            // 메모리에 있는 접속자 레지스트리에서 유저 조회 (DB 조회 아님, 매우 빠름)
+            SimpUser user = userRegistry.getUser(String.valueOf(userId));
+
+            // 접속하지 않은 유저는 패스 (이 로직 덕분에 불필요한 전송 시도도 사라짐)
+            if (user == null) continue;
+
+            // 한 유저가 모바일/PC 등 여러 기기로 접속했을 수 있으므로 세션 루프
+            for (SimpSession session : user.getSessions()) {
+                sendToSession(session.getId(), "/topic/user/" + userId + topicSuffix, payloadBytes);
+            }
+        }
+    }
+
+    private void sendToSession(String sessionId, String destination, byte[] payload) {
+        // 헤더 생성 (여기에 Session ID를 꼭 넣어야 함!)
+        SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+        accessor.setSessionId(sessionId); // <--- [핵심 해결] 에러 원인 제거
+        accessor.setDestination(destination);
+        accessor.setLeaveMutable(true);
+
+        // 전송 (이미 바이트로 변환된 데이터 + 헤더)
+        clientOutboundChannel.send(new GenericMessage<>(payload, accessor.getMessageHeaders()));
     }
 }
