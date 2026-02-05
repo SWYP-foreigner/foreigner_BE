@@ -32,21 +32,6 @@ public class FastSocketSender {
      */
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
-        Long firstTargetId = recipientIds.get(0);
-        log.info("🎯 [Target] 전송해야 할 명단(첫번째): ID = {}", firstTargetId);
-
-        // 2. "현재 접속해 있는 사람" 중 아무나 한 명 잡아서 이름표를 까보자.
-        if (!userRegistry.getUsers().isEmpty()) {
-            SimpUser connectedUser = userRegistry.getUsers().iterator().next();
-            log.info("🔥 [Registry] 현재 접속중인 유저(이름표): Name = {}", connectedUser.getName());
-        } else {
-            log.info("🔥 [Registry] 현재 접속자가 0명입니다. (K6 연결이 끊겼거나 아직 안 들어옴)");
-        }
-        // [Debug] 레지스트리 상태 샘플링 (첫 번째 유저가 누구인지 확인)
-        // 로직이 안정화되면 주석 처리하세요.
-        if (!userRegistry.getUsers().isEmpty() && log.isTraceEnabled()) {
-            log.trace("🔍 Registry Sample User: {}", userRegistry.getUsers().iterator().next().getName());
-        }
 
         // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약)
         byte[] payloadBytes;
@@ -57,9 +42,6 @@ public class FastSocketSender {
             return;
         }
 
-        int successCount = 0;
-        int failCount = 0;
-
         for (Long userId : recipientIds) {
             String userIdStr = String.valueOf(userId);
 
@@ -68,29 +50,20 @@ public class FastSocketSender {
 
             // [검색 2단계] 없으면 Principal Name(Email) 포맷으로 재시도 (LoadTest 환경 대응)
             if (user == null) {
-                // 테스트 환경의 Principal Name 규칙 적용 (loadtest_{id}@test.com)
                 String principalName = "loadtest_" + userId + "@test.com";
                 user = userRegistry.getUser(principalName);
             }
 
-            // 그래도 없으면 실패 처리
+            // 그래도 없으면 다음 유저로 넘어감
             if (user == null) {
-                failCount++;
-                // 너무 많은 로그 방지를 위해 trace 레벨이나 조건부 로그 권장
-                // log.warn("❌ User Not Found: ID={}, Principal=loadtest_{}@test.com", userId, userId);
                 continue;
             }
 
             // 세션별 전송
             for (SimpSession session : user.getSessions()) {
                 sendToSession(session.getId(), "/topic/user/" + userIdStr + topicSuffix, payloadBytes);
-                successCount++;
             }
         }
-
-        // [결과 요약 로그]
-        log.info("📢 FastSocket 결과 - 대상: {}명, 전송성공(세션): {}개, 실패(못찾음): {}명 | Suffix: {}",
-                recipientIds.size(), successCount, failCount, topicSuffix);
     }
 
     private void sendToSession(String sessionId, String destination, byte[] payload) {

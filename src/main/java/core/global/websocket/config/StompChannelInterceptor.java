@@ -14,7 +14,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageHeaderAccessor; // ★ 이 import 필수!
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -36,10 +36,8 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        // [수정 1] wrap 대신 getAccessor 사용 (원본 메시지 헤더에 접근하기 위함)
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        // 방어 로직: 혹시나 accessor가 null이면 wrap으로 생성 (보통 null 안 뜸)
         if (accessor == null) {
             accessor = StompHeaderAccessor.wrap(message);
         }
@@ -52,8 +50,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
             // 🚨 [LoadTest] 부하 테스트용 백도어 (토큰 없으면 테스트 유저로 통과)
             // =================================================================
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.info("🚧 [LoadTest] Authorization 헤더 없음 -> 테스트 유저로 접속 허용");
-
                 // K6에서 보낸 'user-id' 헤더 확인
                 String headerUserId = accessor.getFirstNativeHeader("user-id");
                 Long userId = (headerUserId != null) ? Long.valueOf(headerUserId) : 99999L;
@@ -62,18 +58,15 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 // [중요] 이름표(Principal)를 ID와 똑같이 만듦 (FastSocketSender가 찾기 쉽게)
                 CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
 
-                // 익명 클래스로 getName()을 오버라이딩하여 "ID문자열"을 리턴하게 함
                 Authentication auth = new UsernamePasswordAuthenticationToken(principal, "TEST_TOKEN", principal.getAuthorities()) {
                     @Override
                     public String getName() {
-                        return String.valueOf(userId); // ★ 핵심: "2605" 같은 문자열 리턴
+                        return String.valueOf(userId);
                     }
                 };
 
-                // [수정 2] 세션에 유저 정보 확실히 등록 (이게 없으면 접속자 0명 뜸)
                 accessor.setUser(auth);
 
-                // 세션 속성에도 저장 (통계용)
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
                 if (sessionAttributes != null) {
                     sessionAttributes.put("userAuth", auth);
@@ -82,7 +75,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                 }
 
                 chatMetrics.onWsConnect("load_test");
-                return message; // 검증 로직 건너뛰고 바로 통과
+                return message;
             }
             // =================================================================
 
@@ -102,7 +95,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
                 Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
 
-                // 일반 유저도 setUser 필수
                 accessor.setUser(auth);
 
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
