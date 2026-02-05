@@ -146,7 +146,8 @@
                 <th>방 이름</th>
                 <th>유형</th>
                 <th>참여자</th>
-                <th>메시지 수</th> <th>관리</th>
+                <th>메시지 수</th>
+                <th>관리</th>
             </tr>
             </thead>
             <tbody>
@@ -166,10 +167,19 @@
                 </td>
 
                 <td>
-                    <form th:action="@{/admin/users/{uid}/chat-rooms/{cid}/delete(uid=${user.userId}, cid=${c.chatRoomId})}" method="post"
-                          onsubmit="return confirm('⚠️ 주의!\n이 채팅방을 삭제하시겠습니까?\n채팅방 삭제 시 모든 대화 내용과 참여 정보가 사라집니다.');">
-                        <button type="submit" class="btn-delete">삭제</button>
-                    </form>
+                    <div style="display: flex; gap: 5px;">
+                        <form th:action="@{/admin/users/{uid}/chat-rooms/{cid}/leave(uid=${user.userId}, cid=${c.chatRoomId})}" method="post"
+                              onsubmit="return confirm('이 유저를 채팅방에서 나가게 하시겠습니까?\n(방 자체가 삭제되지는 않으나, 마지막 인원이면 삭제될 수 있습니다.)');">
+                            <button type="submit" style="background-color: #ffc107; color: #212529; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 0.8em; font-weight: bold;">
+                                나가기
+                            </button>
+                        </form>
+
+                        <form th:action="@{/admin/users/{uid}/chat-rooms/{cid}/delete(uid=${user.userId}, cid=${c.chatRoomId})}" method="post"
+                              onsubmit="return confirm('⚠️ 주의!\n이 채팅방을 영구 삭제하시겠습니까?\n모든 대화 내용과 참여 정보가 사라집니다.');">
+                            <button type="submit" class="btn-delete">삭제</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             </tbody>

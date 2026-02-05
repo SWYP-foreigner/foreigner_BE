@@ -126,6 +126,12 @@ public class UserAdminViewController {
         return "redirect:/admin/users/" + userId + "?chatPage=0";
     }
 
+    @PostMapping("/{userId}/chat-rooms/{chatRoomId}/leave")
+    public String leaveChatRoom(@PathVariable Long userId, @PathVariable Long chatRoomId) {
+        userAdminService.forceUserLeaveChatRoom(userId, chatRoomId);
+        return "redirect:/admin/users/" + userId + "?chatPage=0";
+    }
+
     @PostMapping("/{userId}/delete")
     public String deleteUser(@PathVariable Long userId) {
         userAdminService.hardDeleteUser(userId);

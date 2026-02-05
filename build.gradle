@@ -17,7 +17,10 @@ configurations {
 	compileOnly { extendsFrom annotationProcessor }
 }
 
-repositories { mavenCentral() }
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
 
 ext {
 	// Boot 3.5.x ↔ Cloud 2025.0.x (호환 BOM)
@@ -121,6 +124,8 @@ dependencies {
 
     implementation 'org.springframework.retry:spring-retry:2.0.6'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    implementation 'com.github.shin285:KOMORAN:3.3.4'
 }
 
 

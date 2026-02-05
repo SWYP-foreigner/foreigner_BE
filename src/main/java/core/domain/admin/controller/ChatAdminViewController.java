@@ -123,4 +123,19 @@ public class ChatAdminViewController {
         }
         return "redirect:/admin/chats/reports";
     }
+
+    @PostMapping("/{roomId}/participants/{userId}/leave")
+    public String leaveChatParticipant(
+            @PathVariable Long roomId,
+            @PathVariable Long userId,
+            RedirectAttributes redirectAttributes
+    ) {
+        try {
+            chatAdminService.forceParticipantLeave(roomId, userId);
+            redirectAttributes.addFlashAttribute("successMessage", "해당 유저를 채팅방에서 내보냈습니다.");
+        } catch (BusinessException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/chats/" + roomId;
+    }
 }
