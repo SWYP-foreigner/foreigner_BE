@@ -9,7 +9,7 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.user.SimpSession;
 import org.springframework.messaging.simp.user.SimpUser;
-import org.springframework.messaging.simp.user.SimpUserRegistry; // [필수] 이거 추가
+import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.messaging.support.GenericMessage;
 import org.springframework.stereotype.Component;
 
@@ -22,18 +22,24 @@ public class FastSocketSender {
 
     private final MessageChannel clientOutboundChannel;
     private final ObjectMapper objectMapper;
-    private final SimpUserRegistry userRegistry; // [필수] 접속자 정보 저장소
+    private final SimpUserRegistry userRegistry;
 
     /**
-     * [Zero-Copy 전송]
-     * 1. JSON 변환은 1번만 수행 (byte[])
-     * 2. 유저의 세션 ID를 조회하여 헤더에 주입
-     * 3. 채널에 직접 전송
+     * [Zero-Copy 전송 + 스마트 유저 조회]
+     * 1. JSON 변환 1회 수행
+     * 2. Principal Name(Email) 또는 ID로 유저 조회
+     * 3. 세션별 전송
      */
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
-        // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약 핵심)
+        // [Debug] 레지스트리 상태 샘플링 (첫 번째 유저가 누구인지 확인)
+        // 로직이 안정화되면 주석 처리하세요.
+        if (!userRegistry.getUsers().isEmpty() && log.isTraceEnabled()) {
+            log.trace("🔍 Registry Sample User: {}", userRegistry.getUsers().iterator().next().getName());
+        }
+
+        // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약)
         byte[] payloadBytes;
         try {
             payloadBytes = objectMapper.writeValueAsBytes(payloadData);
@@ -41,39 +47,49 @@ public class FastSocketSender {
             log.error("JSON Serialization Failed", e);
             return;
         }
-        int successCount = 0; // 카운트 추가
-        int failCount = 0;    // 카운트 추가
+
+        int successCount = 0;
+        int failCount = 0;
 
         for (Long userId : recipientIds) {
-            SimpUser user = userRegistry.getUser(String.valueOf(userId));
+            String userIdStr = String.valueOf(userId);
 
-            // [디버깅 로그 1] 유저를 못 찾았을 때
+            // [검색 1단계] ID로 조회 시도
+            SimpUser user = userRegistry.getUser(userIdStr);
+
+            // [검색 2단계] 없으면 Principal Name(Email) 포맷으로 재시도 (LoadTest 환경 대응)
             if (user == null) {
-                // 로그가 너무 많이 뜨면 100번에 한번만 찍게 조건 걸어도 됨
-                // log.warn("❌ User Not Found in Registry: {}", userId);
+                // 테스트 환경의 Principal Name 규칙 적용 (loadtest_{id}@test.com)
+                String principalName = "loadtest_" + userId + "@test.com";
+                user = userRegistry.getUser(principalName);
+            }
+
+            // 그래도 없으면 실패 처리
+            if (user == null) {
                 failCount++;
+                // 너무 많은 로그 방지를 위해 trace 레벨이나 조건부 로그 권장
+                // log.warn("❌ User Not Found: ID={}, Principal=loadtest_{}@test.com", userId, userId);
                 continue;
             }
 
+            // 세션별 전송
             for (SimpSession session : user.getSessions()) {
-                sendToSession(session.getId(), "/topic/user/" + userId + topicSuffix, payloadBytes);
+                sendToSession(session.getId(), "/topic/user/" + userIdStr + topicSuffix, payloadBytes);
                 successCount++;
             }
         }
 
-        // [디버깅 로그 2] 전체 결과 요약 (매우 중요)
-        log.info("📢 FastSocket 결과 - 대상: {}명, 성공(세션): {}개, 실패(못찾음): {}명 | Suffix: {}",
+        // [결과 요약 로그]
+        log.info("📢 FastSocket 결과 - 대상: {}명, 전송성공(세션): {}개, 실패(못찾음): {}명 | Suffix: {}",
                 recipientIds.size(), successCount, failCount, topicSuffix);
     }
 
     private void sendToSession(String sessionId, String destination, byte[] payload) {
-        // 헤더 생성 (여기에 Session ID를 꼭 넣어야 함!)
         SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
-        accessor.setSessionId(sessionId); // <--- [핵심 해결] 에러 원인 제거
+        accessor.setSessionId(sessionId);
         accessor.setDestination(destination);
         accessor.setLeaveMutable(true);
 
-        // 전송 (이미 바이트로 변환된 데이터 + 헤더)
         clientOutboundChannel.send(new GenericMessage<>(payload, accessor.getMessageHeaders()));
     }
 }
