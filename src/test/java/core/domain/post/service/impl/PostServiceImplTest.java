@@ -217,13 +217,14 @@ class PostServiceImplTest {
     void getPostDetail_translateFalse_success() {
         User author = mock(User.class);
         when(author.getEmail()).thenReturn("other@example.com");
+        when(author.getId()).thenReturn(1L);
 
         Post post = mock(Post.class);
         when(post.getAuthor()).thenReturn(author);
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
 
         PostDetailResponse detail = mock(PostDetailResponse.class);
-        when(postRepository.findPostDetail(email, 1L)).thenReturn(detail);
+        when(postRepository.findPostDetail(user.getId(), 1L)).thenReturn(detail);
 
         PostDetailResponse result = postService.getPostDetail(1L, false);
 
