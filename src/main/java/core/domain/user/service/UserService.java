@@ -119,28 +119,28 @@ public class UserService {
 
         log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
     }
+    @Transactional
     public TokenRefreshResponse refreshTokens(String refreshToken) {
         log.info("==================================================");
         log.info(">>> [토큰 재발급 요청 진입]");
 
-        // 0. 로그용 변수 선언
+        // 0. 로그 및 예외 처리를 위한 임시 변수 선언
         Long tempUserId = null;
-        String tempEmail = "추출불가";
         Date tempExpiration = null;
 
         // ------------------------------------------------------------------
-        // [중요] 검증 전에 정보를 먼저 뜯어봅니다. (만료되어도 뜯어내기 위함)
+        // [Pre-Parsing] 검증 전에 정보를 먼저 추출 (로그 및 에러 핸들링 목적)
         // ------------------------------------------------------------------
         try {
-            // 주의: 여기서 jwtTokenProvider 내부 구현에 따라 파싱만 하고 검증은 안 하는 메서드가 없다면
-            // 파싱 과정에서 ExpiredJwtException이 발생할 수 있습니다. 이걸 잡아서 정보를 빼냅니다.
+            // 토큰에서 userId 추출 시도
             tempUserId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
             tempExpiration = jwtTokenProvider.getExpiration(refreshToken);
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
-            // ★ 만료된 토큰이어도 에러 객체(e) 안에 정보가 들어있습니다!
+            // 만료된 토큰이어도 Claims 정보는 가져올 수 있음
             log.warn(">>> [1차 파싱 경고] 이미 만료된 토큰입니다. 정보를 강제 추출합니다.");
             try {
-                tempUserId = Long.parseLong(e.getClaims().getSubject()); // 혹은 get("userId") 등 claims 구조에 맞춰 수정
+                // ExpiredJwtException에서 직접 Claims 꺼내기
+                tempUserId = Long.parseLong(e.getClaims().getSubject());
                 tempExpiration = e.getClaims().getExpiration();
             } catch (Exception ex) {
                 log.error(">>> [1차 파싱 실패] 만료된 토큰 정보 추출 중 에러: {}", ex.getMessage());
@@ -150,7 +150,7 @@ public class UserService {
         }
 
         // ------------------------------------------------------------------
-        // [상세 로그 출력] - 에러가 터지기 전에 남기는 유언장
+        // [상세 로그 출력]
         // ------------------------------------------------------------------
         long remainingTime = 0;
         if (tempExpiration != null) {
@@ -167,20 +167,26 @@ public class UserService {
         log.info("    -> Expiration: {} (남은시간: {}ms)", tempExpiration, remainingTime);
 
         // ------------------------------------------------------------------
-        // 1. 진짜 토큰 유효성 검사 (이제 여기서 예외 던져도 위에서 로그는 남음)
+        // 1. 진짜 토큰 유효성 검사 (수정된 부분: 예외 처리 강화)
         // ------------------------------------------------------------------
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
-            // validateToken이 false를 리턴하는 구조라면 여기서 걸림
-            // 만약 validateToken이 내부에서 에러를 던진다면, 위 로그가 찍힌 뒤 여기서 멈춤
-            log.warn("<<< [재발급 실패] 유효하지 않은 토큰 (서명 불일치 or 만료됨) - UserID: {}", tempUserId);
+        try {
+            // validateToken은 만료 시 ExpiredJwtException을 던질 수 있음 -> catch로 잡아야 함
+            if (!jwtTokenProvider.validateToken(refreshToken)) {
+                // 서명이 틀리거나 형식이 잘못된 경우 (false 리턴 시)
+                log.warn("<<< [재발급 실패] 유효하지 않은 토큰(서명 불일치 등) - UserID: {}", tempUserId);
+                throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            }
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // ★ [핵심 수정] 토큰 만료 에러를 잡아서 비즈니스 예외로 변환
+            log.warn("<<< [재발급 실패] 리프레시 토큰 만료됨 (재로그인 필요) - UserID: {}", tempUserId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        } catch (Exception e) {
+            // 그 외 알 수 없는 토큰 오류
+            log.warn("<<< [재발급 실패] 토큰 검증 중 에러 발생: {}", e.getMessage());
             throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
 
-        // 만약 validateToken이 만료 에러를 던지는 구조라면 코드는 여기서 끊기지만,
-        // 우리는 이미 위에서 `tempUserId`를 확보했습니다.
-
-        // 2. 사용자 조회
-        // (tempUserId가 null이면 파싱 실패이므로 여기서 에러 처리)
+        // 2. 사용자 조회 (파싱 실패로 ID가 없으면 에러)
         if (tempUserId == null) {
             throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
         }
@@ -190,16 +196,17 @@ public class UserService {
 
         log.info("    -> 사용자 정보: Email={}, Name={}, Role={}", user.getEmail(), user.getFirstName(), user.getUserRole());
 
-        // 3. Redis 검증
+        // 3. Redis 검증 (Refresh Token Rotation 및 탈취 감지)
         String storedRefreshToken = redisService.getRefreshToken(tempUserId);
 
         if (storedRefreshToken == null) {
-            log.warn("<<< [재발급 실패] Redis에 토큰 없음 (로그아웃/만료). ID: {}", tempUserId);
+            log.warn("<<< [재발급 실패] Redis에 토큰 없음 (로그아웃/만료됨). ID: {}", tempUserId);
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
         if (!storedRefreshToken.equals(refreshToken)) {
-            log.warn("<<< [재발급 실패] Redis 토큰 불일치. ID: {}", tempUserId);
+            // 들어온 토큰과 저장된 토큰이 다르면 탈취 가능성 있음 -> 저장된 것 삭제
+            log.warn("<<< [재발급 실패] Redis 토큰 불일치 (토큰 탈취 의심). ID: {}", tempUserId);
             log.warn("    -> 요청: ...{}", tokenFragment);
             String storedFragment = (storedRefreshToken.length() > 10) ? storedRefreshToken.substring(storedRefreshToken.length() - 15) : storedRefreshToken;
             log.warn("    -> 저장: ...{}", storedFragment);
@@ -208,7 +215,7 @@ public class UserService {
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        // 4. 기존 토큰 삭제 및 재발급
+        // 4. 기존 토큰 삭제 및 새 토큰 발급 (Rotation)
         redisService.deleteRefreshToken(tempUserId);
 
         String newAccessToken = jwtTokenProvider.createAccessToken(tempUserId, user.getUserRole().toString(), user.getEmail());
@@ -217,6 +224,7 @@ public class UserService {
         Date newExpirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
         long newExpirationMillis = newExpirationDate.getTime() - System.currentTimeMillis();
 
+        // 새 리프레시 토큰 Redis 저장
         redisService.saveRefreshToken(tempUserId, newRefreshToken, newExpirationMillis);
 
         log.info("<<< [토큰 재발급 성공] User: {}, Exp: {}ms", user.getEmail(), newExpirationMillis);
