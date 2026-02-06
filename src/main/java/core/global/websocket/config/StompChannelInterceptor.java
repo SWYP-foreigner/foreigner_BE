@@ -46,40 +46,11 @@ public class StompChannelInterceptor implements ChannelInterceptor {
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
-            // =================================================================
-            // 🚨 [LoadTest] 부하 테스트용 백도어 (토큰 없으면 테스트 유저로 통과)
-            // =================================================================
+            // 토큰 유효성 검사 (필수)
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                // K6에서 보낸 'user-id' 헤더 확인
-                String headerUserId = accessor.getFirstNativeHeader("user-id");
-                Long userId = (headerUserId != null) ? Long.valueOf(headerUserId) : 99999L;
-                String email = "loadtest_" + userId + "@test.com";
-
-                // [중요] 이름표(Principal)를 ID와 똑같이 만듦 (FastSocketSender가 찾기 쉽게)
-                CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
-
-                Authentication auth = new UsernamePasswordAuthenticationToken(principal, "TEST_TOKEN", principal.getAuthorities()) {
-                    @Override
-                    public String getName() {
-                        return String.valueOf(userId);
-                    }
-                };
-
-                accessor.setUser(auth);
-
-                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-                if (sessionAttributes != null) {
-                    sessionAttributes.put("userAuth", auth);
-                    sessionAttributes.put("userId", userId);
-                    sessionAttributes.put("connectAt", System.currentTimeMillis());
-                }
-
-                chatMetrics.onWsConnect("load_test");
-                return message;
+                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
-            // =================================================================
 
-            // [기존 로직] 일반 유저 토큰 검증
             String token = authHeader.substring(7);
             try {
                 if (redisService.isBlacklisted(token)) {
@@ -91,10 +62,12 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
                 Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
                 String email = jwtTokenProvider.getEmailFromToken(token);
-                CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
 
+                // 인증 객체 생성
+                CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
                 Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
 
+                // 세션에 인증 정보 저장
                 accessor.setUser(auth);
 
                 Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
@@ -103,14 +76,18 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                     sessionAttributes.put("userId", userId);
                     sessionAttributes.put("connectAt", System.currentTimeMillis());
 
+                    // 접속 기록 및 활동 점수 업데이트
                     userActivityService.updateLastSeenAt(email);
                     userActivityService.recordVisit(userId);
                 }
 
+                // [로그 추가] 정상 연결 로그
+                log.info("🔌 [WS Connect] User Connected - ID: {}, Email: {}", userId, email);
+
                 chatMetrics.onWsConnect("normal");
 
             } catch (Exception e) {
-                log.error("STOMP JWT Error: {}", e.getMessage());
+                log.error("❌ [WS Connect Failed] JWT Error: {}", e.getMessage());
                 throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
             }
 
