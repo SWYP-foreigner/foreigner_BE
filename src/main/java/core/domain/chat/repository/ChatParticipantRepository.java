@@ -73,5 +73,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
             "WHERE cp.user.userRole = 'AI' " +
             "AND cp.status = 'ACTIVE'")
     List<Long> findAllAiParticipatedRoomIds();
+
+    Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
     List<ChatParticipant> findAllByChatRoomId(Long chatRoomId);
 }

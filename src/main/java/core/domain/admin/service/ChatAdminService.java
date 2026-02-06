@@ -8,6 +8,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.chat.service.ChatRoomService;
 import core.global.enums.ChatReportStatus;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
@@ -27,6 +28,7 @@ public class ChatAdminService {
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatReportRepository chatReportRepository;
+    private final ChatRoomService chatRoomService;
 
     @Transactional(readOnly = true)
     public Page<ChatRoomListResponse> searchChatRooms(ChatRoomSearchRequest request, Pageable pageable) {
@@ -96,5 +98,10 @@ public class ChatAdminService {
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
 
         chatMessageRepository.delete(message);
+    }
+
+    @Transactional
+    public void forceParticipantLeave(Long roomId, Long userId) {
+        chatRoomService.leaveRoom(roomId, userId);
     }
 }

@@ -8,6 +8,7 @@ import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.chat.service.ChatRoomService;
 import core.domain.comment.dto.RecentCommentDto;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.notification.repository.NotificationRepository;
@@ -72,6 +73,7 @@ public class UserAdminService {
     private final PasswordEncoder passwordEncoder;
     private final ProfileImageService profileImageService;
     private final AiPersonaRepository aiPersonaRepository;
+    private final ChatRoomService chatRoomService;
 
     @Transactional(readOnly = true)
     public UserBasicInfoDto getUserBasicInfo(Long userId) {
@@ -113,7 +115,11 @@ public class UserAdminService {
      */
     @Transactional(readOnly = true)
     public Page<ChatRoomInfoDto> getChatRoomsForUser(Long userId, Pageable pageable) {
-        Page<ChatParticipant> participants = chatParticipantRepository.findByUserId(userId, pageable);
+        Page<ChatParticipant> participants = chatParticipantRepository.findByUserIdAndStatus(
+                userId,
+                ChatParticipantStatus.ACTIVE,
+                pageable
+        );
 
         return participants.map(participant -> {
             ChatRoom room = participant.getChatRoom();
@@ -227,6 +233,11 @@ public class UserAdminService {
         userRepository.delete(user);
 
         log.info(">>>> Deleted user entity for userId: {}", userId);
+    }
+
+    @Transactional
+    public void forceUserLeaveChatRoom(Long userId, Long chatRoomId) {
+        chatRoomService.leaveRoom(chatRoomId, userId);
     }
 
     @Transactional(readOnly = true)

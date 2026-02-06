@@ -55,6 +55,16 @@ public class AiChatCoordinatorService {
         List<User> aiList = new ArrayList<>(aiParticipants);
         Collections.shuffle(aiList);
 
+        List<User> mentionedAIs = aiList.stream()
+                .filter(ai -> isMentioned(userMessage, ai.getFirstName()))
+                .toList();
+
+        if (!mentionedAIs.isEmpty()) {
+            aiList.retainAll(mentionedAIs);
+        }
+
+        if (aiList.isEmpty()) return;
+
         // 1. DB상 마지막 화자 (과거)
         Long lastAiSpeakerId = findLastAiSpeakerId(roomId);
 
