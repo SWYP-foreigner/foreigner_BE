@@ -31,13 +31,7 @@ public final class PermitAllPaths {
             "/api/v1/member/admin/otp/reset-confirm",
             "/admin/test/send-message",
             "/api/v1/app/**",
-            "/internal/smoke",
-
-
-            "/ws/**",
-            "/ws-stomp/**",      // 혹시 endpoint가 ws-stomp일 경우 대비
-            "/topic/**",         // Subscribe 경로
-            "/app/**"           // Publish 경로
+            "/internal/smoke"
     );
 
     private PermitAllPaths() { }
