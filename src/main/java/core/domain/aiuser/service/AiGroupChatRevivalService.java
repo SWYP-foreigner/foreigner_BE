@@ -88,32 +88,62 @@ public class AiGroupChatRevivalService {
             List<User> aiParticipants = chatRoomRepository.findAiParticipantsByRoomId(room.getId());
             if (aiParticipants.isEmpty()) return null;
 
-            // 2. 메시지 조회 및 정렬
+            // 2. 메시지 조회 (최신 20개 가져와서 시간순 정렬)
+            // Repository 메서드명: findTop20ByChatRoomIdOrderBySentAtDesc
             List<ChatMessage> lastMessages = chatMessageRepository.findTop20ByChatRoomIdOrderBySentAtDesc(room.getId());
-            Collections.reverse(lastMessages);
+            Collections.reverse(lastMessages); // 과거 -> 최신 순으로 정렬 변경
 
-            // 3. 발화자 선정
-            User initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
+            // ==========================================================
+            // 🚨 [수정됨] 3. 발화자 선정 (Entity 구조 반영 + 스킵 로직)
+            // ==========================================================
+            User initiatorAi;
 
-            // 🚨 [핵심] Lazy Loading 강제 초기화 (Hibernate 초기화)
-            // 프롬프트 만들 때 필요한 정보를 여기서 미리 다 건드려서 로딩해둡니다.
+            if (lastMessages.isEmpty()) {
+                // 메시지가 하나도 없으면 아무나 선정
+                initiatorAi = aiParticipants.get(secureRandom.nextInt(aiParticipants.size()));
+            } else {
+                // 가장 최근 메시지 (리스트를 뒤집었으므로 마지막 요소가 최신)
+                ChatMessage lastMsg = lastMessages.get(lastMessages.size() - 1);
+
+                // ⚠️ Entity 수정 반영: User 객체에서 ID 추출
+                Long lastSenderId = lastMsg.getSender().getId();
+
+                // "마지막에 말한 AI"를 제외한 후보군 생성
+                List<User> candidates = aiParticipants.stream()
+                        .filter(ai -> !ai.getId().equals(lastSenderId))
+                        .collect(Collectors.toList());
+
+                if (!candidates.isEmpty()) {
+                    // 후보가 있다면 그 중에서 랜덤 선정 (티키타카)
+                    initiatorAi = candidates.get(secureRandom.nextInt(candidates.size()));
+                } else {
+                    // 🛑 후보가 없다면? (방금 말한 애가 유일한 AI인 경우 등) -> 스킵!
+                    log.info("🚫 Revival Skipped: Room[{}] AI[{}] already spoke last.", room.getId(), lastSenderId);
+                    return null; // 트랜잭션 종료 및 스킵
+                }
+            }
+            // ==========================================================
+
+            // 4. Lazy Loading 강제 초기화 (User 정보 및 Persona)
+            // 프롬프트 생성 시 필요한 정보들을 미리 로딩
             String hobby = initiatorAi.getHobby();
             String country = initiatorAi.getCountry();
+
             AiPersona persona = aiPersonaRepository.findByUserId(initiatorAi.getId()).orElse(null);
             if (persona != null) {
-                persona.getInstruction(); // Lazy 로딩 트리거
+                persona.getInstruction(); // LOB 데이터 등 Lazy 로딩 트리거
             }
 
             return new RevivalContext(initiatorAi, persona, lastMessages);
         });
 
+        // context가 null이면(후보가 없어서 스킵된 경우) 메서드 종료
         if (context == null) return;
 
-        // 🧠 [2단계] AI 생성 (트랜잭션 X - DB 연결 없이 맘 편히 오래 걸려도 됨)
-        // 이 구간에서는 DB 커넥션을 점유하지 않습니다.
+        // 🧠 [2단계] AI 메시지 생성 (DB 연결 불필요 구간)
         String revivalMessage = generateDynamicRevivalMessage(context.aiUser, context.persona, context.lastMessages);
 
-        // 💾 [3단계] 메시지 전송 (트랜잭션 O - 이미 ChatMessageService에 걸려있음)
+        // 💾 [3단계] 메시지 전송 (트랜잭션 O)
         SendMessageRequest request = new SendMessageRequest(
                 room.getId(),
                 context.aiUser.getId(),
@@ -153,7 +183,10 @@ public class AiGroupChatRevivalService {
             // 2. API 호출 (System / User 메시지 분리 권장)
             List<Map<String, Object>> input = List.of(
                     Map.of("role", "system", "content", prompt),
-                    Map.of("role", "user", "content", "지금 대화 맥락에 맞춰 자연스럽게 첫 마디를 건네주세요.")
+                    Map.of("role", "user", "content",
+                            "이곳은 여러 명이 있는 '단체 채팅방'입니다. " +
+                                    "특정 1명을 지칭('너')하지 말고, '너희', '다들' 등을 사용하여 그룹 전체에게 자연스럽게 대화를 유도하거나 질문을 던져주세요."
+                    )
             );
 
             String response = aiClient.generateResponse(input);
