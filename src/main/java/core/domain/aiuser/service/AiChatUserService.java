@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 public class AiChatUserService {
 
     // 🟢 [Constants] 대화 활성 및 부활 기준 시간
-    private static final int ACTIVE_CONVERSATION_MINUTES = 30;
+    private static final int ACTIVE_CONVERSATION_MINUTES = 5;
     private static final int REVIVAL_CRITERIA_MINUTES = 120;
     private static final int TOPIC_SEARCH_DEPTH = 10;
 
@@ -206,15 +206,19 @@ public class AiChatUserService {
     private boolean shouldReply(String message, User aiUser, Long chatRoomId, boolean isMainSpeaker, boolean isGroupChat, List<ChatMessage> recentHistory) {
         String aiName = aiUser.getFirstName();
 
+        // 1. 멘션은 무조건 대답 (최우선)
         if (isMentioned(message, aiUser.getFirstName(), aiUser.getLastName())) {
             log.info("AI [{}] 🟢 Reply: Direct mention detected.", aiName);
             return true;
         }
+
+        // 1:1 채팅은 무조건 대답
         if (!isGroupChat) {
             log.info("AI [{}] 🟢 Reply: 1:1 Chat.", aiName);
             return true;
         }
 
+        // 앵무새 방지
         long aiDuplicateCount = recentHistory.stream().limit(5)
                 .filter(msg -> msg.getContent().trim().equals(message.trim())).count();
         if (aiDuplicateCount >= 2) {
@@ -222,63 +226,12 @@ public class AiChatUserService {
             return false;
         }
 
-        // 1. 기본 분석
-        boolean isPrevSenderAi = false;
-        boolean isReplyToUser = false;
-        boolean isRevivalAttempt = false;
-        long minutesDiff = 0;
+        // 🟢 [Step 0] 단체 호출 여부 먼저 계산 (순서 변경됨)
+        boolean isGroup = isGroupCall(message);
 
-        if (!recentHistory.isEmpty()) {
-            ChatMessage currentMsg = recentHistory.get(0);
-            isPrevSenderAi = isAi(currentMsg.getSender());
-
-            if (isPrevSenderAi) {
-                ChatMessage targetMsg = null;
-                for (int i = 1; i < Math.min(recentHistory.size(), 10); i++) {
-                    ChatMessage pastMsg = recentHistory.get(i);
-                    if (!pastMsg.getSender().getId().equals(currentMsg.getSender().getId())) {
-                        targetMsg = pastMsg;
-                        break;
-                    }
-                }
-
-                if (targetMsg != null) {
-                    minutesDiff = java.time.Duration.between(
-                            targetMsg.getSentAt(),
-                            currentMsg.getSentAt()
-                    ).toMinutes();
-
-                    if (minutesDiff >= REVIVAL_CRITERIA_MINUTES) {
-                        isRevivalAttempt = true;
-                        isReplyToUser = false;
-                        log.info("AI [{}] Context: Revival Attempt Detected! (Gap: {} mins)", aiName, minutesDiff);
-                    } else if (minutesDiff < ACTIVE_CONVERSATION_MINUTES) {
-                        isReplyToUser = !isAi(targetMsg.getSender());
-                    } else {
-                        isReplyToUser = false;
-                    }
-                } else {
-                    isRevivalAttempt = true;
-                }
-            } else {
-                if (recentHistory.size() >= 2) {
-                    ChatMessage prevMsg = recentHistory.get(1);
-                    minutesDiff = java.time.Duration.between(
-                            prevMsg.getSentAt(),
-                            currentMsg.getSentAt()
-                    ).toMinutes();
-                }
-            }
-        }
-
-        boolean isUserToUserActive = !isPrevSenderAi && (recentHistory.size() >= 2) && (minutesDiff < ACTIVE_CONVERSATION_MINUTES);
-
-        // 🟢 2. 토픽 오너 식별 (누가 주인인가?)
-        Long topicOwnerId = findTopicOwnerId(message, recentHistory);
-        boolean isMeTopicOwner = topicOwnerId != null && topicOwnerId.equals(aiUser.getId());
-        boolean isOtherTopicOwner = topicOwnerId != null && !topicOwnerId.equals(aiUser.getId());
-
-        // 3. 컨텍스트 오너 확인
+        // ----------------------------------------------------------
+        // [Step 1] Ownership 계산
+        // ----------------------------------------------------------
         boolean isContextOwner = false;
         if (!recentHistory.isEmpty()) {
             for (int i = 1; i < Math.min(recentHistory.size(), 5); i++) {
@@ -292,54 +245,84 @@ public class AiChatUserService {
             }
         }
 
+        Long topicOwnerId = findTopicOwnerId(message, recentHistory);
+        boolean isMeTopicOwner = topicOwnerId != null && topicOwnerId.equals(aiUser.getId());
+        boolean isOtherTopicOwner = topicOwnerId != null && !topicOwnerId.equals(aiUser.getId());
+
+
+        // ----------------------------------------------------------
+        // [Step 2] 유저 간 티키타카 감지
+        // ----------------------------------------------------------
+        boolean isUserToUserActive = false;
+        long minutesDiff = 999;
+
+        if (recentHistory.size() >= 2) {
+            ChatMessage currentMsg = recentHistory.get(0);
+            ChatMessage prevMsg = recentHistory.get(1);
+
+            boolean isCurrentHuman = !isAi(currentMsg.getSender());
+            boolean isPrevHuman = !isAi(prevMsg.getSender());
+
+            if (isCurrentHuman && isPrevHuman) {
+                boolean isSamePerson = currentMsg.getSender().getId().equals(prevMsg.getSender().getId());
+
+                if (!isSamePerson) {
+                    minutesDiff = java.time.Duration.between(prevMsg.getSentAt(), currentMsg.getSentAt()).toMinutes();
+                    if (minutesDiff < ACTIVE_CONVERSATION_MINUTES) {
+                        isUserToUserActive = true;
+                    }
+                }
+            }
+        }
+
+        // 🟢 [핵심 수정] 방어 로직에 '!isGroup' 추가
+        // 사람끼리 떠들어도(Active), 단체 호출(isGroup)이면 침묵하지 않음!
+        if (isUserToUserActive && !isContextOwner && !isMeTopicOwner && !isGroup) {
+            log.info("AI [{}] 🤫 User-to-User Active (Gap: {}m). Skip Priority.", aiName, minutesDiff);
+            return false;
+        }
+
+        // ----------------------------------------------------------
+        // [Step 3] 확률 적용
+        // ----------------------------------------------------------
         int prob;
         String reason;
 
-        // 🧮 [Probability Logic] 우선순위 적용
         if (isMeTopicOwner) {
-            // 내가 이 주제의 주인이면 무조건 대답
             prob = 100;
             reason = "🎯 Topic Owner (Primary)";
 
         } else if (isOtherTopicOwner) {
-            // 🔥 [핵심 수정] 주제 주인이 '남'이면, 내가 Context Owner여도 양보해야 함
             prob = 0;
             reason = "🛑 Yield to Topic Owner";
 
         } else if (isContextOwner) {
-            // 주제 주인이 없을 때만 Context Owner 권한 행사
             prob = 100;
             reason = "👑 Context Owner";
 
-        } else if (isGroupCall(message)) {
+        } else if (isGroup) {
             prob = 70;
             reason = "📢 Group Call";
 
         } else if (isMainSpeaker) {
-            if (isUserToUserActive) {
-                prob = 5; reason = "🤫 Main Speaker (User-to-User Silence)";
+            boolean isQuestion = message.contains("?") || message.endsWith("?")
+                    || message.contains("추천") || message.contains("알려줘") || message.endsWith("좀");
+
+            if (isQuestion) {
+                prob = 90; reason = "🔥 Main Speaker (Q)";
             } else {
-                if (message.contains("?") || message.endsWith("?")) {
-                    prob = 90; reason = "🔥 Main Speaker (Q)";
-                } else {
-                    prob = 60; reason = "🔥 Main Speaker (A)";
-                }
+                prob = 60; reason = "🔥 Main Speaker (A)";
             }
+
         } else {
-            if (isPrevSenderAi) {
-                if (isRevivalAttempt) {
-                    prob = 85; reason = "🚑 Revival Support";
-                } else if (isReplyToUser) {
-                    prob = 5; reason = "🤫 Shush! (User-AI Talk)";
-                } else {
-                    prob = 20; reason = "🎉 Party Mode";
-                }
+            if (recentHistory.size() > 0 && isAi(recentHistory.get(0).getSender())) {
+                prob = 20; reason = "🎉 Party Mode";
             } else {
                 prob = 2; reason = "🧊 Strict Mode";
             }
         }
 
-        boolean ignoreFatigue = isMeTopicOwner || isRevivalAttempt || isContextOwner;
+        boolean ignoreFatigue = isMeTopicOwner || isContextOwner;
 
         if (!isMentioned(message, aiUser.getFirstName(), aiUser.getLastName()) && !ignoreFatigue) {
             boolean talkedRecently = recentHistory.stream().limit(4)

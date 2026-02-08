@@ -46,8 +46,11 @@ public class AiChatCoordinatorService {
 
         boolean isGroupChat = chatRoomRepository.isGroupChat(roomId);
 
-        // 🟢 [변경됨] 단순 확률이 아니라, 상황(사람 유무)에 따라 확률을 달리 적용
-        if (isGroupChat && shouldSkipByProbabilityDecay(roomId)) {
+        Long senderId = lastEvent.messageResponse().senderId();
+        boolean isHumanMessage = aiParticipants.stream()
+                .noneMatch(ai -> ai.getId().equals(senderId));
+
+        if (isGroupChat && !isHumanMessage && shouldSkipByProbabilityDecay(roomId)) {
             log.info("💤 AI Chat Faded out (Decay Logic triggered) | RoomId: {}", roomId);
             return;
         }
@@ -62,13 +65,10 @@ public class AiChatCoordinatorService {
         if (!mentionedAIs.isEmpty()) {
             aiList.retainAll(mentionedAIs);
         }
-
         if (aiList.isEmpty()) return;
 
-        // 1. DB상 마지막 화자 (과거)
-        Long lastAiSpeakerId = findLastAiSpeakerId(roomId);
 
-        // 2. 우선순위 정렬 (DB 기록 + 현재 생각 중인 AI 포함)
+        Long lastAiSpeakerId = findLastAiSpeakerId(roomId);
         sortParticipantsByPriority(aiList, roomId, userMessage, lastAiSpeakerId);
 
         if (aiList.isEmpty()) return;
@@ -79,6 +79,12 @@ public class AiChatCoordinatorService {
 
         for (int i = 0; i < aiList.size(); i++) {
             User aiUser = aiList.get(i);
+
+            if (thinkingStateManager.isThinking(roomId, aiUser.getId())) {
+                log.info("🚫 AI [{}] is already thinking. Skipping to prevent duplicate reply.", aiUser.getFirstName());
+                continue;
+            }
+
             boolean isMainSpeakerCandidate = (i == 0);
 
             // 1. 기본 타입 결정
@@ -87,11 +93,9 @@ public class AiChatCoordinatorService {
             // 2. Quota(쿼터) 체크
             boolean isDirectlyMentioned = isMentioned(userMessage, aiUser.getFirstName());
             boolean isLastSpeaker = (lastAiSpeakerId != null && aiUser.getId().equals(lastAiSpeakerId));
-            boolean isThinkingNow = thinkingStateManager.isThinking(roomId, aiUser.getId());
 
             if (responseType == ResponseType.FAST) {
-                // 멘션도 아니고, 마지막 화자도 아니고, 지금 생각 중인 애도 아니면 -> 쿼터 적용
-                if (!isDirectlyMentioned && !isLastSpeaker && !isThinkingNow) {
+                if (!isDirectlyMentioned && !isLastSpeaker) {
                     if (currentFastCount >= MAX_FAST_REPLIES_PER_TURN) {
                         responseType = ResponseType.SLOW;
                     } else {
@@ -245,7 +249,7 @@ public class AiChatCoordinatorService {
     }
 
     private ResponseType determineResponseType(User aiUser, Long roomId, String userMessage, boolean isMainSpeaker) {
-        if (thinkingStateManager.isThinking(roomId, aiUser.getId())) return ResponseType.FAST;
+
         if (isMentioned(userMessage, aiUser.getFirstName())) return ResponseType.FAST;
 
         Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(ACTIVE_TALKER_WINDOW_MINUTES));
