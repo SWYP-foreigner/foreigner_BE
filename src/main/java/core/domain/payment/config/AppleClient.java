@@ -1,4 +1,4 @@
-package core.domain.payment;
+package core.domain.payment.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.*;

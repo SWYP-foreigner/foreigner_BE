@@ -1,4 +1,4 @@
-package core.domain.payment;
+package core.domain.payment.config;
 
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
