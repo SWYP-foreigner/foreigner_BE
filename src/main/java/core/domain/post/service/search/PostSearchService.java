@@ -141,7 +141,14 @@ public class PostSearchService {
 
                 Long selectedOptionId = finalUserVotes.get(pollId);
 
-                Long correctOptionId = p.correctOptionId();
+                Long correctOptionId = null;
+                if (selectedOptionId != null) {
+                    correctOptionId = rawOptions.stream()
+                            .filter(PollOption::getIsCorrect)
+                            .map(PollOption::getId)
+                            .findFirst()
+                            .orElse(null);
+                }
 
                 List<BoardItem.OptionItem> optionDtos = rawOptions.stream()
                         .map(opt -> new BoardItem.OptionItem(
@@ -149,12 +156,10 @@ public class PostSearchService {
                                 opt.getContent(),
                                 opt.getVoteCount()
                         ))
-                        .sorted(Comparator.comparing(BoardItem.OptionItem::optionId))
                         .toList();
 
                 pollInfo = new BoardItem.PollInfo(
                         p.pollTitle(),
-                        p.pollDescription(),
                         p.pollCloseAt(),
                         p.pollTotalCount(),
                         optionDtos,
@@ -189,7 +194,7 @@ public class PostSearchService {
             nextCursor = safeEncode(Map.of(
                     "sc", last.score(),
                     "t", last.item().createdAt(),
-                    "id", last.item().id()
+                    "id", last.item().postId()
             ));
         }
 

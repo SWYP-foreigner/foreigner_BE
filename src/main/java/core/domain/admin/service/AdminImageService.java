@@ -9,7 +9,7 @@ import core.global.entity.image.dto.SuspiciousImageResponse;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.enums.ImageModerationStatus;
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;

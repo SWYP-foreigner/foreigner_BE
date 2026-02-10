@@ -5,7 +5,7 @@ import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
 import core.domain.board.service.BoardService;
 import core.domain.post.dto.comunity.PostWriteAnonymousAvailableResponse;
-import core.global.enums.community.BoardCategory;
+import core.global.enums.BoardCategory;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommunityErrorCode;
 import lombok.RequiredArgsConstructor;

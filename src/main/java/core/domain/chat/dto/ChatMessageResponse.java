@@ -1,6 +1,6 @@
 package core.domain.chat.dto;
 
-import core.global.enums.chat.MessageType;
+import core.global.enums.MessageType;
 
 import java.time.Instant;
 import java.time.LocalDateTime;

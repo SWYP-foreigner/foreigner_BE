@@ -10,10 +10,10 @@ import core.domain.user.service.GoogleOtpService;
 import core.global.dto.AuthResponse;
 import core.global.dto.EmailLoginDto;
 import core.global.dto.UserLoggedInEvent;
-import core.global.enums.Oauthplatform;
+import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
-import core.global.enums.user.Role;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
@@ -53,7 +53,7 @@ public class AdminAuthService {
                     return new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
                 });
 
-        if (!Oauthplatform.local.toString().equalsIgnoreCase(user.getProvider())) {
+        if (!Ouathplatform.local.toString().equalsIgnoreCase(user.getProvider())) {
             log.warn("[ADMIN LOGIN Step1] Provider 불일치: {}", user.getProvider());
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }

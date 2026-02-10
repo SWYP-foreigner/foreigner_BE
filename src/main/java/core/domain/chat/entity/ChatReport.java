@@ -1,7 +1,7 @@
 package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
-import core.global.enums.chat.ChatReportStatus;
+import core.global.enums.ChatReportStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

@@ -1,4 +1,4 @@
-package core.global.enums.community;
+package core.global.enums;
 
 import lombok.Getter;
 

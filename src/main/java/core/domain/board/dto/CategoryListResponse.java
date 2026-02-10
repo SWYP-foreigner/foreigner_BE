@@ -1,6 +1,6 @@
 package core.domain.board.dto;
 
-import core.global.enums.community.BoardCategory;
+import core.global.enums.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "카테고리 목록 응답")

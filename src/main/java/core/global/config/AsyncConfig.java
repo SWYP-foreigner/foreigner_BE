@@ -99,12 +99,4 @@ public class AsyncConfig implements AsyncConfigurer {
 
         return executor;
     }
-
-    @Bean(name = "websocketExecutor")
-    public Executor websocketExecutor() {
-         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-         executor.setCorePoolSize(50);
-         executor.initialize();
-         return executor;
-    }
 }

@@ -15,7 +15,7 @@ import core.domain.maincontent.dto.MainContentNewsListResponse;
 import core.domain.maincontent.entity.QMainContent;
 import core.global.enums.KNewsContentType;
 import core.global.entity.image.entity.QImage;
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

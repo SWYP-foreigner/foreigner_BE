@@ -1,6 +1,6 @@
 package core.global.entity.image.dto;
 
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 
 import java.util.List;
 

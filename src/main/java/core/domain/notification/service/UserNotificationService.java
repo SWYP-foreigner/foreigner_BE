@@ -9,7 +9,7 @@ import core.domain.userdevicetoken.entity.UserDeviceToken;
 import core.domain.userdevicetoken.repository.UserDeviceTokenRepository;
 import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 import core.global.enums.NotificationType;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.CommonErrorCode;

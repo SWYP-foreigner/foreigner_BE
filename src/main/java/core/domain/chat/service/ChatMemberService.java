@@ -17,7 +17,7 @@ import core.domain.user.service.UserRoleDetectService;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;

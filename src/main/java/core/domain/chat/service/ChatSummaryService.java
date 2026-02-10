@@ -12,7 +12,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.global.entity.image.repository.ImageRepository;
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;

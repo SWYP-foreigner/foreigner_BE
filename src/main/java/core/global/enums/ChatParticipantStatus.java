@@ -1,4 +1,4 @@
-package core.global.enums.chat;
+package core.global.enums;
 
 public enum ChatParticipantStatus {
     ACTIVE,
