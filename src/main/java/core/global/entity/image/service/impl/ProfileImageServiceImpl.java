@@ -7,7 +7,7 @@ import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.image.service.ProfileImageService;
 import core.global.enums.ImageModerationStatus;
-import core.global.enums.ImageType;
+import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.ImageErrorCode;
 import core.global.exception.BusinessException;
 import jakarta.transaction.Transactional;

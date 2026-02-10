@@ -2,7 +2,7 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.global.enums.ChatParticipantStatus;
+import core.global.enums.chat.ChatParticipantStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

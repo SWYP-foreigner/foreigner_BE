@@ -3,10 +3,7 @@ package core.domain.chat.dto;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.user.entity.User;
-import core.global.enums.ImageType;
-import core.global.entity.image.entity.Image;
-import core.global.entity.image.repository.ImageRepository;
-import core.global.enums.MessageType;
+import core.global.enums.chat.MessageType;
 
 import java.time.Instant;
 

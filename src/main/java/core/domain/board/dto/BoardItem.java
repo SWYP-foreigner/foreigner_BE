@@ -1,6 +1,6 @@
 package core.domain.board.dto;
 
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;

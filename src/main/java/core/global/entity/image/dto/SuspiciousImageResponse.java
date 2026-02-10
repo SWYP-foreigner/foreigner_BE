@@ -1,7 +1,7 @@
 package core.global.entity.image.dto;
 
 import core.global.entity.image.entity.Image;
-import core.global.enums.ImageType;
+import core.global.enums.common.ImageType;
 import lombok.Builder;
 import lombok.Getter;
 

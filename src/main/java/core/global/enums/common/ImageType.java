@@ -1,4 +1,4 @@
-package core.global.enums;
+package core.global.enums.common;
 
 public enum ImageType {
     POST, USER, CHAT_ROOM, CHAT_MEDIA, MAIN_PAGE_THUMBNAIL, MAIN_PAGE_POPULAR_THUMBNAIL, MAIN_PAGE_VIDEO, MAIN_PAGE_BODY

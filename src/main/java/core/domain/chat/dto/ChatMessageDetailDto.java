@@ -2,7 +2,7 @@ package core.domain.chat.dto;
 
 import core.domain.chat.entity.ChatMessage;
 import core.domain.user.entity.User;
-import core.global.enums.MessageType;
+import core.global.enums.chat.MessageType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
