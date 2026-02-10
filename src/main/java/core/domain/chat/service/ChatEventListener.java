@@ -2,7 +2,7 @@ package core.domain.chat.service;
 
 import core.domain.chat.dto.*;
 import core.domain.notification.dto.NotificationBulkEvent;
-import core.global.enums.MessageType;
+import core.global.enums.chat.MessageType;
 import core.global.enums.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

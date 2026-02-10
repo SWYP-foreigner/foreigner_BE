@@ -4,7 +4,7 @@ import core.domain.aiuser.dto.MessageCreatedEvent;
 import core.domain.aiuser.service.AiMessageDebouncer;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.Role;
+import core.global.enums.user.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
