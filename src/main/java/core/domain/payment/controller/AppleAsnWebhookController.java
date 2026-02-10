@@ -11,7 +11,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/iap/apple")
 public class AppleAsnWebhookController {
-
     private final AppleAsnWebhookService webhookService;
 
     public AppleAsnWebhookController(AppleAsnWebhookService webhookService) {
