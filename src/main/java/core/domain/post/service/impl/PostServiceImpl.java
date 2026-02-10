@@ -9,6 +9,7 @@ import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.poll.entity.PollOption;
 import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
@@ -34,9 +35,14 @@ import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.*;
+import core.global.enums.common.CommunitySortOption;
+import core.global.enums.common.ImageType;
+import core.global.enums.common.LikeType;
+import core.global.enums.community.BoardCategory;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.enums.user.FollowStatus;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
@@ -92,6 +98,7 @@ public class PostServiceImpl implements PostService {
     private final PostReportRepository postReportRepository;
     private final MainContentHotKeywordBatchService recommendBatchService;
     private final PollOptionRepository pollOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
 
     private final MainContentRepository mainContentRepository;
     private final ImageStorageClient imageStorageClient;
@@ -141,7 +148,7 @@ public class PostServiceImpl implements PostService {
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
-                BoardItem::postId
+                BoardItem::id
         );
     }
 
@@ -167,14 +174,14 @@ public class PostServiceImpl implements PostService {
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
-                BoardItem::postId
+                BoardItem::id
         );
     }
 
     private void fillPollOptions(List<BoardItem> items) {
         List<Long> pollPostIds = items.stream()
                 .filter(item -> item.pollInfo() != null)
-                .map(BoardItem::postId)
+                .map(BoardItem::id)
                 .toList();
 
         if (pollPostIds.isEmpty()) {
@@ -207,22 +214,26 @@ public class PostServiceImpl implements PostService {
             if (item.pollInfo() != null && item.pollInfo().title() != null) {
 
                 // 해당 게시글에 맞는 옵션 리스트만 가져오기 (없으면 빈 리스트)
-                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.postId(), List.of());
+                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.id(), List.of());
+
+                List<BoardItem.OptionItem> sortedOptions = new ArrayList<>(specificOptions);
+                sortedOptions.sort(Comparator.comparing(BoardItem.OptionItem::optionId));
 
                 // 🔥 핵심 수정: addAll() 대신 PollInfo와 BoardItem을 새로 생성합니다.
                 // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
                 BoardItem.PollInfo newPollInfo = new BoardItem.PollInfo(
                         item.pollInfo().title(),
+                        item.pollInfo().description(),
                         item.pollInfo().closeAt(),
                         item.pollInfo().totalVoteCount(),
-                        specificOptions, // ✅ DB에서 가져온 "내 옵션"만 주입
+                        sortedOptions,
                         item.pollInfo().selectedOptionId(),
                         item.pollInfo().correctOptionId()
                 );
 
                 // BoardItem도 새로 생성해서 리스트 교체
                 BoardItem newItem = new BoardItem(
-                        item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                        item.id(), item.contentPreview(), item.authorId(), item.authorName(),
                         item.boardCategory(), item.createdAt(), item.isAnonymous(),
                         item.isLiked(), item.isBookmarked(), item.likeCount(),
                         item.commentCount(), item.viewCount(), item.userImageUrl(),
@@ -242,7 +253,7 @@ public class PostServiceImpl implements PostService {
 
     private BoardItem createNonPollItem(BoardItem item) {
         return new BoardItem(
-                item.postId(), item.contentPreview(), item.authorId(), item.authorName(),
+                item.id(), item.contentPreview(), item.authorId(), item.authorName(),
                 item.boardCategory(), item.createdAt(), item.isAnonymous(),
                 item.isLiked(), item.isBookmarked(), item.likeCount(),
                 item.commentCount(), item.viewCount(), item.userImageUrl(),
@@ -483,12 +494,15 @@ public class PostServiceImpl implements PostService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
+        }
+
+        if (post.getPoll() != null && voteRecordRepository.existsByPollId(post.getPoll().getId())) {
+            throw new BusinessException(CommunityErrorCode.VOTE_RECORD_EXISTED);
         }
 
         String folderPrefix = "posts/" + postId;
@@ -575,7 +589,7 @@ public class PostServiceImpl implements PostService {
         String nextCursor = hasNext
                 ? CursorCodec.encode(Map.of(
                 "t", last.createdAt().toString(),
-                "id", last.postId()
+                "id", last.id()
         ))
                 : null;
 

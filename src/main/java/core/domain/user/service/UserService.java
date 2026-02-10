@@ -16,6 +16,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
+import core.domain.user.repository.AdminOtpRepository;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -28,12 +29,12 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.FollowStatus;
-import core.global.enums.ImageType;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
+import core.global.enums.Oauthplatform;
+import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.enums.user.FollowStatus;
+import core.global.enums.user.Role;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
@@ -105,6 +106,7 @@ public class UserService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserFeedbackRepository userFeedbackRepository;
+    private final AdminOtpRepository adminOtpRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -301,23 +303,38 @@ public class UserService {
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
-
     @Transactional
     public void setupUserProfile(UserSetupRequest dto) {
+        log.info("========== [프로필 설정 시작] ==========");
         var auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()) {
+            log.error("[Auth Error] 인증 정보가 SecurityContext에 없습니다.");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 에러코드로 변경 가능
+        }
+
         String email = auth.getName();
-        log.info("UserSetupRequest dto: {}", dto);
+        log.info("[Request User] Email: {}", email);
+        log.info("[Request Data] UserSetupRequest: {}", dto);
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("[User Error] 해당 이메일을 가진 유저를 찾을 수 없음: {}", email);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
+                });
+
+        log.info("[User Status] ID: {}, isNewUser: {}, Provider: {}",
+                user.getId(), user.isNewUser(), user.getProvider());
 
         if (!user.isNewUser()) {
+            log.warn("[Validation Error] 이미 프로필이 설정된 사용자입니다. ID: {}", user.getId());
             throw new BusinessException(UserErrorCode.INVALID_PROFILE,
                     "이미 프로필이 설정된 사용자입니다.");
         }
 
-        if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
-
+        // 애플 유저가 아닐 경우에만 이름 업데이트
+        if (!Objects.equals(user.getProvider(), Oauthplatform.APPLE.toString())) {
+            log.info("[Update] 일반 유저 이름 업데이트 시도");
             if (notBlank(dto.firstname())) {
                 user.updateFirstName(dto.firstname().trim());
             }
@@ -330,13 +347,15 @@ public class UserService {
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
         user.updatePurpose(dto.purpose());
+
         String v = dto.introduction();
-        user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
+        if (v != null) {
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
+        }
 
-// UserSetupRequest dto를 받는 메서드 내부
+        // 언어 처리 로그
         if (dto.language() != null && !dto.language().isEmpty()) {
-
-            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            log.info("[Update] 언어 설정 처리 중: {}", dto.language());
             List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
@@ -345,20 +364,17 @@ public class UserService {
                     .toList();
 
             if (!rawLanguages.isEmpty()) {
-
-                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
                 String firstTranslatedLanguage = rawLanguages.stream()
-                        .findFirst() // 첫 번째 언어를 선택
-                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
+                        .findFirst()
+                        .map(s -> normalizeLanguageCode(s).toLowerCase())
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
                 }
 
-                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
                 List<String> normalizedLanguagesForCsv = rawLanguages.stream()
-                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .map(s -> normalizeLanguageCode(s).toUpperCase())
                         .filter(s -> !s.isEmpty())
                         .distinct()
                         .toList();
@@ -366,6 +382,7 @@ public class UserService {
                 if (!normalizedLanguagesForCsv.isEmpty()) {
                     String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
                     user.updateLanguage(userLanguagesCsv);
+                    log.info("[Update] 저장된 언어 CSV: {}", userLanguagesCsv);
                 }
             }
         }
@@ -373,12 +390,17 @@ public class UserService {
         if (dto.hobby() != null && !dto.hobby().isEmpty()) {
             String csv = String.join(",", dto.hobby());
             user.updateHobby(csv);
+            log.info("[Update] 저장된 취미 CSV: {}", csv);
         }
 
         user.updateIsNewUser(false);
+
         if (dto.imageKey() != null) {
+            log.info("[Update] 이미지 저장 시도. Key: {}", dto.imageKey());
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
+
+        log.info("========== [프로필 설정 완료] ID: {} ==========", user.getId());
     }
 
 
@@ -459,7 +481,7 @@ public class UserService {
         String rawPw = req.getPassword();
 
         User u = new User();
-        u.updateProvider(Ouathplatform.local.toString());
+        u.updateProvider(Oauthplatform.local.toString());
         u.updateSocialId(buildLocalSocialId(email));
         u.updateEmail(email);
         u.updatePassword(passwordEncoder.encode(rawPw));
@@ -524,7 +546,7 @@ public class UserService {
 
         log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
-        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+        if (!Oauthplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
@@ -831,7 +853,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean isApple = false;
 
-        if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
+        if (Oauthplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
             isApple = true;
         }
@@ -869,7 +891,7 @@ public class UserService {
             bookmarkRepository.deleteAllByPostIn(userPosts);
             postRepository.deleteAll(userPosts);
         }
-
+        adminOtpRepository.deleteByUserId(userId);
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
@@ -965,7 +987,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        boolean isApple = Ouathplatform.APPLE.toString().equals(user.getProvider());
+        boolean isApple = Oauthplatform.APPLE.toString().equals(user.getProvider());
 
         boolean isRejoiningWithoutFullName = false;
         if (isApple) {

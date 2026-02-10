@@ -1,6 +1,6 @@
 package core.domain.board.dto;
 
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -9,8 +9,8 @@ import java.util.List;
 
 @Schema(name = "BoardResponse", description = "게시글 카드 응답 데이터")
 public record BoardItem(
-        @Schema(description = "게시글 ID", example = "123", requiredMode = Schema.RequiredMode.REQUIRED)
-        Long postId,
+        @Schema(description = "게시글 / 투표 / 퀴즈 ID", example = "123", requiredMode = Schema.RequiredMode.REQUIRED)
+        Long id,
 
         @Schema(description = "내용 미리보기", example = "안녕하세요! 첫 글입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
         String contentPreview,
@@ -78,6 +78,8 @@ public record BoardItem(
     public record PollInfo(
             @Schema(description = "투표 제목", example = "가장 선호하는 언어는?")
             String title,
+            @Schema(description = "투표 설명", example = "가장 선호하는 언어는 무엇인가요?")
+            String description,
             @Schema(description = "투표 마감 시간", example = "2025-09-20T12:00:00Z")
             Instant closeAt,
             @Schema(description = "총 투표 수", example = "150")
@@ -90,14 +92,14 @@ public record BoardItem(
             Long correctOptionId
     ) {
         public PollInfo() {
-            this(null, null, 0L, new ArrayList<>(), null, null);
+            this(null, null, null, 0L, new ArrayList<>(), null, null);
         }
     }
 
     @Schema(description = "투표 선택지 정보")
     public record OptionItem(
             @Schema(description = "선택지 ID", example = "1")
-            Long id,
+            Long optionId,
             @Schema(description = "선택지 내용", example = "Java")
             String content,
             @Schema(description = "해당 항목 투표 수", example = "45")

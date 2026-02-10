@@ -2,7 +2,7 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.global.enums.ChatParticipantStatus;
+import core.global.enums.chat.ChatParticipantStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -75,4 +75,5 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<Long> findAllAiParticipatedRoomIds();
 
     Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
+    List<ChatParticipant> findAllByChatRoomId(Long chatRoomId);
 }

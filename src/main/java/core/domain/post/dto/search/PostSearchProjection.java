@@ -1,6 +1,6 @@
 package core.domain.post.dto.search;
 
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 
 import java.time.Instant;
 
@@ -16,6 +16,8 @@ public record PostSearchProjection(
         double rawScore,
         long scoreRounded,
         String pollTitle,
+        String pollDescription,
         Instant pollCloseAt,
-        Long pollTotalCount
+        Long pollTotalCount,
+        Long correctOptionId
 ) {}

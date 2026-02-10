@@ -2,7 +2,7 @@ package core.domain.comment.service;
 
 import core.domain.comment.dto.*;
 import core.domain.comment.dto.UserCommentItem;
-import core.global.enums.CommunitySortOption;
+import core.global.enums.common.CommunitySortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
