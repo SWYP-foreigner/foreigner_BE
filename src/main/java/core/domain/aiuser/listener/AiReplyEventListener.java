@@ -4,6 +4,7 @@ import core.domain.aiuser.dto.MessageCreatedEvent;
 import core.domain.aiuser.service.AiMessageDebouncer;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
+import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -27,17 +28,17 @@ public class AiReplyEventListener {
     public void handleMessageSent(MessageCreatedEvent event) {
         Long roomId = event.messageResponse().roomId();
         Long senderId = event.messageResponse().senderId();
+
+        User sender = userRepository.findById(senderId).orElse(null);
+        boolean isSenderAi = (sender != null && Role.AI.equals(sender.getUserRole()));
+
         List<User> participants = userRepository.findPartnersByChatRoomId(roomId, senderId);
 
-        if (participants == null || participants.isEmpty()) {
-            return;
-        }
-
         for (User receiver : participants) {
-
             if ("AI_BOT".equals(receiver.getProvider())) {
-                log.info("👂 AI [ID:{}, {}] 듣는 중... (버퍼링 시작)", receiver.getId(), receiver.getFirstName());
-                aiMessageDebouncer.bufferMessage(receiver, event);
+                long debounceTime = isSenderAi ? 5000L : 2500L;
+
+                aiMessageDebouncer.bufferMessage(receiver, event, debounceTime);
             }
         }
     }

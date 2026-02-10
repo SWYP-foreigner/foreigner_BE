@@ -28,10 +28,7 @@ public class AiMessageDebouncer {
     private final Map<Long, MessageCreatedEvent> lastEvents = new ConcurrentHashMap<>();
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
-    // 2.5초로 줄이되, AI가 생각 중이면 대기하는 'Lock' 로직으로 커버합니다.
-    private static final long DEBOUNCE_DELAY_MS = 2500;
-
-    public void bufferMessage(User aiUser, MessageCreatedEvent event) {
+    public void bufferMessage(User aiUser, MessageCreatedEvent event, long debounceTime) {
         Long roomId = event.messageResponse().roomId();
         Long messageId = event.messageResponse().id();
         String content = event.messageResponse().originContent();
@@ -41,19 +38,19 @@ public class AiMessageDebouncer {
             scheduledTasks.get(roomId).cancel(false);
         }
 
-        // 2. 메시지 누적 (중복 방지)
+        // 2. 메시지 누적
         Set<Long> msgIds = processedMessageIds.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet());
         if (msgIds.add(messageId)) {
             textBuffer.computeIfAbsent(roomId, k -> new StringBuilder())
-                    .append(content).append(" "); // 공백으로 구분
+                    .append(content).append(" ");
         }
 
         // 3. 참여 AI 등록
         aiParticipants.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(aiUser);
         lastEvents.put(roomId, event);
 
-        // 4. 스케줄링 (Thinking 상태 확인 로직 포함)
-        scheduleProcessing(roomId, DEBOUNCE_DELAY_MS);
+        // 4. 스케줄링
+        scheduleProcessing(roomId, debounceTime);
     }
 
     private void scheduleProcessing(Long roomId, long delayMs) {
