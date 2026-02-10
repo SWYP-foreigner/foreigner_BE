@@ -1,16 +1,19 @@
 package core.domain.maincontent.service;
 
+import core.domain.board.dto.CategoryListResponse;
 import core.domain.maincontent.controller.KNewsCategoryListResponse;
 import core.domain.maincontent.dto.MainContentNewsListResponse;
-import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.dto.MainContentTop9Response;
-import core.domain.maincontent.dto.MainPageContentResponse;
+import core.domain.maincontent.dto.MainContentNewsResponse;
 import core.domain.maincontent.entity.MainContent;
+import core.global.enums.BoardCategory;
+import core.global.enums.KNewsContentType;
+
+import core.domain.maincontent.dto.MainPageContentResponse;
 import core.domain.maincontent.repository.MainContentRepository;
 import core.global.entity.image.repository.ImageRepository;
-import core.global.enums.KNewsContentType;
+import core.global.enums.ImageType;
 import core.global.enums.MainContentSortOption;
-import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.MainContentErrorCode;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;

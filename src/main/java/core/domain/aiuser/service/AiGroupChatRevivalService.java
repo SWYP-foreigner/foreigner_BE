@@ -11,7 +11,7 @@ import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatMessageService;
 import core.domain.user.entity.User;
-import core.global.enums.chat.MessageType;
+import core.global.enums.MessageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;

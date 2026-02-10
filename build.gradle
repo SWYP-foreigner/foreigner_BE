@@ -43,9 +43,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-logging'
     implementation 'org.springframework.security:spring-security-messaging'
 
-    implementation 'org.springframework.retry:spring-retry:2.0.6'
-
-
     // --- DB ---
     runtimeOnly   'org.postgresql:postgresql'
 
@@ -123,13 +120,7 @@ dependencies {
     implementation 'org.htmlunit:htmlunit:3.11.0'
     implementation 'org.webjars.npm:cropperjs:1.5.13'
 
-    // --- Payment ---
-    // JWT/JWS (Apple JWS, Dev Token)
-    implementation "com.nimbusds:nimbus-jose-jwt:9.37"
-
-    // Google AndroidPublisher
-    implementation "com.google.apis:google-api-services-androidpublisher:v3-rev20240806-2.0.0"
-    implementation "com.google.auth:google-auth-library-oauth2-http:1.23.0"
+    implementation 'org.springframework.security:spring-security-messaging'
 
     implementation 'org.springframework.retry:spring-retry:2.0.6'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
@@ -137,9 +128,7 @@ dependencies {
     implementation 'com.github.shin285:KOMORAN:3.3.4'
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs += "-Xlint:deprecation"
-}
+
 
 dependencyManagement {
 	imports {

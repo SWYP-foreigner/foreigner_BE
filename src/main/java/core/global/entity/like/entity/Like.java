@@ -1,7 +1,7 @@
 package core.global.entity.like.entity;
 
 import core.domain.user.entity.User;
-import core.global.enums.common.LikeType;
+import core.global.enums.LikeType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;

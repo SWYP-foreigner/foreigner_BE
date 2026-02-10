@@ -8,8 +8,6 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.poll.entity.QPoll;
-import core.domain.poll.entity.QPollOption;
-import core.domain.poll.entity.QVoteRecord;
 import core.domain.post.dto.search.PostSearchProjection;
 import core.domain.post.dto.search.PostSearchRequest;
 import core.domain.post.entity.QPost;
@@ -20,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -53,10 +50,6 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
     public List<PostSearchProjection> search(PostSearchRequest request) {
         QPost p = post;
         QPoll poll = QPoll.poll;
-        QPollOption option = new QPollOption("correctOption");
-        QVoteRecord voteRecord = QVoteRecord.voteRecord;
-
-        Instant now = Instant.now();
 
         // --- PGroonga 매치/점수(Double) ---
         var match = Expressions.booleanTemplate(
@@ -102,20 +95,13 @@ public class PostSearchRepositoryCustomImpl implements PostSearchRepositoryCusto
                         score,
                         scoreRounded,
                         poll.title,
-                        poll.description,
                         poll.closeAt,
-                        poll.totalVoteCount.coalesce(0L),
-                        new CaseBuilder()
-                                .when(poll.closeAt.before(now).or(voteRecord.id.isNotNull()))
-                                .then(option.id)
-                                .otherwise(Expressions.nullExpression(Long.class))
+                        poll.totalVoteCount.coalesce(0L)
                 ))
                 .from(p)
                 .join(p.author, user)
                 .join(p.board, board)
                 .leftJoin(p.poll, poll)
-                .leftJoin(poll.options, option).on(option.isCorrect.isTrue())
-                .leftJoin(voteRecord).on(voteRecord.poll.id.eq(poll.id).and(voteRecord.user.id.eq(request.userId())))
                 .where(where)
                 .orderBy(scoreRounded.desc(), p.createdAt.desc(), p.id.desc())
                 .limit(request.limit() + 1L)

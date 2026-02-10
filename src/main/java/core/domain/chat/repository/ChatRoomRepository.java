@@ -2,7 +2,7 @@ package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatRoom;
 import core.domain.user.entity.User;
-import core.global.enums.chat.ChatParticipantStatus;
+import core.global.enums.ChatParticipantStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -95,7 +95,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             "    SELECT p.chatRoom.id " +
             "    FROM ChatParticipant p " +
             "    WHERE p.user.id = :userId " +
-            "    AND p.status = core.global.enums.chat.ChatParticipantStatus.ACTIVE" +
+            "    AND p.status = core.global.enums.ChatParticipantStatus.ACTIVE" +
             ")")
     List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
 

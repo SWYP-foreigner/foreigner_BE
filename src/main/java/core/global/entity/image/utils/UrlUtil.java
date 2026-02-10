@@ -1,6 +1,6 @@
 package core.global.entity.image.utils;
 
-import core.global.enums.common.ImageType;
+import core.global.enums.ImageType;
 
 import java.net.URLDecoder;
 import java.net.URLEncoder;

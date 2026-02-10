@@ -5,7 +5,7 @@ import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
-import core.global.enums.user.Role;
+import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;

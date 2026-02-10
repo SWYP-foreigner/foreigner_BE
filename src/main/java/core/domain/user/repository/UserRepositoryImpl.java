@@ -6,7 +6,7 @@ import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.user.dto.UserSearchRequest;
 import core.domain.user.entity.User;
-import core.global.enums.user.Role;
+import core.global.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

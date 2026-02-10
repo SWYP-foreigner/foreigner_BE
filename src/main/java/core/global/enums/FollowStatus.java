@@ -1,4 +1,4 @@
-package core.global.enums.user;
+package core.global.enums;
 
 
 public enum FollowStatus {

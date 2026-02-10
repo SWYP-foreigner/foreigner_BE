@@ -9,7 +9,7 @@ import core.global.apple.dto.AppleRefreshTokenResponse;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.security.JwtTokenProvider;
 import core.global.dto.*;
-import core.global.enums.Oauthplatform;
+import core.global.enums.Ouathplatform;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
@@ -98,7 +98,7 @@ public class AppleAuthService {
         Claims claims = verifyAndGetClaims(req.identityToken(), req.nonce());
         String socialId = claims.getSubject();
         String email = claims.get("email", String.class);
-        String provider = Oauthplatform.APPLE.toString();
+        String provider = Ouathplatform.APPLE.toString();
         User user = findOrCreateUser(socialId, email, provider, req);
 
         updateUserNameIfNeeded(user, req.fullName());

@@ -9,7 +9,7 @@ import core.global.dto.AccessTokenDto;
 import core.global.dto.GoogleProfileDto;
 import core.global.dto.LoginResponseDto;
 import core.global.dto.UserLoggedInEvent;
-import core.global.enums.Oauthplatform;
+import core.global.enums.Ouathplatform;
 import core.global.redis.service.RedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -104,7 +104,7 @@ public class GoogleAuthService {
 
     private User findOrCreateUser(GoogleProfileDto profile) {
         // A. 이미 가입된 소셜 유저인지 확인
-        User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Oauthplatform.GOOGLE));
+        User user = userService.getUserBySocialIdAndProvider(profile.getSub(), String.valueOf(Ouathplatform.GOOGLE));
         if (user != null) {
             log.info("    -> [분기] 기존 가입 유저 발견. (UserID: {})", user.getId());
             return user;
@@ -119,6 +119,6 @@ public class GoogleAuthService {
 
         // C. 신규 가입
         log.info("    -> [분기] 신규 유저 생성 시작. Email: {}", profile.getEmail());
-        return userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Oauthplatform.GOOGLE));
+        return userService.createOauth(profile.getSub(), profile.getEmail(), String.valueOf(Ouathplatform.GOOGLE));
     }
 }

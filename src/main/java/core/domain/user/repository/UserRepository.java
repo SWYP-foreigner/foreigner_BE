@@ -3,7 +3,7 @@ package core.domain.user.repository;
 
 import core.domain.user.dto.StringCountDto;
 import core.domain.user.entity.User;
-import core.global.enums.user.Role;
+import core.global.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

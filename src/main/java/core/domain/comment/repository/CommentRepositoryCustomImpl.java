@@ -15,7 +15,7 @@ import core.domain.post.entity.QPost;
 import core.domain.user.entity.QBlockUser;
 import core.domain.user.entity.QUser;
 import core.global.entity.like.entity.QLike;
-import core.global.enums.common.LikeType;
+import core.global.enums.LikeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.util.StringUtils;

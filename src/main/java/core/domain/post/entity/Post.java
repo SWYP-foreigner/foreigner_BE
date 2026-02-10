@@ -109,12 +109,4 @@ public class Post {
     public void changeContent(String content) {
         this.content = content;
     }
-
-    public void updateContent(String content) {
-        this.content = content;
-    }
-
-    public void updateAnonymous(Boolean anonymous) {
-        this.anonymous = anonymous;
-    }
 }

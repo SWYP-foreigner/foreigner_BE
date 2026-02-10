@@ -14,9 +14,9 @@ import core.domain.comment.entity.QComment;
 import core.domain.poll.entity.QPoll;
 import core.domain.poll.entity.QPollOption;
 import core.domain.poll.entity.QVoteRecord;
+import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.admin.PostListForAdminResponse;
 import core.domain.post.dto.admin.PostSearchForAdminRequest;
-import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.comunity.UserPostItem;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.QBlockPost;
@@ -26,9 +26,9 @@ import core.domain.user.entity.QBlockUser;
 import core.domain.user.entity.QUser;
 import core.global.entity.image.entity.QImage;
 import core.global.entity.like.entity.QLike;
-import core.global.enums.community.BoardCategory;
-import core.global.enums.common.ImageType;
-import core.global.enums.common.LikeType;
+import core.global.enums.BoardCategory;
+import core.global.enums.ImageType;
+import core.global.enums.LikeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,16 +37,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
+import java.time.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static core.domain.bookmark.entity.QBookmark.bookmark;
 import static core.domain.post.entity.QBlockPost.blockPost;
+
+import static core.domain.bookmark.entity.QBookmark.bookmark;
 
 @Repository
 @RequiredArgsConstructor
@@ -112,7 +111,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         // 16. PollInfo 생성 (투표 정보가 없으면 null)
                         Projections.constructor(BoardItem.PollInfo.class,
                                 poll.title,
-                                poll.description,
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
@@ -226,7 +224,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         // 16. PollInfo (투표 정보)
                         Projections.constructor(BoardItem.PollInfo.class,
                                 poll.title,
-                                poll.description,
                                 poll.closeAt,
                                 poll.totalVoteCount.coalesce(0L),
                                 Expressions.constant(new ArrayList<BoardItem.OptionItem>()), // 서비스에서 채우기 위한 가변 리스트
@@ -314,7 +311,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         imageCountExpr,
 
                         poll.title,
-                        poll.description,
                         poll.closeAt,
                         poll.totalVoteCount.coalesce(0L),
                         selectedOptionIdExpr,
@@ -356,7 +352,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         Integer imageCount = t0.get(imageCountExpr);
 
         String pollTitle = t0.get(poll.title);
-        String pollDescription = t0.get(poll.description);
         Instant pollCloseAt = t0.get(poll.closeAt);
         Long pollTotalVote = t0.get(poll.totalVoteCount.coalesce(0L));
         Long mySelectedOption = t0.get(selectedOptionIdExpr);
@@ -409,7 +404,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 // 16. PollInfo 생성 (투표 정보가 없으면 null)
                 (pollTitle != null) ? new PostDetailResponse.PollInfo(
                         pollTitle,
-                        pollDescription,
                         pollCloseAt,
                         pollTotalVote,
                         pollOptions,
@@ -783,32 +777,30 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private Expression<Long> correctOptionIdIfVoted(Long userId) {
-        QPollOption qOption = new QPollOption("correctOpt");
-        Instant now = Instant.now();
+        if (userId == null) {
+            return Expressions.nullExpression();
+        }
 
-        // 1. 해당 투표의 정답 ID를 찾는 서브쿼리
-        Expression<Long> correctAnswerIdSubQuery = JPAExpressions
-                .select(qOption.id)
-                .from(qOption)
-                .where(qOption.poll.id.eq(poll.id)
-                        .and(qOption.isCorrect.isTrue()));
-
-        // 2. 투표가 마감되었는지 확인하는 조건 (closeAt < now)
-        BooleanExpression isClosed = poll.closeAt.before(now);
-
-        // 3. 사용자가 투표를 했는지 확인하는 조건
-        BooleanExpression hasVoted = (userId == null)
-                ? Expressions.FALSE
-                : JPAExpressions.selectOne()
+        // 1. 해당 유저가 이 투표(poll)에 참여했는지 확인하는 조건
+        BooleanExpression userHasVoted = JPAExpressions
+                .selectOne()
                 .from(voteRecord)
                 .where(voteRecord.user.id.eq(userId)
                         .and(voteRecord.poll.id.eq(poll.id)))
                 .exists();
 
-        // 4. CaseBuilder: (마감됨 OR 투표함) 이면 정답 ID 반환, 아니면 null
+        // 2. 해당 투표의 정답 Option ID를 찾는 서브쿼리
+        QPollOption qOption = new QPollOption("correctOpt");
+        Expression<Long> correctAnswerId = JPAExpressions
+                .select(qOption.id)
+                .from(qOption)
+                .where(qOption.poll.id.eq(poll.id)
+                        .and(qOption.isCorrect.isTrue())); // 정답인 항목 찾기
+
+        // 3. CaseBuilder: 투표했으면 정답 ID 반환, 안 했으면 null 반환
         return new CaseBuilder()
-                .when(isClosed.or(hasVoted))
-                .then(correctAnswerIdSubQuery)
-                .otherwise(Expressions.nullExpression(Long.class));
+                .when(userHasVoted)
+                .then(correctAnswerId)
+                .otherwise(Expressions.nullExpression());
     }
 }
