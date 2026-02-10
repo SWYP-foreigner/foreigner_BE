@@ -8,10 +8,8 @@ import com.google.api.services.androidpublisher.model.SubscriptionPurchaseV2;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
 import core.domain.payment.dto.GooglePurchase;
-import core.global.enums.errorcode.PaymentErrorCode;
-import core.global.exception.BusinessException;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j; // 로깅을 위해 추가
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +17,7 @@ import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.List;
 
-@Slf4j // 로그 사용
+@Slf4j
 @Component
 public class GoogleClient {
 
@@ -27,46 +25,44 @@ public class GoogleClient {
     @Getter
     private final AndroidPublisher publisher;
 
-    public GoogleClient(@Value("${iap.android.packageName}") String packageName,
-                        @Value("${iap.android.serviceAccountJsonBase64}") String serviceAccountJsonBase64) {
+    // ★ 수정 1: @Value("${...:null}") -> 설정 파일에 값이 없으면 null 문자열이 들어감 (앱 셧다운 방지)
+    public GoogleClient(@Value("${iap.android.packageName:null}") String packageName,
+                        @Value("${iap.android.serviceAccountJsonBase64:null}") String serviceAccountJsonBase64) {
         this.packageName = packageName;
 
-        AndroidPublisher tempPublisher = null; // 임시 변수 사용
+        AndroidPublisher tempPublisher = null;
 
         try {
-            // credentials 값이 비어있거나 잘못된 경우를 대비해 체크 (선택사항)
-            if (serviceAccountJsonBase64 == null || serviceAccountJsonBase64.isBlank()) {
-                throw new IllegalArgumentException("Google Service Account Key is missing");
+            // null 체크 또는 "null" 문자열 체크
+            if (serviceAccountJsonBase64 == null || "null".equals(serviceAccountJsonBase64) || serviceAccountJsonBase64.isBlank()) {
+                log.warn("Google Service Account Key 설정이 비어있습니다. 결제 검증 기능을 사용할 수 없습니다.");
+            } else {
+                byte[] json = Base64.getDecoder().decode(serviceAccountJsonBase64);
+                GoogleCredentials credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(json))
+                        .createScoped(List.of("https://www.googleapis.com/auth/androidpublisher"));
+
+                tempPublisher = new AndroidPublisher.Builder(
+                        new NetHttpTransport(),
+                        JacksonFactory.getDefaultInstance(),
+                        new HttpCredentialsAdapter(credentials)
+                )
+                        .setApplicationName("Kori-Service")
+                        .build();
+
+                log.info("GoogleClient 초기화 성공");
             }
-
-            byte[] json = Base64.getDecoder().decode(serviceAccountJsonBase64);
-            GoogleCredentials credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(json))
-                    .createScoped(List.of("https://www.googleapis.com/auth/androidpublisher"));
-
-            tempPublisher = new AndroidPublisher.Builder(
-                    new NetHttpTransport(),
-                    JacksonFactory.getDefaultInstance(),
-                    new HttpCredentialsAdapter(credentials)
-            )
-                    .setApplicationName("Kori-Service")
-                    .build();
-
-            log.info("GoogleClient initialized successfully.");
-
         } catch (Exception e) {
-            // ★ 핵심 변경: 여기서 throw를 하지 않고 에러 로그만 남김
-            log.error("GoogleClient 초기화 실패 (앱 실행은 계속됨): {}", e.getMessage());
-            // 초기화 실패 시 publisher는 null 상태가 됨
+            // ★ 수정 2: 생성자 에러를 삼킴 (앱 실행 유지)
+            log.error("GoogleClient 초기화 실패 (서버는 계속 실행됨): {}", e.getMessage());
         }
 
         this.publisher = tempPublisher;
     }
 
     public GooglePurchase verify(String productId, String purchaseToken) {
-        // ★ 사용 시점에 체크: 초기화가 실패했다면 이때 예외 발생
         if (this.publisher == null) {
-            log.error("GoogleClient가 정상적으로 생성되지 않았습니다. 설정을 확인하세요.");
-            throw new BusinessException(PaymentErrorCode.GOOGLE_WEBHOOK_FAILED);
+            log.error("GoogleClient가 초기화되지 않았습니다. (설정 확인 필요)");
+            return null; // ★ 수정 3: throw 대신 null 반환
         }
 
         try {
@@ -78,7 +74,9 @@ public class GoogleClient {
                 return GooglePurchase.fromProduct(p, productId);
             }
         } catch (Exception e) {
-            throw new BusinessException(PaymentErrorCode.GOOGLE_VERIFY_FAILED, e);
+            // ★ 수정 4: 실행 중 에러도 로그만 남기고 null 반환
+            log.error("Google 결제 검증 API 호출 중 오류: {}", e.getMessage());
+            return null;
         }
     }
 }
