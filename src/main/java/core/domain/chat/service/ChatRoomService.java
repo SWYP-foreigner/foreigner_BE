@@ -1,9 +1,9 @@
 package core.domain.chat.service;
 
 import core.domain.chat.dto.*;
+import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
@@ -18,12 +18,15 @@ import core.global.entity.image.service.ImageService;
 import core.global.enums.chat.ChatParticipantStatus;
 import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.ChatErrorCode;
-import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.metrics.SocialChatMetrics;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +39,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChatRoomService {
 
-    // 변수명 중복 제거 및 통일 (repo -> repository)
     private final ChatRoomRepository chatRoomRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -47,27 +49,42 @@ public class ChatRoomService {
     private final UserRoleDetectService userRoleDetectService;
     private final SocialChatMetrics socialChatMetrics;
 
-    // 내부 DTO (Record)
-    private record ChatRoomWithTime(ChatRoom room, Instant lastMessageTime) {}
-
-    // --- 1:1 및 그룹 채팅방 생성 ---
     @Transactional
     public ChatRoom createRoom(Long currentUserId, Long otherUserId) {
+        // 1. 유저 검증 (이 부분은 트랜잭션 롤백과 무관하므로 try 밖이 깔끔합니다)
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         userRoleDetectService.isProfileSetUpUser(user);
 
-        List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
-        List<ChatRoom> existingRooms = chatRoomRepository.findOneToOneRoomByParticipantIds(userIds);
+        try {
+            // 2. 기존 로직 시도
+            List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
+            List<ChatRoom> existingRooms = chatRoomRepository.findOneToOneRoomByParticipantIds(userIds);
 
-        if (!existingRooms.isEmpty()) {
-            if (existingRooms.size() > 1) {
-                log.warn("중복된 1:1 채팅방 발견. 사용자 ID: {}, {}. 첫 번째 방을 사용합니다.", currentUserId, otherUserId);
+            if (!existingRooms.isEmpty()) {
+                if (existingRooms.size() > 1) {
+                    log.warn("중복된 1:1 채팅방 발견. 사용자 ID: {}, {}. 첫 번째 방을 사용합니다.", currentUserId, otherUserId);
+                }
+                return handleExistingRoom(existingRooms.get(0), currentUserId);
+            } else {
+                // 여기서 동시에 들어오면 Insert 충돌 발생 가능 -> 예외 발생
+                return createNewOneToOneChatRoom(currentUserId, otherUserId);
             }
-            ChatRoom room = existingRooms.get(0);
-            return handleExistingRoom(room, currentUserId);
-        } else {
-            return createNewOneToOneChatRoom(currentUserId, otherUserId);
+
+        } catch (DataIntegrityViolationException e) {
+            // 3. 동시성 이슈 발생 시 처리 (이미 방이 만들어진 경우)
+            log.warn("1:1 채팅방 생성 중 동시성 충돌 발생. 기존 방을 조회하여 반환합니다. User: {}, Target: {}", currentUserId, otherUserId);
+
+            // 다시 조회해서 기존 방을 리턴 (Retry)
+            List<Long> userIds = Arrays.asList(currentUserId, otherUserId);
+            return chatRoomRepository.findOneToOneRoomByParticipantIds(userIds)
+                    .stream()
+                    .findFirst()
+                    .map(room -> handleExistingRoom(room, currentUserId)) // 재입장 처리까지 수행
+                    .orElseThrow(() -> {
+                        log.error("채팅방 생성 충돌 후 재조회 실패. User: {}, Target: {}", currentUserId, otherUserId);
+                        return new BusinessException(ChatErrorCode.CHAT_ROOM_CREATION_FAILED);
+                    });
         }
     }
 
@@ -95,110 +112,48 @@ public class ChatRoomService {
         chatParticipantRepository.save(ownerParticipant);
 
         if (request.roomImageUrl() != null && !request.roomImageUrl().isBlank()) {
-            try {
-                imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
-            } catch (Exception e) {
-                log.error("채팅방 이미지 저장/업데이트에 실패했습니다. Room ID: {}", savedRoom.getId(), e);
-                throw new BusinessException(ImageErrorCode.IMAGE_PROCESSING_FAILED);
-            }
+            imageService.saveChatRoomProfileImage(savedRoom.getId(), request.roomImageUrl());
         }
     }
 
-    // --- 채팅방 목록 조회 ---
-    @Transactional(readOnly = true)
-    public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
-        User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        List<ChatRoom> rooms = chatRoomRepository.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
-
-        return rooms.stream()
-                .filter(room -> {
-                    if (room.getIsGroup()) {
-                        return true;
-                    }
-                    Optional<User> opponentOpt = room.getParticipants().stream()
-                            .map(ChatParticipant::getUser)
-                            .filter(u -> !u.getId().equals(userId))
-                            .findFirst();
-
-                    if (opponentOpt.isPresent()) {
-                        boolean isBlockedByMe = blockRepository.existsBlock(userId, opponentOpt.get().getId());
-                        return !isBlockedByMe;
-                    }
-                    return true;
-                })
-                // 수정됨: ChatService.ChatRoomWithTime -> ChatRoomWithTime
-                .map(room -> new ChatRoomWithTime(room, getLastMessageTime(room.getId())))
-                .sorted(Comparator.comparing(
-                        ChatRoomWithTime::lastMessageTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())
-                ))
-                .map(roomWithTime -> {
-                    ChatRoom room = roomWithTime.room();
-                    Instant lastMessageTime = roomWithTime.lastMessageTime();
-
-                    String lastMessageContent = getLastNonBlockedMessageContent(room.getId(), userId);
-                    int unreadCount = countUnreadMessages(room.getId(), userId);
-                    int participantCount = room.getParticipants().size();
-                    String roomName = "";
-                    String roomImageUrl;
-
-                    if (!room.getIsGroup()) {
-                        User opponent = room.getParticipants().stream()
-                                .map(ChatParticipant::getUser)
-                                .filter(u -> !u.getId().equals(userId))
-                                .findFirst()
-                                .orElse(null);
-
-                        if (opponent != null) {
-                            if (opponent.getLastName() != null) roomName += opponent.getLastName();
-                            if (opponent.getFirstName() != null) roomName += opponent.getFirstName();
-                            roomImageUrl = imageService.getUserProfileKey(opponent.getId());
-                        } else {
-                            roomName = "Unknown user";
-                            roomImageUrl = null;
-                        }
-                    } else {
-                        roomName = room.getRoomName();
-                        roomImageUrl = imageService.getRoomImageUrl(room.getId());
-                    }
-
-                    return new ChatRoomSummaryResponse(
-                            room.getId(),
-                            roomName,
-                            lastMessageContent,
-                            lastMessageTime,
-                            roomImageUrl,
-                            unreadCount,
-                            participantCount
-                    );
-                })
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public GroupChatDetailResponse getGroupChatDetails(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        List<ChatParticipant> activeParticipants = chatRoom.getParticipants().stream()
-                .filter(participant -> participant.getStatus() == ChatParticipantStatus.ACTIVE)
-                .collect(Collectors.toList());
+        List<ChatParticipant> activeParticipants = new ArrayList<>();
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                activeParticipants.add(p);
+            }
+        }
 
         String roomImageUrl = imageService.getRoomImageUrl(chatRoomId);
 
         Long ownerId = chatRoom.getOwner().getId();
-        String ownerImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, ownerId)
-                .map(Image::getUrl).orElse(null);
+        String ownerImageUrl = null;
 
-        List<String> otherParticipantsImageUrls = activeParticipants.stream()
-                .filter(participant -> !participant.getUser().getId().equals(ownerId))
-                .map(participant -> imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                                ImageType.USER, participant.getUser().getId())
-                        .map(Image::getUrl).orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        var ownerImageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.USER, ownerId);
+
+        if (ownerImageOptional.isPresent()) {
+            ownerImageUrl = ownerImageOptional.get().getUrl();
+        }
+
+        List<String> otherParticipantsImageUrls = new ArrayList<>();
+
+        for (ChatParticipant p : activeParticipants) {
+            Long userId = p.getUser().getId();
+
+            if (userId.equals(ownerId)) {
+                continue;
+            }
+            var userImageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                    ImageType.USER, userId);
+
+            if (userImageOptional.isPresent()) {
+                otherParticipantsImageUrls.add(userImageOptional.get().getUrl());
+            }
+        }
 
         return GroupChatDetailResponse.from(
                 chatRoom,
@@ -208,8 +163,6 @@ public class ChatRoomService {
                 ownerImageUrl
         );
     }
-
-
 
     @Transactional
     public void joinGroupChat(Long roomId, Long userId) {
@@ -235,7 +188,6 @@ public class ChatRoomService {
                         },
                         () -> {
                             ChatParticipant newParticipant = new ChatParticipant(room, user);
-                            room.addParticipant(newParticipant);
                             chatParticipantRepository.save(newParticipant);
                         }
                 );
@@ -243,17 +195,25 @@ public class ChatRoomService {
 
     @Transactional
     public boolean leaveRoom(Long roomId, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        userRoleDetectService.isProfileSetUpUser(user);
 
-        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserIdAndStatusIsNot(roomId, userId, ChatParticipantStatus.LEFT)
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND));
-        participant.leave();
+        if (participant.getStatus() == ChatParticipantStatus.LEFT) {
+            return true;
+        }
+        try {
+            participant.leave();
+        } catch (EntityNotFoundException e) {
+            log.warn("⚠️ 존재하지 않는 유저의 나가기 요청 (Data Integrity Issue) - RoomId: {}, UserId: {}", roomId, userId);
+            chatParticipantRepository.delete(participant);
+            return true;
+        }
+
+        // 4. 방이 비었는지 확인 후 삭제
         deleteRoomIfEmpty(roomId);
+
         return true;
     }
-
     @Transactional(readOnly = true)
     public boolean isChatRoomGroup(Long roomId) {
         return chatRoomRepository.findById(roomId)
@@ -270,20 +230,34 @@ public class ChatRoomService {
         }
         return summaries;
     }
-
     public List<GroupChatSearchResponse> searchGroupChatRooms(String keyword) {
         List<ChatRoom> chatRooms = chatRoomRepository.findGroupChatRoomsByKeyword(keyword);
-        return chatRooms.stream()
-                .map(chatRoom -> {
-                    String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
-                            ImageType.CHAT_ROOM, chatRoom.getId()
-                    ).map(Image::getUrl).orElse(null);
-                    int participantCount = chatRoom.getParticipants().size();
-                    return GroupChatSearchResponse.from(chatRoom, roomImageUrl, participantCount);
-                })
-                .collect(Collectors.toList());
-    }
+        List<GroupChatSearchResponse> resultList = new ArrayList<>();
+        for (ChatRoom chatRoom : chatRooms) {
 
+            String roomImageUrl = null;
+            var imageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                    ImageType.CHAT_ROOM, chatRoom.getId());
+
+            if (imageOptional.isPresent()) {
+                roomImageUrl = imageOptional.get().getUrl();
+            }
+
+            int activeParticipantCount = 0;
+            for (ChatParticipant p : chatRoom.getParticipants()) {
+                if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                    activeParticipantCount++;
+                }
+            }
+            resultList.add(GroupChatSearchResponse.from(
+                    chatRoom,
+                    roomImageUrl,
+                    activeParticipantCount
+            ));
+        }
+
+        return resultList;
+    }
     public ChatRecommendRoomResponse findRandomRecommendableGroupChatRoom(Long userId) {
         List<Long> recommendableIds = chatRoomRepository.findRecommendableGroupChatRoomIdsNotJoinedByUserId(userId);
         User user = userRepository.findById(userId)
@@ -311,24 +285,48 @@ public class ChatRoomService {
         } else {
             latestRooms = chatRoomRepository.findTop10ByIsGroupTrueAndIdLessThanOrderByCreatedAtDesc(lastChatRoomId);
         }
-        return latestRooms.stream().map(this::toGroupChatMainResponse).collect(Collectors.toList());
-    }
 
+        List<GroupChatMainResponse> responseList = new ArrayList<>();
+
+        for (ChatRoom chatRoom : latestRooms) {
+            GroupChatMainResponse response = toGroupChatMainResponse(chatRoom);
+            responseList.add(response);
+        }
+
+        return responseList;
+    }
     @Transactional
     public List<GroupChatMainResponse> getPopularGroupChats(int limit) {
         List<ChatRoom> popularRooms = chatRoomRepository.findTopByIsGroupTrueOrderByParticipantCountDesc(limit);
-        return popularRooms.stream().map(this::toGroupChatSearchResponse).collect(Collectors.toList());
+        List<GroupChatMainResponse> responseList = new ArrayList<>();
+        for (ChatRoom chatRoom : popularRooms) {
+            GroupChatMainResponse response = toGroupChatMainResponse(chatRoom);
+            responseList.add(response);
+        }
+
+        return responseList;
     }
 
-    // --- Private Helpers (내부 로직) ---
-
     private ChatRoom handleExistingRoom(ChatRoom room, Long currentUserId) {
-        Optional<ChatParticipant> currentParticipant = room.getParticipants().stream()
+        List<ChatParticipant> participants = room.getParticipants();
+
+        participants.stream()
                 .filter(p -> p.getUser().getId().equals(currentUserId))
-                .findFirst();
-        if (currentParticipant.isPresent() && currentParticipant.get().getStatus() == ChatParticipantStatus.LEFT) {
-            currentParticipant.get().reJoin();
-        }
+                .findFirst()
+                .ifPresent(p -> {
+                    if (p.getStatus() == ChatParticipantStatus.LEFT) {
+                        p.reJoin();
+                    }
+                });
+
+        participants.stream()
+                .filter(p -> !p.getUser().getId().equals(currentUserId))
+                .forEach(p -> {
+                    if (p.getStatus() == ChatParticipantStatus.LEFT) {
+                        p.reJoin();
+                    }
+                });
+
         return room;
     }
 
@@ -356,31 +354,6 @@ public class ChatRoomService {
             chatRoomRepository.deleteById(roomId);
             imageService.deleteChatRoomProfileImage(roomId);
         }
-    }
-
-    // Missing Method Implementation (누락되었던 메서드 추가)
-    private Instant getLastMessageTime(Long roomId) {
-        return chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(roomId)
-                .map(ChatMessage::getSentAt)
-                .orElse(null);
-    }
-
-    private String getLastNonBlockedMessageContent(Long roomId, Long userId) {
-        User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        List<User> blockedUsers = blockRepository.findByUser(currentUser)
-                .stream()
-                .map(BlockUser::getBlocked)
-                .toList();
-
-        Optional<ChatMessage> lastMessage;
-        if (blockedUsers.isEmpty()) {
-            lastMessage = chatMessageRepository.findFirstByChatRoomIdOrderBySentAtDesc(roomId);
-        } else {
-            lastMessage = chatMessageRepository.findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(roomId, blockedUsers);
-        }
-        return lastMessage.map(ChatMessage::getContent).orElse("새로운 메시지가 없습니다.");
     }
 
     private int countUnreadMessages(Long roomId, Long userId) {
@@ -427,13 +400,181 @@ public class ChatRoomService {
     }
 
     private GroupChatMainResponse toGroupChatMainResponse(ChatRoom chatRoom) {
-        String roomImageUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.CHAT_ROOM, chatRoom.getId())
-                .map(Image::getUrl).orElse(null);
-        String userCount = String.valueOf(chatRoom.getParticipants().size());
-        return new GroupChatMainResponse(chatRoom.getId(), chatRoom.getRoomName(), chatRoom.getDescription(), roomImageUrl, userCount);
+        String roomImageUrl = null;
+        var imageOptional = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(
+                ImageType.CHAT_ROOM, chatRoom.getId());
+
+        if (imageOptional.isPresent()) {
+            roomImageUrl = imageOptional.get().getUrl();
+        }
+
+        int activeCount = 0;
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                activeCount++;
+            }
+        }
+
+        return new GroupChatMainResponse(
+                chatRoom.getId(),
+                chatRoom.getRoomName(),
+                chatRoom.getDescription(),
+                roomImageUrl,
+                String.valueOf(activeCount) // int -> String 변환
+        );
     }
 
-    private GroupChatMainResponse toGroupChatSearchResponse(ChatRoom chatRoom) {
-        return toGroupChatMainResponse(chatRoom); // 로직이 동일하여 재사용
+
+    class ChatRoomSortData {
+        ChatRoom room;
+        ChatMessage lastMessage;
+        Instant sortTime;
+
+        public ChatRoomSortData(ChatRoom room, ChatMessage lastMessage, Instant sortTime) {
+            this.room = room;
+            this.lastMessage = lastMessage;
+            this.sortTime = sortTime;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatRoomSummaryResponse> getMyAllChatRoomSummaries(Long userId) {
+        // 1. 사용자 검증
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 내가 참여중인(ACTIVE) 채팅방 목록 조회
+        List<ChatRoom> rooms = chatRoomRepository.findActiveHumanChatRoomsByUserId(userId, ChatParticipantStatus.ACTIVE);
+
+        if (rooms.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. 마지막 메시지 조회를 위한 Room ID 리스트 추출 (반복문 사용)
+        List<Long> roomIds = new ArrayList<>();
+        for (ChatRoom room : rooms) {
+            roomIds.add(room.getId());
+        }
+
+        // 4. 각 방의 마지막 메시지 조회 및 매핑
+        List<ChatMessage> lastMessages = chatMessageRepository.findLastMessagesByRoomIds(roomIds);
+        Map<Long, ChatMessage> lastMessageMap = new HashMap<>();
+        for (ChatMessage msg : lastMessages) {
+            lastMessageMap.put(msg.getChatRoom().getId(), msg);
+        }
+
+        // 5. 정렬을 위한 데이터 리스트 생성
+        List<ChatRoomSortData> sortList = new ArrayList<>();
+        for (ChatRoom room : rooms) {
+        /*
+        todo: 차단로직 다시 추가
+         if (!room.getIsGroup()) {
+             boolean isBlocked = isBlockedRoom(room, userId);
+             if (isBlocked) continue;
+         }
+        */
+
+            ChatMessage lastMessage = lastMessageMap.get(room.getId());
+
+            // 정렬 기준 시간 설정 (마지막 메시지 시간 or 방 생성 시간)
+            Instant sortTime;
+            if (lastMessage != null) {
+                sortTime = lastMessage.getSentAt();
+            } else {
+                sortTime = room.getCreatedAt();
+            }
+
+            sortList.add(new ChatRoomSortData(room, lastMessage, sortTime));
+        }
+
+        // 6. 최신순 정렬 (Comparator 람다 -> 익명 클래스 스타일은 너무 길어지므로, 비교 로직만 깔끔하게 유지)
+        Collections.sort(sortList, (o1, o2) -> {
+            if (o2.sortTime == null) return -1;
+            if (o1.sortTime == null) return 1;
+            return o2.sortTime.compareTo(o1.sortTime); // 내림차순
+        });
+
+        // 7. 최종 응답 변환 (반복문 사용)
+        List<ChatRoomSummaryResponse> responseList = new ArrayList<>();
+        for (ChatRoomSortData data : sortList) {
+
+            // [수정] 메시지 미리보기 텍스트 변환 로직 적용
+            String previewContent = getPreviewContent(data.lastMessage);
+            ChatRoomSummaryResponse summary = createSummaryResponse(data.room, data.lastMessage, previewContent, userId);
+
+            responseList.add(summary);
+        }
+        return responseList;
+    }
+    private String getPreviewContent(ChatMessage message) {
+        if (message == null) {
+            return "";
+        }
+
+        switch (message.getMessageType()) {
+            case IMAGE:
+                return "Sent a photo"; // 📷
+            case VIDEO:
+                return "Sent a video"; // 🎥
+            case TEXT:
+            default:
+                return message.getContent();
+        }
+
+    }
+    private ChatRoomSummaryResponse createSummaryResponse(ChatRoom room, ChatMessage lastMessage, String previewContent, Long userId) {
+
+        // [시간 설정]
+        Instant lastMessageTime = room.getCreatedAt();
+        if (lastMessage != null) {
+            lastMessageTime = lastMessage.getSentAt();
+        }
+        // (내용은 인자로 받은 previewContent를 그대로 사용하므로 별도 로직 불필요)
+
+        int unreadCount = countUnreadMessages(room.getId(), userId);
+
+        // [참여자 분석]
+        int activeParticipantCount = 0;
+        User opponent = null;
+
+        for (ChatParticipant p : room.getParticipants()) {
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                activeParticipantCount++;
+            }
+            // 1:1 채팅일 경우 상대방 찾기
+            if (!room.getIsGroup() && !p.getUser().getId().equals(userId)) {
+                opponent = p.getUser();
+            }
+        }
+
+        // [방 이름 및 이미지 결정]
+        String roomName = "";
+        String roomImageUrl = null;
+
+        if (!room.getIsGroup()) {
+            // 1:1 채팅
+            if (opponent != null) {
+                String lastName = (opponent.getLastName() != null) ? opponent.getLastName() : "";
+                String firstName = (opponent.getFirstName() != null) ? opponent.getFirstName() : "";
+                roomName = lastName + firstName;
+                roomImageUrl = imageService.getUserProfileKey(opponent.getId());
+            } else {
+                roomName = "Unknown user";
+            }
+        } else {
+            // 그룹 채팅
+            roomName = room.getRoomName();
+            roomImageUrl = imageService.getRoomImageUrl(room.getId());
+        }
+
+        return new ChatRoomSummaryResponse(
+                room.getId(),
+                roomName,
+                previewContent, // ✅ 변환된 텍스트 삽입
+                lastMessageTime,
+                roomImageUrl,
+                unreadCount,
+                activeParticipantCount
+        );
     }
 }

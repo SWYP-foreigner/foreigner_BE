@@ -3,13 +3,22 @@ package core.domain.post.service.impl;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.maincontent.entity.MainContent;
+import core.domain.maincontent.repository.MainContentRepository;
+import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
+import core.domain.poll.entity.PollOption;
+import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.VoteRecordRepository;
+import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
 import core.domain.post.entity.Post;
+import core.domain.post.entity.PostReport;
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
 import core.domain.post.repository.BlockPostRepository;
+import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.post.service.PostService;
 import core.domain.user.entity.BlockUser;
@@ -19,8 +28,10 @@ import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
 import core.domain.user.service.UserRoleDetectService;
+import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
+import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.*;
@@ -42,10 +53,15 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -53,12 +69,10 @@ import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import static core.global.enums.errorcode.CommunityErrorCode.BOARD_NOT_FOUND;
+import static core.global.enums.errorcode.CommunityErrorCode.POST_NOT_FOUND;
 
 @Slf4j
 @Service
@@ -81,10 +95,17 @@ public class PostServiceImpl implements PostService {
     private final UserRoleDetectService userRoleDetectService;
     private final FollowRepository followRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PostReportRepository postReportRepository;
+    private final MainContentHotKeywordBatchService recommendBatchService;
+    private final PollOptionRepository pollOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
+
+    private final MainContentRepository mainContentRepository;
+    private final ImageStorageClient imageStorageClient;
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size) {
+    public CursorPageResponse<BoardItem> getPostList(Long boardId, CommunitySortOption sort, String cursor, int size) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
         final Long resolvedBoardId = (boardId != null && boardId == 1L) ? null : boardId;
@@ -115,18 +136,19 @@ public class PostServiceImpl implements PostService {
                 boardId,
                 truncateToMillis(k.t),
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
         if (rows == null || rows.isEmpty()) {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
+        fillPollOptions(rows);
+
         return CursorPages.ofLatest(
                 rows, pageSize,
                 BoardItem::createdAt,
-                BoardItem::postId
+                BoardItem::id
         );
     }
 
@@ -139,8 +161,7 @@ public class PostServiceImpl implements PostService {
                 since,
                 k.sc,
                 k.id,
-                pageSize + 1,
-                null
+                pageSize + 1
         );
 
 
@@ -148,10 +169,96 @@ public class PostServiceImpl implements PostService {
             return new CursorPageResponse<>(List.of(), false, null);
         }
 
+        fillPollOptions(rows);
+
         return CursorPages.ofPopular(
                 rows, pageSize,
                 BoardItem::score,
-                BoardItem::postId
+                BoardItem::id
+        );
+    }
+
+    private void fillPollOptions(List<BoardItem> items) {
+        List<Long> pollPostIds = items.stream()
+                .filter(item -> item.pollInfo() != null)
+                .map(BoardItem::id)
+                .toList();
+
+        if (pollPostIds.isEmpty()) {
+            for (int i = 0; i < items.size(); i++) {
+                BoardItem item = items.get(i);
+                if (item.pollInfo() != null && item.pollInfo().title() == null) {
+                    // Record의 데이터를 복사하면서 pollInfo만 null로 바꾼 새 객체로 교체
+                    items.set(i, createNonPollItem(item));
+                }
+            }
+            return;
+        }
+
+        // 투표 옵션들을 IN 절로 한 번에 조회
+        List<PollOption> allOptions = pollOptionRepository.findAllByPollIdIn(pollPostIds);
+
+        // PostId별로 그룹화
+        Map<Long, List<BoardItem.OptionItem>> optionsMap = allOptions.stream()
+                .collect(Collectors.groupingBy(
+                        po -> po.getPoll().getId(),
+                        Collectors.mapping(po -> new BoardItem.OptionItem(
+                                po.getId(), po.getContent(), po.getVoteCount()
+                        ), Collectors.toList())
+                ));
+
+        // 데이터 매핑
+        for (int i = 0; i < items.size(); i++) {
+            BoardItem item = items.get(i);
+
+            if (item.pollInfo() != null && item.pollInfo().title() != null) {
+
+                // 해당 게시글에 맞는 옵션 리스트만 가져오기 (없으면 빈 리스트)
+                List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.id(), List.of());
+
+                List<BoardItem.OptionItem> sortedOptions = new ArrayList<>(specificOptions);
+                sortedOptions.sort(Comparator.comparing(BoardItem.OptionItem::optionId));
+
+                // 🔥 핵심 수정: addAll() 대신 PollInfo와 BoardItem을 새로 생성합니다.
+                // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
+                BoardItem.PollInfo newPollInfo = new BoardItem.PollInfo(
+                        item.pollInfo().title(),
+                        item.pollInfo().description(),
+                        item.pollInfo().closeAt(),
+                        item.pollInfo().totalVoteCount(),
+                        sortedOptions,
+                        item.pollInfo().selectedOptionId(),
+                        item.pollInfo().correctOptionId()
+                );
+
+                // BoardItem도 새로 생성해서 리스트 교체
+                BoardItem newItem = new BoardItem(
+                        item.id(), item.contentPreview(), item.authorId(), item.authorName(),
+                        item.boardCategory(), item.createdAt(), item.isAnonymous(),
+                        item.isLiked(), item.isBookmarked(), item.likeCount(),
+                        item.commentCount(), item.viewCount(), item.userImageUrl(),
+                        item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                        item.postInfo(),
+                        newPollInfo // ✅ 교체된 PollInfo
+                );
+
+                items.set(i, newItem); // 리스트의 요소를 교체
+
+            } else {
+                // 투표 없는 글 처리
+                items.set(i, createNonPollItem(item));
+            }
+        }
+    }
+
+    private BoardItem createNonPollItem(BoardItem item) {
+        return new BoardItem(
+                item.id(), item.contentPreview(), item.authorId(), item.authorName(),
+                item.boardCategory(), item.createdAt(), item.isAnonymous(),
+                item.isLiked(), item.isBookmarked(), item.likeCount(),
+                item.commentCount(), item.viewCount(), item.userImageUrl(),
+                item.score(), item.postInfo().contentImageUrl(), item.postInfo().imageCount(),
+                item.postInfo(), null // pollInfo를 null로 꽂아버림
         );
     }
 
@@ -186,7 +293,7 @@ public class PostServiceImpl implements PostService {
     }
 
     private Instant popularSince() {
-        return Instant.now().minus(Duration.ofDays(10));
+        return Instant.now().minus(Duration.ofDays(30));
     }
 
     // ------- 유틸 -------
@@ -205,7 +312,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (blockRepository.existsBlockedByEmail(email, post.getAuthor().getEmail()) || blockRepository.existsBlockedByEmail(post.getAuthor().getEmail(), email)) {
             throw new BusinessException(CommunityErrorCode.BLOCKED_USER_POST);
@@ -213,19 +320,18 @@ public class PostServiceImpl implements PostService {
 
         postRepository.incrementViewCount(postId);
 
-        if (translate) {
-            PostDetailResponse postDetail = postRepository.findPostDetail(email, postId);
+        PostDetailResponse postDetail = postRepository.findPostDetail(user.getId(), postId);
 
+        if (translate) {
             String translatedContent = translationService.translatePost(postDetail.content(), user.getTranslateLanguage());
             return new PostDetailResponse(postDetail, translatedContent);
-        } else {
-            return postRepository.findPostDetail(email, postId);
         }
+        return postDetail;
     }
 
     @Override
     @Transactional
-    public void writePost(@Positive Long boardId, PostWriteRequest request) {
+    public Long writePost(@Positive Long boardId, PostWriteRequest request) {
         if (boardId == 1) {
             throw new BusinessException(CommunityErrorCode.NOT_AVAILABLE_WRITE);
         }
@@ -246,6 +352,8 @@ public class PostServiceImpl implements PostService {
 
         imageService.savePostImages(post.getId(), request.imageUrls());
         publishFollowerNotification(post);
+
+        return post.getId();
     }
 
     /**
@@ -361,7 +469,7 @@ public class PostServiceImpl implements PostService {
         userRoleDetectService.isProfileSetUpUser(user);
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (!email.equals(post.getAuthor().getEmail())) {
             throw new BusinessException(CommunityErrorCode.POST_EDIT_FORBIDDEN);
@@ -386,12 +494,15 @@ public class PostServiceImpl implements PostService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
+        }
+
+        if (post.getPoll() != null && voteRecordRepository.existsByPollId(post.getPoll().getId())) {
+            throw new BusinessException(CommunityErrorCode.VOTE_RECORD_EXISTED);
         }
 
         String folderPrefix = "posts/" + postId;
@@ -438,7 +549,6 @@ public class PostServiceImpl implements PostService {
 
         userRoleDetectService.isProfileSetUpUser(user);
 
-
         likeRepository.deleteByUserEmailAndIdAndType(email, postId, LikeType.POST);
     }
 
@@ -479,7 +589,7 @@ public class PostServiceImpl implements PostService {
         String nextCursor = hasNext
                 ? CursorCodec.encode(Map.of(
                 "t", last.createdAt().toString(),
-                "id", last.postId()
+                "id", last.id()
         ))
                 : null;
 
@@ -489,7 +599,7 @@ public class PostServiceImpl implements PostService {
     @Override
     public CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(Long postId) {
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         return new CommentWriteAnonymousAvailableResponse(post.getAnonymous());
     }
@@ -534,7 +644,7 @@ public class PostServiceImpl implements PostService {
 
 
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));
 
         if (post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(UserErrorCode.CANNOT_BLOCK);
@@ -573,7 +683,7 @@ public class PostServiceImpl implements PostService {
                 .existsByAuthorEmailAndContentAndCreatedAtAfter(email, normalizedContent, cutOff);
 
         if (exists) {
-            throw new BusinessException(CommunityErrorCode.DUPLICATE_POST);
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_CONTENT);
         }
     }
 
@@ -587,6 +697,196 @@ public class PostServiceImpl implements PostService {
         result = result.replaceAll("\\s+", " ").trim();
         result = result.toLowerCase(Locale.ROOT);
         return result;
+    }
+
+    @Override
+    @Transactional
+    public void createAdminPost(String title, String content, String publishType,
+                                String boardCategoryStr, String kNewsTypeStr,
+                                List<MultipartFile> generalImages,
+                                MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                                List<MultipartFile> contentImages,
+                                User adminUser, List<String> recommendationKeywords) throws IOException {
+
+        if ("GENERAL".equals(publishType)) {
+            BoardCategory category;
+            try {
+                category = BoardCategory.valueOf(boardCategoryStr.toUpperCase());
+            } catch (Exception e) {
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+            }
+
+            Board board = boardRepository.findByCategory(category)
+                    .orElseThrow(() -> new BusinessException(CommunityErrorCode.BOARD_NOT_FOUND));
+
+            Post post = new Post(content, adminUser, board);
+            Post savedPost = postRepository.save(post);
+
+            if (generalImages != null && !generalImages.isEmpty()) {
+                imageService.uploadAndSavePostImages(savedPost, generalImages);
+            }
+
+        } else if ("MAIN_PAGE".equals(publishType)) {
+            if (title == null || title.trim().isEmpty()) {
+                throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+            }
+
+            KNewsContentType kNewsType = null;
+            if (StringUtils.hasText(kNewsTypeStr)) {
+                try {
+                    kNewsType = KNewsContentType.valueOf(kNewsTypeStr);
+                } catch (IllegalArgumentException e) {
+                    throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+                }
+            }
+
+            MainContent newContent = MainContent.builder()
+                    .title(title)
+                    .htmlContent(content)
+                    .type(kNewsType)
+                    .originalUrl(null)
+                    .build();
+
+            MainContent savedContent = mainContentRepository.save(newContent);
+            Long contentId = savedContent.getId();
+
+            String processedHtml = processHtmlAndUploadImages(content, contentId, contentImages);
+            savedContent.changeHtmlContent(processedHtml);
+
+            if (mainThumbnailFile != null && !mainThumbnailFile.isEmpty()) {
+                String cdnUrl = uploadFileToStorage(mainThumbnailFile, contentId);
+                saveImageEntity(contentId, cdnUrl, ImageType.MAIN_PAGE_THUMBNAIL);
+            }
+
+            if (popularThumbnailFile != null && !popularThumbnailFile.isEmpty()) {
+                String cdnUrl = uploadFileToStorage(popularThumbnailFile, contentId);
+                saveImageEntity(contentId, cdnUrl, ImageType.MAIN_PAGE_POPULAR_THUMBNAIL);
+            }
+
+            recommendBatchService.updateRecommendationsWithManualKeywords(recommendationKeywords);
+        }
+    }
+
+    private String processHtmlAndUploadImages(String htmlContent, Long contentId, List<MultipartFile> contentImages) {
+        Document doc = Jsoup.parseBodyFragment(htmlContent);
+        Elements imgTags = doc.select("img");
+
+        int orderIndex = 0;
+        for (Element img : imgTags) {
+            String originalSrc = img.attr("src");
+            String dataFileIndex = img.attr("data-file-index");
+
+            String cdnUrl = null;
+
+            if (StringUtils.hasText(dataFileIndex) && contentImages != null) {
+                try {
+                    int index = Integer.parseInt(dataFileIndex);
+                    if (index >= 0 && index < contentImages.size()) {
+                        MultipartFile file = contentImages.get(index);
+                        if (file != null && !file.isEmpty()) {
+                            cdnUrl = uploadFileToStorage(file, contentId);
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid data-file-index: {}", dataFileIndex);
+                }
+            } else if (originalSrc.startsWith("http")) {
+                cdnUrl = uploadUrlToStorage(originalSrc, contentId);
+            }
+
+            if (cdnUrl != null) {
+                img.attr("src", cdnUrl);
+                img.removeAttr("data-file-index");
+
+                if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, ImageType.MAIN_PAGE_BODY)) {
+                    Image bodyImage = Image.of(ImageType.MAIN_PAGE_BODY, contentId, cdnUrl, orderIndex++);
+                    imageRepository.save(bodyImage);
+                }
+            }
+        }
+        return doc.body().html();
+    }
+
+    private String uploadFileToStorage(MultipartFile file, Long contentId) {
+        String ext = getExtension(file.getOriginalFilename());
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
+
+        imageStorageClient.upload(file, key);
+
+        return imageStorageClient.generatePublicUrl(key);
+    }
+
+    private String uploadUrlToStorage(String originalUrl, Long contentId) {
+        String ext = getExtension(originalUrl);
+        String key = "main-page/" + contentId + "/" + UUID.randomUUID() + ext;
+
+        // ImageStorageClient에 위임
+        String uploadedKey = imageStorageClient.uploadFromUrl(originalUrl, key);
+
+        if (uploadedKey != null) {
+            return imageStorageClient.generatePublicUrl(key);
+        }
+        return null;
+    }
+
+    private String getExtension(String filename) {
+        if (filename != null && filename.contains(".")) {
+            String ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();
+            if (ext.contains("?")) {
+                ext = ext.substring(0, ext.indexOf("?"));
+            }
+            return ext;
+        }
+        return ".jpg";
+    }
+
+    private String getExtensionFromUrl(String url) {
+        int lastDotIndex = url.lastIndexOf('.');
+        if (lastDotIndex > 0 && lastDotIndex < url.length() - 1) {
+            String ext = url.substring(lastDotIndex).toLowerCase();
+            if (ext.contains("?")) {
+                ext = ext.substring(0, ext.indexOf("?"));
+            }
+            if (List.of(".jpg", ".jpeg", ".png", ".gif", ".webp").contains(ext)) {
+                return ext;
+            }
+        }
+        return ".jpg";
+    }
+
+    private void saveImageEntity(Long contentId, String cdnUrl, ImageType type) {
+        if (!imageRepository.existsByRelatedIdAndUrlAndImageType(contentId, cdnUrl, type)) {
+            Image image = Image.of(type, contentId, cdnUrl, 0);
+            imageRepository.save(image);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void reportPost(Long reporterUserId, Long postId, PostReportRequest request) {
+        User reporter = userRepository.findById(reporterUserId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        Post reportedPost = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+
+        if (postReportRepository.existsByReporterAndPost(reporter, reportedPost)) {
+            throw new BusinessException(CommunityErrorCode.DUPLICATE_REPORT);
+        }
+
+        if (reportedPost.getAuthor().getId().equals(reporterUserId)) {
+            throw new BusinessException(CommunityErrorCode.CANNOT_REPORT_SELF);
+        }
+
+        PostReport postReport = new PostReport(
+                reporter,
+                reportedPost.getAuthor(),
+                reportedPost,
+                request.reasonCategory(),
+                request.reasonDetail()
+        );
+
+        postReportRepository.save(postReport);
     }
 
     private static final class LatestKey {
@@ -606,28 +906,6 @@ public class PostServiceImpl implements PostService {
         PopularKey(Long sc, Long id) {
             this.sc = sc;
             this.id = id;
-        }
-    }
-
-    @Override
-    @Transactional
-    public void createAdminPost(String content,
-                                BoardCategory category,
-                                List<MultipartFile> images, User adminUser) throws IOException {
-
-        Board board = boardRepository.findByCategory(category)
-                .orElseThrow(() -> new BusinessException(BOARD_NOT_FOUND));
-
-        Post post = new Post(
-                content,
-                adminUser,
-                board
-        );
-
-        Post savedPost = postRepository.save(post);
-
-        if (images != null && !images.isEmpty()) {
-            imageService.uploadAndSavePostImages(savedPost, images);
         }
     }
 }

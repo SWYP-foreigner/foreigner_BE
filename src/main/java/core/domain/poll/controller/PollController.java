@@ -1,0 +1,107 @@
+package core.domain.poll.controller;
+
+import core.domain.poll.dto.*;
+import core.domain.poll.service.PollService;
+import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
+import core.global.dto.ApiResponse;
+import core.global.enums.PollType;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
+import core.global.metrics.FeatureUsageMetrics;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v2/poll")
+@Tag(name = "Poll", description = "퀴즈 & 투표 API")
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
+public class PollController {
+    private final PollService pollService;
+    private final FeatureUsageMetrics featureUsageMetrics;
+
+    PollController(PollService pollService, FeatureUsageMetrics featureUsageMetrics) {
+        this.pollService = pollService;
+        this.featureUsageMetrics = featureUsageMetrics;
+    }
+
+    @Operation(summary = "오늘의 투표/퀴즈 조회", description = "최신 투표 또는 퀴즈를 1건 조회합니다.")
+    @GetMapping("/today")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<PollItem>> getTodayPoll(
+            @RequestParam PollType type // VOTE 또는 QUIZ
+    ) {
+        featureUsageMetrics.recordCommunityUsage();
+
+        return ResponseEntity.ok(ApiResponse.success(
+                pollService.getTodayPoll(type)
+        ));
+    }
+
+    @Operation(summary = "투표 작성", description = "투표를 생성합니다.")
+    @PostMapping("/vote")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> createVote(
+            @RequestBody VoteWriteRequest request
+    ) {
+        featureUsageMetrics.recordCommunityUsage();
+
+        Long pollId = pollService.createVote(request);
+
+        return ResponseEntity.ok(ApiResponse.success(pollId));
+    }
+
+    @Operation(summary = "관리자용 퀴즈 작성", description = "관리자 권한으로 퀴즈를 생성합니다.")
+    @PostMapping("/quiz")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> createQuiz(
+            @RequestBody QuizWriteRequest type // VOTE 또는 QUIZ
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                pollService.createQuiz(type)
+        ));
+    }
+
+
+    @Operation(summary = "투표 수정", description = "투표를 수정합니다.")
+    @PutMapping("/vote")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> updateVote(
+            @RequestBody VoteUpdateRequest request
+    ) {
+        featureUsageMetrics.recordCommunityUsage();
+
+        Long pollId = pollService.updateVote(request);
+
+        return ResponseEntity.ok(ApiResponse.success(pollId));
+    }
+
+    @Operation(summary = "관리자용 퀴즈 수정", description = "관리자 권한으로 퀴즈를 수정합니다.")
+    @PutMapping("/quiz")
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Long>> updateQuiz(
+            @RequestBody QuizUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                pollService.updateQuiz(request)
+        ));
+    }
+
+    @Operation(summary = "투표, 퀴즈 참여 후 결과 조회", description = "투표, 퀴즈 참여 후 결과를 제공합니다.")
+    @PostMapping("/{pollId}/participate")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommunityErrorDocs({CommunityErrorCode.POLL_NOT_FOUND, CommunityErrorCode.POLL_ALREADY_CLOSED, CommunityErrorCode.POLL_ALREADY_CLOSED, CommunityErrorCode.ALREADY_PARTICIPATED})
+    public ResponseEntity<ApiResponse<PollResultResponse>> participate(
+            @PathVariable Long pollId,
+            @RequestBody PollParticipateRequest request
+    ) {
+        featureUsageMetrics.recordCommunityUsage();
+        return ResponseEntity.ok(ApiResponse.success(
+                pollService.participate(pollId, request.optionId())
+        ));
+    }
+}

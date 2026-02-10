@@ -4,18 +4,58 @@
     <meta charset="UTF-8">
     <title>사용자 상세 정보</title>
     <style>
-        body { font-family: sans-serif; }
-        .container { display: flex; gap: 20px; padding: 20px; }
+        body { font-family: sans-serif; padding: 20px; }
+        .container { display: flex; gap: 20px; }
         .main-info, .related-info { border: 1px solid #ccc; padding: 20px; border-radius: 5px; }
-        .main-info { flex-basis: 40%; align-self: flex-start; }
-        .related-info { flex-basis: 60%; }
-        h1, h2 { border-bottom: 2px solid #f2f2f2; padding-bottom: 10px; }
+        .main-info { flex-basis: 30%; align-self: flex-start; position: sticky; top: 20px; }
+        .related-info { flex-basis: 70%; }
+        h1, h2 { border-bottom: 2px solid #f2f2f2; padding-bottom: 10px; margin-top: 30px; }
+        h1 { margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .pagination { margin-top: 10px; text-align: center; }
-        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
-        .pagination .active { font-weight: bold; color: black; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #f8f9fa; }
+
+        .pagination { display: flex; justify-content: center; align-items: center; margin-top: 15px; gap: 5px; }
+        .pagination a { text-decoration: none; padding: 5px 10px; border: 1px solid #ddd; color: #007bff; border-radius: 4px; font-size: 0.9em; }
+        .pagination a:hover { background-color: #f2f2f2; }
+        .pagination .active { background-color: #007bff; color: white; font-weight: bold; border-color: #007bff; }
+        .pagination .disabled { color: #ccc; pointer-events: none; border-color: #eee; }
+
+        .btn-delete {
+            background-color: #dc3545; color: white; border: none; padding: 5px 10px;
+            border-radius: 3px; cursor: pointer; font-size: 0.8em;
+        }
+        .btn-delete:hover { background-color: #c82333; }
+        .link-chat { text-decoration: none; color: #007bff; font-weight: bold; }
+        .link-chat:hover { text-decoration: underline; }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 5px;
+            color: white;
+            font-size: 0.9em;
+            text-align: center;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: 1px solid #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border: 1px solid #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
     </style>
 </head>
 <body>
@@ -30,23 +70,30 @@
             <p><strong>이메일:</strong> <span th:text="*{email}"></span></p>
             <p><strong>국가:</strong> <span th:text="*{country}"></span></p>
             <p><strong>가입일:</strong> <span th:text="*{#temporals.format(createdAt, 'yyyy-MM-dd HH:mm')}"></span></p>
-            <p><strong>마지막 접속일:</strong> <span th:text="*{lastSeenAt != null ? #temporals.format(lastSeenAt, 'yyyy-MM-dd HH:mm') : '기록 없음'}"></span></p>
+            <p><strong>마지막 접속:</strong> <span th:text="*{lastSeenAt != null ? #temporals.format(lastSeenAt, 'yyyy-MM-dd HH:mm') : '기록 없음'}"></span></p>
+        </div>
+
+        <div class="action-buttons" style="margin-top: 20px;" th:if="${isAi}">
+            <a th:href="@{/admin/users/{userId}/edit-ai(userId=${user.userId})}"
+               class="btn btn-primary">
+                AI 정보 수정
+            </a>
         </div>
 
         <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-            <form th:action="@{/admin/users/{id}/delete(id=${user.userId})}"
-                  method="post"
-                  onsubmit="return confirm('경고: 이 사용자를 DB에서 영구적으로 삭제합니다. 모든 관련 데이터(게시글, 댓글 등)가 삭제되며, 이 작업은 되돌릴 수 없습니다. 정말 진행하시겠습니까?');">
-                <button type="submit" style="background-color: #dc3545; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;">
+            <form th:action="@{/admin/users/{id}/delete(id=${user.userId})}" method="post"
+                  onsubmit="return confirm('⚠️ 경고: 이 사용자를 영구 삭제합니다.\n모든 데이터가 삭제되며 복구할 수 없습니다.\n정말 진행하시겠습니까?');">
+                <button type="submit" style="background-color: #dc3545; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
                     사용자 영구 삭제
                 </button>
             </form>
         </div>
 
-        <a th:href="@{/admin/users}" style="margin-top: 20px; display: block;">← 목록으로 돌아가기</a>
+        <a th:href="@{/admin/users}" style="margin-top: 20px; display: block; text-align: center;">← 목록으로 돌아가기</a>
     </div>
 
     <div class="related-info">
+
         <h2>친구 목록</h2>
         <table>
             <thead><tr><th>ID</th><th>이름</th><th>이메일</th></tr></thead>
@@ -58,9 +105,18 @@
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${followings}, 'followPage')}"></div>
+        <div class="pagination" th:if="${followings.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, followings.number - 10)}, end=${T(java.lang.Math).min(followings.totalPages - 1, followings.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, followPage=0)}" th:classappend="${followings.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, followPage=${followings.number - 1})}" th:classappend="${followings.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, followPage=${p})}" th:text="${p + 1}" th:classappend="${p == followings.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, followPage=${followings.number + 1})}" th:classappend="${followings.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, followPage=${followings.totalPages - 1})}" th:classappend="${followings.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
 
-        <h2 style="margin-top: 30px;">차단 목록</h2>
+        <h2>차단 목록</h2>
         <table>
             <thead><tr><th>ID</th><th>이름</th><th>이메일</th></tr></thead>
             <tbody>
@@ -71,64 +127,186 @@
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${blockedUsers}, 'blockPage')}"></div>
+        <div class="pagination" th:if="${blockedUsers.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, blockedUsers.number - 10)}, end=${T(java.lang.Math).min(blockedUsers.totalPages - 1, blockedUsers.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, blockPage=0)}" th:classappend="${blockedUsers.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, blockPage=${blockedUsers.number - 1})}" th:classappend="${blockedUsers.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, blockPage=${p})}" th:text="${p + 1}" th:classappend="${p == blockedUsers.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, blockPage=${blockedUsers.number + 1})}" th:classappend="${blockedUsers.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, blockPage=${blockedUsers.totalPages - 1})}" th:classappend="${blockedUsers.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
 
-        <h2 style="margin-top: 30px;">참여 채팅방</h2>
+        <h2>참여 채팅방</h2>
         <table>
-            <thead><tr><th>ID</th><th>방 이름</th><th>그룹 여부</th><th>참여자 수</th></tr></thead>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>방 이름</th>
+                <th>유형</th>
+                <th>참여자</th>
+                <th>메시지 수</th>
+                <th>관리</th>
+            </tr>
+            </thead>
             <tbody>
             <tr th:each="c : ${chatRooms.content}">
                 <td th:text="${c.chatRoomId}"></td>
-                <td th:text="${c.roomName}"></td>
-                <td th:text="${c.isGroup} ? '그룹' : '1:1'"></td>
-                <td th:text="${c.participantCount}"></td>
+                <td>
+                    <a th:href="@{/admin/chats/{id}(id=${c.chatRoomId})}" class="link-chat" th:text="${c.roomName}"></a>
+                </td>
+                <td>
+                    <span th:if="${c.isGroup}" style="color: #28a745; font-weight: bold;">그룹</span>
+                    <span th:unless="${c.isGroup}" style="color: #007bff; font-weight: bold;">1:1</span>
+                </td>
+                <td th:text="${c.participantCount} + '명'"></td>
+
+                <td style="font-weight: bold; color: #495057;">
+                    <span th:text="${#numbers.formatInteger(c.messageCount, 0, 'COMMA')}">0</span>건
+                </td>
+
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <form th:action="@{/admin/users/{uid}/chat-rooms/{cid}/leave(uid=${user.userId}, cid=${c.chatRoomId})}" method="post"
+                              onsubmit="return confirm('이 유저를 채팅방에서 나가게 하시겠습니까?\n(방 자체가 삭제되지는 않으나, 마지막 인원이면 삭제될 수 있습니다.)');">
+                            <button type="submit" style="background-color: #ffc107; color: #212529; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 0.8em; font-weight: bold;">
+                                나가기
+                            </button>
+                        </form>
+
+                        <form th:action="@{/admin/users/{uid}/chat-rooms/{cid}/delete(uid=${user.userId}, cid=${c.chatRoomId})}" method="post"
+                              onsubmit="return confirm('⚠️ 주의!\n이 채팅방을 영구 삭제하시겠습니까?\n모든 대화 내용과 참여 정보가 사라집니다.');">
+                            <button type="submit" class="btn-delete">삭제</button>
+                        </form>
+                    </div>
+                </td>
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${chatRooms}, 'chatPage')}"></div>
+        <div class="pagination" th:if="${chatRooms.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, chatRooms.number - 10)}, end=${T(java.lang.Math).min(chatRooms.totalPages - 1, chatRooms.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, chatPage=0)}" th:classappend="${chatRooms.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, chatPage=${chatRooms.number - 1})}" th:classappend="${chatRooms.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, chatPage=${p})}" th:text="${p + 1}" th:classappend="${p == chatRooms.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, chatPage=${chatRooms.number + 1})}" th:classappend="${chatRooms.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, chatPage=${chatRooms.totalPages - 1})}" th:classappend="${chatRooms.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
 
-        <h2 style="margin-top: 30px;">최근 작성 게시글</h2>
+        <h2>최근 작성 게시글</h2>
         <table>
-            <thead><tr><th>게시글 ID</th><th>내용</th><th>작성일</th></tr></thead>
+            <thead><tr><th>ID</th><th>내용</th><th>작성일</th><th>관리</th></tr></thead>
             <tbody>
             <tr th:each="p : ${posts.content}">
                 <td th:text="${p.postId}"></td>
-                <td th:text="${p.content}"></td>
+                <td th:text="${#strings.abbreviate(p.content, 30)}"></td>
                 <td th:text="${#temporals.format(p.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                <td>
+                    <form th:action="@{/admin/users/{uid}/posts/{pid}/delete(uid=${user.userId}, pid=${p.postId})}" method="post"
+                          onsubmit="return confirm('게시글을 삭제하시겠습니까?');">
+                        <button type="submit" class="btn-delete">삭제</button>
+                    </form>
+                </td>
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${posts}, 'postPage')}"></div>
+        <div class="pagination" th:if="${posts.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, posts.number - 10)}, end=${T(java.lang.Math).min(posts.totalPages - 1, posts.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, postPage=0)}" th:classappend="${posts.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, postPage=${posts.number - 1})}" th:classappend="${posts.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, postPage=${p})}" th:text="${p + 1}" th:classappend="${p == posts.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, postPage=${posts.number + 1})}" th:classappend="${posts.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, postPage=${posts.totalPages - 1})}" th:classappend="${posts.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
 
-        <h2 style="margin-top: 30px;">최근 작성 댓글</h2>
+        <h2>최근 작성 댓글</h2>
         <table>
-            <thead><tr><th>댓글 ID</th><th>게시글 ID</th><th>내용</th><th>작성일</th></tr></thead>
+            <thead><tr><th>ID</th><th>게시글ID</th><th>내용</th><th>작성일</th><th>관리</th></tr></thead>
             <tbody>
             <tr th:each="c : ${comments.content}">
                 <td th:text="${c.commentId}"></td>
                 <td th:text="${c.postId}"></td>
-                <td th:text="${c.content}"></td>
+                <td th:text="${#strings.abbreviate(c.content, 30)}"></td>
                 <td th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                <td>
+                    <form th:action="@{/admin/users/{uid}/comments/{cid}/delete(uid=${user.userId}, cid=${c.commentId})}" method="post"
+                          onsubmit="return confirm('댓글을 삭제하시겠습니까?');">
+                        <button type="submit" class="btn-delete">삭제</button>
+                    </form>
+                </td>
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${comments}, 'commentPage')}"></div>
+        <div class="pagination" th:if="${comments.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, comments.number - 10)}, end=${T(java.lang.Math).min(comments.totalPages - 1, comments.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, commentPage=0)}" th:classappend="${comments.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, commentPage=${comments.number - 1})}" th:classappend="${comments.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, commentPage=${p})}" th:text="${p + 1}" th:classappend="${p == comments.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, commentPage=${comments.number + 1})}" th:classappend="${comments.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, commentPage=${comments.totalPages - 1})}" th:classappend="${comments.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
 
-        <h2 style="margin-top: 30px;">최근 채팅 기록</h2>
+        <h2>최근 채팅 기록</h2>
         <table>
-            <thead><tr><th>메시지 ID</th><th>채팅방 ID</th><th>내용</th><th>전송 시각</th></tr></thead>
+            <thead><tr><th>ID</th><th>방ID</th><th>내용</th><th>전송 시각</th><th>관리</th></tr></thead>
             <tbody>
             <tr th:each="m : ${messages.content}">
                 <td th:text="${m.messageId}"></td>
                 <td th:text="${m.chatRoomId}"></td>
-                <td th:text="${m.content}"></td>
+                <td th:text="${#strings.abbreviate(m.content, 30)}"></td>
                 <td th:text="${#temporals.format(m.sentAt, 'yyyy-MM-dd HH:mm')}"></td>
+                <td>
+                    <form th:action="@{/admin/users/{uid}/messages/{mid}/delete(uid=${user.userId}, mid=${m.messageId})}" method="post"
+                          onsubmit="return confirm('이 메시지를 삭제하시겠습니까?');">
+                        <button type="submit" class="btn-delete">삭제</button>
+                    </form>
+                </td>
             </tr>
             </tbody>
         </table>
-        <div th:replace="~{admin/fragments/pagination :: pagination(${messages}, 'messagePage')}"></div>
+        <div class="pagination" th:if="${messages.totalPages > 0}"
+             th:with="start=${T(java.lang.Math).max(0, messages.number - 10)}, end=${T(java.lang.Math).min(messages.totalPages - 1, messages.number + 10)}">
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, messagePage=0)}" th:classappend="${messages.first} ? 'disabled'">&lt;&lt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, messagePage=${messages.number - 1})}" th:classappend="${messages.first} ? 'disabled'">&lt;</a>
+            <th:block th:each="p : ${#numbers.sequence(start, end)}">
+                <a th:href="@{/admin/users/{uid}(uid=${user.userId}, messagePage=${p})}" th:text="${p + 1}" th:classappend="${p == messages.number} ? 'active'"></a>
+            </th:block>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, messagePage=${messages.number + 1})}" th:classappend="${messages.last} ? 'disabled'">&gt;</a>
+            <a th:href="@{/admin/users/{uid}(uid=${user.userId}, messagePage=${messages.totalPages - 1})}" th:classappend="${messages.last} ? 'disabled'">&gt;&gt;</a>
+        </div>
+
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const scrollPos = sessionStorage.getItem("scrollPosition");
+        if (scrollPos) {
+            window.scrollTo(0, parseInt(scrollPos));
+            sessionStorage.removeItem("scrollPosition");
+        }
+
+        const paginationLinks = document.querySelectorAll(".pagination a");
+        paginationLinks.forEach(link => {
+            link.addEventListener("click", function(e) {
+                sessionStorage.setItem("scrollPosition", window.scrollY);
+            });
+        });
+
+        const forms = document.querySelectorAll("form");
+        forms.forEach(form => {
+            form.addEventListener("submit", function(e) {
+                sessionStorage.setItem("scrollPosition", window.scrollY);
+            });
+        });
+    });
+</script>
 
 </body>
 </html>

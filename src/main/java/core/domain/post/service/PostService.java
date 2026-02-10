@@ -1,10 +1,10 @@
 package core.domain.post.service;
 
 import core.domain.board.dto.BoardItem;
+import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.user.entity.User;
-import core.global.enums.community.BoardCategory;
 import core.domain.post.dto.comunity.*;
-import core.global.enums.common.SortOption;
+import core.global.enums.CommunitySortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -15,13 +15,13 @@ import java.util.List;
 
 public interface PostService {
 
-    CursorPageResponse<BoardItem> getPostList(Long boardId, SortOption sort, String cursor, int size);
+    CursorPageResponse<BoardItem> getPostList(Long boardId, CommunitySortOption sort, String cursor, int size);
 
     PostDetailResponse getPostDetail(Long postId, Boolean translate);
 
     void addLike(Long boardId);
 
-    void writePost(@Positive Long boardId, PostWriteRequest request);
+    Long writePost(@Positive Long boardId, PostWriteRequest request);
 
     void writePostForChat(Long roomId, PostWriteForChatRequest request);
 
@@ -39,5 +39,13 @@ public interface PostService {
 
     void blockPost(@Positive Long postId);
 
-    void createAdminPost(String content, BoardCategory category, List<MultipartFile> images, User adminUser) throws IOException;
+    void createAdminPost(String title, String content, String publishType,
+                         String boardCategoryStr, String kNewsTypeStr,
+                         List<MultipartFile> generalImages,
+                         MultipartFile mainThumbnailFile, MultipartFile popularThumbnailFile,
+                         List<MultipartFile> contentImages,
+                         User adminUser, List<String> recommendationKeywords) throws IOException;
+
+    void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
+
 }

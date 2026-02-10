@@ -8,6 +8,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +33,6 @@ public class KoreaNetCrawlerService {
     private static final Pattern ARTICLE_ID_PATTERN = Pattern.compile("contentView\\(\\s*'[^']+',\\s*'(\\d+)',");
 
     @Scheduled(cron = "0 0 5 * * *")
-    @Transactional
     public void crawlKoreaNetFestivals() {
         log.info("Starting Korea.net festival crawling from HTML list...");
         try {
@@ -87,8 +87,8 @@ public class KoreaNetCrawlerService {
                     List<String> imageUrls = new ArrayList<>(imageUrlSet);
 
                     CrawledData crawledData = new CrawledData(title, fullContent, originalUrl, SOURCE_SITE, imageUrls);
-                    crawledDataRepository.save(crawledData);
-                    log.info("Successfully crawled and saved: {}", originalUrl);
+
+                    saveCrawledData(crawledData);
 
                 } catch (IOException e) {
                     log.error("Failed to crawl detail page: {}", originalUrl, e);
@@ -104,5 +104,15 @@ public class KoreaNetCrawlerService {
             Thread.currentThread().interrupt();
         }
         log.info("Finished Korea.net festival crawling from HTML list.");
+    }
+
+    @Transactional
+    public void saveCrawledData(CrawledData data) {
+        try {
+            crawledDataRepository.save(data);
+            log.info("Successfully crawled and saved: {}", data.getOriginalUrl());
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Duplicate entry found. Skipping.");
+        }
     }
 }

@@ -1,5 +1,5 @@
 package core.global.enums;
 
-public enum Oauthplatform {
-    GOOGLE,APPLE,local,SYSTEM
+public enum Ouathplatform {
+    GOOGLE,APPLE,local,AI_BOT
 }

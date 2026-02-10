@@ -1,12 +1,16 @@
 package core.global.initializer;
 
-import core.domain.post.repository.PostSearchRepositoryCustom;
-import core.domain.post.service.search.SuggestMemoryIndex;
+import core.domain.maincontent.entity.MainContentHotKeywords;
+import core.domain.maincontent.repository.search.MainContentHotKeywordRepository;
+import core.domain.post.entity.HotKeywords;
+import core.domain.post.repository.HotKeywordRepository;
+import core.domain.post.service.MainContentSuggestIndex;
+import core.domain.post.service.search.PostSuggestIndex;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
@@ -15,25 +19,30 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SuggestWarmupConfig {
 
-    private final PostSearchRepositoryCustom searchRepository;
-    private final SuggestMemoryIndex memoryIndex;
+    private final HotKeywordRepository hotKeywordRepository;
+    private final MainContentHotKeywordRepository mainContentHotKeywordRepository;
+    private final PostSuggestIndex postSuggestIndex;
+    private final MainContentSuggestIndex mainContentSuggestIndex;
 
     @Bean
     ApplicationRunner suggestWarmupRunner() {
-    log.info("runner start");
         return args -> {
-            int topN = 2000;
-            List<String> hotKeys = searchRepository.findHotKeywordsOrTitles(topN);
-            // --- 확인 로그 ---
-            System.out.println("[Warmup] hotKeys size = " + (hotKeys == null ? 0 : hotKeys.size()));
-            hotKeys.stream().limit(10).forEach(k -> System.out.println("[Warmup] sample=" + k));
+            log.info("[Warmup] Starting Suggestion Index Warmup from dedicated tables...");
 
-            for (String k : hotKeys) {
-                memoryIndex.upsert(k, 1);
+            // 1. Post Index Warmup
+            List<HotKeywords> postKeywords = hotKeywordRepository.findAll();
+            for (HotKeywords hk : postKeywords) {
+                postSuggestIndex.upsert(hk.getKeyword(), 1);
             }
-            // memoryIndex 내부 카운트/크기 노출용 임시 메서드가 없다면 추가 권장
-            System.out.println("[Warmup] memoryIndex loaded.");
-        };
 
+            // 2. MainContent Index Warmup
+            List<MainContentHotKeywords> mainKeywords = mainContentHotKeywordRepository.findAll();
+            for (MainContentHotKeywords mk : mainKeywords) {
+                mainContentSuggestIndex.upsert(mk.getKeyword(), 1);
+            }
+
+            log.info("[Warmup] Loaded {} Post keywords and {} Main keywords.",
+                    postKeywords.size(), mainKeywords.size());
+        };
     }
 }

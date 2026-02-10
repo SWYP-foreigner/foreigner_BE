@@ -4,12 +4,13 @@ import core.global.enums.community.BoardCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Schema(description = "게시글 상세 응답")
 public record PostDetailResponse(
         @Schema(description = "ID", example = "1")
-        Long postId,
+        Long id,
 
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
@@ -50,31 +51,90 @@ public record PostDetailResponse(
         @Schema(description = "작성자 프로필 이미지 URL", example = "https://cdn.example.com/u/123/avatar.png")
         String userImageUrl,
 
-        @Schema(description = "본문 내 이미지 URL 목록",
+        @Schema(description = "임시 컬럼  본문 내 이미지 URL 목록",
                 example = "[\"https://cdn.example.com/p/1.png\",\"https://cdn.example.com/p/2.jpg\"]")
         List<String> contentImageUrls,
 
-        @Schema(description = "이미지 수", example = "3")
-        Integer imageCount
+        @Schema(description = "임시 컬럼  이미지 수", example = "3")
+        Integer imageCount,
+
+        @Schema(description = "커뮤니티 게시글 상세 정보 (일반 게시글일 경우)")
+        PostInfo postInfo,
+
+        @Schema(description = "투표/퀴즈 상세 정보 (투표 게시글일 경우)")
+        PollInfo pollInfo
 ) {
+
     public PostDetailResponse(PostDetailResponse postDetail, String translatedContent) {
         this(
-                postDetail.postId,
+                postDetail.id(),
                 translatedContent,
-                postDetail.authorId,
+                postDetail.authorId(),
                 postDetail.authorName(),
-                postDetail.boardCategory,
-                postDetail.createdTime,
-                postDetail.link,
-                postDetail.isAnonymous,
-                postDetail.isLiked,
-                postDetail.isBookmarked,
-                postDetail.likeCount,
-                postDetail.commentCount,
-                postDetail.viewCount,
-                postDetail.userImageUrl,
-                postDetail.contentImageUrls,
-                postDetail.imageCount
+                postDetail.boardCategory(),
+                postDetail.createdTime(),
+                postDetail.link(),
+                postDetail.isAnonymous(),
+                postDetail.isLiked(),
+                postDetail.isBookmarked(),
+                postDetail.likeCount(),
+                postDetail.commentCount(),
+                postDetail.viewCount(),
+                postDetail.userImageUrl(),
+                postDetail.contentImageUrls(),
+                postDetail.imageCount(),
+                new PostInfo(postDetail.contentImageUrls(), postDetail.imageCount()),
+                (postDetail.boardCategory() == BoardCategory.QUIZ || postDetail.boardCategory() == BoardCategory.VOTE)
+                        ? postDetail.pollInfo()
+                        : null
         );
+    }
+
+    @Schema(description = "게시글 콘텐츠 정보")
+    public record PostInfo(
+            @Schema(description = "대표 이미지 URL", nullable = true, example = "https://cdn.example.com/p/123.jpg")
+            List<String> contentImageUrl,
+            @Schema(description = "첨부된 이미지 총 개수", nullable = true, example = "2")
+            Integer imageCount
+    ) {
+        public PostInfo() {
+            this(null, null);
+        }
+    }
+
+    @Schema(description = "투표 상세 정보")
+    public record PollInfo(
+            @Schema(description = "투표 제목", example = "가장 선호하는 언어는?")
+            String title,
+            @Schema(description = "투표 설명", example = "가장 선호하는 언어는 무엇인가요?")
+            String description,
+            @Schema(description = "투표 마감 시간", example = "2025-09-20T12:00:00Z")
+            Instant closeAt,
+            @Schema(description = "총 투표 수", example = "150")
+            long totalVoteCount,
+            @Schema(description = "투표 선택지 목록")
+            List<PostDetailResponse.OptionItem> options,
+            @Schema(description = "로그인 사용자가 선택한 선택지 ID (미참여 시 null)", example = "1")
+            Long selectedOptionId,
+            @Schema(description = "정답 정보 옵션 ID", example = "1")
+            Long correctOptionId
+    ) {
+        public PollInfo() {
+            this(null, null, null, 0L, new ArrayList<>(), null, null);
+        }
+    }
+
+    @Schema(description = "투표 선택지 정보")
+    public record OptionItem(
+            @Schema(description = "선택지 ID", example = "1")
+            Long optionId,
+            @Schema(description = "선택지 내용", example = "Java")
+            String content,
+            @Schema(description = "해당 항목 투표 수", example = "45")
+            long voteCount
+    ) {
+        public OptionItem() {
+            this(null, null, 0L);
+        }
     }
 }

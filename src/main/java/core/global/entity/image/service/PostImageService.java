@@ -21,4 +21,6 @@ public interface PostImageService {
 
     @Transactional
     void uploadAndSavePostImages(Post post, List<MultipartFile> multipartFiles) throws IOException;
+
+    void uploadAndSavePostImagesFromUrls(Post post, List<String> imageUrls);
 }

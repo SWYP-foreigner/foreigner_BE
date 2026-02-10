@@ -2,12 +2,16 @@ package core.domain.bookmark.controller;
 
 import core.domain.bookmark.dto.BookmarkItem;
 import core.domain.bookmark.service.BookmarkService;
+import core.global.docs.annotations.CommunityErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
+import core.global.enums.errorcode.CommunityErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import core.global.pagination.CursorPageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Bookmark", description = "북마크 API")
 @RestController
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 @RequestMapping("/api/v1")
 public class BookmarkController {
 
@@ -32,6 +37,8 @@ public class BookmarkController {
             description = "현재 로그인한 사용자가 지정한 게시글을 북마크에 추가합니다."
     )
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "성공 (내용 없음)")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommunityErrorDocs({CommunityErrorCode.BOOKMARK_ALREADY_EXIST, CommunityErrorCode.POST_NOT_FOUND})
     @PutMapping("/posts/{postId}/bookmarks/me")
     public ResponseEntity<Void> addBookmark(
             @Parameter(description = "게시글 ID", required = true) @PathVariable Long postId

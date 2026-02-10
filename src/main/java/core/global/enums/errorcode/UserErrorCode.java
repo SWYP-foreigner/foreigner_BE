@@ -18,8 +18,10 @@ public enum UserErrorCode implements AppError {
     PASSWORD_FORM_FAILED(HttpStatus.BAD_REQUEST, "비밀번호는 8~12자, 대/소문자 각 1자 이상 포함하고 특수문자(@/!/~)를 1개 이상 포함해야 합니다."),
     PASSWORD_NOT_CORRECTED(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
     CANNOT_FOLLOW_YOURSELF(HttpStatus.BAD_REQUEST, "자기자신은  팔로우가 불가능합니다."),
+    DUPLICATE_EMAIL_PROVIDER_MISMATCH(HttpStatus.CONFLICT, "다른 방식으로 가입된 이메일입니다."),
 
-    ALREADY_BLOCKED (HttpStatus.CONFLICT, "이미 차단한 유저입니다."),
+
+    ALREADY_BLOCKED(HttpStatus.CONFLICT, "이미 차단한 유저입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 유저입니다."),
     FOLLOW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 유저를 팔로우하고 있습니다."),
     PROFILE_SET_NOT_COMPLETED(HttpStatus.PRECONDITION_REQUIRED, "Your profile is incomplete. Please complete your profile setup"),
@@ -27,6 +29,7 @@ public enum UserErrorCode implements AppError {
     BIRTHDAY_IN_FUTURE(HttpStatus.UNPROCESSABLE_ENTITY, "생년월일에 미래 날짜는 입력할 수 없습니다."),
     BIRTHDAY_OUT_OF_RANGE(HttpStatus.UNPROCESSABLE_ENTITY, "생년월일은 1900-01-01 이후여야 합니다."),
     CANNOT_BLOCK(HttpStatus.BAD_REQUEST, "차단할 수 없는 대상입니다."),
+    NOT_AI_USER(HttpStatus.BAD_REQUEST, "AI 유저만 초대할 수 있습니다."),
 
     FOLLOWER_NOT_FOUND(HttpStatus.NOT_FOUND, "팔로워를 찾을 수 없습니다."),
     PROFILE_IMAGE_REGISTER_REQUIRED(HttpStatus.BAD_REQUEST, "프로필에 사진 한 장 등록은 필수입니다."),
@@ -34,8 +37,10 @@ public enum UserErrorCode implements AppError {
     UPDATE_NOT_PROCESSED(HttpStatus.BAD_REQUEST, "프로필 수정에 업데이트에 실패했습니다."),
     INVALID_USER_UPDATE_REQUEST(HttpStatus.BAD_REQUEST, "프로필 업데이트가 처리되지 않았습니다."),
     JWT_INVALID_ROLE(HttpStatus.UNAUTHORIZED, "추방된 유저입니다"),
-    INVALID_PROFILE(HttpStatus.BAD_REQUEST, "이미 셋업한 유저입니다.");
-
+    INVALID_PROFILE(HttpStatus.BAD_REQUEST, "이미 셋업한 유저입니다."),
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "잘못된 입력값입니다."),
+    ALREADY_FOLLOWING(HttpStatus.CONFLICT, "이미 팔로우 중입니다."),
+    ALREADY_FOLLOWED(HttpStatus.CONFLICT, "상대방이 팔로우했습니다.");
     private final HttpStatus httpStatus;
     private final String message;
 

@@ -2,7 +2,6 @@ package core.domain.user.service;
 
 
 import core.domain.bookmark.repository.BookmarkRepository;
-import core.domain.chat.dto.ChatUserProfileResponse;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
@@ -17,6 +16,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
+import core.domain.user.repository.AdminOtpRepository;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
@@ -29,16 +29,17 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.common.ImageType;
-import core.global.enums.Oauthplatform;
-import core.global.enums.user.Role;
+import core.global.enums.FollowStatus;
+import core.global.enums.ImageType;
+import core.global.enums.Ouathplatform;
+import core.global.enums.Role;
 import core.global.enums.errorcode.AuthErrorCode;
-import core.global.enums.errorcode.ImageErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
+import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -70,8 +71,10 @@ public class UserService {
 
     private static final String EMAIL_VERIFY_CODE_KEY = "email_verification:code:";
     private static final String EMAIL_VERIFIED_FLAG_KEY = "email_verification:verified:";
+    private static final String EMAIL_VERIFY_ATTEMPT_KEY = "auth:verify-attempt:";
     private static final long CODE_TTL_MIN = 3L;
     private static final long VERIFIED_TTL_MIN = 10L;
+
     /**
      * 8~12자, 특수문자(@/!/~) 1+ 포함, 허용문자 제한
      */
@@ -102,12 +105,135 @@ public class UserService {
     private final UserDeviceTokenRepository userDeviceTokenRepository;
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
+    private final UserFeedbackRepository userFeedbackRepository;
+    private final AdminOtpRepository adminOtpRepository;
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
 
+    public void logout(String accessToken) {
+        long expiration = jwtTokenProvider.getExpiration(accessToken).getTime() - System.currentTimeMillis();
+        redisService.blacklistAccessToken(accessToken, expiration);
+        Long userId = jwtTokenProvider.getUserIdFromAccessToken(accessToken);
+        redisService.deleteRefreshToken(userId);
+
+        log.info("사용자 {} 로그아웃 처리 완료 (Service).", userId);
+    }
+    @Transactional
+    public TokenRefreshResponse refreshTokens(String refreshToken) {
+        log.info("==================================================");
+        log.info(">>> [토큰 재발급 요청 진입]");
+
+        // 0. 로그 및 예외 처리를 위한 임시 변수 선언
+        Long tempUserId = null;
+        Date tempExpiration = null;
+
+        // ------------------------------------------------------------------
+        // [Pre-Parsing] 검증 전에 정보를 먼저 추출 (로그 및 에러 핸들링 목적)
+        // ------------------------------------------------------------------
+        try {
+            // 토큰에서 userId 추출 시도
+            tempUserId = jwtTokenProvider.getUserIdFromRefreshToken(refreshToken);
+            tempExpiration = jwtTokenProvider.getExpiration(refreshToken);
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // 만료된 토큰이어도 Claims 정보는 가져올 수 있음
+            log.warn(">>> [1차 파싱 경고] 이미 만료된 토큰입니다. 정보를 강제 추출합니다.");
+            try {
+                // ExpiredJwtException에서 직접 Claims 꺼내기
+                tempUserId = Long.parseLong(e.getClaims().getSubject());
+                tempExpiration = e.getClaims().getExpiration();
+            } catch (Exception ex) {
+                log.error(">>> [1차 파싱 실패] 만료된 토큰 정보 추출 중 에러: {}", ex.getMessage());
+            }
+        } catch (Exception e) {
+            log.error(">>> [1차 파싱 실패] 토큰 형식이 완전히 잘못되었습니다: {}", e.getMessage());
+        }
+
+        // ------------------------------------------------------------------
+        // [상세 로그 출력]
+        // ------------------------------------------------------------------
+        long remainingTime = 0;
+        if (tempExpiration != null) {
+            remainingTime = tempExpiration.getTime() - System.currentTimeMillis();
+        }
+
+        String tokenFragment = (refreshToken != null && refreshToken.length() > 10)
+                ? refreshToken.substring(Math.max(0, refreshToken.length() - 15))
+                : refreshToken;
+
+        log.info(">>> [요청 상세 정보]");
+        log.info("    -> User ID   : {}", tempUserId);
+        log.info("    -> Token(끝) : ...{}", tokenFragment);
+        log.info("    -> Expiration: {} (남은시간: {}ms)", tempExpiration, remainingTime);
+
+        // ------------------------------------------------------------------
+        // 1. 진짜 토큰 유효성 검사 (수정된 부분: 예외 처리 강화)
+        // ------------------------------------------------------------------
+        try {
+            // validateToken은 만료 시 ExpiredJwtException을 던질 수 있음 -> catch로 잡아야 함
+            if (!jwtTokenProvider.validateToken(refreshToken)) {
+                // 서명이 틀리거나 형식이 잘못된 경우 (false 리턴 시)
+                log.warn("<<< [재발급 실패] 유효하지 않은 토큰(서명 불일치 등) - UserID: {}", tempUserId);
+                throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            }
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // ★ [핵심 수정] 토큰 만료 에러를 잡아서 비즈니스 예외로 변환
+            log.warn("<<< [재발급 실패] 리프레시 토큰 만료됨 (재로그인 필요) - UserID: {}", tempUserId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        } catch (Exception e) {
+            // 그 외 알 수 없는 토큰 오류
+            log.warn("<<< [재발급 실패] 토큰 검증 중 에러 발생: {}", e.getMessage());
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
+        }
+
+        // 2. 사용자 조회 (파싱 실패로 ID가 없으면 에러)
+        if (tempUserId == null) {
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
+        }
+
+        User user = userRepository.getUserById(tempUserId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        log.info("    -> 사용자 정보: Email={}, Name={}, Role={}", user.getEmail(), user.getFirstName(), user.getUserRole());
+
+        // 3. Redis 검증 (Refresh Token Rotation 및 탈취 감지)
+        String storedRefreshToken = redisService.getRefreshToken(tempUserId);
+
+        if (storedRefreshToken == null) {
+            log.warn("<<< [재발급 실패] Redis에 토큰 없음 (로그아웃/만료됨). ID: {}", tempUserId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        if (!storedRefreshToken.equals(refreshToken)) {
+            // 들어온 토큰과 저장된 토큰이 다르면 탈취 가능성 있음 -> 저장된 것 삭제
+            log.warn("<<< [재발급 실패] Redis 토큰 불일치 (토큰 탈취 의심). ID: {}", tempUserId);
+            log.warn("    -> 요청: ...{}", tokenFragment);
+            String storedFragment = (storedRefreshToken.length() > 10) ? storedRefreshToken.substring(storedRefreshToken.length() - 15) : storedRefreshToken;
+            log.warn("    -> 저장: ...{}", storedFragment);
+
+            redisService.deleteRefreshToken(tempUserId);
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 4. 기존 토큰 삭제 및 새 토큰 발급 (Rotation)
+        redisService.deleteRefreshToken(tempUserId);
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(tempUserId, user.getUserRole().toString(), user.getEmail());
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(tempUserId);
+
+        Date newExpirationDate = jwtTokenProvider.getExpiration(newRefreshToken);
+        long newExpirationMillis = newExpirationDate.getTime() - System.currentTimeMillis();
+
+        // 새 리프레시 토큰 Redis 저장
+        redisService.saveRefreshToken(tempUserId, newRefreshToken, newExpirationMillis);
+
+        log.info("<<< [토큰 재발급 성공] User: {}, Exp: {}ms", user.getEmail(), newExpirationMillis);
+        log.info("==================================================");
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken, tempUserId);
+    }
     public User create(UserCreateDto memberCreateDto) {
         User user = User.builder()
                 .email(memberCreateDto.getEmail())
@@ -177,23 +303,38 @@ public class UserService {
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
-
     @Transactional
     public void setupUserProfile(UserSetupRequest dto) {
+        log.info("========== [프로필 설정 시작] ==========");
         var auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()) {
+            log.error("[Auth Error] 인증 정보가 SecurityContext에 없습니다.");
+            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 에러코드로 변경 가능
+        }
+
         String email = auth.getName();
-        log.info("UserSetupRequest dto: {}", dto);
+        log.info("[Request User] Email: {}", email);
+        log.info("[Request Data] UserSetupRequest: {}", dto);
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("[User Error] 해당 이메일을 가진 유저를 찾을 수 없음: {}", email);
+                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
+                });
+
+        log.info("[User Status] ID: {}, isNewUser: {}, Provider: {}",
+                user.getId(), user.isNewUser(), user.getProvider());
 
         if (!user.isNewUser()) {
+            log.warn("[Validation Error] 이미 프로필이 설정된 사용자입니다. ID: {}", user.getId());
             throw new BusinessException(UserErrorCode.INVALID_PROFILE,
                     "이미 프로필이 설정된 사용자입니다.");
         }
 
-        if (!Objects.equals(user.getProvider(), Oauthplatform.APPLE.toString())) {
-
+        // 애플 유저가 아닐 경우에만 이름 업데이트
+        if (!Objects.equals(user.getProvider(), Ouathplatform.APPLE.toString())) {
+            log.info("[Update] 일반 유저 이름 업데이트 시도");
             if (notBlank(dto.firstname())) {
                 user.updateFirstName(dto.firstname().trim());
             }
@@ -205,30 +346,64 @@ public class UserService {
         user.updateSex(dto.gender());
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
+        user.updatePurpose(dto.purpose());
 
         String v = dto.introduction();
-        user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
+        if (v != null) {
+            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
+        }
 
+        // 언어 처리 로그
         if (dto.language() != null && !dto.language().isEmpty()) {
-            String userLanguagesCsv = String.join(",", dto.language());
-            user.updateLanguage(userLanguagesCsv);
+            log.info("[Update] 언어 설정 처리 중: {}", dto.language());
+            List<String> rawLanguages = dto.language().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
 
-            String firstTranslatedLanguage = dto.language().get(0);
-            if (firstTranslatedLanguage != null && !firstTranslatedLanguage.isEmpty()) {
-                user.updateTranslateLanguage(firstTranslatedLanguage);
+            if (!rawLanguages.isEmpty()) {
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst()
+                        .map(s -> normalizeLanguageCode(s).toLowerCase())
+                        .orElse("");
+
+                if (!firstTranslatedLanguage.isEmpty()) {
+                    user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase())
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
+                    log.info("[Update] 저장된 언어 CSV: {}", userLanguagesCsv);
+                }
             }
         }
 
         if (dto.hobby() != null && !dto.hobby().isEmpty()) {
             String csv = String.join(",", dto.hobby());
             user.updateHobby(csv);
+            log.info("[Update] 저장된 취미 CSV: {}", csv);
         }
 
         user.updateIsNewUser(false);
+
         if (dto.imageKey() != null) {
+            log.info("[Update] 이미지 저장 시도. Key: {}", dto.imageKey());
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
+
+        log.info("========== [프로필 설정 완료] ID: {} ==========", user.getId());
     }
+
+
 
     private boolean notBlank(String s) {
         return s != null && !s.isBlank();
@@ -248,6 +423,31 @@ public class UserService {
         String profileKey = imageService.getUserProfileKey(user.getId());
 
         return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
+    }
+
+    private String normalizeLanguageCode(String rawLang) {
+        if (rawLang == null) return "";
+
+        String normalized = rawLang.toLowerCase().trim();
+
+        // 1. 정규식 패턴 기반 추출 (예: 'abkhaz [ab]' -> 'ab')
+        Matcher matcher = pattern.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+
+        // 2. 대시(-) 처리 (예: 'fr-fr' -> 'fr')
+        if (normalized.contains("-")) {
+            return normalized.split("-")[0].trim();
+        }
+
+        // 3. 단순 코드인 경우 (예: 'ko', 'en')
+        // 코드 길이가 2~5자인 경우 (예: zh-CN)는 그대로 반환
+        if (normalized.length() >= 2 && normalized.length() <= 5) {
+            return normalized;
+        }
+
+        return ""; // 그 외 알 수 없는 포맷은 무시
     }
 
     @Transactional
@@ -281,7 +481,7 @@ public class UserService {
         String rawPw = req.getPassword();
 
         User u = new User();
-        u.updateProvider(Oauthplatform.local.toString());
+        u.updateProvider(Ouathplatform.local.toString());
         u.updateSocialId(buildLocalSocialId(email));
         u.updateEmail(email);
         u.updatePassword(passwordEncoder.encode(rawPw));
@@ -346,7 +546,7 @@ public class UserService {
 
         log.debug("[LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
 
-        if (!Oauthplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
+        if (!Ouathplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
             log.warn("[LOGIN] provider 불일치: provider={}", u.getProvider());
             throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
         }
@@ -369,47 +569,6 @@ public class UserService {
         return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
     }
 
-    @Transactional
-    public AuthResponse adminLogin(EmailLoginDto req) {
-
-        String email = normalizeEmail(req.getEmail());
-
-        User u = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("[ADMIN LOGIN] 사용자 없음: email={}", email);
-                    return new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
-                });
-
-        log.debug("[ADMIN LOGIN] 사용자 조회 성공: id={}, provider={}", u.getId(), u.getProvider());
-
-        if (!Oauthplatform.local.toString().equalsIgnoreCase(nullToEmpty(u.getProvider()))) {
-            log.warn("[ADMIN LOGIN] provider 불일치: provider={}", u.getProvider());
-            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
-        }
-
-        if (u.getPassword() == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
-            log.warn("[ADMIN LOGIN] 비밀번호 불일치: email={}", email);
-            throw new BusinessException(UserErrorCode.AUTHENTICATION_FAILED);
-        }
-
-        if (u.getUserRole() != Role.ADMIN) {
-            log.warn("[ADMIN LOGIN] 관리자 계정이 아님: id={}, role={}", u.getId(), u.getUserRole());
-            throw new BusinessException(AuthErrorCode.AUTHENTICATION_ADMIN_FAILED);
-        }
-
-        String access = jwtTokenProvider.createAccessToken(u.getId(), u.getUserRole().name(), u.getEmail());
-        String refresh = jwtTokenProvider.createRefreshToken(u.getId());
-        long expiresInMs = jwtTokenProvider.getExpiration(access).getTime() - System.currentTimeMillis();
-        Date refreshExpiration = jwtTokenProvider.getExpiration(refresh);
-        long refreshExpirationMillis = refreshExpiration.getTime() - System.currentTimeMillis();
-        redisService.saveRefreshToken(u.getId(), refresh, refreshExpirationMillis);
-
-        log.info("[ADMIN LOGIN] 관리자 로그인 성공: id={}, email={}", u.getId(), u.getEmail());
-        publisher.publishEvent(new UserLoggedInEvent(u.getId().toString(), "email"));
-
-        return new AuthResponse("Bearer", access, refresh, expiresInMs, u.getId(), u.getEmail(), u.isNewUser());
-    }
-
     /**
      * 이메일 보내주는 로직
      */
@@ -427,7 +586,8 @@ public class UserService {
                 ttl,
                 locale
         );
-
+        String redisKey = EMAIL_VERIFY_CODE_KEY + email;
+        log.info(">>> [Redis Save] Key: [{}], Code: [{}], TTL: {} min", redisKey, verificationCode, CODE_TTL_MIN);
         redisTemplate.opsForValue().set(
                 EMAIL_VERIFY_CODE_KEY + email,
                 verificationCode,
@@ -436,35 +596,60 @@ public class UserService {
         );
     }
 
+
     /**
-     * true 반환;
+     * 이메일 인증 코드 검증 (5회 이상 실패 시 재발급 필요)
      */
     public boolean verifyEmailCode(EmailVerificationRequest request) {
         String email = normalizeEmail(request.getEmail());
         String verificationCode = request.getVerificationCode();
 
-        String storedCode = redisTemplate.opsForValue().get(EMAIL_VERIFY_CODE_KEY + email);
+        String codeKey = EMAIL_VERIFY_CODE_KEY + email;
+        String attemptKey = EMAIL_VERIFY_ATTEMPT_KEY + email;
+
+        // Redis에서 코드 조회
+        String storedCode = redisTemplate.opsForValue().get(codeKey);
 
         if (storedCode == null) {
-            log.warn("Stored code not found for email: {}. Code may have expired.", email);
-            return false;
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_EXPIRES);
         }
 
+        // 틀린 경우 처리
         if (!storedCode.equals(verificationCode)) {
-            log.warn("Mismatched code for email: {}. Stored: {}, Received: {}", email, storedCode, verificationCode);
-            return false;
+
+            // 실패 횟수 증가
+            Long attempt = redisTemplate.opsForValue().increment(attemptKey);
+
+            // 실패 카운트 TTL 설정(없으면 기본 10분, 코드 TTL과 같게)
+            redisTemplate.expire(attemptKey, VERIFIED_TTL_MIN, TimeUnit.MINUTES);
+
+            // 5회 이상이면 재발급 필요
+            if (attempt != null && attempt >= 5) {
+                // 인증 코드 삭제
+                redisTemplate.delete(codeKey);
+                redisTemplate.delete(attemptKey);
+
+                throw new BusinessException(AuthErrorCode.VERIFY_CODE_NEED_RESEND);
+            }
+
+            // 5회 미만이면 일반적인 "코드 불일치"
+            throw new BusinessException(AuthErrorCode.VERIFY_CODE_NOT_MATCH);
         }
 
-        // 사용한 코드는 즉시 폐기
-        redisTemplate.delete(EMAIL_VERIFY_CODE_KEY + email);
+        // ★ 성공한 경우: 코드 및 시도 횟수 삭제
+        redisTemplate.delete(codeKey);
+        redisTemplate.delete(attemptKey);
 
-        // 회원가입 시 사용할 인증 완료 플래그 저장(유예시간 부여)
+        // 인증 완료 플래그 저장
+        String flagKey = EMAIL_VERIFIED_FLAG_KEY + email;
         redisTemplate.opsForValue().set(
-                EMAIL_VERIFIED_FLAG_KEY + email,
+                flagKey,
                 "1",
                 VERIFIED_TTL_MIN,
                 TimeUnit.MINUTES
         );
+
+        log.info(">>> [Redis Save Flag] 인증 완료 도장 저장 성공! Key: [{}], TTL: {} min", flagKey, VERIFIED_TTL_MIN);
 
         return true;
     }
@@ -506,30 +691,40 @@ public class UserService {
             user.updatePurpose(dto.purpose());
         }
 
+// UserLanguageDTO dto를 받는 메서드 내부 (updateUserLanguage 로직)
+
         if (dto.language() != null && !dto.language().isEmpty()) {
-            List<String> languages = dto.language().stream()
+
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
+            List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
-                    .map(String::toLowerCase)
                     .filter(s -> !s.isEmpty())
                     .distinct()
                     .toList();
 
-            if (!languages.isEmpty()) {
-                String userLanguagesCsv = String.join(",", languages);
-                user.updateLanguage(userLanguagesCsv);
+            if (!rawLanguages.isEmpty()) {
 
-                String firstTranslatedLanguage = languages.stream()
-                        .map(s -> {
-                            Matcher matcher = pattern.matcher(s);
-                            return matcher.find() ? matcher.group(1).trim() : "";
-                        })
-                        .filter(s -> !s.isEmpty())
-                        .findFirst()
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
+                String firstTranslatedLanguage = rawLanguages.stream()
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
+                }
+
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
+                List<String> normalizedLanguagesForCsv = rawLanguages.stream()
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+
+                if (!normalizedLanguagesForCsv.isEmpty()) {
+                    String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
+                    user.updateLanguage(userLanguagesCsv);
                 }
             }
         }
@@ -572,39 +767,7 @@ public class UserService {
             redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
             responseDto.setNewTokens(accessToken, refreshToken);
         }
-
-        // 7. 최종 응답 반환
         return responseDto;
-    }
-
-    @Transactional
-    public LoginResponseDto finalizeSkipSetupAndReissueToken(UserUpdateDto dto) {
-
-        updateSkipUserSetup(dto);
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        String accessToken = jwtTokenProvider.createAccessToken(
-                user.getId(),
-                user.getUserRole().name(),
-                user.getEmail()
-        );
-        String refreshToken = redisService.getRefreshToken(user.getId());
-        if (refreshToken == null) {
-            refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-            long ttlMs = jwtTokenProvider.getExpiration(refreshToken).getTime() - System.currentTimeMillis();
-            redisService.saveRefreshToken(user.getId(), refreshToken, ttlMs);
-        }
-        publisher.publishEvent(new NewUserJoinedEvent(user.getId()));
-        return new LoginResponseDto(
-                user.getId(),
-                accessToken,
-                refreshToken,
-                user.isNewUser()
-        );
     }
 
     @Transactional
@@ -690,7 +853,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         boolean isApple = false;
 
-        if (Oauthplatform.APPLE.toString().equals(user.getProvider())) {
+        if (Ouathplatform.APPLE.toString().equals(user.getProvider())) {
             appleWithdrawalService.revokeAppleToken(user);
             isApple = true;
         }
@@ -728,7 +891,7 @@ public class UserService {
             bookmarkRepository.deleteAllByPostIn(userPosts);
             postRepository.deleteAll(userPosts);
         }
-
+        adminOtpRepository.deleteByUserId(userId);
         commentRepository.deleteAllByAuthorId(userId);
         bookmarkRepository.deleteAllByUserId(userId);
         followRepository.deleteAllByUserId(userId);
@@ -742,20 +905,8 @@ public class UserService {
         userDeviceTokenRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByUserId(userId);
         notificationRepository.deleteAllByActorId(userId);
+        userFeedbackRepository.deleteAllByUserIdExplicit(userId);
         userRepository.delete(user);
-    }
-
-    /**
-     * 단일 사용자 정보 조회 로직
-     */
-    public UserProfileResponse findUserProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-
-        String profileKey = imageService.getUserProfileKey(user.getId());
-
-        return new UserProfileResponse(user, stringToList(user.getTranslateLanguage()), stringToList(user.getHobby()), profileKey);
     }
 
     public UserProfileCardResponse findCardUserProfile(Long userId, Long currentUserId) {
@@ -763,25 +914,44 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         String profileKey = imageService.getUserProfileKey(user.getId());
-        String followStatus;
-        if (userId.equals(currentUserId)) {
-            followStatus = "SELF";
-        } else {
-            Optional<Follow> follow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
-            if (follow.isPresent()) {
-                followStatus = follow.get().getStatus().toString();
-            } else {
-                followStatus = "NOT_FOLLOWING";
-            }
-        }
+
+        Optional<Follow> myFollow = followRepository.findByUser_IdAndFollowing_Id(currentUserId, userId);
+        // theirFollow: 상대가 나를 어떻게 하고 있는지
+        Optional<Follow> theirFollow = followRepository.findByUser_IdAndFollowing_Id(userId, currentUserId);
+
+        // 4. 상태 추출 (데이터가 없거나 REJECTED면 null 취급과 비슷하게 처리하기 위해 변수화)
+        FollowStatus myStatus = myFollow.map(Follow::getStatus).orElse(null);
+        FollowStatus theirStatus = theirFollow.map(Follow::getStatus).orElse(null);
+
+        FriendType relationshipLabel = calculateRelationship(myStatus, theirStatus);
 
         return new UserProfileCardResponse(
                 user,
                 stringToList(user.getTranslateLanguage()),
                 stringToList(user.getHobby()),
                 profileKey,
-                followStatus
+                relationshipLabel
         );
+    }
+
+    private FriendType calculateRelationship(FollowStatus myStatus, FollowStatus theirStatus) {
+        // 1. 서로 수락된 상태 -> 친구 (맞팔)
+        if (myStatus == FollowStatus.ACCEPTED || theirStatus == FollowStatus.ACCEPTED) {
+            return FriendType.FRIEND;
+        }
+
+        // 2. 내가 보낸 요청이 대기 중 -> 요청 보냄 (버튼: '요청 취소' 등)
+        if (myStatus == FollowStatus.PENDING) {
+            return FriendType.FOLLOWING;
+        }
+
+        // 4. 상대가 나를 팔로우 중 (나는 안 함/거절/요청전) -> 나를 팔로우 함 (버튼: '맞팔하기')
+        if (theirStatus == FollowStatus.PENDING) {
+            return FriendType.FOLLOWED;
+        }
+
+        // 그 외 (둘 다 없거나, REJECTED 등)
+        return FriendType.NONE;
     }
 
     /**
@@ -805,16 +975,6 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
-    public ChatUserProfileResponse getUserChatProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-
-        Image image = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
-                .orElseThrow(() -> new BusinessException(ImageErrorCode.IMAGE_NOT_FOUND));
-
-        return ChatUserProfileResponse.from(user, image.getUrl());
-    }
 
     /**
      * 사용자의 애플 계정 상태를 확인하는 메서드
@@ -827,7 +987,7 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        boolean isApple = Oauthplatform.APPLE.toString().equals(user.getProvider());
+        boolean isApple = Ouathplatform.APPLE.toString().equals(user.getProvider());
 
         boolean isRejoiningWithoutFullName = false;
         if (isApple) {
@@ -871,6 +1031,52 @@ public class UserService {
                             && user.getSex() != null;
         return new ProfileCompletionResponse(userId, completed);
     }
+    private static final List<String> INTRODUCTIONS = List.of(
+                "I want to make Korean friends! 👋",          // 한국 친구를 사귀고 싶어요!
+                "I really love K-POP 🎵",                     // K-POP을 정말 좋아해요
+                "I want to study Korean together 📚",         // 한국어 공부를 같이 하고 싶어요
+                "I'm planning a trip to Korea ✈️",            // 한국 여행을 계획 중이에요
+                "I want to share daily stories 💬",           // 일상 이야기를 나누고 싶어요
+                "Let's share good restaurant info 🥘",        // 맛집 정보를 공유해요
+                "I love BTS the most 💜",                     // BTS를 가장 좋아해요
+                "Please recommend Korean dramas 📺",          // 한국 드라마 추천해주세요
+                "Let's do language exchange 🇰🇷",              // 서로의 언어를 교환해요
+                "Feel free to contact me! 😄",                // 편하게 연락주세요!
+                "I'm interested in fashion & beauty 💄",      // 패션과 뷰티에 관심이 많아요
+                "I want to learn Korean culture 🎎",          // 한국 문화를 배우고 싶어요
+                "I want to have deep conversations ☕",       // 진지한 대화를 나누고 싶어요
+                "I like exercising and taking walks 🏃",      // 운동과 산책을 좋아해요
+                "I have a cat 🐱",                            // 고양이 집사입니다
+                "I like going to cafes on weekends ☕",       // 주말에 카페 가는 걸 좋아해요
+                "Let's talk about Netflix 🎬",                // 넷플릭스 같이 이야기해요
+                "Taking photos is my hobby 📸",               // 사진 찍는 게 취미예요
+                "I love delicious desserts 🍰",               // 맛있는 디저트를 좋아해요
+                "I want to share positive energy ✨"           // 긍정적인 에너지를 나누고 싶어요
+        );
 
 
+    /**
+     * 관심사 카테고리 및 아이템 (K-POP, K-DRAMA&MOVIE, LIFESTYLE)
+     */
+    private static final List<ProfileOptionsDto.CategoryItem> INTEREST_CATEGORIES = List.of(
+            new ProfileOptionsDto.CategoryItem("K-POP", List.of(
+                    "BTS", "BLACKPINK", "NewJeans", "SEVENTEEN", "Stray Kids",
+                    "IVE", "NCT", "TWICE", "LE SSERAFIM", "aespa", "EXO"
+            )),
+            new ProfileOptionsDto.CategoryItem("K-DRAMA&MOVIE", List.of(
+                    "Squid Game", "The Glory", "Parasite", "Moving", "Kingdom",
+                    "Crash Landing on You", "All of Us Are Dead", "Reply 1988",
+                    "Sweet Home", "Itaewon Class"
+            )),
+            new ProfileOptionsDto.CategoryItem("LIFESTYLE", List.of(
+                    "Travel", "Food", "Fashion", "Beauty", "Language Exchange",
+                    "Daily Life", "Cafe", "MBTI", "Exercise", "Music", "Drawing"
+            ))
+    );
+    public ProfileOptionsDto.CombinedResponse getProfileOptions() {
+        return ProfileOptionsDto.CombinedResponse.builder()
+                .introductions(INTRODUCTIONS)
+                .interests(new ProfileOptionsDto.InterestResponse(INTEREST_CATEGORIES))
+                .build();
+    }
 }

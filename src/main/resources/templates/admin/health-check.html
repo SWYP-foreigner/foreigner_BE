@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>시스템 상태 점검</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f6f9; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 25px; margin-bottom: 20px; }
+        h1 { border-bottom: 3px solid #17a2b8; padding-bottom: 10px; color: #333; }
+        h2 { font-size: 1.2rem; color: #555; margin-top: 0; }
+
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        .btn-primary { background-color: #007bff; }
+        .btn-success { background-color: #28a745; }
+        .btn-info { background-color: #17a2b8; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .result-box { background: #2d2d2d; color: #61dafb; padding: 20px; border-radius: 5px; font-family: 'Courier New', monospace; min-height: 100px; white-space: pre-wrap; overflow-x: auto; }
+        .status-ok { color: #28a745; font-weight: bold; }
+        .status-error { color: #dc3545; font-weight: bold; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .tag { padding: 3px 8px; border-radius: 3px; font-size: 0.8em; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a th:href="@{/admin}" style="text-decoration: none; color: #666;">← 관리자 홈으로</a>
+    <h1>🏥 시스템 상태 점검 (Smoke Test)</h1>
+
+    <div class="card">
+        <h2>🔑 OAuth 시크릿 유효성 검사 (L2 Functional)</h2>
+        <p style="font-size: 0.9em; color: #666;">실제 구글/애플 서버와 통신하여 현재 서버에 설정된 Secret Key가 유효한지(만료/결제 여부) 확인합니다.</p>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="checkSecret('google')">Google Secret 체크</button>
+            <button class="btn btn-success" onclick="checkSecret('apple')">Apple Secret 체크</button>
+        </div>
+        <div id="oauth-result" class="result-box">결과가 여기에 표시됩니다...</div>
+    </div>
+
+    <div class="card">
+        <h2>🚀 전체 시스템 스모크 테스트 (Full Check)</h2>
+        <p style="font-size: 0.9em; color: #666;">DB, Redis, Mail, 외부 API 등 인프라 전체의 연결성을 일괄 점검합니다.</p>
+        <div class="btn-group">
+            <button class="btn btn-info" onclick="runFullCheck()">전체 점검 시작 (Full Check)</button>
+        </div>
+
+        <div id="full-check-summary" style="display:none; margin-bottom: 15px;">
+            <span id="total-count"></span>개 중 <span class="status-ok" id="pass-count"></span>개 통과, <span class="status-error" id="fail-count"></span>개 실패
+        </div>
+
+        <table id="smoke-table" style="display:none;">
+            <thead>
+            <tr>
+                <th>테스트 항목</th>
+                <th>유형</th>
+                <th>상태 코드</th>
+                <th>소요시간</th>
+                <th>결과</th>
+            </tr>
+            </thead>
+            <tbody id="smoke-result-body">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    // 1. Google/Apple 시크릿 개별 체크
+    async function checkSecret(platform) {
+        const display = document.getElementById('oauth-result');
+        display.innerHTML = platform.toUpperCase() + " 체크 중...";
+
+        try {
+            const response = await fetch(`/api/v1/admin/health-check/debug/oauth/${platform}`);
+            const text = await response.text();
+
+            if (response.ok) {
+                display.innerHTML = `<span class="status-ok">[SUCCESS]</span> ${text}`;
+            } else {
+                display.innerHTML = `<span class="status-error">[FAILED ${response.status}]</span>\n${text}`;
+            }
+        } catch (error) {
+            display.innerHTML = `<span class="status-error">[ERROR]</span> 통신 실패: ${error.message}`;
+        }
+    }
+
+    // 2. 전체 스모크 테스트 실행 (POST 호출)
+    async function runFullCheck() {
+        const table = document.getElementById('smoke-table');
+        const summary = document.getElementById('full-check-summary');
+        const tbody = document.getElementById('smoke-result-body');
+
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>전체 점검 진행 중... 최대 10초 소요될 수 있습니다.</td></tr>";
+        table.style.display = 'table';
+        summary.style.display = 'block';
+
+        try {
+            const response = await fetch('/api/v1/admin/health-check/full-check', { method: 'POST' });
+            const result = await response.json();
+
+            document.getElementById('total-count').innerText = result.totalCount;
+            document.getElementById('pass-count').innerText = result.passedCount;
+            document.getElementById('fail-count').innerText = result.failedCount;
+
+            tbody.innerHTML = "";
+
+            // 통과 항목과 실패 항목 합쳐서 출력
+            const allItems = [...result.passedItems, ...result.failedItems];
+
+            allItems.forEach(item => {
+                const row = `
+                    <tr>
+                        <td><strong>${item.name}</strong><br><small style="color:#888">${item.path}</small></td>
+                        <td>${item.method}</td>
+                        <td>${item.status || 'N/A'}</td>
+                        <td>${item.elapsedMs}ms</td>
+                        <td>${item.ok ? '<span class="status-ok">PASS</span>' : '<span class="status-error">FAIL</span>'}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan='5' class="status-error">테스트 중 오류 발생: ${error.message}</td></tr>`;
+        }
+    }
+</script>
+
+</body>
+</html>

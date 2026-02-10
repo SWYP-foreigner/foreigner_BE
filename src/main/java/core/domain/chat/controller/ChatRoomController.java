@@ -4,7 +4,15 @@ import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.service.ChatRoomService;
 import core.global.config.CustomUserDetails;
+import core.global.docs.annotations.ChatErrorDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.ImageErrorCodeDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
+import core.global.enums.errorcode.ChatErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.ImageErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema; // 추가됨
@@ -25,6 +33,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class ChatRoomController {
 
     private final ChatRoomService chatService;
@@ -34,47 +43,48 @@ public class ChatRoomController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRoomResponse.class))
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청")
+            )
     })
     @PostMapping("/rooms/oneToOne")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_CREATION_FAILED})
     public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
             @RequestBody CreateRoomRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        Long userId = principal.getUserId();
-        ChatRoom room = chatService.createRoom(userId, request.otherUserId());
-        ChatRoomResponse response = ChatRoomResponse.from(room);
+        ChatRoom room = chatService.createRoom(principal.getUserId(), request.otherUserId());
         featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(ChatRoomResponse.from(room)));
     }
     @PostMapping("/rooms/oneTone")
-    public ResponseEntity<ApiResponse<ChatRoomResponse>> createOneRoom(
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_CREATION_FAILED})
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> ChatcreateRoom(
             @RequestBody CreateRoomRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        Long userId = principal.getUserId();
-        ChatRoom room = chatService.createRoom(userId, request.otherUserId());
-        ChatRoomResponse response = ChatRoomResponse.from(room);
+        ChatRoom room = chatService.createRoom(principal.getUserId(), request.otherUserId());
         featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(ChatRoomResponse.from(room)));
     }
+
     @Operation(summary = "그룹 채팅방 생성", description = "새로운 그룹 채팅방을 생성합니다.")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "채팅방 생성 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "유효하지 않은 요청 데이터"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "사용자를 찾을 수 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "채팅방 생성 성공")
     })
     @PostMapping("/rooms/group")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
+    @ImageErrorCodeDocs({ImageErrorCode.CHATROOM_IMAGES_ALREADY_EXIST, ImageErrorCode.IMAGE_UPLOAD_FAILED, ImageErrorCode.IMAGE_FILE_UPLOAD_TYPE_ERROR, })
     public ResponseEntity<ApiResponse<Void>> createGroupChat(
             @Valid @RequestBody CreateGroupChatRequest request,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        Long userId = principal.getUserId();
-        chatService.createGroupChatRoom(userId, request);
+        chatService.createGroupChatRoom( principal.getUserId(), request);
         featureUsageMetrics.recordChatUsage();
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null));
     }
+
 
     // [수정 2] List 반환 타입 명시 (@ArraySchema 사용)
     @Operation(summary = "자신의 채팅방 리스트 조회")
@@ -84,6 +94,7 @@ public class ChatRoomController {
             )
     })
     @GetMapping("/rooms")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> getMyChatRooms(@AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
         List<ChatRoomSummaryResponse> responses = chatService.getMyAllChatRoomSummaries(userId);
@@ -93,23 +104,24 @@ public class ChatRoomController {
     @Operation(summary = "채팅방 나가기")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @DeleteMapping("/rooms/{roomId}/leave")
-    public ResponseEntity<ApiResponse<Void>> leaveChatRoom(@PathVariable Long roomId, @AuthenticationPrincipal CustomUserDetails principal) {
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_PARTICIPANT_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Boolean>> leaveChatRoom(@PathVariable Long roomId, @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
-        chatService.leaveRoom(roomId, userId);
+        boolean ret =chatService.leaveRoom(roomId, userId);
         featureUsageMetrics.recordChatUsage();
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.ok(ApiResponse.success(ret));
     }
 
     @Operation(summary = "그룹 채팅 참여")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "이미 참여 중인 채팅방이거나, 그룹 채팅방이 아닐 경우"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "존재하지 않는 채팅방 또는 유저")
     })
     @PostMapping("/rooms/group/{roomId}/join")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND, ChatErrorCode.CHAT_NOT_GROUP, ChatErrorCode.ALREADY_CHAT_PARTICIPANT})
     public ResponseEntity<ApiResponse<Void>> joinGroupChat(@PathVariable Long roomId,
                                                            @AuthenticationPrincipal CustomUserDetails principal) {
         Long userId = principal.getUserId();
@@ -123,9 +135,9 @@ public class ChatRoomController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = GroupChatDetailResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
     })
     @GetMapping("/rooms/group/{roomId}")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public ResponseEntity<ApiResponse<GroupChatDetailResponse>> getGroupChatDetails(@PathVariable Long roomId) {
         GroupChatDetailResponse response = chatService.getGroupChatDetails(roomId);
         featureUsageMetrics.recordChatUsage();
@@ -140,6 +152,7 @@ public class ChatRoomController {
             ),
     })
     @GetMapping("/rooms/search")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public ResponseEntity<ApiResponse<List<ChatRoomSummaryResponse>>> searchRooms(
             @RequestParam("roomName") String roomName, @AuthenticationPrincipal CustomUserDetails principal
     ) {
@@ -195,10 +208,10 @@ public class ChatRoomController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공",
                     content = @Content(schema = @Schema(implementation = ChatRecommendRoomResponse.class))
             ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "더 이상 추천 가능한 채팅방 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "428", description = "프로필 세팅 미완료한 유저")
     })
     @GetMapping("/rooms/recommend")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
+    @ChatErrorDocs({ChatErrorCode.NO_RECOMMENDABLE_ROOM})
     public ResponseEntity<ApiResponse<ChatRecommendRoomResponse>> getRecommendableGroupChatRoom(
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
@@ -210,12 +223,10 @@ public class ChatRoomController {
     @Operation(summary = "채팅방이 그룹인지 여부 확인", description = "roomId에 해당하는 채팅방이 그룹 채팅방인지(1:1 채팅인지) 확인합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공", content = @Content(schema = @Schema(implementation = ChatRoomGroupResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방을 찾을 수 없음")
     })
     @GetMapping("/isGroup")
+    @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public ResponseEntity<ApiResponse<ChatRoomGroupResponse>> isChatRoomGroup(@RequestParam Long roomId) {
-        boolean isGroup = chatService.isChatRoomGroup(roomId);
-        ChatRoomGroupResponse response = new ChatRoomGroupResponse(isGroup);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(new ChatRoomGroupResponse(chatService.isChatRoomGroup(roomId))));
     }
 }

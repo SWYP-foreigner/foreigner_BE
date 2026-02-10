@@ -28,25 +28,25 @@ public class RecentSearchRedisService {
         return "recent:" + userId;
     }
 
-    public void log(Long userId, String raw) {
-        if (userId == null || raw == null) return;
+    public void log(String raw) {
+        if (raw == null) return;
         String q = raw.trim();
         if (q.isEmpty()) return;
         q = q.toLowerCase(Locale.ROOT);
 
+        // 내부 메서드를 호출하여 현재 로그인한 유저 ID를 직접 획득
+        Long userId = getUserId();
         String key = keyOf(userId);
         double now = System.currentTimeMillis();
 
-        // upsert
+        // Redis ZSet 저장 (중복 시 스코어/시간만 업데이트됨)
         redis.opsForZSet().add(key, q, now);
 
-        // 트림 (오래된 항목 제거)
+        // 트림 (최대 MAX 개수 유지)
         Long size = redis.opsForZSet().zCard(key);
         if (size != null && size > MAX) {
-            long removeCount = size - MAX;              // 제거해야 할 개수
-            if (removeCount > 0) {
-                redis.opsForZSet().removeRange(key, 0, removeCount - 1);
-            }
+            long removeCount = size - MAX;
+            redis.opsForZSet().removeRange(key, 0, removeCount - 1);
         }
 
         // TTL 연장

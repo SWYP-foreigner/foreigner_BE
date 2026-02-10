@@ -11,9 +11,12 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import core.domain.board.dto.BoardItem;
 import core.domain.board.entity.QBoard;
 import core.domain.comment.entity.QComment;
-import core.domain.post.dto.comunity.PostDetailResponse;
+import core.domain.poll.entity.QPoll;
+import core.domain.poll.entity.QPollOption;
+import core.domain.poll.entity.QVoteRecord;
 import core.domain.post.dto.admin.PostListForAdminResponse;
 import core.domain.post.dto.admin.PostSearchForAdminRequest;
+import core.domain.post.dto.comunity.PostDetailResponse;
 import core.domain.post.dto.comunity.UserPostItem;
 import core.domain.post.entity.Post;
 import core.domain.post.entity.QBlockPost;
@@ -34,14 +37,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.time.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static core.domain.post.entity.QBlockPost.blockPost;
-
 import static core.domain.bookmark.entity.QBookmark.bookmark;
+import static core.domain.post.entity.QBlockPost.blockPost;
 
 @Repository
 @RequiredArgsConstructor
@@ -54,6 +59,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     private static final ImageType IMAGE_TYPE_POST = ImageType.POST;
     private static final ImageType IMAGE_TYPE_USER = ImageType.USER;
     private static final LikeType LIKE_TYPE_POST = LikeType.POST;
+    private static final QPoll poll = QPoll.poll;
+    private static final QVoteRecord voteRecord = QVoteRecord.voteRecord;
+    private static final QPollOption pollOption = QPollOption.pollOption;
 
     private final JPAQueryFactory query;
 
@@ -61,13 +69,9 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     public List<BoardItem> findLatestPosts(Long userId, Long boardId,
                                            Instant cursorCreatedAt,
                                            Long cursorId,
-                                           int size,
-                                           String q) {
+                                           int size) {
 
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank())
-                ? null
-                : post.content.containsIgnoreCase(q);
 
         BooleanExpression ltCursor = (cursorCreatedAt == null)
                 ? null
@@ -76,61 +80,60 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         .and(cursorId != null ? post.id.lt(cursorId) : Expressions.TRUE.isFalse())
                 );
 
-        Expression<Long> authorIdExpr = authorIdExpr();
-
-        Expression<String> authorNameExpr = getAuthorName();
-
-        Expression<String> preview = preview200();
-
-        Expression<Long> likeCountExpr = likeCountExpr();
-
-        Expression<Long> commentCountExpr = commentCountExpr();
-
-        Expression<Boolean> likedByMe = likedByViewerId(userId);
-
-        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
-
-        Expression<String> userImageUrlOrNull = nullIfAnonymous(userImageUrlExpr());
-
-        Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
-
         BooleanExpression visibleToMe = visibleTo(userId);
         BooleanExpression notBlocked = notBlockedByViewerId(userId);
 
         return query
                 .select(Projections.constructor(
                         BoardItem.class,
-                        post.id,
-                        preview,
-                        authorIdExpr,
-                        authorNameExpr,
-                        board.category,
-                        post.createdAt,
-                        post.anonymous,
-                        likedByMe,
-                        bookmarkedByMe,
-                        likeCountExpr,
-                        commentCountExpr,
-                        post.checkCount,
-                        userImageUrlOrNull,
-                        contentThumbnailUrlExpr,
+                        post.id,             // 1. postId
+                        preview200(),        // 2. contentPreview
+                        authorIdExpr(),      // 3. authorId
+                        getAuthorName(),     // 4. authorName
+                        board.category,      // 5. boardCategory
+                        post.createdAt,      // 6. createdAt
+                        post.anonymous,      // 7. isAnonymous
+                        likedByViewerId(userId), // 8. isLiked
+                        bookmarkedByViewerId(userId), // 9. isBookmarked
+                        likeCountExpr(),     // 10. likeCount
+                        commentCountExpr(),  // 11. commentCount
+                        post.checkCount,     // 12. viewCount
+                        nullIfAnonymous(userImageUrlExpr()), // 13. userImageUrl
+                        Expressions.asNumber(0L), // 14. score (최신순은 0)
+                        firstPostImageUrlExpr(),
                         postImageCountExpr(),
-                        Expressions.numberTemplate(Long.class, "NULL")
+
+                        // 15. PostInfo 생성
+                        Projections.constructor(BoardItem.PostInfo.class,
+                                firstPostImageUrlExpr(),
+                                postImageCountExpr()
+                        ),
+
+                        // 16. PollInfo 생성 (투표 정보가 없으면 null)
+                        Projections.constructor(BoardItem.PollInfo.class,
+                                poll.title,
+                                poll.description,
+                                poll.closeAt,
+                                poll.totalVoteCount.coalesce(0L),
+                                Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
+                                selectedOptionIdSubQuery(userId),
+                                correctOptionIdIfVoted(userId)
+                        )
                 ))
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
-                .orderBy(post.createdAt.desc())
+                .leftJoin(post.poll, poll) // 중요: 투표 정보 조인
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
+                .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
     }
 
     @Override
-    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size, String q) {
+    public List<BoardItem> findPopularPosts(Long userId, Long boardId, Instant since, Long cursorScore, Long cursorId, int size) {
         // ── 필터
         BooleanExpression boardFilter = (boardId == null) ? null : post.board.id.eq(boardId);
-        BooleanExpression search = (q == null || q.isBlank()) ? null : post.content.containsIgnoreCase(q);
 
         // ── 집계
         Expression<Long> likeCountSub = likeCountExpr();
@@ -191,65 +194,68 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                     .or(score.eq(cursorScore).and(tieBreaker));
         }
 
-        Expression<Boolean> likedByMe = likedByViewerId(userId);
-
-        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
-
-
-        Expression<Long> authorIdExpr = authorIdExpr();
-
-        Expression<String> authorNameExpr = getAuthorName();
-
-        Expression<String> preview = preview200();
-
-        Expression<String> userImageUrlOrNull = nullIfAnonymous(userImageUrlExpr());
-
-        Expression<String> contentThumbnailUrlExpr = firstPostImageUrlExpr();
-
         BooleanExpression visibleToMe = visibleTo(userId);
         BooleanExpression notBlocked = notBlockedByViewerId(userId);
 
         return query
                 .select(Projections.constructor(
                         BoardItem.class,
-                        post.id,
-                        preview,
-                        authorIdExpr,
-                        authorNameExpr,
-                        board.category,
-                        post.createdAt,
-                        post.anonymous,
-                        likedByMe,
-                        bookmarkedByMe,
-                        likes,
-                        comments,
-                        views,
-                        userImageUrlOrNull,
-                        contentThumbnailUrlExpr,
+                        post.id,                        // 1. postId
+                        preview200(),                   // 2. contentPreview
+                        authorIdExpr(),                 // 3. authorId
+                        getAuthorName(),                // 4. authorName
+                        board.category,                 // 5. boardCategory
+                        post.createdAt,                 // 6. createdAt
+                        post.anonymous,                 // 7. isAnonymous
+                        likedByViewerId(userId),        // 8. isLiked
+                        bookmarkedByViewerId(userId),   // 9. isBookmarked
+                        likeCountExpr(),                // 10. likeCount
+                        commentCountExpr(),             // 11. commentCount
+                        post.checkCount,                // 12. viewCount
+                        nullIfAnonymous(userImageUrlExpr()), // 13. userImageUrl
+                        score,                          // 14. score (계산된 점수)
+                        firstPostImageUrlExpr(),
                         postImageCountExpr(),
-                        score
+
+                        // 15. PostInfo (이미지 정보)
+                        Projections.constructor(BoardItem.PostInfo.class,
+                                firstPostImageUrlExpr(),
+                                postImageCountExpr()
+                        ),
+
+                        // 16. PollInfo (투표 정보)
+                        Projections.constructor(BoardItem.PollInfo.class,
+                                poll.title,
+                                poll.description,
+                                poll.closeAt,
+                                poll.totalVoteCount.coalesce(0L),
+                                Expressions.constant(new ArrayList<BoardItem.OptionItem>()), // 서비스에서 채우기 위한 가변 리스트
+                                selectedOptionIdSubQuery(userId),
+                                correctOptionIdIfVoted(userId)
+                        )
                 ))
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
-                .where(allOf(boardFilter, search, ltCursor, visibleToMe, notBlocked))
-                .orderBy(
-                        score.desc(),
-                        post.id.desc()
-                )
+                .leftJoin(post.poll, poll) // 투표 조인 필수
+                .where(allOf(boardFilter, ltCursor, visibleToMe, notBlocked))
+                .orderBy(score.desc(), post.id.desc())
                 .limit(Math.min(size, 50) + 1L)
                 .fetch();
 
     }
 
     @Override
-    public PostDetailResponse findPostDetail(String email, Long postId) {
+    public PostDetailResponse findPostDetail(Long userId, Long postId) {
         QImage userImage = new QImage("u");
+        QImage subUserImage = new QImage("subUserImage");
 
         Expression<Long> likeCountExpr = likeCountExpr();
         Expression<Long> commentCountExpr = commentCountExpr();
         Expression<Long> authorIdExpr = authorIdExpr();
         StringExpression userNameExpr = getAuthorName();
+
+        // 1. 먼저 가장 최근의 이미지 ID를 찾는 서브쿼리 정의
 
         Expression<String> userImageUrlExpr = new CaseBuilder()
                 .when(post.anonymous.isTrue()).then(Expressions.nullExpression(String.class))
@@ -257,8 +263,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         JPAExpressions.select(userImage.url)
                                 .from(userImage)
                                 .where(
-                                        userImage.imageType.eq(IMAGE_TYPE_USER)
-                                                .and(userImage.relatedId.eq(user.id))
+                                        userImage.id.eq(
+                                                JPAExpressions.select(subUserImage.id.max())
+                                                        .from(subUserImage)
+                                                        .where(
+                                                                subUserImage.imageType.eq(IMAGE_TYPE_USER),
+                                                                subUserImage.relatedId.eq(user.id)
+                                                        )
+                                        )
                                 )
                 );
 
@@ -274,9 +286,12 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         );
 
         Expression<String> linkExpr = Expressions.constant("CHAT LINK");
-        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerEmail(email);
-        Expression<Boolean> likedByMe = likedByViewerEmail(email);
-        BooleanExpression notBlocked = notBlockedByViewerEmail(email);
+        Expression<Boolean> bookmarkedByMe = bookmarkedByViewerId(userId);
+        Expression<Boolean> likedByMe = likedByViewerId(userId);
+        BooleanExpression notBlocked = notBlockedByViewerId(userId);
+
+        Expression<Long> selectedOptionIdExpr = selectedOptionIdSubQuery(userId);
+        Expression<Long> correctOptionIdExpr = correctOptionIdIfVoted(userId);
 
 
         List<Tuple> rows = query
@@ -296,17 +311,25 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                         post.checkCount,
                         userImageUrlExpr,
                         image.url,
-                        imageCountExpr
+                        imageCountExpr,
+
+                        poll.title,
+                        poll.description,
+                        poll.closeAt,
+                        poll.totalVoteCount.coalesce(0L),
+                        selectedOptionIdExpr,
+                        correctOptionIdExpr
                 )
                 .from(post)
                 .join(post.author, user)
                 .join(post.board, board)
+                .leftJoin(post.poll, poll)
                 .leftJoin(image).on(
                         image.imageType.eq(IMAGE_TYPE_POST)
                                 .and(image.relatedId.eq(post.id))
                 )
                 .where(allOf(post.id.eq(postId), notBlocked))
-                .orderBy(image.id.asc())
+                .orderBy(image.orderIndex.asc().nullsLast())
                 .fetch();
 
         if (rows.isEmpty()) {
@@ -332,10 +355,34 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         String userImageUrl = t0.get(userImageUrlExpr);
         Integer imageCount = t0.get(imageCountExpr);
 
+        String pollTitle = t0.get(poll.title);
+        String pollDescription = t0.get(poll.description);
+        Instant pollCloseAt = t0.get(poll.closeAt);
+        Long pollTotalVote = t0.get(poll.totalVoteCount.coalesce(0L));
+        Long mySelectedOption = t0.get(selectedOptionIdExpr);
+        Long correctAnswer = t0.get(correctOptionIdExpr);
+
         List<String> contentImageUrls = rows.stream()
                 .map(r -> r.get(image.url))
                 .filter(Objects::nonNull)
                 .toList();
+
+        List<PostDetailResponse.OptionItem> pollOptions = new ArrayList<>();
+
+        if (pollTitle != null) {
+            // Poll 엔티티가 @MapsId로 Post와 ID를 공유하므로 postId로 조회 가능
+            pollOptions = query
+                    .select(Projections.constructor(PostDetailResponse.OptionItem.class,
+                            pollOption.id,
+                            pollOption.content,
+                            pollOption.voteCount
+                    ))
+                    .from(pollOption)
+                    .where(pollOption.poll.id.eq(postId)) // PostID == PollID
+                    .orderBy(pollOption.id.asc())
+                    .fetch();
+        }
+
 
         return new PostDetailResponse(
                 id,
@@ -353,30 +400,46 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 viewCount,
                 userImageUrl,
                 contentImageUrls,
-                imageCount
+                imageCount,
+                new PostDetailResponse.PostInfo(
+                        contentImageUrls,
+                        imageCount
+                ),
+
+                // 16. PollInfo 생성 (투표 정보가 없으면 null)
+                (pollTitle != null) ? new PostDetailResponse.PollInfo(
+                        pollTitle,
+                        pollDescription,
+                        pollCloseAt,
+                        pollTotalVote,
+                        pollOptions,
+                        mySelectedOption,
+                        correctAnswer
+                ) : null
         );
     }
 
     @Override
     public List<UserPostItem> findMyPostsFirstByEmail(String email, int limitPlusOne) {
-
         Expression<Boolean> likedByMe = likedByViewerEmail(email);
 
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
-                        post.id,
-                        preview200(),
-                        post.createdAt,
-                        likedByMe,
-                        likeCountExpr(),
-                        commentCountExpr(),
-                        post.checkCount,
-                        firstPostImageUrlExpr(),
-                        postImageCountExpr()
+                        post.id,                    // 1. postId
+                        preview200(),               // 2. content (Post의 본문 미리보기 사용)
+                        post.createdAt,             // 3. createdAt
+                        likedByMe,                  // 4. isLiked
+                        likeCountExpr(),            // 5. likeCount
+                        commentCountExpr(),         // 6. commentCount
+                        post.checkCount,            // 7. viewCount
+                        firstPostImageUrlExpr(),    // 8. imageUrl
+                        postImageCountExpr()        // 9. imageCount
                 ))
                 .from(post)
                 .join(post.author, user)
+                .join(post.board, board)
+                .leftJoin(post.poll, poll)         // 엔티티 통합 구조에 맞춰 조인은 유지
                 .where(user.email.eq(email))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
@@ -393,18 +456,20 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
         return query
                 .select(Projections.constructor(
                         UserPostItem.class,
-                        post.id,
-                        preview200(),
-                        post.createdAt,
-                        likedByMe,
-                        likeCountExpr(),
-                        commentCountExpr(),
-                        post.checkCount,
-                        firstPostImageUrlExpr(),
-                        postImageCountExpr()
+                        post.id,                    // 1. postId
+                        preview200(),               // 2. content (Post의 본문 미리보기 사용)
+                        post.createdAt,             // 3. createdAt
+                        likedByMe,                  // 4. isLiked
+                        likeCountExpr(),            // 5. likeCount
+                        commentCountExpr(),         // 6. commentCount
+                        post.checkCount,            // 7. viewCount
+                        firstPostImageUrlExpr(),    // 8. imageUrl
+                        postImageCountExpr()        // 9. imageCount
                 ))
                 .from(post)
                 .join(post.author, user)
+                .join(post.board, board)
+                .leftJoin(post.poll, poll)         // 엔티티 통합 구조에 맞춰 조인은 유지
                 .where(user.email.eq(email).and(ltCursor))
                 .orderBy(post.createdAt.desc(), post.id.desc())
                 .limit(limitPlusOne)
@@ -451,6 +516,14 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .fetchCount();
 
         return new PageImpl<>(content, pageable, total);
+    }
+
+    private Expression<Long> selectedOptionIdSubQuery(Long userId) {
+        if (userId == null) return Expressions.asNumber((Long) null);
+        return JPAExpressions.select(voteRecord.pollOption.id)
+                .from(voteRecord)
+                .where(voteRecord.user.id.eq(userId)
+                        .and(voteRecord.poll.id.eq(poll.id)));
     }
 
     private BooleanExpression authorEmailContains(String email) {
@@ -531,19 +604,6 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
 
-    private BooleanExpression notBlockedByViewerEmail(String email) {
-        if (email == null || email.isBlank()) return null;
-        QBlockPost bp = blockPost;
-        return JPAExpressions
-                .selectOne()
-                .from(bp)
-                .where(
-                        bp.user.email.eq(email)
-                                .and(bp.post.id.eq(post.id))
-                )
-                .notExists();
-    }
-
     private BooleanExpression visibleTo(Long userId) {
         if (userId == null) return null; // 비로그인
 
@@ -580,9 +640,7 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
     }
 
     private Expression<Long> authorIdExpr() {
-        return new CaseBuilder()
-                .when(post.anonymous.isTrue()).then(Expressions.nullExpression(Long.class))
-                .otherwise(user.id);
+        return user.id;
     }
 
     private StringExpression getAuthorName() {
@@ -603,35 +661,46 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .otherwise(expr);
     }
 
-    // User 프로필 이미지 URL 서브쿼리 (중복 제거)
     private Expression<String> userImageUrlExpr() {
         QImage u = new QImage("u");
+        QImage uSub = new QImage("uSub");
+
         return JPAExpressions
-                .select(u.url)
+                .select(u.url.min())
                 .from(u)
                 .where(
-                        u.imageType.eq(IMAGE_TYPE_USER)
-                                .and(u.relatedId.eq(user.id))
+                        u.imageType.eq(IMAGE_TYPE_USER),
+                        u.relatedId.eq(user.id),
+                        u.id.eq(
+                                JPAExpressions
+                                        .select(uSub.id.max()) // 가장 최근에 등록된 이미지 ID
+                                        .from(uSub)
+                                        .where(
+                                                uSub.imageType.eq(IMAGE_TYPE_USER),
+                                                uSub.relatedId.eq(user.id)
+                                        )
+                        )
                 );
     }
 
+
     private Expression<String> firstPostImageUrlExpr() {
-        QImage pi1 = new QImage("pi1");
-        QImage pi2 = new QImage("pi2");
+        QImage pi = new QImage("pi");
+        QImage piSub = new QImage("piSub");
 
         return JPAExpressions
-                .select(pi2.url)
-                .from(pi2)
+                .select(pi.url.min()) // 최소 order_index가 중복될 경우를 대비한 안전장치(Scalar 보장)
+                .from(pi)
                 .where(
-                        pi2.imageType.eq(IMAGE_TYPE_POST),
-                        pi2.relatedId.eq(post.id),
-                        pi2.id.eq(
+                        pi.imageType.eq(IMAGE_TYPE_POST),
+                        pi.relatedId.eq(post.id),
+                        pi.orderIndex.eq(
                                 JPAExpressions
-                                        .select(pi1.id.min())
-                                        .from(pi1)
+                                        .select(piSub.orderIndex.min()) // 가장 작은 순서 번호를 찾음
+                                        .from(piSub)
                                         .where(
-                                                pi1.imageType.eq(IMAGE_TYPE_POST),
-                                                pi1.relatedId.eq(post.id)
+                                                piSub.imageType.eq(IMAGE_TYPE_POST),
+                                                piSub.relatedId.eq(post.id)
                                         )
                         )
                 );
@@ -711,5 +780,35 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
             result = (result == null) ? e : result.and(e);
         }
         return result;
+    }
+
+    private Expression<Long> correctOptionIdIfVoted(Long userId) {
+        QPollOption qOption = new QPollOption("correctOpt");
+        Instant now = Instant.now();
+
+        // 1. 해당 투표의 정답 ID를 찾는 서브쿼리
+        Expression<Long> correctAnswerIdSubQuery = JPAExpressions
+                .select(qOption.id)
+                .from(qOption)
+                .where(qOption.poll.id.eq(poll.id)
+                        .and(qOption.isCorrect.isTrue()));
+
+        // 2. 투표가 마감되었는지 확인하는 조건 (closeAt < now)
+        BooleanExpression isClosed = poll.closeAt.before(now);
+
+        // 3. 사용자가 투표를 했는지 확인하는 조건
+        BooleanExpression hasVoted = (userId == null)
+                ? Expressions.FALSE
+                : JPAExpressions.selectOne()
+                .from(voteRecord)
+                .where(voteRecord.user.id.eq(userId)
+                        .and(voteRecord.poll.id.eq(poll.id)))
+                .exists();
+
+        // 4. CaseBuilder: (마감됨 OR 투표함) 이면 정답 ID 반환, 아니면 null
+        return new CaseBuilder()
+                .when(isClosed.or(hasVoted))
+                .then(correctAnswerIdSubQuery)
+                .otherwise(Expressions.nullExpression(Long.class));
     }
 }

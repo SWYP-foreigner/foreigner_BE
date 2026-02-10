@@ -33,6 +33,10 @@ public class Comment {
     @JoinColumn(name = "post_id", nullable = false)
     private Post post;
 
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "main_page_content_id")
+//    private MainContent mainPageContent;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User author;
@@ -100,8 +104,6 @@ public class Comment {
         this.deletedAt = Instant.from(LocalDateTime.now());
         this.deletedBy = deleter;
     }
-
-    public boolean isLeaf() { return children == null || children.isEmpty(); }
 
     public void setParent(Comment parent) {
         this.parent = parent;

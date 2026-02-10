@@ -7,7 +7,7 @@ import java.util.List;
  * (서비스 -> 리스너로 데이터 전달)
  */
 public record MessageSentEvent(
-        ChatMessageResponse messageResponse,    // 전송된 메시지 내용
-        List<Long> recipientIds,                // 수신자 ID 목록
-        ChatRoomSummaryResponse roomSummary     // 갱신될 채팅방 요약 정보
+        ChatMessageResponse messageResponse,
+        List<Long> recipientIds,
+        ChatRoomSummaryResponse roomSummary
 ) {}

@@ -1,7 +1,7 @@
 package core.global.entity.like.repository;
 
-import core.global.enums.common.LikeType;
 import core.global.entity.like.entity.Like;
+import core.global.enums.LikeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -55,4 +55,10 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     void deleteAllByUserId(@Param("userId") Long userId);
 
     void deleteAllByTypeAndRelatedIdIn(LikeType type, List<Long> postIds);
+
+    @Query("SELECT l.relatedId, COUNT(l) FROM Like l WHERE l.relatedId IN :postIds AND l.type = 'POST' GROUP BY l.relatedId")
+    List<Object[]> countByPostIds(@Param("postIds") List<Long> postIds);
+
+    @Query("SELECT l.relatedId FROM Like l WHERE l.user.id = :userId AND l.relatedId IN :postIds AND l.type = 'POST'")
+    List<Long> findLikedPostIdsByUserId(@Param("userId") Long userId, @Param("postIds") List<Long> postIds);
 }

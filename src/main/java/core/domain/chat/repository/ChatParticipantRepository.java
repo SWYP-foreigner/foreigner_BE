@@ -22,8 +22,8 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 
-    Optional<ChatParticipant> findByChatRoomIdAndUserId(Long chatRoomId, Long userId);
-
+    @Query("SELECT cp FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :userId")
+    Optional<ChatParticipant> findByChatRoomIdAndUserId(@Param("roomId") Long roomId, @Param("userId") Long userId);
 
 
 
@@ -44,7 +44,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
                 ")"
     )
     List<ChatRoom> findChatRoomsByUserIdAndRoomName(@Param("userId") Long userId, @Param("keyword") String keyword);
-    List<ChatParticipant> findByChatRoom(ChatRoom chatRoom);
+
     @Modifying
     @Query("DELETE FROM ChatParticipant p WHERE p.user.id = :userId")
     void deleteAllByUserId(@Param("userId") Long userId);
@@ -54,4 +54,26 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
 
     Page<ChatParticipant> findByUserId(Long userId, Pageable pageable);
+
+    @Query("SELECT u.firstName FROM ChatParticipant cp JOIN cp.user u WHERE cp.chatRoom.id = :roomId")
+    List<String> findParticipantNamesByRoomId(@Param("roomId") Long roomId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId")
+    void deleteByChatRoomId(@Param("roomId") Long roomId);
+
+    @Query("SELECT cp FROM ChatParticipant cp " +
+            "JOIN FETCH cp.user u " +
+            "WHERE cp.chatRoom.id = :roomId " +
+            "AND cp.status = 'ACTIVE'")
+    List<ChatParticipant> findActiveParticipants(@Param("roomId") Long roomId);
+
+    @Query("SELECT DISTINCT cp.chatRoom.id " +
+            "FROM ChatParticipant cp " +
+            "WHERE cp.user.userRole = 'AI' " +
+            "AND cp.status = 'ACTIVE'")
+    List<Long> findAllAiParticipatedRoomIds();
+
+    Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
+    List<ChatParticipant> findAllByChatRoomId(Long chatRoomId);
 }

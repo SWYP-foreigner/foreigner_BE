@@ -2,6 +2,7 @@ spring:
   flyway:
     enabled: false
     baseline-on-migrate: true
+    out-of-order: true
   config:
     activate:
       on-profile: local
@@ -50,8 +51,8 @@ spring:
         enabled: false
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: none
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -156,6 +157,9 @@ management:
   metrics:
     tags:
       application: my-service
+  health:
+    mail:
+          enabled: false
 
 app:
   mail:
@@ -185,3 +189,17 @@ iap:
     privateKeyBase64: ${IAP_IOS_P8_B64}
     bundleId: your.ios.bundle
     environment: Production
+
+sightengine:
+  api-user: ${SIGHTENGINE_API_USER}
+  api-secret: ${SIGHTENGINE_API_SECRET}
+
+
+openai:
+  api-key: ${OPEN_AI_KEY}
+
+otp:
+  admin-secret: ${ADMIN_OTP_SECRET}
+
+encryption:
+  secret: ${ENCRYPTION_SECRET}

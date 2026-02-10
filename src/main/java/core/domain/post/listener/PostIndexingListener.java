@@ -2,7 +2,7 @@ package core.domain.post.listener;
 
 import core.domain.post.event.PostCreatedEvent;
 import core.domain.post.event.PostUpdatedEvent;
-import core.domain.post.service.search.SuggestMemoryIndex;
+import core.domain.post.service.search.PostSuggestIndex;
 import core.global.service.SimpleKeywordExtractor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -13,7 +13,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class PostIndexingListener {
 
-    private final SuggestMemoryIndex memoryIndex;
+    private final PostSuggestIndex memoryIndex;
     private final SimpleKeywordExtractor keywordExtractor;
 
 

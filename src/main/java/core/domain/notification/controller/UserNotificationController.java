@@ -7,9 +7,15 @@ import core.domain.usernotificationsetting.dto.NotificationSettingInitRequestDto
 import core.domain.usernotificationsetting.dto.NotificationSettingResponseDto;
 import core.domain.usernotificationsetting.service.UserNotificationSettingService;
 import core.global.config.CustomUserDetails;
+import core.global.docs.annotations.CommonErrorCodeDocs;
+import core.global.docs.annotations.GlobalErrorDocs;
+import core.global.docs.annotations.UserErrorDocs;
 import core.global.dto.ApiResponse;
-import core.global.enums.NotificationType;
 import core.global.entity.image.dto.NotificationSliceResponseDto;
+import core.global.enums.NotificationType;
+import core.global.enums.errorcode.CommonErrorCode;
+import core.global.enums.errorcode.GlobalErrorCode;
+import core.global.enums.errorcode.UserErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -30,14 +36,17 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/user/notification")
 @RequiredArgsConstructor
+@GlobalErrorDocs({GlobalErrorCode.INTERNAL_SERVER_ERROR, GlobalErrorCode.INVALID_INPUT, GlobalErrorCode.INVALID_JSON, GlobalErrorCode.METHOD_NOT_ALLOWED})
 public class UserNotificationController {
 
     private final UserNotificationService userNotificationService;
+    private final UserNotificationSettingService notificationSettingService;
 
     @Operation(summary = "FCM 기기 토큰 등록/갱신", description = "클라이언트의 FCM 기기 토큰을 서버에 등록하거나 최신으로 업데이트합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     })
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     @PostMapping("/device-token")
     public ResponseEntity<ApiResponse<Void>> registerDeviceToken(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -53,6 +62,7 @@ public class UserNotificationController {
                     content = @Content(schema = @Schema(implementation = NotificationSettingStatusResponse.class)))
     })
     @GetMapping("/settings-status")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<NotificationSettingStatusResponse>> getNotificationSettingStatus(
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
@@ -65,6 +75,8 @@ public class UserNotificationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공")
     })
     @PostMapping("/settings")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+
     public ResponseEntity<ApiResponse<Void>> initializeNotificationSettings(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody NotificationSettingInitRequest request
@@ -86,8 +98,6 @@ public class UserNotificationController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    private final UserNotificationSettingService notificationSettingService;
-
     @Operation(
             summary = "사용자 알림 설정 조회",
             description = "현재 로그인한 사용자의 알림 설정 목록을 조회합니다.",
@@ -100,61 +110,29 @@ public class UserNotificationController {
                                     examples = @ExampleObject(
                                             name = "NotificationSettingsExample",
                                             value = """
-                                                    {
-                                                      "message": "success",
-                                                      "data": [
-                                                    { "notificationType": "post", "enabled": true },
-                                                    { "notificationType": "comment", "enabled": true },
-                                                    { "notificationType": "chat", "enabled": false },
-                                                    { "notificationType": "follow", "enabled": true },
-                                                    { "notificationType": "receive", "enabled": false },
-                                                    { "notificationType": "followuserpost", "enabled": true },
-                                                    { "notificationType": "newuser", "enabled": true },
-                                                      ],
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                   \s"""
+                                                     {
+                                                       "message": "success",
+                                                       "data": [
+                                                     { "notificationType": "post", "enabled": true },
+                                                     { "notificationType": "comment", "enabled": true },
+                                                     { "notificationType": "chat", "enabled": false },
+                                                     { "notificationType": "follow", "enabled": true },
+                                                     { "notificationType": "receive", "enabled": false },
+                                                     { "notificationType": "followuserpost", "enabled": true },
+                                                     { "notificationType": "newuser", "enabled": true },
+                                                       ],
+                                                       "timestamp": "2025-10-03T12:00:00"
+                                                     }
+                                                    \s"""
                                     )
                             )
                     ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "401",
-                            description = "인증되지 않은 사용자",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "UnauthorizedExample",
-                                            value = """
-                                                    {
-                                                      "message": "로그인이 필요합니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                    """
-                                    )
-                            )
-                    ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "404",
-                            description = "알림 설정을 찾을 수 없음",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "NotFoundExample",
-                                            value = """
-                                                    {
-                                                      "message": "알림 설정을 찾을 수 없습니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                    """
-                                    )
-                            )
-                    )
             }
     )
     @GetMapping
-    public ResponseEntity<ApiResponse<List<NotificationSettingResponseDto>>> getNotificationSettings( @AuthenticationPrincipal CustomUserDetails userDetails) {
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommonErrorCodeDocs({CommonErrorCode.NOTIFICATION_SETTING_NOT_FOUND})
+    public ResponseEntity<ApiResponse<List<NotificationSettingResponseDto>>> getNotificationSettings(@AuthenticationPrincipal CustomUserDetails userDetails) {
 
         Long userId = userDetails.getUserId();
         System.out.println("getNotificationSettings called! userId=" + userId);
@@ -207,7 +185,7 @@ public class UserNotificationController {
                                                           { "type": "receive", "enabled": false }
                                                           { "notificationType": "followuserpost", "enabled": true },
                                                           { "notificationType": "newuser", "enabled": true }
-                                                 
+                                                    
                                                         ]
                                                       }
                                                       "timestamp": "2025-10-03T12:00:00"
@@ -216,43 +194,11 @@ public class UserNotificationController {
                                     )
                             )
                     ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "401",
-                            description = "인증되지 않은 사용자",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "UnauthorizedExample",
-                                            value = """
-                                                    {
-                                                      "message": "로그인이 필요합니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                    """
-                                    )
-                            )
-                    ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "404",
-                            description = "알림 설정을 찾을 수 없음",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "NotFoundExample",
-                                            value = """
-                                                    {
-                                                      "message": "알림 설정을 찾을 수 없습니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                    """
-                                    )
-                            )
-                    )
             }
     )
     @PutMapping
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @CommonErrorCodeDocs({CommonErrorCode.NOTIFICATION_SETTING_NOT_FOUND})
     public ResponseEntity<ApiResponse<NotificationSettingListResponse>> updateNotificationSetting(
             @RequestBody NotificationSettingBulkUpdateRequestDto request, @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
@@ -303,56 +249,24 @@ public class UserNotificationController {
                                     )
                             )
                     ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "401",
-                            description = "인증되지 않은 사용자",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "UnauthorizedExample",
-                                            value = """
-                                                    {
-                                                      "message": "로그인이 필요합니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"git
-                                                    }
-                                                    """
-                                    )
-                            )
-                    ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "404",
-                            description = "사용자 없음",
-                            content = @Content(
-                                    schema = @Schema(implementation = ApiResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "UserNotFoundExample",
-                                            value = """
-                                                    {
-                                                      "message": "존재하지 않는 유저입니다.",
-                                                      "data": null,
-                                                      "timestamp": "2025-10-03T12:00:00"
-                                                    }
-                                                    """
-                                    )
-                            )
-                    )
             }
     )
     @PostMapping("/init")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<Void>> initializeSettings(
-            @RequestBody NotificationSettingInitRequestDto request,@AuthenticationPrincipal CustomUserDetails userDetails) {
+            @RequestBody NotificationSettingInitRequestDto request, @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
         notificationSettingService.initializeNotificationSettings(userId, request);
 
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
     @Operation(summary = "알림 읽음 처리", description = "특정 알림을 '읽음' 상태로 변경합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "알림을 찾을 수 없거나, 본인의 알림이 아닐 경우")
     })
     @PostMapping("/{notificationId}/read")
+    @CommonErrorCodeDocs({CommonErrorCode.NOTIFICATION_NOT_FOUND, CommonErrorCode.NOTIFICATION_FORBIDDEN})
     public ResponseEntity<ApiResponse<Void>> markNotificationAsRead(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long notificationId
@@ -364,9 +278,9 @@ public class UserNotificationController {
     @Operation(summary = "알림 목록 조회", description = "최근 7일간의 알림 목록을 조회합니다. 타입으로 필터링할 수 있습니다.")
     @GetMapping("/list")
     public ResponseEntity<ApiResponse<NotificationSliceResponseDto>> getNotifications(
-                                                                                       @AuthenticationPrincipal CustomUserDetails userDetails,
-                                                                                       @RequestParam(required = false) NotificationType type,
-                                                                                       @PageableDefault(size = 20) Pageable pageable
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) NotificationType type,
+            @PageableDefault(size = 20) Pageable pageable
     ) {
         NotificationSliceResponseDto response = userNotificationService.getNotifications(
                 userDetails.getUserId(),

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 채팅방 초대</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; color: #333; background-color: #f8f9fa; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 30px; font-size: 1.5rem; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; font-weight: bold; margin-bottom: 10px; font-size: 1rem; }
+
+        .select2-container .select2-selection--single { height: 45px !important; padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { top: 8px !important; }
+
+        .btn-group { margin-top: 40px; text-align: center; }
+        .btn { padding: 12px 30px; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; color: white; transition: background 0.2s; }
+        .btn-primary { background-color: #228be6; } .btn-primary:hover { background-color: #1c7ed6; }
+        .btn-secondary { background-color: #868e96; margin-right: 10px; }
+        .alert { padding: 15px; margin-bottom: 20px; border-radius: 4px; text-align: center; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info-text { font-size: 0.85rem; color: #666; margin-top: 5px; }
+    </style>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            $('#userId').select2({
+                placeholder: "-- AI 유저를 검색하세요 --",
+                allowClear: true,
+                width: '100%'
+            });
+
+            $('#chatRoomId').select2({
+                placeholder: "-- 채팅방을 검색하세요 --",
+                allowClear: true,
+                width: '100%'
+            });
+        });
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <h1>🤖 AI 채팅방 초대</h1>
+
+    <div th:if="${message}" class="alert alert-success" th:text="${message}"></div>
+    <div th:if="${errorMessage}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+    <form th:action="@{/admin/users/ai/invite}" method="post">
+
+        <div class="form-group">
+            <label for="userId">1. 초대할 AI 유저 선택</label>
+            <select id="userId" name="userId" required>
+                <option value=""></option>
+                <option th:each="user : ${aiUsers}"
+                        th:value="${user.id}"
+                        th:text="${'[' + user.aiType + '] ' + user.name}">
+                </option>
+            </select>
+            <p class="info-text" th:if="${aiUsers.isEmpty()}">⚠️ 생성된 AI 유저가 없습니다.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="chatRoomId">2. 참여시킬 그룹 채팅방 선택</label>
+            <select id="chatRoomId" name="chatRoomId" required>
+                <option value=""></option>
+                <option th:each="room : ${chatRooms}"
+                        th:value="${room.id}"
+                        th:text="${room.roomName} + ' (현재 ' + ${room.participants.size()} + '명)'">
+                </option>
+            </select>
+            <p class="info-text" th:if="${chatRooms.isEmpty()}">⚠️ 활성화된 그룹 채팅방이 없습니다.</p>
+        </div>
+
+        <div class="btn-group">
+            <a th:href="@{/admin/users}" class="btn btn-secondary">돌아가기</a>
+            <button type="submit" class="btn btn-primary" th:disabled="${aiUsers.isEmpty() || chatRooms.isEmpty()}">
+                채팅방 참여시키기
+            </button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

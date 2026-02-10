@@ -9,76 +9,51 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
         th { background-color: #f2f2f2; }
         th a { text-decoration: none; color: black; display: block; width: 100%; }
-        th a.sorted { font-weight: bold; color: #007bff; }
 
-        .pagination { margin-top: 20px; text-align: center; }
-        .pagination a, .pagination span { margin: 0 5px; text-decoration: none; }
-        .pagination .active { font-weight: bold; color: black; }
+        .pagination { display: flex; justify-content: center; align-items: center; margin-top: 20px; gap: 5px; }
+        .pagination a { text-decoration: none; padding: 8px 12px; border: 1px solid #ddd; color: #007bff; border-radius: 4px; transition: background-color 0.2s; }
+        .pagination a:hover { background-color: #f2f2f2; }
+        .pagination .active { background-color: #007bff; color: white; font-weight: bold; border-color: #007bff; }
+        .pagination .disabled { color: #ccc; pointer-events: none; border-color: #eee; }
 
-        .search-form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
-        .search-form input, .search-form label { padding: 5px; margin-right: 10px; }
-        .search-form button { padding: 5px 10px; }
-        td small { color: #777; }
-
-        .btn-home {
-            display: inline-block;
-            margin-bottom: 15px;
-            padding: 8px 12px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-
+        .btn-home { display: inline-block; margin-bottom: 15px; padding: 8px 12px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; }
         .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
         .crawl-controls {
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
+            margin-bottom: 20px; padding: 15px; background-color: #f8f9fa;
+            border: 1px solid #ddd; border-radius: 5px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
         }
         .crawl-controls span { font-weight: bold; margin-right: 10px; }
         .btn-crawl {
-            padding: 8px 12px;
-            background-color: #28a745; /* 초록색 */
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
+            padding: 8px 12px; background-color: #28a745; color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px; transition: background-color 0.2s;
         }
         .btn-crawl:hover { background-color: #218838; }
         .btn-crawl:disabled { background-color: #94d3a2; cursor: not-allowed; }
 
-        .admin-actions {
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            display: flex;
-            gap: 10px;
-        }
-        .btn-create {
-            padding: 8px 12px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
-        }
+        .admin-actions { margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; display: flex; gap: 10px; }
+        .btn-create { padding: 8px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; text-decoration: none; }
         .btn-create:hover { background-color: #0056b3; }
+
+        .btn-delete-all { padding: 8px 12px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn-delete-all:hover { background-color: #c82333; }
+
+        .btn-merge {
+            padding: 8px 12px; background-color: #6f42c1; color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;
+        }
+        .btn-merge:hover { background-color: #59359a; }
+
+        .btn-reset-select {
+            padding: 8px 12px; background-color: #6c757d; color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px;
+        }
+        .btn-reset-select:hover { background-color: #545b62; }
+
+        .check-col { width: 40px; text-align: center; }
+        #selectionInfo { margin-left: 10px; font-weight: bold; color: #666; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -122,52 +97,181 @@
         📝 자체 포스트 등록하기
     </a>
 </div>
+
+<div class="admin-actions" style="background-color: #fff3cd; border: 1px solid #ffeeba;">
+    <form th:action="@{/admin/crawled-data/delete-old}" method="post"
+          onsubmit="return confirm('⚠️ 주의!\n선택한 날짜 이전의 모든 데이터가 영구 삭제됩니다.\n정말 진행하시겠습니까?');"
+          style="display: flex; align-items: center; gap: 10px;">
+
+        <span style="font-weight: bold; color: #856404;">🗑️ 데이터 일괄 정리: </span>
+        <label for="targetDate">기준 날짜:</label>
+        <input type="date" id="targetDate" name="targetDate" required style="padding: 5px;">
+        <span>(00시 00분) 이전의 데이터 삭제</span>
+        <button type="submit" class="btn-delete-all">일괄 삭제</button>
+    </form>
+</div>
+
 <h2>승인 대기 목록</h2>
 
-<table>
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>제목 (원본 링크)</th>
-        <th>출처</th>
-        <th>수집일</th>
-        <th>관리</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr th:each="data : ${crawledDataPage.content}">
-        <td>
-            <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}" th:text="${data.id}"></a>
-        </td>
-        <td>
-            <span th:text="${data.title}"></span>
-            <a th:href="${data.originalUrl}" target="_blank" style="font-size: 0.8em; margin-left: 5px;">[원본]</a>
-        </td>
-        <td th:text="${data.sourceSite}"></td>
-        <td th:text="${#temporals.format(data.crawledAt, 'yyyy-MM-dd HH:mm')}"></td>
-        <td>
-            <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}">상세보기 및 처리</a>
-        </td>
-    </tr>
-    </tbody>
-</table>
+<form th:action="@{/admin/crawled-data/merge}" method="get" id="mergeForm">
+    <div style="margin-bottom: 10px; display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
+        <span id="selectionInfo">선택된 항목: 0개</span>
+        <button type="button" class="btn-reset-select" onclick="clearSelections()">🔄 선택 초기화</button>
+        <button type="button" class="btn-merge" onclick="submitMergeForm()">
+            🧩 선택 항목 합쳐서 글쓰기
+        </button>
+    </div>
 
-<div class="pagination" th:if="${crawledDataPage.totalPages > 1}">
+    <table>
+        <thead>
+        <tr>
+            <th class="check-col"><input type="checkbox" id="checkAll"></th>
+            <th>ID</th>
+            <th>제목 (원본 링크)</th>
+            <th>출처</th>
+            <th>수집일</th>
+            <th>관리</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="data : ${crawledDataPage.content}">
+            <td class="check-col">
+                <input type="checkbox" th:value="${data.id}" class="row-check">
+            </td>
+            <td>
+                <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}" th:text="${data.id}"></a>
+            </td>
+            <td>
+                <span th:text="${data.title}"></span>
+                <a th:href="${data.originalUrl}" target="_blank" style="font-size: 0.8em; margin-left: 5px;">[원본]</a>
+            </td>
+            <td th:text="${data.sourceSite}"></td>
+            <td th:text="${#temporals.format(data.crawledAt, 'yyyy-MM-dd HH:mm')}"></td>
+            <td>
+                <a th:href="@{/admin/crawled-data/{id}(id=${data.id})}">상세보기 및 처리</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</form>
 
-    <a th:if="${crawledDataPage.hasPrevious()}"
-       th:href="@{/admin/crawled-data(page=${crawledDataPage.number - 1})}">이전</a>
+<div class="pagination" th:if="${crawledDataPage.totalPages > 0}"
+     th:with="start=${T(java.lang.Math).max(0, crawledDataPage.number - 10)},
+              end=${T(java.lang.Math).min(crawledDataPage.totalPages - 1, crawledDataPage.number + 10)}">
 
-    <span th:each="pageNumber : ${#numbers.sequence(0, crawledDataPage.totalPages - 1)}">
+    <a th:href="@{/admin/crawled-data(page=0)}"
+       th:classappend="${crawledDataPage.first} ? 'disabled'">&lt;&lt;</a>
+
+    <a th:href="@{/admin/crawled-data(page=${crawledDataPage.number - 1})}"
+       th:classappend="${crawledDataPage.first} ? 'disabled'">&lt;</a>
+
+    <th:block th:each="pageNumber : ${#numbers.sequence(start, end)}">
         <a th:href="@{/admin/crawled-data(page=${pageNumber})}"
            th:text="${pageNumber + 1}"
            th:classappend="${pageNumber == crawledDataPage.number} ? 'active'"></a>
-    </span>
+    </th:block>
 
-    <a th:if="${crawledDataPage.hasNext()}"
-       th:href="@{/admin/crawled-data(page=${crawledDataPage.number + 1})}">다음</a>
+    <a th:href="@{/admin/crawled-data(page=${crawledDataPage.number + 1})}"
+       th:classappend="${crawledDataPage.last} ? 'disabled'">&gt;</a>
+
+    <a th:href="@{/admin/crawled-data(page=${crawledDataPage.totalPages - 1})}"
+       th:classappend="${crawledDataPage.last} ? 'disabled'">&gt;&gt;</a>
 </div>
 
 <script>
+    const STORAGE_KEY = 'crawled_merge_selected_ids';
+
+    function getSelectedIds() {
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    }
+
+    function saveSelectedIds(idsSet) {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(idsSet)));
+        updateSelectionInfo(idsSet.size);
+    }
+
+    function updateSelectionInfo(count) {
+        document.getElementById('selectionInfo').innerText = `선택된 항목: ${count}개`;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.querySelector('.message.success')) {
+            sessionStorage.removeItem(STORAGE_KEY);
+        }
+
+        const selectedIds = getSelectedIds();
+        updateSelectionInfo(selectedIds.size);
+
+        const checkboxes = document.querySelectorAll('.row-check');
+        const checkAll = document.getElementById('checkAll');
+        let allChecked = true;
+
+        checkboxes.forEach(cb => {
+            if (selectedIds.has(cb.value)) {
+                cb.checked = true;
+            } else {
+                allChecked = false;
+            }
+
+            cb.addEventListener('change', function() {
+                const currentIds = getSelectedIds();
+                if (this.checked) {
+                    currentIds.add(this.value);
+                } else {
+                    currentIds.delete(this.value);
+                }
+                saveSelectedIds(currentIds);
+            });
+        });
+
+        if (checkboxes.length > 0 && allChecked) {
+            checkAll.checked = true;
+        }
+
+        checkAll.addEventListener('change', function() {
+            const currentIds = getSelectedIds();
+            checkboxes.forEach(cb => {
+                cb.checked = this.checked;
+                if (this.checked) {
+                    currentIds.add(cb.value);
+                } else {
+                    currentIds.delete(cb.value);
+                }
+            });
+            saveSelectedIds(currentIds);
+        });
+    });
+
+    function submitMergeForm() {
+        const selectedIds = getSelectedIds();
+
+        if (selectedIds.size < 2) {
+            alert("병합하려면 최소 2개 이상의 항목을 선택해야 합니다.\n(현재 선택된 항목: " + selectedIds.size + "개)");
+            return;
+        }
+
+        const form = document.getElementById('mergeForm');
+
+        form.querySelectorAll('input[name="ids"]').forEach(el => el.remove());
+
+        selectedIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids';
+            input.value = id;
+            form.appendChild(input);
+        });
+
+        form.submit();
+    }
+
+    function clearSelections() {
+        if(!confirm('모든 페이지의 선택 내역을 초기화하시겠습니까?')) return;
+        sessionStorage.removeItem(STORAGE_KEY);
+        location.reload();
+    }
+
     async function triggerCrawl(url, siteName) {
         if (!confirm(`[${siteName}] 크롤링을 시작하시겠습니까?\n(작업 완료까지 시간이 소요될 수 있습니다.)`)) {
             return;
@@ -177,7 +281,7 @@
         buttons.forEach(btn => btn.disabled = true);
 
         try {
-            const response = await fetch(url); // GET 요청
+            const response = await fetch(url);
 
             if (response.ok) {
                 const message = await response.text();

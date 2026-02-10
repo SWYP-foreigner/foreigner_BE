@@ -1,13 +1,16 @@
 package core.domain.chat.repository;
 
 import core.domain.chat.entity.ChatRoom;
-import core.global.enums.chat.ChatParticipantStatus;
+import core.domain.user.entity.User;
+import core.global.enums.ChatParticipantStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,6 +75,11 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 
 
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "JOIN FETCH cr.participants p " +
+            "JOIN FETCH p.user u " + // User 엔티티까지 미리 로딩
+            "WHERE cr.id = :roomId")
+    Optional<ChatRoom> findChatRoomWithParticipantsAndUsers(@Param("roomId") Long roomId);
 
 
     /**
@@ -91,4 +99,68 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             ")")
     List<Long> findRecommendableGroupChatRoomIdsNotJoinedByUserId(@Param("userId") Long userId);
 
+    /**
+     * [스케줄러용] 특정 유저(userId)와 대화한 적 있는 '상대방 유저 ID' 목록 조회
+     * 동작 원리:
+     * 1. ChatRoom(c)을 기준으로
+     * 2. p1(나)이 참여해 있고
+     * 3. p2(상대방)도 참여해 있는 방을 찾아서
+     * 4. p2의 ID만 싹 긁어옴 (DISTINCT로 중복 제거)
+     */
+    @Query("SELECT DISTINCT p2.user.id FROM ChatRoom c " +
+            "JOIN c.participants p1 " +
+            "JOIN c.participants p2 " +
+            "WHERE p1.user.id = :userId " +
+            "AND p2.user.id != :userId")
+    List<Long> findPartnerIdsByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT COUNT(DISTINCT c) FROM ChatRoom c " +
+            "JOIN c.participants p1 " +
+            "JOIN c.participants p2 " +
+            "WHERE p1.user.id = :userId " +
+            "AND p2.user.userRole = 'AI' " +
+            "AND c.isGroup = false")
+    long countAiChatRoomsByUser(@Param("userId") Long userId);
+
+    List<ChatRoom> findByIsGroupTrue();
+    @Query("SELECT c.isGroup FROM ChatRoom c WHERE c.id = :roomId")
+    boolean isGroupChat(@Param("roomId") Long roomId);
+
+    @Query("SELECT COUNT(c) FROM ChatRoom c " +
+            "JOIN c.participants p " +
+            "WHERE p.user.id = :userId " +
+            "AND c.isGroup = false " +
+            "AND (SELECT COUNT(m) FROM ChatMessage m WHERE m.chatRoom = c AND m.sender.id = :userId) = 0")
+    long countUnrepliedAiRooms(@Param("userId") Long userId);
+
+    @Query("SELECT COUNT(r) FROM ChatRoom r " +
+            "WHERE r.isGroup = false AND r.createdAt BETWEEN :start AND :end")
+    long countPrivateRoomsBetween(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT COUNT(r) FROM ChatRoom r " +
+            "WHERE r.isGroup = false AND r.createdAt BETWEEN :start AND :end " +
+            "AND NOT EXISTS (SELECT m FROM ChatMessage m WHERE m.chatRoom = r)")
+    long countEmptyPrivateRooms(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT m.chatRoom.id FROM ChatMessage m " +
+            "WHERE m.chatRoom.isGroup = false AND m.chatRoom.createdAt BETWEEN :start AND :end " +
+            "GROUP BY m.chatRoom.id " +
+            "HAVING COUNT(DISTINCT m.sender.id) = 1")
+    List<Long> findOneWayRoomIds(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "WHERE cr.id IN :roomIds " +
+            "AND cr.isGroup = true " +
+            "AND cr.lastMessageSentAt < :threshold " +
+            "ORDER BY cr.lastMessageSentAt ASC")
+    List<ChatRoom> findSilentRoomsByRoomIds(@Param("roomIds") List<Long> roomIds,
+                                            @Param("threshold") Instant threshold,
+                                            Pageable pageable);
+
+    @Query("SELECT u FROM User u " +
+            "JOIN ChatParticipant cp ON u.id = cp.user.id " +
+            "WHERE cp.chatRoom.id = :roomId " +
+            "AND u.userRole = 'AI' " +
+            "AND cp.status = 'ACTIVE'")
+    List<User> findAiParticipantsByRoomId(@Param("roomId") Long roomId);
 }
