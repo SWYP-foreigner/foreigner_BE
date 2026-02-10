@@ -389,7 +389,7 @@ encryption:
 
 iap:
   android:
-    packageName: your.play.package
+    packageName: ${APP_PACKAGE_NAME}
     serviceAccountJsonBase64: ${IAP_ANDROID_SA_B64}
   ios:
     issuerId: ${IAP_IOS_ISSUER_ID}
