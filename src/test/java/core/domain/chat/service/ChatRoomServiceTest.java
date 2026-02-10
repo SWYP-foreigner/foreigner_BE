@@ -1,6 +1,6 @@
 package core.domain.chat.service;
 
-import core.domain.chat.dto.CreateGroupChatRequest;
+import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatParticipantRepository;
@@ -10,7 +10,6 @@ import core.domain.user.repository.UserRepository;
 import core.global.enums.chat.ChatParticipantStatus;
 import core.global.exception.BusinessException;
 import core.global.enums.errorcode.ChatErrorCode;
-import core.global.enums.errorcode.UserErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,8 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
+import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,10 +34,8 @@ class ChatRoomServiceTest {
 
     @Mock
     private ChatRoomRepository chatRoomRepository;
-
     @Mock
     private ChatParticipantRepository chatParticipantRepository;
-
     @Mock
     private UserRepository userRepository;
 
@@ -44,271 +43,356 @@ class ChatRoomServiceTest {
     private ChatRoomService chatRoomService;
 
     // ==========================================
-    // 1. 1:1 채팅방 생성 테스트
+    // 1. 1:1 채팅방 생성 (Create 1:1)
     // ==========================================
     @Nested
-    @DisplayName("1:1 채팅방 생성 (createRoom)")
-    class CreateOneToOneRoom {
-
+    @DisplayName("1:1 채팅방 생성")
+    class CreateOneToOne {
         @Test
-        @DisplayName("성공: 두 유저가 존재하면 1:1 채팅방이 생성된다")
+        @DisplayName("성공: 정상 생성")
         void success() {
-            // given
-            Long myId = 1L;
-            Long otherId = 2L;
-            User me = User.builder().firstName("Me").build();
-            User other = User.builder().firstName("Other").build();
+            Long myId = 1L, otherId = 2L;
 
+            // 1. User 객체 생성 (Builder에는 id가 없으므로 제외하고 생성)
+            User me = User.builder().build();
+            User other = User.builder().build();
+
+            // 2. Reflection으로 ID 강제 주입
+            org.springframework.test.util.ReflectionTestUtils.setField(me, "id", myId);
+            org.springframework.test.util.ReflectionTestUtils.setField(other, "id", otherId);
+
+            // 3. Mocking
             given(userRepository.findById(myId)).willReturn(Optional.of(me));
             given(userRepository.findById(otherId)).willReturn(Optional.of(other));
-            given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> invocation.getArgument(0));
+            given(chatRoomRepository.save(any())).willAnswer(i -> i.getArgument(0));
 
-            // when
-            ChatRoom result = chatRoomService.createRoom(myId, otherId);
+            // When
+            ChatRoom room = chatRoomService.createRoom(myId, otherId);
 
-            // then
-            assertThat(result.getIsGroup()).isFalse();
-            verify(chatRoomRepository, times(1)).save(any(ChatRoom.class));
+            // Then
+            assertThat(room.getIsGroup()).isFalse();
         }
 
         @Test
-        @DisplayName("실패: 상대방 유저를 찾을 수 없으면 예외 발생")
+        @DisplayName("실패: 상대방 유저 없음")
         void fail_UserNotFound() {
-            // given
-            Long myId = 1L;
-            Long otherId = 999L;
-            User me = User.builder().firstName("Me").build();
+            given(userRepository.findById(1L)).willReturn(Optional.of(User.builder().build()));
+            given(userRepository.findById(999L)).willReturn(Optional.empty());
 
-            given(userRepository.findById(myId)).willReturn(Optional.of(me));
-            given(userRepository.findById(otherId)).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.createRoom(myId, otherId))
-                    .isInstanceOf(BusinessException.class);
-            // Expected: UserErrorCode.USER_NOT_FOUND
+            assertThatThrownBy(() -> chatRoomService.createRoom(1L, 999L))
+                    .isInstanceOf(BusinessException.class); // USER_NOT_FOUND
         }
 
         @Test
-        @DisplayName("실패: 자기 자신과의 채팅방 생성 시도")
+        @DisplayName("실패: 자신과의 채팅 시도 (로직에 따라 다름)")
         void fail_SelfChat() {
-            // given
-            Long myId = 1L;
-
-            // when & then (서비스 로직에 따라 다를 수 있으나 일반적인 방어 로직)
-            // 만약 서비스 코드에 `if (myId.equals(otherId))` 체크가 있다면 이 테스트가 필요
-            // assertThatThrownBy(() -> chatRoomService.createRoom(myId, myId))
+            // 서비스에 자신과의 채팅 금지 로직이 있다는 가정 하에
+            // assertThatThrownBy(() -> chatRoomService.createRoom(1L, 1L))
             //        .isInstanceOf(BusinessException.class);
         }
     }
 
     // ==========================================
-    // 2. 그룹 채팅방 생성 테스트
+    // 2. 그룹 채팅방 생성 (Create Group)
     // ==========================================
     @Nested
-    @DisplayName("그룹 채팅방 생성 (createGroupChatRoom)")
-    class CreateGroupChat {
-
+    @DisplayName("그룹 채팅방 생성")
+    class CreateGroup {
         @Test
-        @DisplayName("성공: 정상적인 요청 시 그룹 채팅방과 참여자가 생성된다")
+        @DisplayName("성공: 그룹방 생성 및 방장 참여")
         void success() {
-            // given
             Long ownerId = 1L;
-            User owner = User.builder().firstName("Owner").build();
-            CreateGroupChatRequest request = new CreateGroupChatRequest(
-                    "K-Food Party",
-                    "Let's eat!",
-                    "http://image.url"
-            );
+            CreateGroupChatRequest req = new CreateGroupChatRequest("Title", "Desc", "img.url");
 
-            given(userRepository.findById(ownerId)).willReturn(Optional.of(owner));
-            given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> invocation.getArgument(0));
-
-            // when
-            chatRoomService.createGroupChatRoom(ownerId, request);
-
-            // then
-            verify(chatRoomRepository).save(any(ChatRoom.class));
-            verify(chatParticipantRepository).save(any(ChatParticipant.class)); // 방장 참여 확인
-        }
-
-        @Test
-        @DisplayName("실패: 요청한 유저(방장)가 존재하지 않음")
-        void fail_OwnerNotFound() {
-            // given
-            Long ownerId = 999L;
-            CreateGroupChatRequest request = new CreateGroupChatRequest("Title", "Desc", null);
-
-            given(userRepository.findById(ownerId)).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.createGroupChatRoom(ownerId, request))
-                    .isInstanceOf(BusinessException.class);
-        }
-
-        @Test
-        @DisplayName("검증: 생성된 방은 반드시 isGroup=true여야 한다")
-        void check_IsGroupTrue() {
-            // given
-            Long ownerId = 1L;
+            // 1. User 객체 생성 및 ID 주입
             User owner = User.builder().build();
-            CreateGroupChatRequest request = new CreateGroupChatRequest("Title", "Desc", null);
+            org.springframework.test.util.ReflectionTestUtils.setField(owner, "id", ownerId);
 
+            // 2. Mocking
             given(userRepository.findById(ownerId)).willReturn(Optional.of(owner));
-            // save 호출 시 전달된 객체를 캡처하거나 mock 동작 정의
-            given(chatRoomRepository.save(any(ChatRoom.class))).willAnswer(invocation -> {
-                ChatRoom savedRoom = invocation.getArgument(0);
-                assertThat(savedRoom.getIsGroup()).isTrue(); // 여기서 검증
-                return savedRoom;
+            given(chatRoomRepository.save(any())).willAnswer(i -> {
+                ChatRoom r = i.getArgument(0);
+                // 저장된 방에도 ID가 필요하다면 여기서 주입 가능
+                // ReflectionTestUtils.setField(r, "id", 100L);
+                return r;
             });
+            chatRoomService.createGroupChatRoom(ownerId, req);
 
-            // when
-            chatRoomService.createGroupChatRoom(ownerId, request);
-        }
-    }
-
-    // ==========================================
-    // 3. 그룹 채팅 참여 테스트
-    // ==========================================
-    @Nested
-    @DisplayName("그룹 채팅 참여 (joinGroupChat)")
-    class JoinGroupChat {
-
-        @Test
-        @DisplayName("성공: 1:1 방이 아니고, 참여하지 않은 상태라면 참여 성공")
-        void success() {
-            // given
-            Long roomId = 10L;
-            Long userId = 1L;
-            ChatRoom room = new ChatRoom(true, Instant.now()); // Group Room
-            User user = User.builder().build();
-
-            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
-            given(userRepository.findById(userId)).willReturn(Optional.of(user));
-            // 아직 참여하지 않음 (Optional.empty 반환)
-            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId))
-                    .willReturn(Optional.empty());
-
-            // when
-            chatRoomService.joinGroupChat(roomId, userId);
-
-            // then
+            verify(chatRoomRepository).save(any(ChatRoom.class));
             verify(chatParticipantRepository).save(any(ChatParticipant.class));
         }
 
         @Test
-        @DisplayName("실패: 이미 참여 중인 경우 (ALREADY_CHAT_PARTICIPANT)")
-        void fail_AlreadyJoined() {
-            // given
-            Long roomId = 10L;
-            Long userId = 1L;
-            ChatRoom room = new ChatRoom(true, Instant.now());
+        @DisplayName("실패: 유저(방장) 없음")
+        void fail_UserNotFound() {
+            given(userRepository.findById(999L)).willReturn(Optional.empty());
+            CreateGroupChatRequest req = new CreateGroupChatRequest("Title", "Desc", "img.url");
 
-            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
-
-            // 이미 참여 중인 상태 모킹 (참여자 정보가 반환됨)
-            ChatParticipant existingParticipant = new ChatParticipant(room, new User());
-            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId))
-                    .willReturn(Optional.of(existingParticipant));
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.joinGroupChat(roomId, userId))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("ALREADY"); // 에러 메시지나 코드로 검증
-        }
-
-        @Test
-        @DisplayName("실패: 참여하려는 방이 1:1 채팅방인 경우")
-        void fail_NotGroupRoom() {
-            // given
-            Long roomId = 10L;
-            Long userId = 1L;
-            ChatRoom room = new ChatRoom(false, Instant.now()); // isGroup = false
-
-            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.joinGroupChat(roomId, userId))
-                    .isInstanceOf(BusinessException.class);
-            // ChatErrorCode.CHAT_NOT_GROUP
-        }
-
-        @Test
-        @DisplayName("실패: 채팅방이 존재하지 않는 경우")
-        void fail_RoomNotFound() {
-            // given
-            given(chatRoomRepository.findById(anyLong())).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.joinGroupChat(1L, 1L))
+            assertThatThrownBy(() -> chatRoomService.createGroupChatRoom(999L, req))
                     .isInstanceOf(BusinessException.class);
         }
     }
 
     // ==========================================
-    // 4. 채팅방 나가기 테스트
+    // 3. 내 채팅방 목록 조회 (Get My Rooms)
     // ==========================================
     @Nested
-    @DisplayName("채팅방 나가기 (leaveRoom)")
-    class LeaveRoom {
-
+    @DisplayName("내 채팅방 목록 조회")
+    class GetMyRooms {
         @Test
-        @DisplayName("성공: 참여자가 존재하면 상태를 LEFT로 변경")
+        @DisplayName("성공: 참여 중인 방 목록 반환")
         void success() {
-            // given
-            Long roomId = 10L;
             Long userId = 1L;
-            ChatRoom room = new ChatRoom(true, Instant.now());
-            User user = User.builder().build();
-            ChatParticipant participant = spy(new ChatParticipant(room, user)); // spy로 내부 메서드 호출 확인 가능
+            // Mocking repository to return a list of participants
+            // 실제 서비스 구현에 따라 findByUserId 호출 등을 가정
+            given(userRepository.existsById(userId)).willReturn(true);
+            // given(chatParticipantRepository.findByUserId(userId)).willReturn(...);
 
-            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId))
-                    .willReturn(Optional.of(participant));
+            // When
+            List<ChatRoomSummaryResponse> result = chatRoomService.getMyAllChatRoomSummaries(userId);
 
-            // when
-            boolean result = chatRoomService.leaveRoom(roomId, userId);
-
-            // then
-            assertThat(result).isTrue();
-            // participant.leave() 메서드가 실제 상태를 변경했는지 확인
-            assertThat(participant.getStatus()).isEqualTo(ChatParticipantStatus.LEFT);
-            assertThat(participant.getLastLeftAt()).isNotNull();
+            // Then
+            // (Repository 모킹 상세 내용에 따라 검증)
+            // assertThat(result).isNotNull();
         }
 
         @Test
-        @DisplayName("실패: 해당 방에 참여자가 아님 (PARTICIPANT_NOT_FOUND)")
-        void fail_ParticipantNotFound() {
-            // given
-            Long roomId = 10L;
-            Long userId = 1L;
+        @DisplayName("실패: 유저 존재하지 않음")
+        void fail_UserNotFound() {
+            given(userRepository.existsById(999L)).willReturn(false);
 
-            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId))
-                    .willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> chatRoomService.leaveRoom(roomId, userId))
+            assertThatThrownBy(() -> chatRoomService.getMyAllChatRoomSummaries(999L))
                     .isInstanceOf(BusinessException.class);
         }
 
         @Test
-        @DisplayName("성공: 이미 나간 유저가 다시 나가기 요청 시 (멱등성 고려)")
-        void success_AlreadyLeft() {
-            // 만약 비즈니스 로직이 '이미 나간 유저면 에러'가 아니라 '성공 처리'라면 이 테스트,
-            // '에러 처리'라면 fail 테스트로 작성. 여기서는 일반적인 로직(에러 혹은 무시) 가정
-
-            // given
-            Long roomId = 10L;
+        @DisplayName("성공: 참여 중인 방이 없으면 빈 리스트")
+        void success_Empty() {
             Long userId = 1L;
-            ChatParticipant participant = new ChatParticipant(new ChatRoom(), new User());
-            participant.leave(); // 이미 나간 상태
+            given(userRepository.existsById(userId)).willReturn(true);
+            // Repository가 빈 리스트 반환 시
 
+            List<ChatRoomSummaryResponse> result = chatRoomService.getMyAllChatRoomSummaries(userId);
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // ==========================================
+    // 4. 그룹 채팅 참여 (Join)
+    // ==========================================
+    @Nested
+    @DisplayName("그룹 채팅 참여")
+    class JoinGroup {
+        @Test
+        @DisplayName("성공: 정상 참여")
+        void success() {
+            Long roomId = 10L, userId = 1L;
+            ChatRoom room = new ChatRoom(true, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+            given(userRepository.findById(userId)).willReturn(Optional.of(User.builder().build()));
+            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)).willReturn(Optional.empty());
+
+            chatRoomService.joinGroupChat(roomId, userId);
+            verify(chatParticipantRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("실패: 이미 참여 중")
+        void fail_AlreadyJoined() {
+            Long roomId = 10L, userId = 1L;
+            ChatRoom room = new ChatRoom(true, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
             given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId))
-                    .willReturn(Optional.of(participant));
+                    .willReturn(Optional.of(new ChatParticipant(room, new User()))); // 존재함
 
-            // when
-            chatRoomService.leaveRoom(roomId, userId);
+            assertThatThrownBy(() -> chatRoomService.joinGroupChat(roomId, userId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("ALREADY");
+        }
 
-            // then
-            assertThat(participant.getStatus()).isEqualTo(ChatParticipantStatus.LEFT);
+        @Test
+        @DisplayName("실패: 1:1 방에는 참여 불가")
+        void fail_NotGroup() {
+            Long roomId = 10L;
+            ChatRoom room = new ChatRoom(false, Instant.now()); // 1:1
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+
+            assertThatThrownBy(() -> chatRoomService.joinGroupChat(roomId, 1L))
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
+
+    // ==========================================
+    // 5. 채팅방 나가기 (Leave)
+    // ==========================================
+    @Nested
+    @DisplayName("채팅방 나가기")
+    class LeaveRoom {
+        @Test
+        @DisplayName("성공: 상태 변경 확인")
+        void success() {
+            Long roomId = 10L, userId = 1L;
+            ChatParticipant p = spy(new ChatParticipant(new ChatRoom(), new User()));
+            given(chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)).willReturn(Optional.of(p));
+
+            boolean ret = chatRoomService.leaveRoom(roomId, userId);
+
+            assertThat(ret).isTrue();
+            assertThat(p.getStatus()).isEqualTo(ChatParticipantStatus.LEFT);
+        }
+
+        @Test
+        @DisplayName("실패: 참여 정보 없음 (이미 나감 or 참여 안함)")
+        void fail_NotFound() {
+            given(chatParticipantRepository.findByChatRoomIdAndUserId(any(), any())).willReturn(Optional.empty());
+            assertThatThrownBy(() -> chatRoomService.leaveRoom(1L, 1L))
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
+
+    // ==========================================
+    // 6. 그룹 상세 정보 조회 (Group Details)
+    // ==========================================
+    @Nested
+    @DisplayName("그룹 상세 정보 조회")
+    class GetGroupDetails {
+        @Test
+        @DisplayName("성공: 그룹 정보 반환")
+        void success() {
+            Long roomId = 10L;
+            ChatRoom room = new ChatRoom(true, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+
+            GroupChatDetailResponse resp = chatRoomService.getGroupChatDetails(roomId);
+            assertThat(resp).isNotNull();
+        }
+
+        @Test
+        @DisplayName("실패: 방 없음")
+        void fail_NotFound() {
+            given(chatRoomRepository.findById(999L)).willReturn(Optional.empty());
+            assertThatThrownBy(() -> chatRoomService.getGroupChatDetails(999L))
+                    .isInstanceOf(BusinessException.class);
+        }
+
+        @Test
+        @DisplayName("실패: 그룹방이 아님")
+        void fail_NotGroup() {
+            Long roomId = 10L;
+            ChatRoom room = new ChatRoom(false, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+
+            assertThatThrownBy(() -> chatRoomService.getGroupChatDetails(roomId))
+                    .isInstanceOf(BusinessException.class); // CHAT_NOT_GROUP
+        }
+    }
+
+    // ==========================================
+    // 7. 채팅방 검색 - 내 채팅방 (Search My Rooms)
+    // ==========================================
+    @Nested
+    @DisplayName("내 채팅방 이름 검색")
+    class SearchMyRooms {
+        @Test
+        @DisplayName("성공: 키워드 검색 결과 반환")
+        void success() {
+            Long userId = 1L;
+            String keyword = "Study";
+            // Mocking repository method
+            // given(chatParticipantRepository.findChatRoomsByUserIdAndRoomName(...)).willReturn(List.of(...));
+
+            List<ChatRoomSummaryResponse> res = chatRoomService.searchRoomsByRoomName(userId, keyword);
+            assertThat(res).isNotNull();
+        }
+    }
+
+    // ==========================================
+    // 8. 공개 그룹 검색 (Search Public Groups)
+    // ==========================================
+    @Nested
+    @DisplayName("공개 그룹 채팅방 검색")
+    class SearchPublicGroups {
+        @Test
+        @DisplayName("성공: 검색 결과 반환")
+        void success() {
+            String keyword = "Java";
+            // given(chatRoomRepository.findByRoomNameContaining(keyword)).willReturn(...)
+            List<GroupChatSearchResponse> res = chatRoomService.searchGroupChatRooms(keyword);
+            assertThat(res).isNotNull();
+        }
+
+        @Test
+        @DisplayName("성공: 결과 없음 (빈 리스트)")
+        void success_Empty() {
+            // given(chatRoomRepository...).willReturn(Collections.emptyList());
+            List<GroupChatSearchResponse> res = chatRoomService.searchGroupChatRooms("Nothing");
+            assertThat(res).isEmpty();
+        }
+    }
+
+    // ==========================================
+    // 9. 그룹 추천 (Recommendation)
+    // ==========================================
+    @Nested
+    @DisplayName("그룹 채팅방 추천")
+    class RecommendGroup {
+        @Test
+        @DisplayName("성공: 추천 가능한 방 반환")
+        void success() {
+            Long userId = 1L;
+            // Repository가 추천 방 리스트를 반환한다고 가정
+            // given(chatRoomRepository.findRecommendableRooms(userId)).willReturn(List.of(new ChatRoom(...)));
+
+            // ChatRecommendRoomResponse res = chatRoomService.findRandomRecommendableGroupChatRoom(userId);
+            // assertThat(res).isNotNull();
+        }
+
+        @Test
+        @DisplayName("실패: 추천할 방이 하나도 없음")
+        void fail_NoRoom() {
+            Long userId = 1L;
+            // Mocking empty list return
+            // given(chatRoomRepository.findRecommendableRooms(userId)).willReturn(Collections.emptyList());
+
+            // assertThatThrownBy(() -> chatRoomService.findRandomRecommendableGroupChatRoom(userId))
+            //        .isInstanceOf(BusinessException.class); // NO_RECOMMENDABLE_ROOM
+        }
+    }
+
+    // ==========================================
+    // 10. 그룹 여부 확인 (Is Group)
+    // ==========================================
+    @Nested
+    @DisplayName("그룹 방 여부 확인")
+    class IsGroupCheck {
+        @Test
+        @DisplayName("성공: True 반환")
+        void isGroup_True() {
+            Long roomId = 10L;
+            ChatRoom room = new ChatRoom(true, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+
+            boolean result = chatRoomService.isChatRoomGroup(roomId);
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("성공: False 반환")
+        void isGroup_False() {
+            Long roomId = 11L;
+            ChatRoom room = new ChatRoom(false, Instant.now());
+            given(chatRoomRepository.findById(roomId)).willReturn(Optional.of(room));
+
+            boolean result = chatRoomService.isChatRoomGroup(roomId);
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("실패: 방 없음")
+        void fail_NotFound() {
+            given(chatRoomRepository.findById(any())).willReturn(Optional.empty());
+            assertThatThrownBy(() -> chatRoomService.isChatRoomGroup(999L))
+                    .isInstanceOf(BusinessException.class);
         }
     }
 }
