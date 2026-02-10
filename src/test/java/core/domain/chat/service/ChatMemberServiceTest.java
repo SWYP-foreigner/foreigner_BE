@@ -1,14 +1,11 @@
 package core.domain.chat.service;
 
-import core.domain.chat.dto.*;
-import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.user.entity.User;
 import core.global.enums.chat.ChatParticipantStatus;
-import core.global.enums.chat.MessageType;
 import core.global.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,11 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-class ChatServiceTest {
+class ChatMemberServiceTest {
 
     @Mock
     private ChatRoomRepository chatRoomRepository;
