@@ -348,4 +348,13 @@ public class LoginRegisterController {
         Slice<UserProfileGroupChatRoomResponse> response = userService.getUserGroupChatRooms(userId, pageable);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    @Operation(summary = "유저 온라인 상태 조회", description = "특정 유저가 최근 5분 이내에 활동했는지 확인합니다.")
+    @GetMapping("/{userId}/online-status")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    public ResponseEntity<ApiResponse<UserOnlineStatusResponse>> getUserOnlineStatus(
+            @Parameter(description = "확인할 유저의 ID") @PathVariable Long userId
+    ) {
+        UserOnlineStatusResponse response = userService.checkUserOnlineStatus(userId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

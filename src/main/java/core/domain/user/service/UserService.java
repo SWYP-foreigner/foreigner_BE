@@ -55,6 +55,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -1068,45 +1069,89 @@ public class UserService {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
 
-        // 2. Slice 조회 (Repository에서 페이징 처리됨)
+        // 2. DB에서 페이징 데이터 조회
         Slice<ChatParticipant> participantSlice = chatParticipantRepository
                 .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
 
-        // 조회된 데이터가 없으면 빈 Slice 반환
+        // 데이터가 없으면 빈 결과 반환
         if (participantSlice.isEmpty()) {
-            return new SliceImpl<>(Collections.emptyList(), pageable, false);
+            return new SliceImpl<>(new ArrayList<>(), pageable, false);
         }
 
-        // 3. 현재 페이지에 해당하는 채팅방 ID 목록 추출
-        List<Long> chatRoomIds = participantSlice.getContent().stream()
-                .map(cp -> cp.getChatRoom().getId())
-                .toList();
+        // 3. 조회된 데이터에서 채팅방 ID 목록 추출 (for문 사용)
+        List<ChatParticipant> participants = participantSlice.getContent();
+        List<Long> chatRoomIds = new ArrayList<>();
 
-        // 4. 썸네일 이미지 조회 (현재 페이지에 있는 채팅방들만)
+        for (ChatParticipant participant : participants) {
+            chatRoomIds.add(participant.getChatRoom().getId());
+        }
+
+        // 4. 채팅방 썸네일 이미지 조회 및 Map 변환 (for문 사용)
         List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
-        Map<Long, String> imageMap = images.stream()
-                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (a, b) -> a));
+        Map<Long, String> imageMap = new HashMap<>();
 
-        // 5. DTO 변환 (List -> List)
-        List<UserProfileGroupChatRoomResponse> dtoList = participantSlice.getContent().stream().map(cp -> {
-            ChatRoom room = cp.getChatRoom();
+        for (Image image : images) {
+            // 중복된 ID가 있을 경우 첫 번째 이미지만 저장 (putIfAbsent)
+            imageMap.putIfAbsent(image.getRelatedId(), image.getUrl());
+        }
 
-            // 참여 인원 수 계산 (Lazy Loading 주의: BatchSize 설정 권장)
-            int activeCount = (int) room.getParticipants().stream()
-                    .filter(p -> p.getStatus() == ChatParticipantStatus.ACTIVE)
-                    .count();
+        // 5. DTO 변환 작업 (for문 사용)
+        List<UserProfileGroupChatRoomResponse> responseList = new ArrayList<>();
 
-            return UserProfileGroupChatRoomResponse.builder()
+        for (ChatParticipant participant : participants) {
+            ChatRoom room = participant.getChatRoom();
+
+            // 5-1. 현재 참여 인원 수 계산 (직접 카운팅)
+            int activeCount = 0;
+            for (ChatParticipant member : room.getParticipants()) {
+                if (member.getStatus() == ChatParticipantStatus.ACTIVE) {
+                    activeCount++;
+                }
+            }
+
+            // 5-2. DTO 생성 및 리스트 추가
+            UserProfileGroupChatRoomResponse response = UserProfileGroupChatRoomResponse.builder()
                     .chatRoomId(room.getId())
                     .roomName(room.getRoomName())
                     .description(room.getDescription())
                     .participantCount(activeCount)
                     .lastMessageSentAt(room.getLastMessageSentAt())
-                    .thumbnailUrl(imageMap.getOrDefault(room.getId(), null))
+                    .thumbnailUrl(imageMap.get(room.getId())) // 맵에서 이미지 URL 꺼내기
                     .build();
-        }).toList();
 
-        // 6. List를 다시 Slice로 감싸서 반환 (hasNext 정보 유지)
-        return new SliceImpl<>(dtoList, pageable, participantSlice.hasNext());
+            responseList.add(response);
+        }
+
+        // 6. 최종 Slice 반환
+        return new SliceImpl<>(responseList, pageable, participantSlice.hasNext());
+    }
+    /**
+     * 유저의 접속 상태 확인 (5분 이내 활동 시 Online)
+     */
+    public UserOnlineStatusResponse checkUserOnlineStatus(Long userId) {
+        // 1. 유저 조회 (없으면 예외 발생)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 마지막 접속 시간 가져오기
+        Instant lastSeenAt = user.getLastSeenAt();
+        boolean isOnline = false;
+
+        // 3. 접속 여부 판단 로직
+        if (lastSeenAt != null) {
+            // 현재 시간에서 5분을 뺀 시간
+            Instant fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
+
+            // 마지막 활동 시간이 5분 전보다 '이후'라면 접속 중으로 판단
+            if (lastSeenAt.isAfter(fiveMinutesAgo)) {
+                isOnline = true;
+            }
+        }
+
+        // 4. 결과 반환
+        return UserOnlineStatusResponse.builder()
+                .isOnline(isOnline)
+                .lastSeenAt(lastSeenAt)
+                .build();
     }
 }
