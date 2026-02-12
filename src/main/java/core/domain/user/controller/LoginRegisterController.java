@@ -143,20 +143,6 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
-    @GetMapping("/{userId}/info")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @Operation(summary = "유저 프로필 조회", description = "유저 프로필을 조회합니다.")
-    public ResponseEntity<UserProfileCardResponse> getUserProfile(
-            @PathVariable("userId") Long userId,
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        Long currentUserId = userDetails.getUserId();
-        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(userProfile);
-    }
-
-
     @PostMapping("/signup")
     @Operation(summary = "일반 회원가입 및 JWT 발급")
     @UserErrorDocs({UserErrorCode.AGREEMENT_INPUT, UserErrorCode.DUPLICATE_RESOURCE, UserErrorCode.AUTHENTICATION_FAILED})
@@ -330,6 +316,20 @@ public class LoginRegisterController {
         return ResponseEntity.ok(userService.getProfileOptions());
     }
 
+    @GetMapping("/{userId}/info")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    @Operation(summary = "유저 프로필카드 기본정보 조회", description = "유저 프로필카드 기본정보 조회합니다.")
+    public ResponseEntity<UserProfileCardResponse> getUserProfile(
+            @PathVariable("userId") Long userId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long currentUserId = userDetails.getUserId();
+        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
+        featureUsageMetrics.recordFollowUsage();
+        return ResponseEntity.ok(userProfile);
+    }
+
+
     @Operation(summary = "현재 보고있는 유저 프로필 카드의 링크드스페이스 정보 ",
             description = "보고 있는  유저가 참여 중인 그룹 채팅방 목록을 반환합니다.")
     @GetMapping("/prfile/groups")
@@ -337,7 +337,7 @@ public class LoginRegisterController {
     public ResponseEntity<ApiResponse<List<UserProfileGroupChatRoomResponse>>> getMyGroupChatRooms(
           Long userId
     ) {
-        List<UserProfileGroupChatRoomResponse> response = userService.getMyGroupChatRooms(userId);
+        List<UserProfileGroupChatRoomResponse> response = userService.getUserGroupChatRooms(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
