@@ -329,4 +329,15 @@ public class LoginRegisterController {
     public ResponseEntity<ProfileOptionsDto.CombinedResponse> getProfileOptions() {
         return ResponseEntity.ok(userService.getProfileOptions());
     }
+
+    @Operation(summary = "나의 그룹 채팅방 목록 조회",
+            description = "현재 접속한 유저가 참여 중인 그룹 채팅방 목록을 반환합니다. (최근 메시지 순 정렬)")
+    @GetMapping("/groups")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    public ResponseEntity<ApiResponse<List<UserProfileGroupChatRoomResponse>>> getMyGroupChatRooms(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        List<UserProfileGroupChatRoomResponse> response = userService.getMyGroupChatRooms(userDetails.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }

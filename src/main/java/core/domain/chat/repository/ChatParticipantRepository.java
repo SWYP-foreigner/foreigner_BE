@@ -75,4 +75,13 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<Long> findAllAiParticipatedRoomIds();
 
     Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
+
+    @Query("SELECT cp FROM ChatParticipant cp " +
+            "JOIN FETCH cp.chatRoom cr " +
+            "WHERE cp.user.id = :userId " +
+            "AND cp.status = :status " +
+            "AND cr.isGroup = true " +
+            "ORDER BY cr.lastMessageSentAt DESC")
+    List<ChatParticipant> findActiveGroupChatsByUserId(@Param("userId") Long userId,
+                                                       @Param("status") ChatParticipantStatus status);
 }
