@@ -35,6 +35,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.ErrorResponse;
@@ -330,14 +334,18 @@ public class LoginRegisterController {
     }
 
 
-    @Operation(summary = "현재 보고있는 유저 프로필 카드의 링크드스페이스 정보 ",
-            description = "보고 있는  유저가 참여 중인 그룹 채팅방 목록을 반환합니다.")
-    @GetMapping("/prfile/groups")
+    @Operation(summary = "현재 보고있는 유저 프로필 카드의 링크드스페이스 정보(무한스크롤)",
+            description = "보고 있는  유저가 참여 중인 그룹 채팅방 목록을 무한스크롤로 반환합니다.")
+    @GetMapping("/{userId}/groups")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    public ResponseEntity<ApiResponse<List<UserProfileGroupChatRoomResponse>>> getMyGroupChatRooms(
-          Long userId
+    public ResponseEntity<ApiResponse<Slice<UserProfileGroupChatRoomResponse>>> getUserGroupChats(
+            @Parameter(description = "조회할 유저의 ID") @PathVariable Long userId,
+
+            @Parameter(description = "페이징 정보 (page: 0부터 시작, size: 조회 개수, sort: 정렬)")
+            @PageableDefault(size = 10, sort = "chatRoom.lastMessageSentAt", direction = Sort.Direction.DESC)
+            Pageable pageable
     ) {
-        List<UserProfileGroupChatRoomResponse> response = userService.getUserGroupChatRooms(userId);
+        Slice<UserProfileGroupChatRoomResponse> response = userService.getUserGroupChatRooms(userId, pageable);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

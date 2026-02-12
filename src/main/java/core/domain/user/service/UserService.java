@@ -39,6 +39,9 @@ import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -1056,40 +1059,39 @@ public class UserService {
     }
 
     /**
-     * 특정 유저(userId)가 참여 중인 그룹 채팅방 목록을 조회합니다.
-     * (프로필 상세 페이지용)
+     * 특정 유저의 그룹 채팅방 목록 조회 (무한 스크롤)
      */
-    public List<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId) {
+    public Slice<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, Pageable pageable) {
 
-        // 1. [검증] 조회하려는 유저가 존재하는지 확인 (없으면 예외 발생)
+        // 1. 유저 존재 여부 검증
         if (!userRepository.existsById(userId)) {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
 
-        // 2. 해당 유저가 참여중(ACTIVE)인 그룹 채팅방 목록 조회
-        List<ChatParticipant> participants = chatParticipantRepository
-                .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE);
+        // 2. Slice 조회 (Repository에서 페이징 처리됨)
+        Slice<ChatParticipant> participantSlice = chatParticipantRepository
+                .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
 
-        if (participants.isEmpty()) {
-            return List.of();
+        // 조회된 데이터가 없으면 빈 Slice 반환
+        if (participantSlice.isEmpty()) {
+            return new SliceImpl<>(Collections.emptyList(), pageable, false);
         }
 
-        // 3. 채팅방 ID 목록 추출
-        List<Long> chatRoomIds = participants.stream()
+        // 3. 현재 페이지에 해당하는 채팅방 ID 목록 추출
+        List<Long> chatRoomIds = participantSlice.getContent().stream()
                 .map(cp -> cp.getChatRoom().getId())
                 .toList();
 
-        // 4. 채팅방 썸네일 이미지 조회
+        // 4. 썸네일 이미지 조회 (현재 페이지에 있는 채팅방들만)
         List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
-
         Map<Long, String> imageMap = images.stream()
                 .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (a, b) -> a));
 
-        // 5. DTO 변환
-        return participants.stream().map(cp -> {
+        // 5. DTO 변환 (List -> List)
+        List<UserProfileGroupChatRoomResponse> dtoList = participantSlice.getContent().stream().map(cp -> {
             ChatRoom room = cp.getChatRoom();
 
-            // 현재 참여 인원 계산 (ACTIVE 상태인 사람만)
+            // 참여 인원 수 계산 (Lazy Loading 주의: BatchSize 설정 권장)
             int activeCount = (int) room.getParticipants().stream()
                     .filter(p -> p.getStatus() == ChatParticipantStatus.ACTIVE)
                     .count();
@@ -1103,5 +1105,8 @@ public class UserService {
                     .thumbnailUrl(imageMap.getOrDefault(room.getId(), null))
                     .build();
         }).toList();
+
+        // 6. List를 다시 Slice로 감싸서 반환 (hasNext 정보 유지)
+        return new SliceImpl<>(dtoList, pageable, participantSlice.hasNext());
     }
 }
