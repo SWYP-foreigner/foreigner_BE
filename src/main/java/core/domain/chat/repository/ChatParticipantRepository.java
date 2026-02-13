@@ -5,6 +5,7 @@ import core.domain.chat.entity.ChatRoom;
 import core.global.enums.ChatParticipantStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -75,4 +76,15 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<Long> findAllAiParticipatedRoomIds();
 
     Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
+
+    @Query("SELECT cp FROM ChatParticipant cp " +
+            "JOIN FETCH cp.chatRoom cr " +
+            "WHERE cp.user.id = :userId " +
+            "AND cp.status = :status " +
+            "AND cr.isGroup = true")
+    Slice<ChatParticipant> findActiveGroupChatsByUserId(
+            @Param("userId") Long userId,
+            @Param("status") ChatParticipantStatus status,
+            Pageable pageable
+    );
 }

@@ -13,16 +13,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ImageRepository extends JpaRepository<Image, Long> {
-    @Query("""
-            select i.relatedId, i.url
-            from Image i
-            where i.imageType = :imageType
-              and i.relatedId in :commentIds
-            """)
-    List<Object[]> findUrlByRelatedIds(
-            @Param("imageType") ImageType imageType,
-            @Param("commentIds") List<Long> commentIds
-    );
+    @Query("SELECT i FROM Image i " +
+            "WHERE i.relatedId IN :relatedIds " +
+            "AND i.imageType = :imageType " +
+            "AND i.orderIndex = 0") // 썸네일은 보통 0번
+    List<Image> findAllByRelatedIdsAndType(@Param("relatedIds") List<Long> relatedIds,
+                                           @Param("imageType") ImageType imageType);
 
     @Query("""
                 select i.relatedId, i.url
@@ -149,4 +145,9 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("SELECT i.relatedId, i.url FROM Image i " +
            "WHERE i.relatedId IN :userIds AND i.imageType = 'USER'")
     List<Object[]> findProfileImagesByUserIds(@Param("userIds") List<Long> userIds);
+    List<Image> findAllByRelatedIdInAndImageTypeAndOrderIndex(
+            List<Long> relatedIds,
+            ImageType imageType,
+            int orderIndex
+    );
 }

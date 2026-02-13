@@ -5,6 +5,7 @@ import core.domain.post.entity.Post;
 import core.domain.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -32,4 +33,5 @@ public interface PostRepository extends JpaRepository<Post, Long> , PostReposito
     List<Post> findByBoard(Board board);
 
     boolean existsByAuthorEmailAndContentAndCreatedAtAfter(String email, String normalizedContent, Instant cutOff);
+    Slice<Post> findAllByAuthorId(Long authorId, Pageable pageable);
 }

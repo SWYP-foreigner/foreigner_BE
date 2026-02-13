@@ -28,10 +28,7 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.FollowStatus;
-import core.global.enums.ImageType;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
+import core.global.enums.*;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -42,6 +39,9 @@ import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -55,6 +55,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -1056,5 +1057,168 @@ public class UserService {
                 .introductions(INTRODUCTIONS)
                 .interests(new ProfileOptionsDto.InterestResponse(INTEREST_CATEGORIES))
                 .build();
+    }
+
+    /**
+     * 특정 유저의 그룹 채팅방 목록 조회 (무한 스크롤)
+     */
+    public Slice<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, Pageable pageable) {
+
+        // 1. 유저 존재 여부 검증
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // 2. DB에서 페이징 데이터 조회
+        Slice<ChatParticipant> participantSlice = chatParticipantRepository
+                .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
+
+        // 데이터가 없으면 빈 결과 반환
+        if (participantSlice.isEmpty()) {
+            return new SliceImpl<>(new ArrayList<>(), pageable, false);
+        }
+
+        // 3. 조회된 데이터에서 채팅방 ID 목록 추출 (for문 사용)
+        List<ChatParticipant> participants = participantSlice.getContent();
+        List<Long> chatRoomIds = new ArrayList<>();
+
+        for (ChatParticipant participant : participants) {
+            chatRoomIds.add(participant.getChatRoom().getId());
+        }
+
+        // 4. 채팅방 썸네일 이미지 조회 및 Map 변환 (for문 사용)
+        List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
+        Map<Long, String> imageMap = new HashMap<>();
+
+        for (Image image : images) {
+            // 중복된 ID가 있을 경우 첫 번째 이미지만 저장 (putIfAbsent)
+            imageMap.putIfAbsent(image.getRelatedId(), image.getUrl());
+        }
+
+        // 5. DTO 변환 작업 (for문 사용)
+        List<UserProfileGroupChatRoomResponse> responseList = new ArrayList<>();
+
+        for (ChatParticipant participant : participants) {
+            ChatRoom room = participant.getChatRoom();
+
+            // 5-1. 현재 참여 인원 수 계산 (직접 카운팅)
+            int activeCount = 0;
+            for (ChatParticipant member : room.getParticipants()) {
+                if (member.getStatus() == ChatParticipantStatus.ACTIVE) {
+                    activeCount++;
+                }
+            }
+
+            // 5-2. DTO 생성 및 리스트 추가
+            UserProfileGroupChatRoomResponse response = UserProfileGroupChatRoomResponse.builder()
+                    .chatRoomId(room.getId())
+                    .roomName(room.getRoomName())
+                    .description(room.getDescription())
+                    .participantCount(activeCount)
+                    .lastMessageSentAt(room.getLastMessageSentAt())
+                    .thumbnailUrl(imageMap.get(room.getId())) // 맵에서 이미지 URL 꺼내기
+                    .build();
+
+            responseList.add(response);
+        }
+
+        // 6. 최종 Slice 반환
+        return new SliceImpl<>(responseList, pageable, participantSlice.hasNext());
+    }
+    /**
+     * 유저의 접속 상태 확인 (5분 이내 활동 시 Online)
+     */
+    public UserOnlineStatusResponse checkUserOnlineStatus(Long userId) {
+        // 1. 유저 조회 (없으면 예외 발생)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 마지막 접속 시간 가져오기
+        Instant lastSeenAt = user.getLastSeenAt();
+        boolean isOnline = false;
+
+        // 3. 접속 여부 판단 로직
+        if (lastSeenAt != null) {
+            // 현재 시간에서 5분을 뺀 시간
+            Instant fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
+
+            // 마지막 활동 시간이 5분 전보다 '이후'라면 접속 중으로 판단
+            if (lastSeenAt.isAfter(fiveMinutesAgo)) {
+                isOnline = true;
+            }
+        }
+
+        // 4. 결과 반환
+        return UserOnlineStatusResponse.builder()
+                .isOnline(isOnline)
+                .lastSeenAt(lastSeenAt)
+                .build();
+    }
+    /**
+     * 특정 유저의 게시글 목록 조회 (무한 스크롤)
+     * 포함 정보: 내용, 썸네일(0번), 좋아요 수, 댓글 수
+     */
+    public Slice<UserProfilePostResponse> getUserPosts(Long userId, Pageable pageable) {
+
+        // 1. 유저 검증
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // 2. 게시글 목록 조회 (Slice)
+        Slice<Post> postSlice = postRepository.findAllByAuthorId(userId, pageable);
+
+        if (postSlice.isEmpty()) {
+            return new SliceImpl<>(Collections.emptyList(), pageable, false);
+        }
+
+        // 3. 게시글 ID 목록 추출
+        List<Long> postIds = new ArrayList<>();
+        for (Post post : postSlice.getContent()) {
+            postIds.add(post.getId());
+        }
+
+        // 4. [Bulk Fetch] 썸네일 이미지 조회 (Index = 0)
+        List<Image> images = imageRepository.findAllByRelatedIdInAndImageTypeAndOrderIndex(
+                postIds, ImageType.POST, 0
+        );
+        Map<Long, String> thumbnailMap = new HashMap<>();
+        for (Image img : images) {
+            thumbnailMap.put(img.getRelatedId(), img.getUrl());
+        }
+
+        // 5. [Bulk Fetch] 좋아요 수 조회 (Group By)
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds, LikeType.POST);
+        Map<Long, Long> likeCountMap = new HashMap<>();
+        for (Object[] row : likeCounts) {
+            likeCountMap.put((Long) row[0], (Long) row[1]);
+        }
+
+        // 6. [Bulk Fetch] 댓글 수 조회 (Group By)
+        // Post 엔티티의 comments.size()를 쓰면 성능 문제 발생 가능(Lazy Loading), 따라서 별도 Count 쿼리 사용
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        Map<Long, Long> commentCountMap = new HashMap<>();
+        for (Object[] row : commentCounts) {
+            commentCountMap.put((Long) row[0], (Long) row[1]);
+        }
+
+        // 7. DTO 조립
+        List<UserProfilePostResponse> responseList = new ArrayList<>();
+        for (Post post : postSlice.getContent()) {
+            Long pid = post.getId();
+
+            UserProfilePostResponse dto = UserProfilePostResponse.builder()
+                    .postId(pid)
+                    .content(post.getContent())
+                    .thumbnailUrl(thumbnailMap.get(pid)) // 없으면 null
+                    .likeCount(likeCountMap.getOrDefault(pid, 0L))
+                    .commentCount(commentCountMap.getOrDefault(pid, 0L))
+                    .createdAt(post.getCreatedAt())
+                    .build();
+
+            responseList.add(dto);
+        }
+
+        return new SliceImpl<>(responseList, pageable, postSlice.hasNext());
     }
 }
