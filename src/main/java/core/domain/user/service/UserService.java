@@ -1154,4 +1154,71 @@ public class UserService {
                 .lastSeenAt(lastSeenAt)
                 .build();
     }
+    /**
+     * 특정 유저의 게시글 목록 조회 (무한 스크롤)
+     * 포함 정보: 내용, 썸네일(0번), 좋아요 수, 댓글 수
+     */
+    public Slice<UserProfilePostResponse> getUserPosts(Long userId, Pageable pageable) {
+
+        // 1. 유저 검증
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // 2. 게시글 목록 조회 (Slice)
+        Slice<Post> postSlice = postRepository.findAllByAuthorId(userId, pageable);
+
+        if (postSlice.isEmpty()) {
+            return new SliceImpl<>(Collections.emptyList(), pageable, false);
+        }
+
+        // 3. 게시글 ID 목록 추출
+        List<Long> postIds = new ArrayList<>();
+        for (Post post : postSlice.getContent()) {
+            postIds.add(post.getId());
+        }
+
+        // 4. [Bulk Fetch] 썸네일 이미지 조회 (Index = 0)
+        List<Image> images = imageRepository.findAllByRelatedIdInAndImageTypeAndOrderIndex(
+                postIds, ImageType.POST, 0
+        );
+        Map<Long, String> thumbnailMap = new HashMap<>();
+        for (Image img : images) {
+            thumbnailMap.put(img.getRelatedId(), img.getUrl());
+        }
+
+        // 5. [Bulk Fetch] 좋아요 수 조회 (Group By)
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds, LikeType.POST);
+        Map<Long, Long> likeCountMap = new HashMap<>();
+        for (Object[] row : likeCounts) {
+            likeCountMap.put((Long) row[0], (Long) row[1]);
+        }
+
+        // 6. [Bulk Fetch] 댓글 수 조회 (Group By)
+        // Post 엔티티의 comments.size()를 쓰면 성능 문제 발생 가능(Lazy Loading), 따라서 별도 Count 쿼리 사용
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        Map<Long, Long> commentCountMap = new HashMap<>();
+        for (Object[] row : commentCounts) {
+            commentCountMap.put((Long) row[0], (Long) row[1]);
+        }
+
+        // 7. DTO 조립
+        List<UserProfilePostResponse> responseList = new ArrayList<>();
+        for (Post post : postSlice.getContent()) {
+            Long pid = post.getId();
+
+            UserProfilePostResponse dto = UserProfilePostResponse.builder()
+                    .postId(pid)
+                    .content(post.getContent())
+                    .thumbnailUrl(thumbnailMap.get(pid)) // 없으면 null
+                    .likeCount(likeCountMap.getOrDefault(pid, 0L))
+                    .commentCount(commentCountMap.getOrDefault(pid, 0L))
+                    .createdAt(post.getCreatedAt())
+                    .build();
+
+            responseList.add(dto);
+        }
+
+        return new SliceImpl<>(responseList, pageable, postSlice.hasNext());
+    }
 }

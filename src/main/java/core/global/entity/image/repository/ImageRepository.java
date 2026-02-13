@@ -145,4 +145,9 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
     @Query("SELECT i.relatedId, i.url FROM Image i " +
            "WHERE i.relatedId IN :userIds AND i.imageType = 'USER'")
     List<Object[]> findProfileImagesByUserIds(@Param("userIds") List<Long> userIds);
+    List<Image> findAllByRelatedIdInAndImageTypeAndOrderIndex(
+            List<Long> relatedIds,
+            ImageType imageType,
+            int orderIndex
+    );
 }

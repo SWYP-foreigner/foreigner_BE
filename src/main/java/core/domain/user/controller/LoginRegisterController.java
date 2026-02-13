@@ -407,4 +407,35 @@ public class LoginRegisterController {
         UserOnlineStatusResponse response = userService.checkUserOnlineStatus(userId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+    @Operation(
+            summary = "작성한 게시글 목록 조회 (무한 스크롤)",
+            description = """
+                    해당 유저가 작성한 **게시글(Post)** 목록을 조회합니다.
+                    
+                    **[포함 정보]**
+                    - 게시글 내용, 작성일
+                    - **썸네일 이미지** (이미지가 여러 개일 경우 0번째 이미지)
+                    - **좋아요 수**, **댓글 수**
+                    
+                    - **정렬**: 최신순 (`createdAt` DESC)
+                    """
+    )
+    @Parameters({
+            @Parameter(name = "page", description = "페이지 번호 (0부터 시작)", example = "0"),
+            @Parameter(name = "size", description = "한 페이지 조회 개수", example = "10"),
+            @Parameter(name = "sort", description = "정렬 기준 (기본값: createdAt,desc)", example = "createdAt,desc")
+    })
+    @GetMapping("/{userId}/posts")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
+    public ResponseEntity<ApiResponse<Slice<UserProfilePostResponse>>> getUserPosts(
+            @Parameter(description = "조회할 대상 유저의 ID", example = "1")
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        Slice<UserProfilePostResponse> response = userService.getUserPosts(userId, pageable);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 }
