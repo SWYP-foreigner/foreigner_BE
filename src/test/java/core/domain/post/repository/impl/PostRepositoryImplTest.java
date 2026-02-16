@@ -128,7 +128,7 @@ public class PostRepositoryImplTest {
 
         // createdAt desc, id desc 기준으로 정렬되었다고 가정 (엔티티 생성 순서 p1 < p2 < p3)
         assertThat(items)
-                .extracting(BoardItem::postId)
+                .extracting(BoardItem::id)
                 .containsExactly(p3.getId(), p2.getId(), p1.getId());
     }
 
@@ -153,13 +153,13 @@ public class PostRepositoryImplTest {
                 user1.getId(),
                 board.getId(),
                 lastOfFirst.createdAt(),
-                lastOfFirst.postId(),
+                lastOfFirst.id(),
                 2
         );
 
         // 남은 한 개만 와야 함
         assertThat(second).hasSize(1);
-        assertThat(second.get(0).postId()).isEqualTo(p1.getId());
+        assertThat(second.get(0).id()).isEqualTo(p1.getId());
     }
 
     @Test
@@ -184,7 +184,7 @@ public class PostRepositoryImplTest {
         );
 
         assertThat(items)
-                .extracting(BoardItem::postId)
+                .extracting(BoardItem::id)
                 .containsExactly(
                         p2.getId(), // 3 likes
                         p3.getId(), // 2 likes
