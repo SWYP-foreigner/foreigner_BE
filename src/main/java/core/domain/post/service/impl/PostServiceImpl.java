@@ -582,7 +582,7 @@ public class PostServiceImpl implements PostService {
         String nextCursor = hasNext
                 ? CursorCodec.encode(Map.of(
                 "t", last.createdAt().toString(),
-                "id", last.postId()
+                "id", last.id()
         ))
                 : null;
 

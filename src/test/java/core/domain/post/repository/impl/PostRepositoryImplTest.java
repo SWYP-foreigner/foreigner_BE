@@ -263,7 +263,7 @@ public class PostRepositoryImplTest {
         // then
         // user1은 p1만 작성했다고 가정
         assertThat(first).hasSize(1);
-        assertThat(first.get(0).postId()).isEqualTo(p1.getId());
+        assertThat(first.get(0).id()).isEqualTo(p1.getId());
     }
 
     @Test
@@ -283,7 +283,7 @@ public class PostRepositoryImplTest {
         List<UserPostItem> second = postRepositoryImpl.findMyPostsNextByEmail(
                 user1.getEmail(),
                 lastOfFirst.createdAt(),
-                lastOfFirst.postId(),
+                lastOfFirst.id(),
                 2
         );
 
