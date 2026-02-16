@@ -10,7 +10,7 @@ import java.util.List;
 @Schema(description = "게시글 상세 응답")
 public record PostDetailResponse(
         @Schema(description = "ID", example = "1")
-        Long postId,
+        Long id,
 
         @Schema(description = "본문", example = "Hello~ I came to Korea from the U.S. as an exchange student")
         String content,
@@ -67,7 +67,7 @@ public record PostDetailResponse(
 
     public PostDetailResponse(PostDetailResponse postDetail, String translatedContent) {
         this(
-                postDetail.postId(),
+                postDetail.id(),
                 translatedContent,
                 postDetail.authorId(),
                 postDetail.authorName(),
