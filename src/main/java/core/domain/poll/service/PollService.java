@@ -18,7 +18,6 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.BoardCategory;
 import core.global.enums.PollType;
 import core.global.enums.community.BoardCategory;
 import core.global.enums.errorcode.CommunityErrorCode;
