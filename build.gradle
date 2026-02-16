@@ -128,7 +128,9 @@ dependencies {
     implementation 'com.github.shin285:KOMORAN:3.3.4'
 }
 
-
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 
 dependencyManagement {
 	imports {

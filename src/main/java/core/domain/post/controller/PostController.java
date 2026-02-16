@@ -126,7 +126,7 @@ public class PostController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "삭제 성공(본문 없음)", content = @Content),
     })
     @DeleteMapping("/posts/{postId}")
-    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.POST_DELETE_FORBIDDEN})
+    @CommunityErrorDocs({CommunityErrorCode.POST_NOT_FOUND, CommunityErrorCode.POST_DELETE_FORBIDDEN, CommunityErrorCode.VOTE_RECORD_EXISTED})
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND, UserErrorCode.PROFILE_SET_NOT_COMPLETED})
     @ImageErrorCodeDocs({ImageErrorCode.IMAGE_FOLDER_DELETE_FAILED})
     public ResponseEntity<core.global.dto.ApiResponse<?>> deletePost(
@@ -144,7 +144,7 @@ public class PostController {
     @Operation(
             summary = "나의 게시글 리스트 조회",
             description = """
-                      - 정렬: createdAt DESC, postId DESC
+                      - 정렬: createdAt DESC, id DESC
                       - 무한스크롤: 응답의 `nextCursor`를 다음 호출의 `cursor`로 그대로 전달
                     
                       요청 예시

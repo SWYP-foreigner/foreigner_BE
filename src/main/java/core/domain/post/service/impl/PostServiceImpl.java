@@ -9,6 +9,7 @@ import core.domain.maincontent.service.search.MainContentHotKeywordBatchService;
 import core.domain.notification.dto.NotificationEvent;
 import core.domain.poll.entity.PollOption;
 import core.domain.poll.repository.PollOptionRepository;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.post.dto.comunity.*;
 import core.domain.post.entity.BlockPost;
@@ -34,9 +35,14 @@ import core.global.entity.image.service.ImageStorageClient;
 import core.global.entity.like.entity.Like;
 import core.global.entity.like.repository.LikeRepository;
 import core.global.enums.*;
+import core.global.enums.common.CommunitySortOption;
+import core.global.enums.common.ImageType;
+import core.global.enums.common.LikeType;
+import core.global.enums.community.BoardCategory;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import core.global.enums.user.FollowStatus;
 import core.global.exception.BusinessException;
 import core.global.pagination.CursorCodec;
 import core.global.pagination.CursorPageResponse;
@@ -92,6 +98,7 @@ public class PostServiceImpl implements PostService {
     private final PostReportRepository postReportRepository;
     private final MainContentHotKeywordBatchService recommendBatchService;
     private final PollOptionRepository pollOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
 
     private final MainContentRepository mainContentRepository;
     private final ImageStorageClient imageStorageClient;
@@ -213,6 +220,7 @@ public class PostServiceImpl implements PostService {
                 // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
                 BoardItem.PollInfo newPollInfo = new BoardItem.PollInfo(
                         item.pollInfo().title(),
+                        item.pollInfo().description(),
                         item.pollInfo().closeAt(),
                         item.pollInfo().totalVoteCount(),
                         specificOptions, // ✅ DB에서 가져온 "내 옵션"만 주입
@@ -482,7 +490,6 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         userRoleDetectService.isProfileSetUpUser(user);
-
 
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(POST_NOT_FOUND));

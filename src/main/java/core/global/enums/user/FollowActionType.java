@@ -1,4 +1,4 @@
-package core.global.enums;
+package core.global.enums.user;
 
 public enum FollowActionType {
     REQUEST,

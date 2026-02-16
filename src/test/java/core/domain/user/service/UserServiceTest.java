@@ -20,14 +20,13 @@ import core.global.dto.*;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
-import core.global.enums.Ouathplatform;
-import core.global.enums.Role;
+import core.global.enums.Oauthplatform;
+import core.global.enums.user.Role;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -332,7 +331,7 @@ class UserServiceTest {
 
         User user = new User();
         user.updateEmail("test@example.com");
-        user.updateProvider(Ouathplatform.local.toString());
+        user.updateProvider(Oauthplatform.local.toString());
         user.updatePassword("encodedPw");
 
         when(userRepository.findByEmail(req.getEmail()))
@@ -359,7 +358,7 @@ class UserServiceTest {
         // provider가 local이 아닌 유저
         User user = new User();
         user.updateEmail("test@email.com");
-        user.updateProvider(Ouathplatform.APPLE.toString());
+        user.updateProvider(Oauthplatform.APPLE.toString());
         user.updatePassword("encodedPw");
 
         when(userRepository.findByEmail("test@email.com"))
@@ -385,7 +384,7 @@ class UserServiceTest {
         // provider가 local이 아닌 유저
         User user = new User();
         user.updateEmail("test@email.com");
-        user.updateProvider(Ouathplatform.local.toString());
+        user.updateProvider(Oauthplatform.local.toString());
         user.updatePassword("encodedPw");
 
         when(userRepository.findByEmail("test@email.com"))
@@ -414,7 +413,7 @@ class UserServiceTest {
 
         User user = new User();
         user.updateEmail("test@email.com");
-        user.updateProvider(Ouathplatform.local.toString());
+        user.updateProvider(Oauthplatform.local.toString());
         user.updatePassword("encodedPw");
         user.changeUserRole(Role.USER);
         user.updateIsNewUser(false);

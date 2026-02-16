@@ -72,8 +72,8 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 10080
-  refresh-expiration: 10080
+  access-expiration: 1
+  refresh-expiration: 2
 
 
 cloud:
@@ -377,17 +377,6 @@ smoke:
       expectedStatus: 400 # WebSocket은 일반 GET으로 찌르면 400(Bad Request) 반환이 정상 생존 신호
 
 
-iap:
-  android:
-    packageName: ${APP_PACKAGE_NAME}
-    serviceAccountJsonBase64: ${IAP_ANDROID_SA_B64}
-  ios:
-    issuerId: ${IAP_IOS_ISSUER_ID}
-    keyId: ${IAP_IOS_KEY_ID}
-    privateKeyBase64: ${IAP_IOS_P8_B64}
-    bundleId: your.ios.bundle
-    environment: Production
-
 openai:
   api-key: ${OPEN_AI_KEY}
 
@@ -395,7 +384,16 @@ otp:
   issuer: "Kori-Admin (Test)"
   magic-code-enabled: false
   admin-secret: ${ADMIN_OTP_SECRET}
-
 encryption:
   secret: ${ENCRYPTION_SECRET}
 
+iap:
+  android:
+    packageName: your.play.package
+    serviceAccountJsonBase64: ${IAP_ANDROID_SA_B64}
+  ios:
+    issuerId: ${IAP_IOS_ISSUER_ID}
+    keyId: ${IAP_IOS_KEY_ID}
+    privateKeyBase64: ${IAP_IOS_P8_B64}
+    bundleId: your.ios.bundle
+    environment: Production

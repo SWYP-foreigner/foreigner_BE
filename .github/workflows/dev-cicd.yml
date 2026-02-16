@@ -233,9 +233,14 @@ jobs:
             IAP_IOS_P8_B64=${{secrets.IAP_IOS_P8_B64}}
             APP_PACKAGE_NAME=${{secrets.APP_PACKAGE_NAME}}
             
+            IAP_ANDROID_SA_B64=${{secrets.IAP_ANDROID_SA_B64}}
+            IAP_IOS_ISSUER_ID=${{secrets.IAP_IOS_ISSUER_ID}}
+            IAP_IOS_KEY_ID=${{secrets.IAP_IOS_KEY_ID}}
+            IAP_IOS_P8_B64=${{secrets.IAP_IOS_P8_B64}}
+          
             SPRING_PROFILES_ACTIVE=dev
             SPRINGDOC_ENABLED=false
-            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1HeapRegionSize=16M -XX:MaxTenuringThreshold=15 -XX:MaxGCPauseMillis=100 -XX:InitiatingHeapOccupancyPercent=35"
+            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
             EOF
             
             echo "SMOKE_TOKEN=${SMOKE_TOKEN}" >> .env
@@ -306,7 +311,7 @@ jobs:
             
             grep -n '^SMOKE_TOKEN=' .env | sed 's/=.*/=<redacted>/' || true
             echo "[debug] SMOKE_TOKEN length=${#SMOKE_TOKEN}"
-            
+  
             GW_ID="$(docker compose -p foreigner -f "$COMPOSE_APP" ps -q gateway)"
             
             # 게이트웨이에서 Docker DNS에 등록되었는지 먼저 확인(최대 60초)
@@ -345,43 +350,43 @@ jobs:
               -e SMOKE_TOKEN="${SMOKE_TOKEN}" \
               "${GW_ID}" sh -lc '
                 set -eu
-            
+                
                 apk add --no-cache curl >/dev/null 2>&1 || true
-            
+                
                 BODY_FILE="/tmp/smoke.body"
-            
+                
                 echo "[smoke] request: ${SMOKE_URL}"
-            
+                
                 HTTP_CODE="$(curl -sS --max-time 10 \
                   -H "X-Smoke-Token: ${SMOKE_TOKEN}" \
                   -o "${BODY_FILE}" \
                   -w "%{http_code}" \
                   "${SMOKE_URL}" || true)"
-            
+                
                 echo "[smoke] http_code=${HTTP_CODE}"
                 echo "[smoke] body:"
                 cat "${BODY_FILE}" 2>/dev/null || true
-            
+                
                 case "${HTTP_CODE}" in
                   2??) exit 0 ;;
                   *)   exit 1 ;;
                 esac
               ' >/tmp/smoke.out 2>/tmp/smoke.err
-            
-            
+
+                
               RC=$?
               if [ "${RC}" -eq 0 ]; then
                 echo "✅ Smoke test passed."
                 cat /tmp/smoke.out || true
                 break
               fi
-            
+                
               echo "❌ Smoke failed (rc=${RC})."
               echo "--- stdout ---"
               cat /tmp/smoke.out || true
               echo "--- stderr ---"
               cat /tmp/smoke.err || true
-            
+                
               sleep "${SMOKE_SLEEP}"
             done
             
@@ -389,21 +394,21 @@ jobs:
             
             if [ "${RC}" -ne 0 ]; then
              echo "🚨 Smoke test failed. Rolling back to ACTIVE_SLOT=${ACTIVE_SLOT}"
-            
+          
                 # 업스트림을 다시 ACTIVE_SLOT으로 원복
                 if [ "${ACTIVE_SLOT}" = "blue" ]; then
                   sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-blue:8080;|' nginx/conf.d/default.conf
                 else
                   sed -i -E 's|^([[:space:]]*set[[:space:]]+\$active_upstream[[:space:]]+).*$|\1http://app-green:8080;|' nginx/conf.d/default.conf
                 fi
-            
+              
                 docker exec "${GW_ID}" nginx -t
                 docker exec "${GW_ID}" nginx -s reload
-            
+          
                 # NEXT 슬롯 정리
                 docker compose -p foreigner -f "${COMPOSE_APP}" stop "app-${NEXT_SLOT}" || true
                 docker compose -p foreigner -f "${COMPOSE_APP}" rm -f "app-${NEXT_SLOT}" || true
-            
+              
               exit 1
             fi
             
