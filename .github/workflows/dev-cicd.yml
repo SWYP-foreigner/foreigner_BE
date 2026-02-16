@@ -240,7 +240,7 @@ jobs:
           
             SPRING_PROFILES_ACTIVE=dev
             SPRINGDOC_ENABLED=false
-            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"
+            JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1HeapRegionSize=16M -XX:MaxTenuringThreshold=15 -XX:MaxGCPauseMillis=100 -XX:InitiatingHeapOccupancyPercent=35"
             EOF
             
             echo "SMOKE_TOKEN=${SMOKE_TOKEN}" >> .env
