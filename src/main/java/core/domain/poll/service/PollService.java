@@ -2,6 +2,8 @@ package core.domain.poll.service;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
+import core.domain.poll.controller.QuizUpdateRequest;
+import core.domain.poll.controller.VoteUpdateRequest;
 import core.domain.poll.dto.VoteWriteRequest;
 import core.domain.poll.dto.PollItem;
 import core.domain.poll.dto.PollResultResponse;
@@ -16,8 +18,8 @@ import core.domain.post.entity.Post;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
-import core.global.enums.BoardCategory;
 import core.global.enums.PollType;
+import core.global.enums.community.BoardCategory;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
@@ -26,7 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,7 +54,7 @@ public class PollService {
                 .orElse(null);
 
         Long correctOptionId = null;
-        if (selectedOptionId != null) {
+        if (poll.isClosed() || selectedOptionId != null) {
             correctOptionId = pollOptionRepository.findCorrectOptionId(poll.getId())
                     .orElse(null);
         }
@@ -63,6 +65,7 @@ public class PollService {
     private PollItem mapToPollItem(Poll poll, Long selectedOptionId, Long correctOptionId) {
         List<PollItem.OptionItem> optionItems = poll.getOptions().stream()
                 .map(opt -> new PollItem.OptionItem(opt.getId(), opt.getContent(), opt.getVoteCount()))
+                .sorted(Comparator.comparing(PollItem.OptionItem::optionId))
                 .toList();
 
         return new PollItem(
@@ -88,7 +91,7 @@ public class PollService {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
 
-        if (poll.getCloseAt().isBefore(Instant.now())) {
+        if (poll.isClosed()) {
             throw new BusinessException(CommunityErrorCode.POLL_ALREADY_CLOSED);
         }
 
@@ -136,7 +139,9 @@ public class PollService {
                         opt.getId(),
                         opt.getVoteCount(),
                         poll.calculatePercentage(opt.getVoteCount())
-                )).toList();
+                ))
+                .sorted(Comparator.comparing(PollResultResponse.OptionResult::optionId))
+                .toList();
 
         return new PollResultResponse(poll.getId(), poll.getType(), isCorrect, correctOptionId, results);
     }
@@ -185,4 +190,48 @@ public class PollService {
         return userRepository.findByEmail(email);
     }
 
+    @Transactional
+    public Long updateVote(VoteUpdateRequest request) {
+        Post post = postRepository.findById(request.id())
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+
+        // 작성자 본인 확인 로직 필요 시 추가
+        validateAuthor(post);
+
+        // 1. Post 정보 업데이트 (내용, 익명 여부 등)
+        post.updateContent(request.content());
+        post.updateAnonymous(request.isAnonymous());
+
+        // 2. Poll 정보 업데이트 (기존 Poll 엔티티 접근)
+        Poll poll = post.getPoll();
+        poll.updatePoll(request);
+
+        return post.getId();
+    }
+
+    @Transactional
+    public Long updateQuiz(QuizUpdateRequest request) {
+        Post post = postRepository.findById(request.id())
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POST_NOT_FOUND));
+
+        validateAuthor(post);
+
+        // 1. Post 내용 업데이트
+        post.updateContent(request.content());
+
+        // 2. Poll(퀴즈 데이터) 업데이트
+        Poll poll = post.getPoll();
+        poll.updatePoll(request);
+
+        return post.getId();
+    }
+
+    private void validateAuthor(Post post) {
+        User user = getCurrentUser()
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        if (!post.getAuthor().equals(user)) {
+            throw new BusinessException(CommunityErrorCode.POST_EDIT_FORBIDDEN);
+        }
+    }
 }

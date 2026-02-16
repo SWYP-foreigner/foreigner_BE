@@ -1,7 +1,7 @@
 package core.domain.chat.dto;
 
 import core.domain.chat.entity.ChatParticipant;
-import core.global.enums.ChatParticipantStatus;
+import core.global.enums.chat.ChatParticipantStatus;
 
 import java.time.Instant;
 

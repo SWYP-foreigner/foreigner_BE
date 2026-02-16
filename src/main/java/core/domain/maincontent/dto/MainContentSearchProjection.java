@@ -1,6 +1,5 @@
 package core.domain.maincontent.dto;
 
-import core.global.enums.BoardCategory;
 import core.global.enums.KNewsContentType;
 
 import java.time.Instant;

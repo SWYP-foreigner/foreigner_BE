@@ -1,3 +1,3 @@
-package core.global.enums;
+package core.global.enums.user;
 
 public enum Role { ADMIN, USER, VISITOR,AI,OUTCAST }

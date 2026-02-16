@@ -14,7 +14,7 @@ import core.domain.chat.dto.ChatRoomSearchRequest;
 import core.domain.chat.entity.QChatMessage;
 import core.domain.chat.entity.QChatParticipant;
 import core.domain.user.entity.QUser;
-import core.global.enums.ChatParticipantStatus;
+import core.global.enums.chat.ChatParticipantStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

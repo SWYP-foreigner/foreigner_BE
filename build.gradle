@@ -126,9 +126,17 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
     implementation 'com.github.shin285:KOMORAN:3.3.4'
+
+    implementation 'com.google.apis:google-api-services-androidpublisher:v3-rev20231115-2.0.0'
+
+    // HTTP 통신 및 인증을 위한 클라이언트 라이브러리 (필수)
+    implementation 'com.google.api-client:google-api-client-android:2.2.0'
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.19.0'
 }
 
-
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += "-Xlint:deprecation"
+}
 
 dependencyManagement {
 	imports {

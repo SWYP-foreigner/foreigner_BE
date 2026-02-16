@@ -40,7 +40,9 @@ public enum CommunityErrorCode implements AppError {
     POLL_NOT_FOUND(HttpStatus.NOT_FOUND, "투표&퀴즈가 존재하지 않습니다."),
     POLL_ALREADY_CLOSED(HttpStatus.BAD_REQUEST, "투표 기간이 종료됐습니다."),
     ALREADY_PARTICIPATED(HttpStatus.CONFLICT, "투표에 이미 참가했습니다."),
-     OPTION_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 선택지입니다."), INVALID_INPUT(HttpStatus.BAD_REQUEST, "잘못된 투표 입력입니다.");
+    OPTION_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 선택지입니다."),
+    INVALID_INPUT(HttpStatus.BAD_REQUEST, "잘못된 투표 입력입니다."),
+    VOTE_RECORD_EXISTED(HttpStatus.CONFLICT, "투표 내역이 존재해 삭제할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

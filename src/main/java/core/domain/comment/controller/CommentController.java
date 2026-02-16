@@ -9,7 +9,7 @@ import core.global.docs.annotations.CommonErrorCodeDocs;
 import core.global.docs.annotations.CommunityErrorDocs;
 import core.global.docs.annotations.GlobalErrorDocs;
 import core.global.docs.annotations.UserErrorDocs;
-import core.global.enums.CommunitySortOption;
+import core.global.enums.common.CommunitySortOption;
 import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.GlobalErrorCode;
