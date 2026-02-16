@@ -95,10 +95,10 @@
             const response = await fetch(url, {
                 method: method,
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // 쿠키에서 뽑은 토큰 주입
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(bodyData)
+                body: JSON.stringify(bodyData),
+                credentials: 'include'
             });
 
             if (response.ok) {
