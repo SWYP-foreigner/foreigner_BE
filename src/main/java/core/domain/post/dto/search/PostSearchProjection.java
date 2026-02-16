@@ -1,6 +1,6 @@
 package core.domain.post.dto.search;
 
-import core.global.enums.BoardCategory;
+import core.global.enums.community.BoardCategory;
 
 import java.time.Instant;
 

@@ -4,7 +4,7 @@ import core.domain.board.dto.BoardItem;
 import core.domain.post.dto.admin.PostReportRequest;
 import core.domain.user.entity.User;
 import core.domain.post.dto.comunity.*;
-import core.global.enums.CommunitySortOption;
+import core.global.enums.common.CommunitySortOption;
 import core.global.pagination.CursorPageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
