@@ -1,7 +1,7 @@
 package core.domain.poll.entity;
 
-import core.domain.poll.controller.QuizUpdateRequest;
-import core.domain.poll.controller.VoteUpdateRequest;
+import core.domain.poll.dto.QuizUpdateRequest;
+import core.domain.poll.dto.VoteUpdateRequest;
 import core.domain.poll.dto.VoteWriteRequest;
 import core.domain.poll.dto.QuizWriteRequest;
 import core.domain.post.entity.Post;
