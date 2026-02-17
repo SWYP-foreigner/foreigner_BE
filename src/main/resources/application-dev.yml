@@ -139,7 +139,6 @@ google:
 logging:
   level:
     root: INFO
-    org.springframework.security.web.FilterChainProxy: DEBUG
     # 프레임워크 소음 차단
     org.hibernate.SQL: OFF
     org.hibernate.orm.jdbc.bind: OFF
