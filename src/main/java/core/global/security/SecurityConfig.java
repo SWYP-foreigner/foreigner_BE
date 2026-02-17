@@ -67,7 +67,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
 
-        http.addFilterBefore(smokeTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        //http.addFilterBefore(smokeTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
 
