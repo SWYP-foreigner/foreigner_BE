@@ -9,7 +9,6 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException; // 중요: 서명 예외
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,7 +18,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -46,20 +44,31 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisService redisService;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
-    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+    // EntryPoint는 여기서 직접 쓰지 않고 에러 속성만 넘기므로 제거해도 되지만,
+    // 혹시 다른 용도로 필요하다면 유지하세요. (현재 로직엔 불필요)
+    // private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     private static final String HEADER_PREFIX = "Bearer ";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
-        boolean shouldNotFilter = PermitAllPaths.PATTERNS.stream()
-                .anyMatch(url -> pathMatcher.match(url, requestUri));
+
+        // [중요 변경]
+        // 기존에는 PermitAll 경로면 필터를 아예 건너뛰게(return true) 설정하셨을 수 있습니다.
+        // 하지만 "토큰이 있으면 검증하고, 없거나 이상하면 익명으로 처리"하는 로직이 더 안전하고 유연합니다.
+        // 따라서 특정 시스템 경로(/ws 등) 외에는 필터를 타게 하는 것이 좋습니다.
 
         if (requestUri.startsWith("/ws")) {
-            log.trace(">>>> [DEPLOYMENT CHECK] /ws request detected in shouldNotFilter. Result={}", shouldNotFilter);
+            log.trace(">>>> [DEPLOYMENT CHECK] /ws request detected in shouldNotFilter.");
+            // 웹소켓 등 특수 경로는 필요에 따라 제외
+            return false;
         }
-        return shouldNotFilter;
+
+        // 기본적으로 모든 요청에 대해 필터를 실행하여 토큰 여부를 확인합니다.
+        // (토큰이 없거나 만료되어도 아래 doFilterInternal에서 안전하게 처리됨)
+        return false;
     }
 
     @PostConstruct
@@ -78,104 +87,83 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         String requestUri = request.getRequestURI();
         String clientIp = getClientIp(request);
-        String userAgent = getUserAgent(request);
         String token = resolveToken(request);
 
-        // 토큰이 아예 없는 경우 (익명 사용자 허용 경로 or 401 처리될 예정)
+        // 1. 토큰이 없는 경우 -> 익명 사용자로 다음 필터 진행
         if (token == null) {
             chain.doFilter(request, response);
             return;
         }
 
+        // 2. 토큰이 있는 경우 -> 검증 시도
         try {
-            // 1. 블랙리스트 확인 (로그아웃된 토큰 사용 시도)
+            // (1) 블랙리스트 확인
             if (redisService.isBlacklisted(token)) {
-                log.warn("[SECURITY WARN] 블랙리스트 토큰 접근 시도. IP: {}, URI: {}, UA: {}", clientIp, requestUri, userAgent);
-                handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_BLACKLISTED);
-                return;
+                log.warn("[SECURITY WARN] 블랙리스트 토큰 접근. IP: {}, URI: {}", clientIp, requestUri);
+                // 예외를 던져서 catch 블록으로 보냄 (바로 응답 X)
+                throw new io.jsonwebtoken.security.SecurityException("Blacklisted Token");
             }
 
-            // 2. 토큰 유효성 검사 (여기서 예외가 발생하면 catch로 이동)
-            // 주의: validateToken이 내부에서 예외를 삼키고 false만 리턴한다면 예외를 밖으로 던지도록 수정하거나,
-            // 파싱 로직을 여기서 수행해야 정확한 예외 로그를 찍을 수 있습니다.
-            // 아래 코드는 validateToken이 boolean을 반환한다고 가정했을 때의 방어 로직입니다.
+            // (2) 토큰 유효성 검사
             if (!jwtTokenProvider.validateToken(token)) {
-                // validateToken이 예외를 던지지 않고 false를 리턴했다면, 구체적인 원인을 알 수 없으므로 일반 경고 처리
-                log.warn("[AUTH FAIL] 유효하지 않은 JWT 토큰 (세부 원인 불명). IP: {}, URI: {}", clientIp, requestUri);
-                handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_INVALID);
-                return;
+                log.warn("[AUTH FAIL] 유효하지 않은 토큰. IP: {}, URI: {}", clientIp, requestUri);
+                throw new io.jsonwebtoken.security.SecurityException("Invalid Token");
             }
 
-            // 3. 사용자 정보 추출
+            // (3) 사용자 정보 추출
             String email = jwtTokenProvider.getEmailFromToken(token);
             Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
-            // 4. 역할 검증
+            // (4) 역할 검증 (OUTCAST 등)
             if ("OUTCAST".equals(role)) {
-                log.warn("[ACCESS DENIED] OUTCAST user access attempt. email={}, IP={}", email, clientIp);
-                handleAuthError(request, response, UserErrorCode.JWT_INVALID_ROLE); // ErrorCode 타입 맞추기 필요
-                return;
+                log.warn("[ACCESS DENIED] OUTCAST user. email={}, IP={}", email, clientIp);
+                // UserErrorCode 처리를 위해 메시지를 넘김
+                request.setAttribute("exception", UserErrorCode.JWT_INVALID_ROLE.name());
+                throw new io.jsonwebtoken.security.SecurityException("Outcast User");
             }
 
-            // 5. 인증 객체 생성
+            // (5) 인증 객체 생성 (성공 시)
             List<GrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
 
             CustomUserDetails principal = new CustomUserDetails(userId, email, authorities);
             Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(auth);
 
+            // SecurityContext에 저장
+            SecurityContextHolder.getContext().setAuthentication(auth);
             log.debug("[AUTH SUCCESS] User: {}, URI: {}", email, requestUri);
 
-            chain.doFilter(request, response);
+        } catch (ExpiredJwtException e) {
+            // [핵심 수정] 만료된 토큰이어도 에러 응답을 보내지 않고 '메모'만 함
+            log.info("[AUTH INFO] 만료된 토큰입니다. 익명으로 진행합니다. IP: {}, URI: {}", clientIp, requestUri);
+            request.setAttribute("exception", AuthErrorCode.JWT_TOKEN_EXPIRED.name());
+            SecurityContextHolder.clearContext(); // 인증 정보 확실히 제거
 
         } catch (io.jsonwebtoken.security.SignatureException e) {
-            // ★ 중요: 서명이 다르다는 건 위변조 시도거나 서버 키 변경됨
-            log.error(">>>> [SECURITY ATTACK SUSPECTED] JWT 서명 불일치! 토큰 위변조 가능성 있음. IP: {}, URI: {}, UA: {}, Error: {}",
-                    clientIp, requestUri, userAgent, e.getMessage());
-            handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_INVALID);
+            log.error("[SECURITY ATTACK SUSPECTED] 서명 불일치. IP: {}, URI: {}", clientIp, requestUri);
+            request.setAttribute("exception", AuthErrorCode.JWT_TOKEN_INVALID.name());
+            SecurityContextHolder.clearContext();
 
         } catch (MalformedJwtException e) {
-            // ★ 중요: 토큰 구조가 깨짐 (해커가 랜덤 값을 넣어보는 퍼징 공격일 수 있음)
-            log.error(">>>> [SECURITY ATTACK SUSPECTED] 손상된 JWT 토큰. IP: {}, URI: {}, UA: {}",
-                    clientIp, requestUri, userAgent);
-            handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_INVALID);
-
-        } catch (ExpiredJwtException e) {
-            // 만료는 공격이라기보다 자연스러운 현상 (로그 레벨 INFO or WARN)
-            log.info("[AUTH INFO] 만료된 JWT 토큰입니다. IP: {}, URI: {}", clientIp, requestUri);
-            handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_EXPIRED);
+            log.error("[SECURITY ATTACK SUSPECTED] 손상된 토큰. IP: {}, URI: {}", clientIp, requestUri);
+            request.setAttribute("exception", AuthErrorCode.JWT_TOKEN_INVALID.name());
+            SecurityContextHolder.clearContext();
 
         } catch (UnsupportedJwtException e) {
-            log.warn("[AUTH WARN] 지원하지 않는 JWT 토큰 형식. IP: {}, URI: {}", clientIp, requestUri);
-            handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_INVALID);
+            log.warn("[AUTH WARN] 지원하지 않는 토큰 형식. IP: {}, URI: {}", clientIp, requestUri);
+            request.setAttribute("exception", AuthErrorCode.JWT_TOKEN_INVALID.name());
+            SecurityContextHolder.clearContext();
 
         } catch (Exception e) {
-            log.error("[AUTH ERROR] JWT 처리 중 알 수 없는 오류 발생. IP: {}, URI: {}, Error: {}", clientIp, requestUri, e.getMessage());
-            handleAuthError(request, response, AuthErrorCode.JWT_TOKEN_INVALID);
+            log.error("[AUTH ERROR] 알 수 없는 오류. IP: {}, Error: {}", clientIp, e.getMessage());
+            request.setAttribute("exception", AuthErrorCode.JWT_TOKEN_INVALID.name());
+            SecurityContextHolder.clearContext();
         }
-    }
 
-    /**
-     * 예외 처리 공통 메서드
-     */
-    private void handleAuthError(HttpServletRequest request, HttpServletResponse response, AuthErrorCode errorCode) throws IOException, ServletException {
-        handleAuthError(request, response, errorCode.getMessage());
-    }
-
-    // UserErrorCode 등 다른 Enum 처리를 위한 오버로딩 (필요 시 수정)
-    private void handleAuthError(HttpServletRequest request, HttpServletResponse response, UserErrorCode errorCode) throws IOException, ServletException {
-        handleAuthError(request, response, errorCode.getMessage());
-    }
-
-    private void handleAuthError(HttpServletRequest request, HttpServletResponse response, String message) throws IOException, ServletException {
-        SecurityContextHolder.clearContext();
-        jwtAuthenticationEntryPoint.commence(
-                request,
-                response,
-                new BadCredentialsException(message)
-        );
+        // [핵심 수정] 토큰이 유효하든 아니든 무조건 다음 필터로 넘깁니다.
+        // SecurityConfig가 requestMatcher 설정을 보고 통과시킬지(PermitAll) 막을지(401) 결정합니다.
+        chain.doFilter(request, response);
     }
 
     private String resolveToken(HttpServletRequest request) {
@@ -205,32 +193,16 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 .orElse(null);
     }
 
-    /**
-     * 클라이언트 IP 추출 (Proxy, LB 환경 고려)
-     */
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
-        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_CLIENT_IP");
-        }
-        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        }
-        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
+        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) ip = request.getHeader("Proxy-Client-IP");
+        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) ip = request.getHeader("WL-Proxy-Client-IP");
+        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) ip = request.getHeader("HTTP_CLIENT_IP");
+        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        if (!StringUtils.hasText(ip) || "unknown".equalsIgnoreCase(ip)) ip = request.getRemoteAddr();
         return ip;
     }
 
-    /**
-     * User-Agent 추출 (브라우저/기기 정보)
-     */
     private String getUserAgent(HttpServletRequest request) {
         String ua = request.getHeader("User-Agent");
         return ua != null ? ua : "Unknown";
