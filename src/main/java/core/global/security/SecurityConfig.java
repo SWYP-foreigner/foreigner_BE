@@ -1,17 +1,23 @@
 package core.global.security;
-
+import org.springframework.context.event.EventListener;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.security.web.FilterChainProxy;
+import jakarta.servlet.Filter;
 import core.global.constants.AIOnlyPaths;
 import core.global.metrics.PresenceActivityFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -31,7 +37,23 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final PresenceActivityFilter presenceActivityFilter;
     private final SmokeTokenFilter smokeTokenFilter;
+    @EventListener(ApplicationReadyEvent.class)
+    public void printFilterChain(ApplicationReadyEvent event) {
+        log.info("=======================================================");
+        log.info("🔍 [DEBUG] 현재 등록된 시큐리티 필터 목록 확인");
+        log.info("=======================================================");
 
+        FilterChainProxy filterChainProxy = event.getApplicationContext().getBean(FilterChainProxy.class);
+
+        filterChainProxy.getFilterChains().forEach(chain -> {
+            int i = 1;
+            for (Filter filter : chain.getFilters()) {
+                // 우리 필터(JwtTokenFilter)가 목록에 있는지 눈을 씻고 찾아봐야 함
+                log.info("   {}. {}", i++, filter.getClass().getSimpleName());
+            }
+        });
+        log.info("=======================================================");
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -67,7 +89,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
 
-        //http.addFilterBefore(smokeTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+        http.addFilterBefore(smokeTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterAfter(presenceActivityFilter, UsernamePasswordAuthenticationFilter.class);
 

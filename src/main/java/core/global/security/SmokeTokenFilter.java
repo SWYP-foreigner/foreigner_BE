@@ -51,4 +51,5 @@ public class SmokeTokenFilter extends OncePerRequestFilter {
 
         chain.doFilter(req, res);
     }
+
 }
