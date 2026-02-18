@@ -89,6 +89,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         String clientIp = getClientIp(request);
         String token = resolveToken(request);
 
+        if (requestUri.startsWith("/api/v1/app")) {
+            log.info(">>>> [FILTER TRACE] Entry: {}, Method: {}, Token Present: {}",
+                    requestUri, request.getMethod(), StringUtils.hasText(resolveToken(request)));
+        }
         // 1. 토큰이 없는 경우 -> 익명 사용자로 다음 필터 진행
         if (token == null) {
             chain.doFilter(request, response);

@@ -34,6 +34,7 @@ public class FastSocketSender {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
         // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약)
+
         byte[] payloadBytes;
         try {
             payloadBytes = objectMapper.writeValueAsBytes(payloadData);
@@ -47,9 +48,8 @@ public class FastSocketSender {
 
             // [검색 1단계] ID로 조회 시도
             SimpUser user = userRegistry.getUser(userIdStr);
-
-            // [검색 2단계] 없으면 Principal Name(Email) 포맷으로 재시도 (LoadTest 환경 대응)
             if (user == null) {
+                log.warn("유저를 찾을 수 없음: {}. 현재 접속 유저 수: {}", userIdStr, userRegistry.getUserCount());
                 String principalName = "loadtest_" + userId + "@test.com";
                 user = userRegistry.getUser(principalName);
             }

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/app")
 @RequiredArgsConstructor
+@Slf4j
 public class AppVersionController {
 
     private final AppVersionService appVersionService;
@@ -48,7 +50,12 @@ public class AppVersionController {
             @Parameter(description = "앱 버전 체크 요청 파라미터")
             @ModelAttribute VersionCheckDto.Request request
     ) {
+        log.info(">>>> [CONTROLLER ENTRY] AppVersionController.checkVersion - Platform: {}, Version: {}",
+                request.getPlatform(), request.getCurrentVersion());
+
         VersionCheckDto.Response response = appVersionService.checkVersion(request);
+
+        log.info(">>>> [CONTROLLER EXIT] Response: {}", response.getStatus());
         return ResponseEntity.ok(response);
     }
 }
