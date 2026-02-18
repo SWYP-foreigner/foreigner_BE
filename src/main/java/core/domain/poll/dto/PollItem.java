@@ -21,6 +21,9 @@ public record PollItem(
         @Schema(description = "투표 하단 상세 설명", example = "자유롭게 본인의 선호를 투표해주세요.", nullable = true)
         String description,
 
+        @Schema(description = "게시글 본문 내용 (Post Content)", example = "이 퀴즈는 상식 문제입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
+        String content,
+
         @Schema(description = "투표 마감 시간(UTC)", type = "string", format = "date-time", example = "2025-12-31T23:59:59Z", requiredMode = Schema.RequiredMode.REQUIRED)
         Instant closeAt,
 

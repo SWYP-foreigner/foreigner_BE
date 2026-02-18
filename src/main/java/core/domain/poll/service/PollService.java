@@ -75,6 +75,7 @@ public class PollService {
                 poll.getType(),
                 poll.getTitle(),
                 poll.getDescription(),
+                poll.getPost().getContent(),
                 poll.getCloseAt(),
                 poll.getTotalVoteCount(),
                 optionItems,

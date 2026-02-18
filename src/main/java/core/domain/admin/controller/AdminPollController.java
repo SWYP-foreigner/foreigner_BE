@@ -34,8 +34,6 @@ public class AdminPollController {
 
     @GetMapping("/create")
     public String createForm(Model model) {
-        // 새 작성이므로 빈 객체나 null 전달
-        model.addAttribute("quiz", null);
         return "admin/quiz/form";
     }
 
