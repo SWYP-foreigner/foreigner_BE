@@ -15,6 +15,7 @@ import core.domain.payment.repository.IapBonusGrantRepository;
 import core.domain.payment.repository.IapEntitlementRepository;
 import core.domain.payment.repository.IapPurchaseRepository;
 import core.domain.payment.repository.UserItemRepository;
+import core.domain.poll.entity.Poll;
 import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
@@ -867,63 +868,48 @@ public class UserService {
         return isApple;
     }
 
-
     /**
-     * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
+     * 회원 탈퇴 시 연관 데이터를 모두 삭제하는 메서드.
+     * 삭제 순서가 매우 중요합니다 (자식 데이터 -> 부모 데이터).
      */
-    // 필요한 Repository 주입 가정
-
     private void cleanupUserData(User user) {
         Long userId = user.getId();
 
-        // ---------------------------------------------------------
-        // 1. [NEW] 결제 및 아이템 관련 데이터 정리 (가장 독립적인 데이터)
-        // ---------------------------------------------------------
-        // 주의: 실제 서비스 정책에 따라 결제 내역(Purchase)은 삭제하지 않고
-        // userId를 -1(탈퇴회원) 등으로 마킹하거나 별도 아카이브 테이블로 옮기기도 합니다.
-        // 여기서는 "완전 삭제"를 기준으로 작성했습니다.
-        iapEntitlementRepository.deleteAllByUserId(userId); // 권한(구독 등) 삭제
-        iapBonusGrantRepository.deleteAllByUserId(userId);  // 보너스 지급 내역 삭제
-        userItemRepository.deleteAllByUserId(userId);       // 보유 아이템 삭제
+        // =========================================================
+        // 1. [Payment] 결제 및 아이템 관련 (가장 독립적인 데이터)
+        // =========================================================
+        // IapPurchase는 다른 테이블에서 참조될 수 있으므로 마지막에 삭제
+        iapEntitlementRepository.deleteAllByUserId(userId); // 구독/권한
+        iapBonusGrantRepository.deleteAllByUserId(userId);  // 보너스
+        userItemRepository.deleteAllByUserId(userId);       // 아이템
+        iapPurchaseRepository.deleteAllByUserId(userId);    // 결제 내역
 
-        // IapPurchase는 다른 테이블(Entitlement, Bonus)에서 참조할 수 있으므로
-        // 참조하는 자식들을 먼저 지우고 마지막에 지워야 안전합니다.
-        iapPurchaseRepository.deleteAllByUserId(userId);
 
-        // ---------------------------------------------------------
-        // 2. [NEW] 신고 관련 데이터 정리 (Foreign Key 충돌 방지)
-        // ---------------------------------------------------------
-        // 2-1. 내가 신고한 내역 (Reporter) 삭제
+        // =========================================================
+        // 2. [Report] 신고 관련 (User 참조 해제)
+        // =========================================================
+        // 2-1. 내가 신고한 내역
         postReportRepository.deleteAllByReporterId(userId);
         chatReportRepository.deleteAllByReporterUserId(userId);
 
-        // 2-2. 내가 신고 당한 내역 (Reported) 삭제
-        // 사용자가 삭제되면 신고 대상(User)이 사라지므로, 해당 신고 내역도 삭제해야 합니다.
+        // 2-2. 내가 신고 당한 내역 (User가 사라지면 신고 대상도 사라짐)
         postReportRepository.deleteAllByReportedUserId(userId);
         chatReportRepository.deleteAllByReportedUserId(userId);
 
-        // 2-3. (중요) 내가 쓴 글에 대한 신고 내역 삭제
-        // 아래 5번 단계에서 Post를 삭제할 때, 해당 Post를 참조하는 Report가 있으면 에러가 날 수 있습니다.
-        // 따라서 내 Post들에 걸려있는 신고 내역을 미리 지워야 합니다.
-        List<Post> userPostsForReportCheck = postRepository.findAllByAuthorId(userId);
-        if (!userPostsForReportCheck.isEmpty()) {
-            postReportRepository.deleteAllByPostIn(userPostsForReportCheck);
-        }
 
-        // ---------------------------------------------------------
-        // 3. [NEW] 투표/설문 관련 데이터 정리
-        // ---------------------------------------------------------
-        // Poll(투표 생성)은 Post에 종속(Cascade)되어 Post 삭제 시 같이 삭제되지만,
-        // VoteRecord(투표 참여 기록)는 User를 참조하므로 직접 지워야 합니다.
+        // =========================================================
+        // 3. [Vote] 투표 참여 기록 (내가 한 투표)
+        // =========================================================
         voteRecordRepository.deleteAllByUserId(userId);
 
 
-        // ---------------------------------------------------------
-        // 4. 채팅방 관련 정리 (기존 로직 유지)
-        // ---------------------------------------------------------
+        // =========================================================
+        // 4. [Chat] 채팅방 및 메시지 정리
+        // =========================================================
         List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
+
         for (ChatRoom chatRoom : ownedChatRooms) {
-            // 방장 위임 로직
+            // 방장 위임 로직: 나를 제외한 다른 참여자 찾기
             List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
 
             if (!participants.isEmpty()) {
@@ -931,58 +917,77 @@ public class UserService {
                 chatRoom.changeOwner(newOwner);
                 chatRoomRepository.save(chatRoom);
             } else {
-                // 남은 사람이 없으면 방 폭파 -> 연관된 채팅 메시지, 참여 정보 등도 Cascade 혹은 별도 삭제 필요
-                // (ChatRoom 삭제 시 연관 데이터 처리가 엔티티에 설정되어 있지 않다면 에러 가능성 있음)
+                // 남은 사람이 없으면 방 삭제
+                // (Cascade 설정에 따라 메시지/참여자가 자동 삭제되지 않는다면 별도 삭제 필요할 수 있음)
                 chatRoomRepository.delete(chatRoom);
             }
         }
 
-        // 채팅 참여 기록 및 메시지 삭제
+        // 채팅 참여 정보 및 내가 보낸 메시지 삭제
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
 
 
-        // ---------------------------------------------------------
-        // 5. 게시글 및 상호작용 정리 (기존 로직 보완)
-        // ---------------------------------------------------------
+        // =========================================================
+        // 5. [Post & Interaction] 게시글 및 커뮤니티 활동 정리
+        // =========================================================
         blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
 
+        // 5-1. 내가 작성한 게시글 조회
         List<Post> userPosts = postRepository.findAllByAuthorId(userId);
+
         if (userPosts != null && !userPosts.isEmpty()) {
-            // Post 삭제 전 연관된 자식들 정리
+            // [순서 중요] Post 삭제 전, Post를 참조하는 자식 엔티티 먼저 삭제
+
+            // A. 댓글 및 북마크 삭제
             commentRepository.deleteAllByPostIn(userPosts);
             bookmarkRepository.deleteAllByPostIn(userPosts);
 
-            // [중요] PostReport는 위 2-3 단계에서 이미 삭제했습니다.
+            // B. 내 글에 달린 신고 내역 삭제 (안 지우면 FK 에러)
+            postReportRepository.deleteAllByPostIn(userPosts);
 
-            // Post 삭제 (Cascade 설정에 의해 Poll, PollOption 도 같이 삭제됨)
+            // C. [CRITICAL FIX] 내 글에 포함된 투표(Poll)에 달린 "다른 사람들의 투표 기록" 삭제
+            // 이걸 안 하면 PollOption 삭제 시 fk_vote_option 에러 발생
+            List<Poll> userPolls = userPosts.stream()
+                    .map(Post::getPoll)
+                    .filter(Objects::nonNull) // Poll이 없는 게시글 제외
+                    .toList();
+
+            if (!userPolls.isEmpty()) {
+                voteRecordRepository.deleteAllByPollIn(userPolls);
+            }
+
+            // D. 게시글 삭제 (Cascade로 인해 Poll, PollOption 자동 삭제됨)
             postRepository.deleteAll(userPosts);
         }
 
-        // 내가 쓴 댓글, 좋아요, 북마크, 팔로우 삭제
-        commentRepository.deleteAllByAuthorId(userId);
-        bookmarkRepository.deleteAllByUserId(userId);
-        followRepository.deleteAllByUserId(userId); // 팔로워/팔로잉 양쪽 모두 삭제 필요 확인 (보통 deleteAllByFollowerId, deleteAllByFollowingId)
-        likeRepository.deleteAllByUserId(userId);
+        // 5-2. 남의 글에 남긴 내 흔적 삭제
+        commentRepository.deleteAllByAuthorId(userId);  // 내가 쓴 댓글
+        bookmarkRepository.deleteAllByUserId(userId);   // 내가 한 북마크
+        likeRepository.deleteAllByUserId(userId);       // 내가 누른 좋아요
+        followRepository.deleteAllByUserId(userId);     // 팔로우 내역 (내가 한 팔로우)
+        // 필요 시: followRepository.deleteAllByFollowerId(userId); // 나를 향한 팔로우
 
 
-        // ---------------------------------------------------------
-        // 6. 기타 사용자 정보 및 최종 삭제
-        // ---------------------------------------------------------
+        // =========================================================
+        // 6. [Misc] 기타 사용자 정보 정리
+        // =========================================================
         imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
         imageService.deleteUserProfileImage(userId);
 
-        blockRepository.deleteAllByUserOrBlocked(user); // 차단 한 것/당한 것 모두 삭제
+        blockRepository.deleteAllByUserOrBlocked(user); // 차단 목록
 
         userNotificationSettingRepository.deleteAllByUserId(userId);
         userDeviceTokenRepository.deleteAllByUserId(userId);
 
-        notificationRepository.deleteAllByUserId(userId);  // 내가 받은 알림
-        notificationRepository.deleteAllByActorId(userId); // 내가 유발한 알림
+        notificationRepository.deleteAllByUserId(userId);  // 받은 알림
+        notificationRepository.deleteAllByActorId(userId); // 보낸 알림
 
         userFeedbackRepository.deleteAllByUserIdExplicit(userId);
 
-        // 최종적으로 사용자 삭제
+        // =========================================================
+        // 7. [Final] 사용자 계정 삭제
+        // =========================================================
         userRepository.delete(user);
     }
 
