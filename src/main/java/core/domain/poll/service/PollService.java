@@ -258,6 +258,14 @@ public class PollService {
         return mapToPollItem(poll, null, correctOptionId);
     }
 
+    @Transactional
+    public void deletePoll(Long pollId) {
+        Post post = postRepository.findById(pollId)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
+
+        postRepository.delete(post);
+    }
+
     private void validateAuthor(Post post) {
         User user = getCurrentUser()
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
