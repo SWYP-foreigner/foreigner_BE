@@ -105,12 +105,26 @@ public class Poll {
         this.options.add(option);
     }
 
-    public void updatePoll(VoteUpdateRequest request) {
+    public void updatePoll(QuizUpdateRequest request) {
         this.title = request.title();
         this.description = request.description();
+
+        if (request.options() != null && !request.options().isEmpty()) {
+            updateOptions(request.options(), request.correctOptionIndex());
+        }
     }
 
-    public void updatePoll(QuizUpdateRequest request) {
+    private void updateOptions(List<String> newOptions, Integer correctIndex) {
+        this.options.clear();
+        this.totalVoteCount = 0L;
+
+        for (int i = 0; i < newOptions.size(); i++) {
+            boolean isCorrect = (correctIndex != null && i == correctIndex);
+            this.addOption(newOptions.get(i), isCorrect);
+        }
+    }
+
+    public void updatePoll(VoteUpdateRequest request) {
         this.title = request.title();
         this.description = request.description();
     }

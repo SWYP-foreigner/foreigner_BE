@@ -3,6 +3,8 @@ package core.domain.poll.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
+
 @Schema(name = "QuizUpdateRequest", description = "퀴즈 수정 요청")
 public record QuizUpdateRequest(
         @Schema(description = "퀴즈 ID", example = "1")
@@ -16,6 +18,12 @@ public record QuizUpdateRequest(
         String description,
 
         @Schema(description = "퀴즈 상세 본문", example = "아래 보기 중 하나를 선택하세요.")
-        String content
+        String content,
+
+        @Schema(description = "수정할 선택지 목록", example = "[\"서울\", \"부산\"]")
+        List<String> options,
+
+        @Schema(description = "정답 인덱스", example = "0")
+        Integer correctOptionIndex
 ) {
 }

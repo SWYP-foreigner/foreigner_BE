@@ -248,9 +248,8 @@ public class PollService {
             throw new BusinessException(CommunityErrorCode.INVALID_INPUT);
         }
 
-        // 수정 페이지에서 정답을 보여줘야 하므로 정답 ID를 찾아서 넘김
         Long correctOptionId = poll.getOptions().stream()
-                .filter(PollOption::getIsCorrect)
+                .filter(opt -> Boolean.TRUE.equals(opt.getIsCorrect()))
                 .map(PollOption::getId)
                 .findFirst()
                 .orElse(null);
