@@ -1,6 +1,11 @@
 package core.domain.admin.controller;
 
+import core.domain.poll.dto.PollItem;
 import core.domain.poll.service.PollService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,8 +22,13 @@ public class AdminPollController {
     }
 
     @GetMapping
-    public String listQuizzes(Model model) {
-        model.addAttribute("quizzes", pollService.getAllQuizzes());
+    public String listQuizzes(
+            Model model,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<PollItem> quizzes = pollService.getAllQuizzes(pageable);
+
+        model.addAttribute("quizzes", quizzes);
         return "admin/quiz/list";
     }
 
