@@ -18,18 +18,17 @@ public class UserMetricService {
      */
     @Transactional(readOnly = true)
     public Object[] getInactiveAndTotalCounts() {
-        Object res = userRepository.countInactive30dAndTotal();
-        // 리포지토리 결과가 단일 객체일 경우 배열로 변환하는 로직 포함 가능
-        return toRow(res);
+        List<Object[]> results = userRepository.countInactive30dAndTotal();
+
+        if (results != null && !results.isEmpty()) {
+            return results.get(0);
+        }
+
+        return new Object[0];
     }
 
     @Transactional(readOnly = true)
     public List<Object[]> getLastSeenHourDistribution() {
         return userRepository.lastSeenHourDist7d();
-    }
-
-    private Object[] toRow(Object res) {
-        if (res instanceof Object[]) return (Object[]) res;
-        return new Object[]{res};
     }
 }
