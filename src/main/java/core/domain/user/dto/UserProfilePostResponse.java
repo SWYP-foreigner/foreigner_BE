@@ -6,11 +6,24 @@ import java.time.Instant;
 
 @Getter
 @Builder
+@io.swagger.v3.oas.annotations.media.Schema(description = "유저 프로필용 게시글 응답 DTO")
 public class UserProfilePostResponse {
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "게시글 고유 ID", example = "102")
     private Long postId;
-    private String content;        // 게시글 내용 (필요 시 앞부분만 잘라서 줄 수도 있음)
-    private String thumbnailUrl;   // 대표 이미지 (Index 0)
-    private long likeCount;        // 좋아요 수
-    private long commentCount;     // 댓글 수
-    private Instant createdAt;     // 작성일
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "게시글 본문 내용", example = "오늘 날씨가 너무 좋네요!")
+    private String content;
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "대표 이미지 URL (없으면 null)", example = "https://cdn.example.com/thumb.jpg")
+    private String thumbnailUrl;
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "좋아요 총 개수", example = "15")
+    private long likeCount;
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "댓글 총 개수", example = "3")
+    private long commentCount;
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "작성일시")
+    private Instant createdAt;
 }
