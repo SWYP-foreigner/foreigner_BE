@@ -16,4 +16,5 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecord, Long> {
 
     @Query("SELECT v.poll.id, v.pollOption.id FROM VoteRecord v WHERE v.user.id = :userId AND v.poll.id IN :pollIds")
     List<Object[]> findUserVotesInPolls(@Param("userId") Long userId, @Param("pollIds") List<Long> pollIds);
+    void deleteAllByUserId(Long userId);
 }

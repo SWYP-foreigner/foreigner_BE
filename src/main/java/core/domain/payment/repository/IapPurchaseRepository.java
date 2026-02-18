@@ -8,4 +8,5 @@ import java.util.Optional;
 
 public interface IapPurchaseRepository extends JpaRepository<IapPurchase, Long> {
     Optional<IapPurchase> findByPlatformAndStoreTxId(DeviceType platform, String storeTxId);
+    void deleteAllByUserId(Long userId);
 }

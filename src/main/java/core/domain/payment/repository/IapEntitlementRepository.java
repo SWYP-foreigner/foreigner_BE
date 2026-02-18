@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface IapEntitlementRepository extends JpaRepository<IapEntitlement, Long> {
     Optional<IapEntitlement> findTopByUserIdOrderByUpdatedAtDesc(Long userId);
+    void deleteAllByUserId(Long userId);
 }
