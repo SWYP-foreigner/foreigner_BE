@@ -148,20 +148,6 @@ public class LoginRegisterController {
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
 
-    @GetMapping("/{userId}/info")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @Operation(summary = "유저 프로필 조회", description = "유저 프로필을 조회합니다.")
-    public ResponseEntity<UserProfileCardResponse> getUserProfile(
-            @PathVariable("userId") Long userId,
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        Long currentUserId = userDetails.getUserId();
-        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(userProfile);
-    }
-
-
     @PostMapping("/signup")
     @Operation(summary = "일반 회원가입 및 JWT 발급")
     @UserErrorDocs({UserErrorCode.AGREEMENT_INPUT, UserErrorCode.DUPLICATE_RESOURCE, UserErrorCode.AUTHENTICATION_FAILED})
