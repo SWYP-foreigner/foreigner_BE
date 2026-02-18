@@ -1,7 +1,6 @@
 package core.domain.user.service;
 
 
-import core.domain.admin.respoitory.AdminOtpRepository;
 import core.domain.bookmark.repository.BookmarkRepository;
 import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
@@ -25,6 +24,7 @@ import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
+import core.domain.user.repository.AdminOtpRepository;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
 import core.domain.user.repository.UserRepository;
