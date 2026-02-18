@@ -1,6 +1,7 @@
 package core.global.config;
 
 import io.github.resilience4j.retry.annotation.Retry;
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,14 @@ public class AsyncMailDispatcher {
 
     private final JavaMailSender mailSender;
     private final Semaphore smtpGate = new Semaphore(1);
-
+    @PostConstruct // 의존성 주입이 완료된 후 실행됨
+    public void checkConfig() {
+        if (mailSender instanceof org.springframework.mail.javamail.JavaMailSenderImpl impl) {
+            log.info("📧 [MAIL CONFIG] Host: {}", impl.getHost());
+            log.info("📧 [MAIL CONFIG] User: {}", impl.getUsername());
+            log.info("📧 [MAIL CONFIG] Port: {}", impl.getPort());
+        }
+    }
     @Async("mailExecutor")
     @Retry(name = "mailSend")
     public void sendHtmlAsync(String from, String to, String subject, String html) {
