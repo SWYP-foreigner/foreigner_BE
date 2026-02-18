@@ -11,4 +11,6 @@ public interface ChatReportRepository extends JpaRepository<ChatReport, Long> {
     Page<ChatReport> findByStatus(ChatReportStatus status, Pageable pageable);
 
     boolean existsByReporterUserIdAndMessageId(Long reporterUserId, Long messageId);
+    void deleteAllByReporterUserId(Long reporterUserId);
+    void deleteAllByReportedUserId(Long reportedUserId);
 }

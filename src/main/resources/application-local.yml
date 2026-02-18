@@ -159,7 +159,7 @@ management:
       application: my-service
   health:
     mail:
-          enabled: false
+      enabled: false
 
 app:
   mail:

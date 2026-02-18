@@ -2,8 +2,8 @@ package core.domain.poll.service;
 
 import core.domain.board.entity.Board;
 import core.domain.board.repository.BoardRepository;
-import core.domain.poll.controller.QuizUpdateRequest;
-import core.domain.poll.controller.VoteUpdateRequest;
+import core.domain.poll.dto.QuizUpdateRequest;
+import core.domain.poll.dto.VoteUpdateRequest;
 import core.domain.poll.dto.VoteWriteRequest;
 import core.domain.poll.dto.PollItem;
 import core.domain.poll.dto.PollResultResponse;
@@ -224,6 +224,39 @@ public class PollService {
         poll.updatePoll(request);
 
         return post.getId();
+    }
+
+    // 관리자용 전체 퀴즈 목록 조회
+    @Transactional(readOnly = true)
+    public List<PollItem> getAllQuizzes() {
+        // PollType이 QUIZ인 모든 데이터를 조회 (최신순)
+        return pollRepository.findAllByTypeOrderByCreatedAtDesc(PollType.QUIZ).stream()
+                .map(poll -> {
+                    // 목록 조회이므로 선택된 옵션이나 정답 ID 정보는 null로 처리하거나
+                    // 필요에 따라 로직을 추가할 수 있습니다.
+                    return mapToPollItem(poll, null, null);
+                })
+                .toList();
+    }
+
+    // 관리자용 특정 퀴즈 상세 조회
+    @Transactional(readOnly = true)
+    public PollItem getQuizDetail(Long pollId) {
+        Poll poll = pollRepository.findById(pollId)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
+
+        if (poll.getType() != PollType.QUIZ) {
+            throw new BusinessException(CommunityErrorCode.INVALID_INPUT);
+        }
+
+        // 수정 페이지에서 정답을 보여줘야 하므로 정답 ID를 찾아서 넘김
+        Long correctOptionId = poll.getOptions().stream()
+                .filter(PollOption::getIsCorrect)
+                .map(PollOption::getId)
+                .findFirst()
+                .orElse(null);
+
+        return mapToPollItem(poll, null, correctOptionId);
     }
 
     private void validateAuthor(Post post) {

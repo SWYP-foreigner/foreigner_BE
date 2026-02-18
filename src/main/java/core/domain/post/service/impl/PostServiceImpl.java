@@ -216,9 +216,6 @@ public class PostServiceImpl implements PostService {
                 // 해당 게시글에 맞는 옵션 리스트만 가져오기 (없으면 빈 리스트)
                 List<BoardItem.OptionItem> specificOptions = optionsMap.getOrDefault(item.id(), List.of());
 
-                List<BoardItem.OptionItem> sortedOptions = new ArrayList<>(specificOptions);
-                sortedOptions.sort(Comparator.comparing(BoardItem.OptionItem::optionId));
-
                 // 🔥 핵심 수정: addAll() 대신 PollInfo와 BoardItem을 새로 생성합니다.
                 // 이렇게 해야 QueryDSL이 만든 공유 리스트(ArrayList) 연결을 끊을 수 있습니다.
                 BoardItem.PollInfo newPollInfo = new BoardItem.PollInfo(
@@ -226,7 +223,7 @@ public class PostServiceImpl implements PostService {
                         item.pollInfo().description(),
                         item.pollInfo().closeAt(),
                         item.pollInfo().totalVoteCount(),
-                        sortedOptions,
+                        specificOptions, // ✅ DB에서 가져온 "내 옵션"만 주입
                         item.pollInfo().selectedOptionId(),
                         item.pollInfo().correctOptionId()
                 );
@@ -499,10 +496,6 @@ public class PostServiceImpl implements PostService {
 
         if (post.getAuthor() == null || !post.getAuthor().getEmail().equals(email)) {
             throw new BusinessException(CommunityErrorCode.POST_DELETE_FORBIDDEN);
-        }
-
-        if (post.getPoll() != null && voteRecordRepository.existsByPollId(post.getPoll().getId())) {
-            throw new BusinessException(CommunityErrorCode.VOTE_RECORD_EXISTED);
         }
 
         String folderPrefix = "posts/" + postId;

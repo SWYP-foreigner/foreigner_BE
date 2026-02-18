@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface IapBonusGrantRepository extends JpaRepository<IapBonusGrant, Long> {
     Optional<IapBonusGrant> findByUserIdAndBonusCode(Long userId, String bonusCode);
+    void deleteAllByUserId(Long userId);
 }

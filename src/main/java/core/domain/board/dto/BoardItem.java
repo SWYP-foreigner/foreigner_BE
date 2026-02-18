@@ -9,7 +9,7 @@ import java.util.List;
 
 @Schema(name = "BoardResponse", description = "게시글 카드 응답 데이터")
 public record BoardItem(
-        @Schema(description = "게시글 / 투표 / 퀴즈 ID", example = "123", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "게시글 ID", example = "123", requiredMode = Schema.RequiredMode.REQUIRED)
         Long id,
 
         @Schema(description = "내용 미리보기", example = "안녕하세요! 첫 글입니다.", requiredMode = Schema.RequiredMode.REQUIRED)

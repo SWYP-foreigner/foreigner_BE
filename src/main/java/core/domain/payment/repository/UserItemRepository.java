@@ -23,4 +23,5 @@ public interface UserItemRepository extends JpaRepository<UserItem, Long> {
     int decrementIfEnough(@Param("userId") Long userId,
                           @Param("itemCode") String itemCode,
                           @Param("delta") int delta);
+    void deleteAllByUserId(Long userId);
 }
