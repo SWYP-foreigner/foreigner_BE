@@ -14,6 +14,7 @@ import core.global.metrics.FeatureUsageMetrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -103,5 +104,15 @@ public class PollController {
         return ResponseEntity.ok(ApiResponse.success(
                 pollService.participate(pollId, request.optionId())
         ));
+    }
+
+    @Operation(summary = "투표/퀴즈 삭제", description = "해당 투표 또는 퀴즈를 삭제합니다.")
+    @DeleteMapping("/{pollId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deletePoll(
+            @PathVariable Long pollId
+    ) {
+        pollService.deletePoll(pollId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

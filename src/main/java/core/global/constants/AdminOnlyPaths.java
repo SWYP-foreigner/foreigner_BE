@@ -13,6 +13,6 @@ public final class AdminOnlyPaths {
             "/v3/api-docs/**",
             "/api/v1/images/object",
             "/api/v1/images/delete-folder",
-            "/api/v2/poll/quiz"
+            "/api/v2/poll/quiz/**"
     );
 }
