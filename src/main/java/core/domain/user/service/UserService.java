@@ -1164,6 +1164,7 @@ public class UserService {
 
     /**
      * 특정 유저의 그룹 채팅방 목록 조회 (무한 스크롤)
+     * 변경사항: UserProfileGroupChatRoomResponse 필드명 및 타입 반영
      */
     public Slice<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, Pageable pageable) {
 
@@ -1176,35 +1177,31 @@ public class UserService {
         Slice<ChatParticipant> participantSlice = chatParticipantRepository
                 .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
 
-        // 데이터가 없으면 빈 결과 반환
         if (participantSlice.isEmpty()) {
             return new SliceImpl<>(new ArrayList<>(), pageable, false);
         }
 
-        // 3. 조회된 데이터에서 채팅방 ID 목록 추출 (for문 사용)
+        // 3. 채팅방 ID 목록 추출
         List<ChatParticipant> participants = participantSlice.getContent();
         List<Long> chatRoomIds = new ArrayList<>();
-
         for (ChatParticipant participant : participants) {
             chatRoomIds.add(participant.getChatRoom().getId());
         }
 
-        // 4. 채팅방 썸네일 이미지 조회 및 Map 변환 (for문 사용)
+        // 4. 채팅방 이미지 조회 및 Map 변환
         List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
         Map<Long, String> imageMap = new HashMap<>();
-
         for (Image image : images) {
-            // 중복된 ID가 있을 경우 첫 번째 이미지만 저장 (putIfAbsent)
             imageMap.putIfAbsent(image.getRelatedId(), image.getUrl());
         }
 
-        // 5. DTO 변환 작업 (for문 사용)
+        // 5. DTO 변환 작업 (수정된 필드명 및 타입 적용)
         List<UserProfileGroupChatRoomResponse> responseList = new ArrayList<>();
 
         for (ChatParticipant participant : participants) {
             ChatRoom room = participant.getChatRoom();
 
-            // 5-1. 현재 참여 인원 수 계산 (직접 카운팅)
+            // 5-1. 현재 참여 인원 수 계산
             int activeCount = 0;
             for (ChatParticipant member : room.getParticipants()) {
                 if (member.getStatus() == ChatParticipantStatus.ACTIVE) {
@@ -1212,20 +1209,14 @@ public class UserService {
                 }
             }
 
-            // 5-2. DTO 생성 및 리스트 추가
-            UserProfileGroupChatRoomResponse response = UserProfileGroupChatRoomResponse.builder()
-                    .chatRoomId(room.getId())
-                    .roomName(room.getRoomName())
-                    .description(room.getDescription())
-                    .participantCount(activeCount)
+            UserProfileGroupChatRoomResponse.builder()
+                    .roomId(room.getId())
+                    .userCount(String.valueOf(activeCount))
+                    .roomImageUrl(imageMap.get(room.getId()))
                     .lastMessageSentAt(room.getLastMessageSentAt())
-                    .thumbnailUrl(imageMap.get(room.getId())) // 맵에서 이미지 URL 꺼내기
                     .build();
-
-            responseList.add(response);
         }
 
-        // 6. 최종 Slice 반환
         return new SliceImpl<>(responseList, pageable, participantSlice.hasNext());
     }
     /**
@@ -1259,7 +1250,7 @@ public class UserService {
     }
     /**
      * 특정 유저의 게시글 목록 조회 (무한 스크롤)
-     * 포함 정보: 내용, 썸네일(0번), 좋아요 수, 댓글 수
+     * 변경사항: UserProfilePostResponse의 필드명 변경에 따른 Builder 수정
      */
     public Slice<UserProfilePostResponse> getUserPosts(Long userId, Pageable pageable) {
 
@@ -1276,51 +1267,41 @@ public class UserService {
         }
 
         // 3. 게시글 ID 목록 추출
-        List<Long> postIds = new ArrayList<>();
-        for (Post post : postSlice.getContent()) {
-            postIds.add(post.getId());
-        }
+        List<Long> postIds = postSlice.getContent().stream()
+                .map(Post::getId)
+                .toList();
 
         // 4. [Bulk Fetch] 썸네일 이미지 조회 (Index = 0)
         List<Image> images = imageRepository.findAllByRelatedIdInAndImageTypeAndOrderIndex(
                 postIds, ImageType.POST, 0
         );
-        Map<Long, String> thumbnailMap = new HashMap<>();
-        for (Image img : images) {
-            thumbnailMap.put(img.getRelatedId(), img.getUrl());
-        }
+        Map<Long, String> thumbnailMap = images.stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl));
 
         // 5. [Bulk Fetch] 좋아요 수 조회 (Group By)
         List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds, LikeType.POST);
-        Map<Long, Long> likeCountMap = new HashMap<>();
-        for (Object[] row : likeCounts) {
-            likeCountMap.put((Long) row[0], (Long) row[1]);
-        }
+        Map<Long, Long> likeCountMap = likeCounts.stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
 
         // 6. [Bulk Fetch] 댓글 수 조회 (Group By)
-        // Post 엔티티의 comments.size()를 쓰면 성능 문제 발생 가능(Lazy Loading), 따라서 별도 Count 쿼리 사용
         List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
-        Map<Long, Long> commentCountMap = new HashMap<>();
-        for (Object[] row : commentCounts) {
-            commentCountMap.put((Long) row[0], (Long) row[1]);
-        }
+        Map<Long, Long> commentCountMap = commentCounts.stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
 
-        // 7. DTO 조립
-        List<UserProfilePostResponse> responseList = new ArrayList<>();
-        for (Post post : postSlice.getContent()) {
-            Long pid = post.getId();
-
-            UserProfilePostResponse dto = UserProfilePostResponse.builder()
-                    .postId(pid)
-                    .content(post.getContent())
-                    .thumbnailUrl(thumbnailMap.get(pid)) // 없으면 null
-                    .likeCount(likeCountMap.getOrDefault(pid, 0L))
-                    .commentCount(commentCountMap.getOrDefault(pid, 0L))
-                    .createdAt(post.getCreatedAt())
-                    .build();
-
-            responseList.add(dto);
-        }
+        // 7. DTO 조립 (수정된 필드명 반영)
+        List<UserProfilePostResponse> responseList = postSlice.getContent().stream()
+                .map(post -> {
+                    Long pid = post.getId();
+                    return UserProfilePostResponse.builder()
+                            .id(pid) // postId -> id
+                            .contentPreview(post.getContent()) // content -> contentPreview
+                            .contentImageUrl(thumbnailMap.get(pid)) // thumbnailUrl -> contentImageUrl
+                            .likeCount(likeCountMap.getOrDefault(pid, 0L))
+                            .commentCount(commentCountMap.getOrDefault(pid, 0L))
+                            .createdAt(post.getCreatedAt())
+                            .build();
+                })
+                .toList();
 
         return new SliceImpl<>(responseList, pageable, postSlice.hasNext());
     }
