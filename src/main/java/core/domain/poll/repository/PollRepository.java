@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface PollRepository extends JpaRepository<Poll, Long> {
     @Query("SELECT p FROM Poll p JOIN FETCH p.options WHERE p.type = :type ORDER BY p.createdAt DESC LIMIT 1")
     Optional<Poll> findLatestPollByType(@Param("type") PollType type);
+
+    Optional<Poll> findAllByTypeOrderByCreatedAtDesc(PollType pollType);
+
 }

@@ -135,6 +135,14 @@
             <div class="title" style="color: #6610f2;">푸시 알림 발송</div>
         </a>
     </div>
+    <div class="menu-item" style="border: 2px solid #fd7e14;">
+        <div class="icon">❓</div>
+        <div class="title" style="color: #fd7e14;">퀴즈 관리</div>
+        <div class="dropdown-content">
+            <a th:href="@{/admin/quizzes}">퀴즈 목록 및 수정</a>
+            <a th:href="@{/admin/quizzes/create}" style="color: #007bff; font-weight: bold;">새 퀴즈 작성</a>
+        </div>
+    </div>
 
     <div class="admin-actions">
         <a th:href="@{/admin/monitoring}" class="btn-create" style="background-color: #17a2b8;">

@@ -113,9 +113,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
             // 4. 역할 검증
             if ("OUTCAST".equals(role)) {
-                log.warn("[ACCESS DENIED] OUTCAST user access attempt. email={}, IP={}", email, clientIp);
-                handleAuthError(request, response, UserErrorCode.JWT_INVALID_ROLE); // ErrorCode 타입 맞추기 필요
-                return;
+                log.warn("[ACCESS DENIED] OUTCAST user. email={}, IP={}", email, clientIp);
+                // UserErrorCode 처리를 위해 메시지를 넘김
+                request.setAttribute("exception", UserErrorCode.JWT_INVALID_ROLE.name());
+                throw new io.jsonwebtoken.security.SecurityException("Outcast User");
             }
 
             // 5. 인증 객체 생성

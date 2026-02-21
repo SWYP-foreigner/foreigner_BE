@@ -56,4 +56,10 @@ public interface CommentRepository extends JpaRepository<Comment, Long>, Comment
     Page<Comment> findByAuthorId(Long authorId, Pageable pageable);
 
     boolean existsByAuthorEmailAndContentAndCreatedAtAfter(String email, String normalizedContent, Instant cutOff);
+
+    @Query("SELECT c.post.id, COUNT(c) " +
+            "FROM Comment c " +
+            "WHERE c.post.id IN :postIds " +
+            "GROUP BY c.post.id")
+    List<Object[]> countCommentsByPostIds(@Param("postIds") List<Long> postIds);
 }

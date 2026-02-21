@@ -150,7 +150,7 @@ public class ChatMessageService {
             // 이벤트 발행 (기본 메시지 전송용)
             // -> 여기서 ChatEventListener.handleMessageSent가 호출됨
             ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, userImg);
-            eventPublisher.publishEvent(new MessageCreatedEvent(baseResponse, allRecipientIds));
+            eventPublisher.publishEvent(new MessageSentEvent(baseResponse, allRecipientIds, null));
 
             // 커밋 후 동작: 번역 저장 및 언어별 전송
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

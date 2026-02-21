@@ -24,6 +24,7 @@ import core.global.service.PasswordService;
 import core.global.util.CookieUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -35,6 +36,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.ErrorResponse;
@@ -142,20 +147,6 @@ public class LoginRegisterController {
         TokenRefreshResponse responseDto = userService.refreshTokens(request.refreshToken());
         return ResponseEntity.ok(ApiResponse.success(responseDto));
     }
-
-    @GetMapping("/{userId}/info")
-    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
-    @Operation(summary = "유저 프로필 조회", description = "유저 프로필을 조회합니다.")
-    public ResponseEntity<UserProfileCardResponse> getUserProfile(
-            @PathVariable("userId") Long userId,
-            @AuthenticationPrincipal CustomUserDetails userDetails
-    ) {
-        Long currentUserId = userDetails.getUserId();
-        UserProfileCardResponse userProfile = userService.findCardUserProfile(userId, currentUserId);
-        featureUsageMetrics.recordFollowUsage();
-        return ResponseEntity.ok(userProfile);
-    }
-
 
     @PostMapping("/signup")
     @Operation(summary = "일반 회원가입 및 JWT 발급")

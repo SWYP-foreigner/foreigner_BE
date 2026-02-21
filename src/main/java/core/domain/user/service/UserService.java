@@ -6,12 +6,20 @@ import core.domain.chat.entity.ChatParticipant;
 import core.domain.chat.entity.ChatRoom;
 import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatReportRepository;
 import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.comment.repository.CommentRepository;
 import core.domain.notification.dto.NewUserJoinedEvent;
 import core.domain.notification.repository.NotificationRepository;
+import core.domain.payment.repository.IapBonusGrantRepository;
+import core.domain.payment.repository.IapEntitlementRepository;
+import core.domain.payment.repository.IapPurchaseRepository;
+import core.domain.payment.repository.UserItemRepository;
+import core.domain.poll.entity.Poll;
+import core.domain.poll.repository.VoteRecordRepository;
 import core.domain.post.entity.Post;
 import core.domain.post.repository.BlockPostRepository;
+import core.domain.post.repository.PostReportRepository;
 import core.domain.post.repository.PostRepository;
 import core.domain.user.dto.*;
 import core.domain.user.entity.Follow;
@@ -29,8 +37,11 @@ import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.ImageService;
 import core.global.entity.like.repository.LikeRepository;
+import core.global.enums.*;
 import core.global.enums.Oauthplatform;
+import core.global.enums.chat.ChatParticipantStatus;
 import core.global.enums.common.ImageType;
+import core.global.enums.common.LikeType;
 import core.global.enums.errorcode.AuthErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.enums.user.FollowStatus;
@@ -43,6 +54,9 @@ import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,6 +70,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -106,7 +121,15 @@ public class UserService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationSettingRepository userNotificationSettingRepository;
     private final UserFeedbackRepository userFeedbackRepository;
+    private final IapPurchaseRepository iapPurchaseRepository;
+    private final IapEntitlementRepository iapEntitlementRepository;
+    private final IapBonusGrantRepository iapBonusGrantRepository;
+    private final UserItemRepository userItemRepository;
+    private final PostReportRepository postReportRepository;
+    private final ChatReportRepository chatReportRepository;
+    private final VoteRecordRepository voteRecordRepository;
     private final AdminOtpRepository adminOtpRepository;
+
     Pattern pattern = Pattern.compile("\\[(.*?)\\]");
 
     private static String nullToEmpty(String s) {
@@ -303,38 +326,23 @@ public class UserService {
     public User getUserBySocialIdAndProvider(String socialId, String provider) {
         return userRepository.findByProviderAndSocialId(provider.trim(), socialId.trim()).orElse(null);
     }
+
     @Transactional
     public void setupUserProfile(UserSetupRequest dto) {
-        log.info("========== [프로필 설정 시작] ==========");
         var auth = SecurityContextHolder.getContext().getAuthentication();
-
-        if (auth == null || !auth.isAuthenticated()) {
-            log.error("[Auth Error] 인증 정보가 SecurityContext에 없습니다.");
-            throw new BusinessException(AuthErrorCode.INVALID_TOKEN); // 적절한 에러코드로 변경 가능
-        }
-
         String email = auth.getName();
-        log.info("[Request User] Email: {}", email);
-        log.info("[Request Data] UserSetupRequest: {}", dto);
+        log.info("UserSetupRequest dto: {}", dto);
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.error("[User Error] 해당 이메일을 가진 유저를 찾을 수 없음: {}", email);
-                    return new BusinessException(UserErrorCode.USER_NOT_FOUND);
-                });
-
-        log.info("[User Status] ID: {}, isNewUser: {}, Provider: {}",
-                user.getId(), user.isNewUser(), user.getProvider());
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
         if (!user.isNewUser()) {
-            log.warn("[Validation Error] 이미 프로필이 설정된 사용자입니다. ID: {}", user.getId());
             throw new BusinessException(UserErrorCode.INVALID_PROFILE,
                     "이미 프로필이 설정된 사용자입니다.");
         }
 
-        // 애플 유저가 아닐 경우에만 이름 업데이트
         if (!Objects.equals(user.getProvider(), Oauthplatform.APPLE.toString())) {
-            log.info("[Update] 일반 유저 이름 업데이트 시도");
+
             if (notBlank(dto.firstname())) {
                 user.updateFirstName(dto.firstname().trim());
             }
@@ -347,15 +355,13 @@ public class UserService {
         user.updateBirthdate(dto.birthday());
         user.updateCountry(dto.country());
         user.updatePurpose(dto.purpose());
-
         String v = dto.introduction();
-        if (v != null) {
-            user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
-        }
+        user.updateIntroduction(v.length() > 70 ? v.substring(0, 70) : v);
 
-        // 언어 처리 로그
+// UserSetupRequest dto를 받는 메서드 내부
         if (dto.language() != null && !dto.language().isEmpty()) {
-            log.info("[Update] 언어 설정 처리 중: {}", dto.language());
+
+            // 1. 초기 정제: null, 공백 제거 및 trim만 수행. (대소문자/포맷은 유지)
             List<String> rawLanguages = dto.language().stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
@@ -364,17 +370,20 @@ public class UserService {
                     .toList();
 
             if (!rawLanguages.isEmpty()) {
+
+                // 2. 번역 언어 (translate_language) 추출 및 저장 (무조건 소문자)
                 String firstTranslatedLanguage = rawLanguages.stream()
-                        .findFirst()
-                        .map(s -> normalizeLanguageCode(s).toLowerCase())
+                        .findFirst() // 첫 번째 언어를 선택
+                        .map(s -> normalizeLanguageCode(s).toLowerCase()) // 코드를 추출하고 소문자화
                         .orElse("");
 
                 if (!firstTranslatedLanguage.isEmpty()) {
                     user.updateTranslateLanguage(firstTranslatedLanguage);
                 }
 
+                // 3. 언어 목록 (languages CSV) 추출 및 저장 (무조건 대문자)
                 List<String> normalizedLanguagesForCsv = rawLanguages.stream()
-                        .map(s -> normalizeLanguageCode(s).toUpperCase())
+                        .map(s -> normalizeLanguageCode(s).toUpperCase()) // 코드를 추출하고 대문자화
                         .filter(s -> !s.isEmpty())
                         .distinct()
                         .toList();
@@ -382,7 +391,6 @@ public class UserService {
                 if (!normalizedLanguagesForCsv.isEmpty()) {
                     String userLanguagesCsv = String.join(",", normalizedLanguagesForCsv);
                     user.updateLanguage(userLanguagesCsv);
-                    log.info("[Update] 저장된 언어 CSV: {}", userLanguagesCsv);
                 }
             }
         }
@@ -390,17 +398,12 @@ public class UserService {
         if (dto.hobby() != null && !dto.hobby().isEmpty()) {
             String csv = String.join(",", dto.hobby());
             user.updateHobby(csv);
-            log.info("[Update] 저장된 취미 CSV: {}", csv);
         }
 
         user.updateIsNewUser(false);
-
         if (dto.imageKey() != null) {
-            log.info("[Update] 이미지 저장 시도. Key: {}", dto.imageKey());
             imageService.saveUserProfileImage(user.getId(), dto.imageKey());
         }
-
-        log.info("========== [프로필 설정 완료] ID: {} ==========", user.getId());
     }
 
 
@@ -865,15 +868,48 @@ public class UserService {
         return isApple;
     }
 
-
     /**
-     * 사용자와 관련된 모든 DB 데이터를 삭제하는 private 메소드
+     * 회원 탈퇴 시 연관 데이터를 모두 삭제하는 메서드.
+     * 삭제 순서가 매우 중요합니다 (자식 데이터 -> 부모 데이터).
      */
     private void cleanupUserData(User user) {
         Long userId = user.getId();
+
+        // =========================================================
+        // 1. [Payment] 결제 및 아이템 관련 (가장 독립적인 데이터)
+        // =========================================================
+        // IapPurchase는 다른 테이블에서 참조될 수 있으므로 마지막에 삭제
+        iapEntitlementRepository.deleteAllByUserId(userId); // 구독/권한
+        iapBonusGrantRepository.deleteAllByUserId(userId);  // 보너스
+        userItemRepository.deleteAllByUserId(userId);       // 아이템
+        iapPurchaseRepository.deleteAllByUserId(userId);    // 결제 내역
+
+
+        // =========================================================
+        // 2. [Report] 신고 관련 (User 참조 해제)
+        // =========================================================
+        // 2-1. 내가 신고한 내역
+        postReportRepository.deleteAllByReporterId(userId);
+        chatReportRepository.deleteAllByReporterUserId(userId);
+
+        // 2-2. 내가 신고 당한 내역 (User가 사라지면 신고 대상도 사라짐)
+        postReportRepository.deleteAllByReportedUserId(userId);
+        chatReportRepository.deleteAllByReportedUserId(userId);
+
+
+        // =========================================================
+        // 3. [Vote] 투표 참여 기록 (내가 한 투표)
+        // =========================================================
+        voteRecordRepository.deleteAllByUserId(userId);
+
+
+        // =========================================================
+        // 4. [Chat] 채팅방 및 메시지 정리
+        // =========================================================
         List<ChatRoom> ownedChatRooms = chatRoomRepository.findAllByOwnerId(userId);
 
         for (ChatRoom chatRoom : ownedChatRooms) {
+            // 방장 위임 로직: 나를 제외한 다른 참여자 찾기
             List<ChatParticipant> participants = chatParticipantRepository.findAllByChatRoomIdAndUserIdNot(chatRoom.getId(), userId);
 
             if (!participants.isEmpty()) {
@@ -881,31 +917,77 @@ public class UserService {
                 chatRoom.changeOwner(newOwner);
                 chatRoomRepository.save(chatRoom);
             } else {
+                // 남은 사람이 없으면 방 삭제
+                // (Cascade 설정에 따라 메시지/참여자가 자동 삭제되지 않는다면 별도 삭제 필요할 수 있음)
                 chatRoomRepository.delete(chatRoom);
             }
         }
-        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
-        List<Post> userPosts = postRepository.findAllByAuthorId(userId);
-        if (userPosts != null && !userPosts.isEmpty()) {
-            commentRepository.deleteAllByPostIn(userPosts);
-            bookmarkRepository.deleteAllByPostIn(userPosts);
-            postRepository.deleteAll(userPosts);
-        }
-        adminOtpRepository.deleteByUserId(userId);
-        commentRepository.deleteAllByAuthorId(userId);
-        bookmarkRepository.deleteAllByUserId(userId);
-        followRepository.deleteAllByUserId(userId);
-        likeRepository.deleteAllByUserId(userId);
-        imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
-        imageService.deleteUserProfileImage(userId);
-        blockRepository.deleteAllByUserOrBlocked(user);
+
+        // 채팅 참여 정보 및 내가 보낸 메시지 삭제
         chatParticipantRepository.deleteAllByUserId(userId);
         chatMessageRepository.deleteAllBySenderId(userId);
+
+
+        // =========================================================
+        // 5. [Post & Interaction] 게시글 및 커뮤니티 활동 정리
+        // =========================================================
+        blockPostRepository.deleteAllBlockPostsRelatedToUser(userId);
+
+        // 5-1. 내가 작성한 게시글 조회
+        List<Post> userPosts = postRepository.findAllByAuthorId(userId);
+
+        if (userPosts != null && !userPosts.isEmpty()) {
+            // [순서 중요] Post 삭제 전, Post를 참조하는 자식 엔티티 먼저 삭제
+
+            // A. 댓글 및 북마크 삭제
+            commentRepository.deleteAllByPostIn(userPosts);
+            bookmarkRepository.deleteAllByPostIn(userPosts);
+
+            // B. 내 글에 달린 신고 내역 삭제 (안 지우면 FK 에러)
+            postReportRepository.deleteAllByPostIn(userPosts);
+
+            // C. [CRITICAL FIX] 내 글에 포함된 투표(Poll)에 달린 "다른 사람들의 투표 기록" 삭제
+            // 이걸 안 하면 PollOption 삭제 시 fk_vote_option 에러 발생
+            List<Poll> userPolls = userPosts.stream()
+                    .map(Post::getPoll)
+                    .filter(Objects::nonNull) // Poll이 없는 게시글 제외
+                    .toList();
+
+            if (!userPolls.isEmpty()) {
+                voteRecordRepository.deleteAllByPollIn(userPolls);
+            }
+
+            // D. 게시글 삭제 (Cascade로 인해 Poll, PollOption 자동 삭제됨)
+            postRepository.deleteAll(userPosts);
+        }
+
+        // 5-2. 남의 글에 남긴 내 흔적 삭제
+        commentRepository.deleteAllByAuthorId(userId);  // 내가 쓴 댓글
+        bookmarkRepository.deleteAllByUserId(userId);   // 내가 한 북마크
+        likeRepository.deleteAllByUserId(userId);       // 내가 누른 좋아요
+        followRepository.deleteAllByUserId(userId);     // 팔로우 내역 (내가 한 팔로우)
+        // 필요 시: followRepository.deleteAllByFollowerId(userId); // 나를 향한 팔로우
+
+
+        // =========================================================
+        // 6. [Misc] 기타 사용자 정보 정리
+        // =========================================================
+        imageRepository.deleteAllByImageTypeAndRelatedId(ImageType.USER, userId);
+        imageService.deleteUserProfileImage(userId);
+        adminOtpRepository.deleteAllByUserId(userId);
+        blockRepository.deleteAllByUserOrBlocked(user); // 차단 목록
+
         userNotificationSettingRepository.deleteAllByUserId(userId);
         userDeviceTokenRepository.deleteAllByUserId(userId);
-        notificationRepository.deleteAllByUserId(userId);
-        notificationRepository.deleteAllByActorId(userId);
+
+        notificationRepository.deleteAllByUserId(userId);  // 받은 알림
+        notificationRepository.deleteAllByActorId(userId); // 보낸 알림
+
         userFeedbackRepository.deleteAllByUserIdExplicit(userId);
+
+        // =========================================================
+        // 7. [Final] 사용자 계정 삭제
+        // =========================================================
         userRepository.delete(user);
     }
 
@@ -1078,5 +1160,149 @@ public class UserService {
                 .introductions(INTRODUCTIONS)
                 .interests(new ProfileOptionsDto.InterestResponse(INTEREST_CATEGORIES))
                 .build();
+    }
+
+    /**
+     * 특정 유저의 그룹 채팅방 목록 조회 (무한 스크롤)
+     * 변경사항: UserProfileGroupChatRoomResponse 필드명 및 타입 반영
+     */
+    public Slice<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, Pageable pageable) {
+
+        // 1. 유저 존재 여부 검증
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // 2. DB에서 페이징 데이터 조회
+        Slice<ChatParticipant> participantSlice = chatParticipantRepository
+                .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
+
+        if (participantSlice.isEmpty()) {
+            return new SliceImpl<>(new ArrayList<>(), pageable, false);
+        }
+
+        // 3. 채팅방 ID 목록 추출
+        List<ChatParticipant> participants = participantSlice.getContent();
+        List<Long> chatRoomIds = new ArrayList<>();
+        for (ChatParticipant participant : participants) {
+            chatRoomIds.add(participant.getChatRoom().getId());
+        }
+
+        // 4. 채팅방 이미지 조회 및 Map 변환
+        List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
+        Map<Long, String> imageMap = new HashMap<>();
+        for (Image image : images) {
+            imageMap.putIfAbsent(image.getRelatedId(), image.getUrl());
+        }
+
+        // 5. DTO 변환 작업 (수정된 필드명 및 타입 적용)
+        List<UserProfileGroupChatRoomResponse> responseList = new ArrayList<>();
+
+        for (ChatParticipant participant : participants) {
+            ChatRoom room = participant.getChatRoom();
+
+            // 5-1. 현재 참여 인원 수 계산
+            int activeCount = 0;
+            for (ChatParticipant member : room.getParticipants()) {
+                if (member.getStatus() == ChatParticipantStatus.ACTIVE) {
+                    activeCount++;
+                }
+            }
+
+            UserProfileGroupChatRoomResponse.builder()
+                    .roomId(room.getId())
+                    .userCount(String.valueOf(activeCount))
+                    .roomImageUrl(imageMap.get(room.getId()))
+                    .lastMessageSentAt(room.getLastMessageSentAt())
+                    .build();
+        }
+
+        return new SliceImpl<>(responseList, pageable, participantSlice.hasNext());
+    }
+    /**
+     * 유저의 접속 상태 확인 (5분 이내 활동 시 Online)
+     */
+    public UserOnlineStatusResponse checkUserOnlineStatus(Long userId) {
+        // 1. 유저 조회 (없으면 예외 발생)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 마지막 접속 시간 가져오기
+        Instant lastSeenAt = user.getLastSeenAt();
+        boolean isOnline = false;
+
+        // 3. 접속 여부 판단 로직
+        if (lastSeenAt != null) {
+            // 현재 시간에서 5분을 뺀 시간
+            Instant fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES);
+
+            // 마지막 활동 시간이 5분 전보다 '이후'라면 접속 중으로 판단
+            if (lastSeenAt.isAfter(fiveMinutesAgo)) {
+                isOnline = true;
+            }
+        }
+
+        // 4. 결과 반환
+        return UserOnlineStatusResponse.builder()
+                .isOnline(isOnline)
+                .lastSeenAt(lastSeenAt)
+                .build();
+    }
+    /**
+     * 특정 유저의 게시글 목록 조회 (무한 스크롤)
+     * 변경사항: UserProfilePostResponse의 필드명 변경에 따른 Builder 수정
+     */
+    public Slice<UserProfilePostResponse> getUserPosts(Long userId, Pageable pageable) {
+
+        // 1. 유저 검증
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        // 2. 게시글 목록 조회 (Slice)
+        Slice<Post> postSlice = postRepository.findAllByAuthorId(userId, pageable);
+
+        if (postSlice.isEmpty()) {
+            return new SliceImpl<>(Collections.emptyList(), pageable, false);
+        }
+
+        // 3. 게시글 ID 목록 추출
+        List<Long> postIds = postSlice.getContent().stream()
+                .map(Post::getId)
+                .toList();
+
+        // 4. [Bulk Fetch] 썸네일 이미지 조회 (Index = 0)
+        List<Image> images = imageRepository.findAllByRelatedIdInAndImageTypeAndOrderIndex(
+                postIds, ImageType.POST, 0
+        );
+        Map<Long, String> thumbnailMap = images.stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl));
+
+        // 5. [Bulk Fetch] 좋아요 수 조회 (Group By)
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds, LikeType.POST);
+        Map<Long, Long> likeCountMap = likeCounts.stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
+        // 6. [Bulk Fetch] 댓글 수 조회 (Group By)
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        Map<Long, Long> commentCountMap = commentCounts.stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
+        // 7. DTO 조립 (수정된 필드명 반영)
+        List<UserProfilePostResponse> responseList = postSlice.getContent().stream()
+                .map(post -> {
+                    Long pid = post.getId();
+                    return UserProfilePostResponse.builder()
+                            .id(pid) // postId -> id
+                            .contentPreview(post.getContent()) // content -> contentPreview
+                            .contentImageUrl(thumbnailMap.get(pid)) // thumbnailUrl -> contentImageUrl
+                            .likeCount(likeCountMap.getOrDefault(pid, 0L))
+                            .commentCount(commentCountMap.getOrDefault(pid, 0L))
+                            .createdAt(post.getCreatedAt())
+                            .build();
+                })
+                .toList();
+
+        return new SliceImpl<>(responseList, pageable, postSlice.hasNext());
     }
 }
