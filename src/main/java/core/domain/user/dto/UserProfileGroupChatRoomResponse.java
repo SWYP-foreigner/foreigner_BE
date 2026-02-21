@@ -16,7 +16,7 @@ public class UserProfileGroupChatRoomResponse {
     @Schema(description = "채팅방 이름", example = "충북대학교 글로벌 커뮤니티")
     private String roomName;
 
-    @Schema(description = "채팅방 간단 설명", example = "다양한 국적의 친구들과 대화하는 공간입니다.")
+    @Schema(description = "채팅방 간단 설명", example = "다양한 국적의 친구들과 대화하는 공간입니다.(일정 글자 넘어가면 프론트에서 글자수 컷 가정")
     private String description;
 
     @Schema(description = "채팅방 대표 이미지 URL", example = "https://cdn.kori.com/rooms/thumb_501.png")
