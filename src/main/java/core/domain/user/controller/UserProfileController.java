@@ -75,9 +75,9 @@ public class UserProfileController {
     }
 
     @Operation(summary = "가입한 그룹 채팅방 목록 조회 (커서 기반)")
-    @GetMapping("/me/chat-rooms")
+    @GetMapping("/profile/{userId}/chat-rooms")
     public ResponseEntity<ApiResponse<CursorPageResponse<UserProfileGroupChatRoomResponse>>> getJoinedChatRooms(
-            @AuthenticationPrincipal Long userId,
+            @PathVariable Long userId,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "15") int size
     ) {
@@ -95,7 +95,7 @@ public class UserProfileController {
                     - 그렇지 않으면 `isOnline: false`
                     """
     )
-    @GetMapping("/{userId}/online-status")
+    @GetMapping("/profile/{userId}/online-status")
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<UserOnlineStatusResponse>> getUserOnlineStatus(
             @Parameter(description = "상태를 확인할 유저의 ID", example = "1")
@@ -106,16 +106,16 @@ public class UserProfileController {
     }
 
     @Operation(summary = "특정 유저의 게시글 목록 조회", description = "특정 유저가 작성한 게시글을 무한 스크롤로 조회합니다.")
-    @GetMapping("/users/{targetUserId}/posts") // URL을 다르게 지정
+    @GetMapping("/profile/{userId}/posts")
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BoardItem>>> getUserPostList(
-            @PathVariable Long targetUserId, // PathVariable 이름 변경
+            @PathVariable Long userId,
             @RequestParam(defaultValue = "LATEST") CommunitySortOption sort,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        postService.getUserPostList(targetUserId, sort, cursor, size) // 새로운 서비스 메서드 호출
+                        postService.getUserPostList(userId, sort, cursor, size) // 새로운 서비스 메서드 호출
                 ));
     }
 }
