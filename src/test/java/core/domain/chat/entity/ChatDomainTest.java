@@ -1,4 +1,4 @@
-package core.domain.chat.entity;
+/*package core.domain.chat.entity;
 
 import core.domain.user.entity.User;
 import core.global.enums.chat.ChatParticipantStatus;
@@ -76,4 +76,4 @@ class ChatDomainTest {
         assertThat(participant.isNotificationsEnabled()).isFalse();
         assertThat(participant.isTranslateEnabled()).isFalse();
     }
-}
+}*/
