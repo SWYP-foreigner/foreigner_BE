@@ -23,4 +23,8 @@ public interface PostRepositoryCustom {
     List<UserPostItem> findMyPostsNextByEmail(String email, Instant cursorCreatedAt, Long cursorId, int limitPlusOne);
 
     Page<PostListForAdminResponse> searchPostsByAdmin(PostSearchForAdminRequest condition, Pageable pageable);
+    List<BoardItem> findUserLatestPosts(Long loggedInUserId, Long targetUserId, Instant cursorTime, Long cursorId, int limit);
+
+    // 👇 [추가] 특정 유저의 작성 글 인기순 조회
+    List<BoardItem> findUserPopularPosts(Long loggedInUserId, Long targetUserId, Instant since, Long cursorScore, Long cursorId, int limit);
 }

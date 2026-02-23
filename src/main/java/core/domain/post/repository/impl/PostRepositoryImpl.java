@@ -811,4 +811,163 @@ public class PostRepositoryImpl implements PostRepositoryCustom {
                 .then(correctAnswerIdSubQuery)
                 .otherwise(Expressions.nullExpression(Long.class));
     }
+    // =================================================================================
+    // 타겟 유저가 작성한 게시글 최신순 무한 스크롤
+    // =================================================================================
+    @Override
+    public List<BoardItem> findUserLatestPosts(Long loggedInUserId, Long targetUserId,
+                                               Instant cursorCreatedAt,
+                                               Long cursorId,
+                                               int size) {
+
+        // 🎯 핵심: 게시판 필터(boardId) 대신 타겟 유저 필터(authorId) 사용
+        BooleanExpression userFilter = post.author.id.eq(targetUserId);
+
+        BooleanExpression ltCursor = (cursorCreatedAt == null)
+                ? null
+                : post.createdAt.lt(cursorCreatedAt)
+                .or(post.createdAt.eq(cursorCreatedAt)
+                        .and(cursorId != null ? post.id.lt(cursorId) : Expressions.TRUE.isFalse())
+                );
+
+        BooleanExpression visibleToMe = visibleTo(loggedInUserId);
+        BooleanExpression notBlocked = notBlockedByViewerId(loggedInUserId);
+
+        return query
+                .select(Projections.constructor(
+                        BoardItem.class,
+                        post.id,                             // 1. postId
+                        preview200(),                        // 2. contentPreview
+                        authorIdExpr(),                      // 3. authorId
+                        getAuthorName(),                     // 4. authorName
+                        board.category,                      // 5. boardCategory
+                        post.createdAt,                      // 6. createdAt
+                        post.anonymous,                      // 7. isAnonymous
+                        likedByViewerId(loggedInUserId),     // 8. isLiked (로그인 유저 기준)
+                        bookmarkedByViewerId(loggedInUserId),// 9. isBookmarked (로그인 유저 기준)
+                        likeCountExpr(),                     // 10. likeCount
+                        commentCountExpr(),                  // 11. commentCount
+                        post.checkCount,                     // 12. viewCount
+                        nullIfAnonymous(userImageUrlExpr()), // 13. userImageUrl
+                        Expressions.asNumber(0L),            // 14. score (최신순은 0)
+                        firstPostImageUrlExpr(),
+                        postImageCountExpr(),
+
+                        // 15. PostInfo
+                        Projections.constructor(BoardItem.PostInfo.class,
+                                firstPostImageUrlExpr(),
+                                postImageCountExpr()
+                        ),
+
+                        // 16. PollInfo
+                        Projections.constructor(BoardItem.PollInfo.class,
+                                poll.title,
+                                poll.description,
+                                poll.closeAt,
+                                poll.totalVoteCount.coalesce(0L),
+                                Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
+                                selectedOptionIdSubQuery(loggedInUserId),
+                                correctOptionIdIfVoted(loggedInUserId)
+                        )
+                ))
+                .from(post)
+                .join(post.author, user)
+                .join(post.board, board)
+                .leftJoin(post.poll, poll)
+                .where(allOf(userFilter, ltCursor, visibleToMe, notBlocked)) // 🔥 userFilter 적용
+                .orderBy(post.createdAt.desc(), post.id.desc())
+                .limit(Math.min(size, 50) + 1L)
+                .fetch();
+    }
+
+
+    // =================================================================================
+    // 타겟 유저가 작성한 게시글 인기순 무한 스크롤
+    // =================================================================================
+    @Override
+    public List<BoardItem> findUserPopularPosts(Long loggedInUserId, Long targetUserId,
+                                                Instant since, Long cursorScore, Long cursorId, int size) {
+
+        // 🎯 핵심: 게시판 필터 대신 타겟 유저 필터 적용
+        BooleanExpression userFilter = post.author.id.eq(targetUserId);
+
+        // ── 집계 및 기존 복잡한 점수 계산 로직 100% 동일하게 재사용
+        Expression<Long> likeCountSub = likeCountExpr();
+        Expression<Long> commentCountSub = commentCountExpr();
+
+        NumberExpression<Long> likes = Expressions.numberTemplate(Long.class, "({0})", likeCountSub);
+        NumberExpression<Long> comments = Expressions.numberTemplate(Long.class, "({0})", commentCountSub);
+        NumberExpression<Long> views = post.checkCount;
+
+        NumberExpression<Double> ageHours = Expressions.numberTemplate(
+                Double.class, "(extract(epoch from current_timestamp) - extract(epoch from {0})) / 3600.0", post.createdAt);
+
+        double TAU_HOURS = 24.0;
+        int wR = 2; int wL = 3; int wC = 4; int wV = 1;
+
+        NumberExpression<Double> recency_base = Expressions.numberTemplate(Double.class, "exp(-(({0}) / {1}))", ageHours, TAU_HOURS);
+        NumberExpression<Double> likes_base = Expressions.numberTemplate(Double.class, "ln(1 + {0})", likes);
+        NumberExpression<Double> comments_base = Expressions.numberTemplate(Double.class, "ln(1 + {0})", comments);
+        NumberExpression<Double> views_base = Expressions.numberTemplate(Double.class, "ln(1 + {0})", views);
+
+        NumberExpression<Double> scoreDouble = recency_base.multiply(wR)
+                .add(likes_base.multiply(wL))
+                .add(comments_base.multiply(wC))
+                .add(views_base.multiply(wV));
+
+        NumberExpression<Long> score = Expressions.numberTemplate(Long.class, "cast(round({0}, 0) as long)", scoreDouble);
+
+        // ── 커서 조건(무한스크롤)
+        BooleanExpression ltCursor = null;
+        if (cursorScore != null) {
+            BooleanExpression tieBreaker = (cursorId != null) ? post.id.lt(cursorId) : Expressions.FALSE;
+            ltCursor = score.lt(cursorScore).or(score.eq(cursorScore).and(tieBreaker));
+        }
+
+        BooleanExpression visibleToMe = visibleTo(loggedInUserId);
+        BooleanExpression notBlocked = notBlockedByViewerId(loggedInUserId);
+
+        return query
+                .select(Projections.constructor(
+                        BoardItem.class,
+                        post.id,
+                        preview200(),
+                        authorIdExpr(),
+                        getAuthorName(),
+                        board.category,
+                        post.createdAt,
+                        post.anonymous,
+                        likedByViewerId(loggedInUserId),
+                        bookmarkedByViewerId(loggedInUserId),
+                        likeCountExpr(),
+                        commentCountExpr(),
+                        post.checkCount,
+                        nullIfAnonymous(userImageUrlExpr()),
+                        score, // 계산된 점수
+                        firstPostImageUrlExpr(),
+                        postImageCountExpr(),
+                        Projections.constructor(BoardItem.PostInfo.class,
+                                firstPostImageUrlExpr(),
+                                postImageCountExpr()
+                        ),
+                        Projections.constructor(BoardItem.PollInfo.class,
+                                poll.title,
+                                poll.description,
+                                poll.closeAt,
+                                poll.totalVoteCount.coalesce(0L),
+                                Expressions.constant(new ArrayList<BoardItem.OptionItem>()),
+                                selectedOptionIdSubQuery(loggedInUserId),
+                                correctOptionIdIfVoted(loggedInUserId)
+                        )
+                ))
+                .from(post)
+                .join(post.author, user)
+                .join(post.board, board)
+                .leftJoin(post.poll, poll)
+                .where(allOf(userFilter, ltCursor, visibleToMe, notBlocked)) // 🔥 userFilter 적용
+                .orderBy(score.desc(), post.id.desc())
+                .limit(Math.min(size, 50) + 1L)
+                .fetch();
+    }
+
 }

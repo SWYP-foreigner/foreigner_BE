@@ -47,6 +47,9 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.enums.user.FollowStatus;
 import core.global.enums.user.Role;
 import core.global.exception.BusinessException;
+import core.global.pagination.CursorCodec;
+import core.global.pagination.CursorPageResponse;
+import core.global.pagination.CursorPages;
 import core.global.redis.service.RedisService;
 import core.global.security.JwtTokenProvider;
 import core.global.service.SmtpMailService;
@@ -54,6 +57,7 @@ import core.global.userfeedback.UserFeedbackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -1162,62 +1166,83 @@ public class UserService {
                 .build();
     }
 
-    /**
-     * 특정 유저의 그룹 채팅방 목록 조회 (무한 스크롤)
-     * 변경사항: UserProfileGroupChatRoomResponse 필드명 및 타입 반영
-     */
-    public Slice<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, Pageable pageable) {
+    @Transactional(readOnly = true)
+    public CursorPageResponse<UserProfileGroupChatRoomResponse> getUserGroupChatRooms(Long userId, String cursor, int size) {
 
         // 1. 유저 존재 여부 검증
         if (!userRepository.existsById(userId)) {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
 
-        // 2. DB에서 페이징 데이터 조회
-        Slice<ChatParticipant> participantSlice = chatParticipantRepository
-                .findActiveGroupChatsByUserId(userId, ChatParticipantStatus.ACTIVE, pageable);
+        // 2. 커서 해독 및 사이즈 설정
+        final int pageSize = Math.min(Math.max(size, 1), 50);
+        Map<String, Object> c = safeDecode(cursor);
+        Long cursorId = c.containsKey("id") ? ((Number) c.get("id")).longValue() : null;
 
-        if (participantSlice.isEmpty()) {
-            return new SliceImpl<>(new ArrayList<>(), pageable, false);
+        // 3. 커서 기반 DB 조회 (JPQL 호출)
+        // 🔥 offset은 0으로 고정하고, size만 pageSize + 1로 설정하여 Limit 역할만 수행하게 합니다.
+        Pageable limitPageable = PageRequest.of(0, pageSize + 1);
+
+        List<ChatParticipant> participants = chatParticipantRepository.findActiveGroupChatsByUserIdCursor(
+                userId, ChatParticipantStatus.ACTIVE, cursorId, limitPageable
+        );
+
+        if (participants.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
         }
 
-        // 3. 채팅방 ID 목록 추출
-        List<ChatParticipant> participants = participantSlice.getContent();
-        List<Long> chatRoomIds = new ArrayList<>();
-        for (ChatParticipant participant : participants) {
-            chatRoomIds.add(participant.getChatRoom().getId());
-        }
+        // 4. 채팅방 ID 목록 추출 및 이미지 Map 변환
+        List<Long> chatRoomIds = participants.stream()
+                .map(p -> p.getChatRoom().getId())
+                .toList();
 
-        // 4. 채팅방 이미지 조회 및 Map 변환
-        List<Image> images = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM);
-        Map<Long, String> imageMap = new HashMap<>();
-        for (Image image : images) {
-            imageMap.putIfAbsent(image.getRelatedId(), image.getUrl());
-        }
+        Map<Long, String> imageMap = imageRepository.findAllByRelatedIdsAndType(chatRoomIds, ImageType.CHAT_ROOM)
+                .stream()
+                .collect(Collectors.toMap(Image::getRelatedId, Image::getUrl, (a, b) -> a));
 
-        // 5. DTO 변환 작업 (수정된 필드명 및 타입 적용)
+        // 5. 다음 페이지 존재 여부 판별 및 리스트 자르기
+        boolean hasNext = participants.size() > pageSize;
+        List<ChatParticipant> actualList = hasNext ? participants.subList(0, pageSize) : participants;
+
+        // 6. DTO 변환 작업
         List<UserProfileGroupChatRoomResponse> responseList = new ArrayList<>();
 
-        for (ChatParticipant participant : participants) {
+        for (ChatParticipant participant : actualList) {
             ChatRoom room = participant.getChatRoom();
 
-            // 5-1. 현재 참여 인원 수 계산
-            int activeCount = 0;
-            for (ChatParticipant member : room.getParticipants()) {
-                if (member.getStatus() == ChatParticipantStatus.ACTIVE) {
-                    activeCount++;
-                }
-            }
+            // 참여 인원 수 계산
+            long activeCount = room.getParticipants().stream()
+                    .filter(m -> m.getStatus() == ChatParticipantStatus.ACTIVE)
+                    .count();
 
-            UserProfileGroupChatRoomResponse.builder()
+            responseList.add(UserProfileGroupChatRoomResponse.builder()
                     .roomId(room.getId())
-                    .userCount(String.valueOf(activeCount))
+                    .roomName(room.getRoomName())
+                    .description(room.getDescription())
                     .roomImageUrl(imageMap.get(room.getId()))
-                    .lastMessageSentAt(room.getLastMessageSentAt())
-                    .build();
+                    .userCount(String.valueOf(activeCount))
+                    .participantId(participant.getId())
+                    .build());
         }
 
-        return new SliceImpl<>(responseList, pageable, participantSlice.hasNext());
+        // 7. 커서 페이징 응답 객체 반환
+        return CursorPages.ofLatest(
+                responseList,
+                pageSize,
+                dto -> null,
+                UserProfileGroupChatRoomResponse::getParticipantId
+        );
+    }
+    private Map<String, Object> safeDecode(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return Map.of();
+        }
+
+        try {
+            return CursorCodec.decode(cursor);
+        } catch (IllegalArgumentException e) {
+            return Map.of();
+        }
     }
     /**
      * 유저의 접속 상태 확인 (5분 이내 활동 시 Online)

@@ -21,12 +21,9 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     List<ChatParticipant> findByChatRoomId(Long chatRoomId);
     Page<ChatParticipant> findByChatRoomId(Long chatRoomId, Pageable pageable);
 
-    Optional<ChatParticipant> findByChatRoomIdAndUserIdAndStatusIsNot(Long chatRoomId, Long userId, ChatParticipantStatus status);
 
     @Query("SELECT cp FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId AND cp.user.id = :userId")
     Optional<ChatParticipant> findByChatRoomIdAndUserId(@Param("roomId") Long roomId, @Param("userId") Long userId);
-
-
 
     long countByChatRoomIdAndStatus(Long roomId, ChatParticipantStatus status);
 
@@ -50,11 +47,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     @Query("DELETE FROM ChatParticipant p WHERE p.user.id = :userId")
     void deleteAllByUserId(@Param("userId") Long userId);
 
-
-
     List<ChatParticipant> findAllByChatRoomIdAndUserIdNot(Long chatRoomId, Long userId);
-
-    Page<ChatParticipant> findByUserId(Long userId, Pageable pageable);
 
     @Query("SELECT u.firstName FROM ChatParticipant cp JOIN cp.user u WHERE cp.chatRoom.id = :roomId")
     List<String> findParticipantNamesByRoomId(@Param("roomId") Long roomId);
@@ -77,15 +70,16 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     Page<ChatParticipant> findByUserIdAndStatus(Long userId, ChatParticipantStatus status, Pageable pageable);
 
-    @Query("SELECT cp FROM ChatParticipant cp " +
-            "JOIN FETCH cp.chatRoom cr " +
+    @Query("SELECT cp FROM ChatParticipant cp JOIN FETCH cp.chatRoom cr " +
             "WHERE cp.user.id = :userId " +
             "AND cp.status = :status " +
-            "AND cr.isGroup = true")
-    Slice<ChatParticipant> findActiveGroupChatsByUserId(
+            "AND cr.isGroup = true " +
+            "AND (:cursorId IS NULL OR cp.id < :cursorId) " +
+            "ORDER BY cp.id DESC")
+    List<ChatParticipant> findActiveGroupChatsByUserIdCursor(
             @Param("userId") Long userId,
             @Param("status") ChatParticipantStatus status,
-            Pageable pageable
-    );
-    List<ChatParticipant> findAllByChatRoomId(Long chatRoomId);
+            @Param("cursorId") Long cursorId,
+            Pageable pageable);
+
 }

@@ -3,7 +3,6 @@ package core.domain.user.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
-import java.time.Instant;
 
 @Getter
 @Builder
@@ -11,7 +10,7 @@ import java.time.Instant;
 public class UserProfileGroupChatRoomResponse {
 
     @Schema(description = "채팅방 ID", example = "501")
-    private Long roomId; // chatRoomId -> roomId
+    private Long roomId;
 
     @Schema(description = "채팅방 이름", example = "충북대학교 글로벌 커뮤니티")
     private String roomName;
@@ -20,11 +19,12 @@ public class UserProfileGroupChatRoomResponse {
     private String description;
 
     @Schema(description = "채팅방 대표 이미지 URL", example = "https://cdn.kori.com/rooms/thumb_501.png")
-    private String roomImageUrl; // thumbnailUrl -> roomImageUrl
+    private String roomImageUrl;
 
     @Schema(description = "현재 참여 중인 인원 수", example = "24")
-    private String userCount; // participantCount(int) -> userCount(String) 타입 변경
+    private String userCount;
 
-    @Schema(description = "마지막 메시지가 전송된 시간 (정렬 기준)", example = "2026-02-18T11:12:00Z")
-    private Instant lastMessageSentAt;
+    // 👇 [추가] 다음 페이지 조회를 위한 커서 값
+    @Schema(description = "페이징 커서용 참여 정보 ID (클라이언트 사용 X, nextCursor 생성용)", hidden = true)
+    private Long participantId;
 }
