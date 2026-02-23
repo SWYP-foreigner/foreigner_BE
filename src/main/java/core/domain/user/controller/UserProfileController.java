@@ -74,11 +74,18 @@ public class UserProfileController {
         return ResponseEntity.ok(userProfile);
     }
 
-    @Operation(summary = "가입한 그룹 채팅방 목록 조회 (커서 기반)")
+    @Operation(
+            summary = "가입한 그룹 채팅방 목록 조회 (커서 기반)",
+            description = "해당 유저가 참여 중인 활성 그룹 채팅방 목록을 최신 참여 순으로 조회합니다. (무한 스크롤)"
+    )
     @GetMapping("/profile/{userId}/chat-rooms")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<ApiResponse<CursorPageResponse<UserProfileGroupChatRoomResponse>>> getJoinedChatRooms(
+            @Parameter(description = "채팅방 참여 목록을 확인할 유저의 ID", example = "5")
             @PathVariable Long userId,
+            @Parameter(description = "다음 페이지 조회를 위한 커서 문자열. 첫 페이지는 비워둠", example = "Y29udGVudA==")
             @RequestParam(required = false) String cursor,
+            @Parameter(description = "한 번에 조회할 개수", example = "15")
             @RequestParam(defaultValue = "15") int size
     ) {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserGroupChatRooms(userId, cursor, size)));
@@ -105,17 +112,23 @@ public class UserProfileController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @Operation(summary = "특정 유저의 게시글 목록 조회", description = "특정 유저가 작성한 게시글을 무한 스크롤로 조회합니다.")
+    @Operation(
+            summary = "특정 유저의 게시글 목록 조회 (최신순)",
+            description = "특정 유저가 작성한 커뮤니티 게시글 목록을 최신순으로 조회합니다. (무한 스크롤)"
+    )
     @GetMapping("/profile/{userId}/posts")
+    @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     public ResponseEntity<core.global.dto.ApiResponse<CursorPageResponse<BoardItem>>> getUserPostList(
+            @Parameter(description = "게시글을 작성한 유저의 ID", example = "1", required = true)
             @PathVariable Long userId,
-            @RequestParam(defaultValue = "LATEST") CommunitySortOption sort,
+            @Parameter(description = "다음 페이지 커서 (이전 응답의 nextCursor 값). 첫 페이지 조회 시 생략 가능", example = "eyJpZCI6MTB9")
             @RequestParam(required = false) String cursor,
+            @Parameter(description = "페이지당 데이터 개수", example = "20")
             @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(
                 core.global.dto.ApiResponse.success(
-                        postService.getUserPostList(userId, sort, cursor, size) // 새로운 서비스 메서드 호출
+                        postService.getUserPostList(userId, CommunitySortOption.LATEST, cursor, size)
                 ));
     }
 }
