@@ -41,11 +41,7 @@ public class ChatWebSocketController {
     public void sendMessage(
             @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        try {
             chatService.processAndSendChatMessage(req);
-        } catch (Exception e) {
-            log.error("메시지 전송 실패", e);
-        }
     }
 
 
@@ -59,11 +55,7 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.markAsRead")
     @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     public void markMessagesAsRead(@Payload MarkAsReadRequest req) {
-        try {
             chatService.processMarkAsRead(req, req.userId());
-        } catch (Exception e) {
-            log.error("메시지 읽음 처리 중 오류 발생: {}", req, e);
-        }
     }
     /**
      * @apiNote 메시지 삭제를 처리하고, 해당 채팅방의 모든 참여자에게 삭제 사실을 알립니다.
@@ -73,13 +65,9 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.deleteMessage")
     @ChatErrorDocs({ChatErrorCode.MESSAGE_NOT_FOUND, ChatErrorCode.FORBIDDEN_MESSAGE_DELETE})
     public void deleteMessage(@Payload DeleteMessageRequest req) {
-        try {
-            chatService.deleteMessageAndBroadcast(req.messageId(), req.senderId());
-            log.info("메시지 삭제 요청 처리: messageId={}, userId={}", req.messageId(), req.senderId());
-        } catch (Exception e) {
-            log.error("메시지 삭제 처리 중 에러 발생", e);
-        }
+        log.info("메시지 삭제 요청 처리: messageId={}, userId={}", req.messageId(), req.senderId());
     }
+
     @MessageMapping("/chat.sendMedia")
     @ChatErrorDocs({ChatErrorCode.CHAT_ROOM_NOT_FOUND})
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
