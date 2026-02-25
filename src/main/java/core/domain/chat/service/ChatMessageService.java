@@ -258,73 +258,115 @@ public class ChatMessageService {
 
     /**
      * 병렬로 번역을 수행하되, 내용 기반 캐시를 먼저 확인합니다.
+  */
+    /**
+     * 병렬로 번역을 수행하며, Stream을 사용하지 않고 명령형으로 작성하여 가독성을 높였습니다.
      */
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
-        List<String> languagesToTranslate = targetLanguages.stream()
-                .filter(lang -> !"SELF".equals(lang) && !"NONE".equals(lang))
-                .distinct()
-                .toList();
+        // 1. 번역이 필요한 유효한 언어들만 먼저 걸러냅니다.
+        List<String> validLanguages = filterTargetLanguages(targetLanguages);
+        if (validLanguages.isEmpty()) {
+            return resultMap;
+        }
 
-        List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
-                .map(lang -> chatTranslationService.translateContentWithCache(originalContent, lang) // 변경된 메서드 호출
-                        .thenAccept(translatedText -> {
-                            // 원문과 다를 때만(번역 성공 시) 결과 맵에 담기
-                            if (!originalContent.equals(translatedText)) {
-                                resultMap.put(lang, translatedText);
-                            }
-                        })
-                ).toList();
+        // 2. 각 언어별로 비동기 번역 작업을 생성하여 리스트에 담습니다.
+        List<CompletableFuture<Void>> translationTasks = new ArrayList<>();
 
-        // 모든 언어의 번역(혹은 폴백)이 완료될 때까지 대기
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        for (String lang : validLanguages) {
+            CompletableFuture<Void> task = chatTranslationService.translateContentWithCache(originalContent, lang)
+                    .thenAccept(translatedText -> {
+                        // 번역이 성공했고 원문과 다를 경우에만 결과 맵에 추가
+                        if (isTranslationSuccessful(originalContent, translatedText)) {
+                            resultMap.put(lang, translatedText);
+                        }
+                    });
+            translationTasks.add(task);
+        }
+
+        // 3. 모든 병렬 작업이 완료될 때까지 대기합니다.
+        waitForAllTasks(translationTasks);
 
         return resultMap;
     }
 
+    /**
+     * 번역 대상에서 제외할 언어(본인, 번역 안함)를 걸러내는 로직
+     */
+    private List<String> filterTargetLanguages(Set<String> targetLanguages) {
+        List<String> filtered = new ArrayList<>();
+        for (String lang : targetLanguages) {
+            if ("SELF".equals(lang) || "NONE".equals(lang)) {
+                continue;
+            }
+            // 중복 방지
+            if (!filtered.contains(lang)) {
+                filtered.add(lang);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * 원문과 번역본을 비교하여 번역 성공 여부를 판단
+     */
+    private boolean isTranslationSuccessful(String original, String translated) {
+        return translated != null && !original.equals(translated);
+    }
+
+    /**
+     * 생성된 모든 비동기 작업이 끝날 때까지 대기 (Join)
+     */
+    private void waitForAllTasks(List<CompletableFuture<Void>> tasks) {
+        if (tasks.isEmpty()) return;
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(
+                tasks.toArray(new CompletableFuture[0])
+        );
+        try {
+            allOf.join();
+        } catch (Exception e) {
+            log.error("병렬 번역 작업 중 오류 발생", e);
+        }
+    }
 
     private void executeParallelDispatchAfterCommit(
             Map<String, List<Long>> recipientsByLang,
-            Map<String, String> translations, // 번역 결과 Map ("en": "Hello", "ko": "안녕")
-            ChatMessageResponse baseResponse  // 기본 메시지 정보 (원문 포함)
+            Map<String, String> translations,
+            ChatMessageResponse baseResponse
     ) {
         // 언어별 그룹 루프 (최대 3~5회 반복 - CPU 부하 거의 없음)
         recipientsByLang.forEach((lang, recipients) -> {
             if (recipients == null || recipients.isEmpty()) return;
 
             // 1. 번역문(targetContent) 결정
-            // "NONE"(번역안함)이거나 "SELF"(나)인 경우 null, 그 외에는 번역맵에서 가져옴
             String targetContent = null;
             if (!"NONE".equals(lang) && !"SELF".equals(lang)) {
                 targetContent = translations.get(lang);
             }
 
             // 2. 언어별 맞춤 DTO 생성 (메모리 연산: 아주 빠름)
-            // 원문(originContent)은 유지하고, 번역문(targetContent)만 갈아끼웁니다.
             ChatMessageResponse personalizedMsg = new ChatMessageResponse(
                     baseResponse.id(),
                     baseResponse.roomId(),
                     baseResponse.senderId(),
-                    baseResponse.originContent(), // 원문 유지
-                    targetContent,                // 번역문 (있으면 넣고, 없으면 null)
+                    baseResponse.originContent(),
+                    targetContent,
                     baseResponse.sentAt(),
                     baseResponse.senderFirstName(),
                     baseResponse.senderLastName(),
-                    baseResponse.senderImageUrl(), // DTO 필드명 확인 필요 (senderImageUrl vs userImageUrl)
+                    baseResponse.senderImageUrl(),
                     baseResponse.messageType(),
                     baseResponse.mediaUrl(),
                     baseResponse.thumbnailUrl()
             );
 
             // 3. 웹소켓 전송용 래퍼 생성
-            // 프론트엔드가 받는 JSON 형태: { "type": "NEW_MESSAGE", "data": { ... } }
             TypedWebSocketResponse<ChatMessageResponse> payload =
                     new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
 
             // 4. [핵심] Zero-Copy 전송
-            // - 여기서 JSON 변환은 딱 1번만 일어납니다.
-            // - 생성된 byte[]를 N명(recipients)에게 쫙 뿌립니다.
             String destinationSuffix = "/" + baseResponse.roomId() + "/messages";
             fastSocketSender.sendToUsersFast(recipients, destinationSuffix, payload);
         });
