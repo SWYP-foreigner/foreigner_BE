@@ -256,6 +256,9 @@ public class ChatMessageService {
         }
     }
 
+    /**
+     * 병렬로 번역을 수행하되, 내용 기반 캐시를 먼저 확인합니다.
+     */
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
@@ -265,13 +268,16 @@ public class ChatMessageService {
                 .toList();
 
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
-                .map(lang -> chatTranslationService.translateTextOnly(originalContent, lang)
+                .map(lang -> chatTranslationService.translateContentWithCache(originalContent, lang) // 변경된 메서드 호출
                         .thenAccept(translatedText -> {
+                            // 원문과 다를 때만(번역 성공 시) 결과 맵에 담기
                             if (!originalContent.equals(translatedText)) {
                                 resultMap.put(lang, translatedText);
                             }
                         })
                 ).toList();
+
+        // 모든 언어의 번역(혹은 폴백)이 완료될 때까지 대기
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return resultMap;

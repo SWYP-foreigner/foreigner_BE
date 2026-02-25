@@ -42,7 +42,8 @@ public class ChatTranslationService {
 
     private static final String CACHE_PREFIX = "trans:";
     private static final Duration CACHE_TTL = Duration.ofDays(30);
-
+    private static final String DICT_CACHE_PREFIX = "trans:dict:";
+    private static final String ID_CACHE_PREFIX = "trans:";
     @Transactional(readOnly = true) // 읽기 전용 트랜잭션 권장
     public Map<Long, String> getTranslatedMessages(List<ChatMessage> messages, String targetLang) {
         if (messages.isEmpty() || targetLang == null) return Collections.emptyMap();
@@ -114,7 +115,24 @@ public class ChatTranslationService {
     @Async("taskExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveTranslationAsync(Long messageId, String languageCode, String content) {
+        // DB 저장 (중복 무시)
         translationRepository.saveIgnoreDuplicate(messageId, languageCode, content);
+
+        // ID 기반 Redis 캐시 업데이트 (Warming)
+        String idCacheKey = ID_CACHE_PREFIX + messageId + ":" + languageCode;
+        redisTemplate.opsForValue().set(idCacheKey, content, CACHE_TTL);
+    }
+    // 텍스트를 MD5 해시로 변환하여 Redis 키 생성
+    private String getContentHash(String content) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(content.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return String.valueOf(content.hashCode());
+        }
     }
 
     private void cacheToRedis(Long messageId, String languageCode, String content) {
@@ -133,30 +151,33 @@ public class ChatTranslationService {
     /**
      * 메인 스레드 격리 및 2초 타임아웃 적용 (Resilience4j)
      */
-    @CircuitBreaker(name = "translationApi", fallbackMethod = "translationFallback")
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "translateTextFallback")
     @TimeLimiter(name = "translationApi")
-    public CompletableFuture<String> translateAndCache(Long messageId, String content, String targetLang) {
-        // 반드시 주입받은 taskExecutor 안에서 동작하도록 두 번째 파라미터로 지정
+    public CompletableFuture<String> translateContentWithCache(String content, String targetLang) {
         return CompletableFuture.supplyAsync(() -> {
+            String hash = getContentHash(content);
+            String cacheKey = DICT_CACHE_PREFIX + targetLang + ":" + hash;
+
+            // 1. Redis에서 똑같은 문장이 번역된 적 있는지 확인
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.debug("내용 기반 캐시 적중: {}", content);
+                return cached;
+            }
+
+            // 2. 없으면 구글 API 호출
             List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
-            if (res.isEmpty()) return content;
+            String translated = res.isEmpty() ? content : res.get(0);
 
-            String translated = res.get(0);
-
-            // API 성공 시 비동기 저장 호출
-            self.saveTranslationAsync(messageId, targetLang, translated);
+            // 3. 다음번을 위해 Redis에 내용 기반으로 저장
+            if (!res.isEmpty()) {
+                redisTemplate.opsForValue().set(cacheKey, translated, CACHE_TTL);
+            }
 
             return translated;
         }, taskExecutor);
     }
 
-    /**
-     * 번역 API가 2초 이상 지연되거나 장애가 날 경우 즉시 원문을 반환하는 대체 로직
-     */
-    public CompletableFuture<String> translationFallback(Long messageId, String content, String targetLang, Throwable t) {
-        log.warn("번역 API 지연 또는 예외 발생. 원문으로 처리합니다. 사유: {}", t.getMessage());
-        return CompletableFuture.completedFuture(content);
-    }
     /**
      * [신규] 저장 없이 번역만 수행 (서킷 브레이커 및 2초 타임아웃 적용)
      */
