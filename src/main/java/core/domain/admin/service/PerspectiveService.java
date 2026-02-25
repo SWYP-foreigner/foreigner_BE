@@ -71,12 +71,7 @@ public class PerspectiveService {
                 "TOXICITY", new PerspectiveRequest.ScoreThreshold()
         ));
 
-        try {
-            return restTemplate.postForObject(API_URL + apiKey, new HttpEntity<>(request), PerspectiveResponse.class);
-        } catch (Exception e) {
-            log.error("Perspective API 호출 중 예외 발생: {}", e.getMessage());
-            return null;
-        }
+        return restTemplate.postForObject(API_URL + apiKey, new HttpEntity<>(request), PerspectiveResponse.class);
     }
 
     /**
