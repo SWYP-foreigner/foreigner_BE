@@ -28,6 +28,7 @@ import core.global.exception.BusinessException;
 import core.global.metrics.ChatMetrics;
 import core.domain.admin.service.PerspectiveService;
 import core.global.service.TranslationService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -254,12 +255,7 @@ public class ChatMessageService {
             }
         }
     }
-    /**
-     * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
-     */
-    /**
-     * [신규] 저장 없이 순수하게 번역 API만 호출하여 결과를 리턴합니다.
-     */
+
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
@@ -268,34 +264,20 @@ public class ChatMessageService {
                 .distinct()
                 .toList();
 
-        // 외부 번역 서비스 호출 (병렬)
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
-                .map(lang -> CompletableFuture.runAsync(() -> {
-                    // 이 내부의 sleep(200ms)은 가상 스레드를 'Pinn' 시키지 않고
-                    // 물리 스레드를 반납하게 설계되어야 함
-                    List<String> res = translationService.translateMessages(List.of(originalContent), lang);
-                    if (!res.isEmpty()) {
-                        resultMap.put(lang, res.get(0));
-                    }
-                }))
-                .toList();
-
-        try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                    .get(2, TimeUnit.SECONDS); // 무한 대기 방지
-        } catch (Exception e) {
-            log.error("번역 시간 초과 혹은 에러");
-        }
+                .map(lang -> chatTranslationService.translateTextOnly(originalContent, lang)
+                        .thenAccept(translatedText -> {
+                            if (!originalContent.equals(translatedText)) {
+                                resultMap.put(lang, translatedText);
+                            }
+                        })
+                ).toList();
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return resultMap;
     }
 
 
-   /* [Zero-Copy 최적화 적용]
-            * 1. N+1 DB 조회(Race Condition Check) 제거 -> 서버 멈춤 현상 해결
- * 2. 언어별(Language)로 DTO를 1번만 생성 -> 1,000번 반복되는 JSON 변환 제거
- * 3. executeParallelDispatchAfterCommit 메서드 시그니처 유지
- */
     private void executeParallelDispatchAfterCommit(
             Map<String, List<Long>> recipientsByLang,
             Map<String, String> translations, // 번역 결과 Map ("en": "Hello", "ko": "안녕")

@@ -1,23 +1,29 @@
 package core.domain.chat.service;
-
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageTranslation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
+
+
 import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.global.service.TranslationService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
@@ -27,12 +33,9 @@ public class ChatTranslationService {
     private final ChatMessageTranslationRepository translationRepository;
     private final TranslationService externalTranslationService;
     private final RedisTemplate<String, String> redisTemplate;
+    @Qualifier("taskExecutor")
+    private final Executor taskExecutor;
 
-    /**
-     * [핵심 수정 1] 자기 자신을 주입받습니다 (Self-Injection).
-     * 내부 메서드 호출 시에도 AOP 프록시(Async, Transactional)가 적용되도록 하기 위함입니다.
-     * 순환 참조 방지를 위해 @Lazy를 사용합니다.
-     */
     @Autowired
     @Lazy
     private ChatTranslationService self;
@@ -40,11 +43,6 @@ public class ChatTranslationService {
     private static final String CACHE_PREFIX = "trans:";
     private static final Duration CACHE_TTL = Duration.ofDays(30);
 
-    /**
-     * [읽기 핵심 로직]
-     * 메시지 목록을 받아 번역된 내용을 채워줍니다.
-     * Redis -> DB -> API 순서로 조회하여 비용을 절감합니다.
-     */
     @Transactional(readOnly = true) // 읽기 전용 트랜잭션 권장
     public Map<Long, String> getTranslatedMessages(List<ChatMessage> messages, String targetLang) {
         if (messages.isEmpty() || targetLang == null) return Collections.emptyMap();
@@ -112,25 +110,19 @@ public class ChatTranslationService {
         return resultMap;
     }
 
-    /**
-     * [쓰기 핵심 로직]
-     * 번역 결과를 DB와 Redis에 비동기로 저장합니다.
-     * @Async 어노테이션으로 메인 스레드를 차단하지 않습니다.
-     * REQUIRES_NEW: 메인 트랜잭션이 롤백되어도 번역 저장은 성공 시키거나, 반대로 여기서 실패해도 메인 로직은 살리기 위함
-     */
+
     @Async("taskExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveTranslationAsync(Long messageId, String languageCode, String content) {
         translationRepository.saveIgnoreDuplicate(messageId, languageCode, content);
     }
 
-    // Redis 저장은 트랜잭션이 필요 없으므로 private 메서드로 동기 처리해도 무방 (Redis 자체가 빠름)
     private void cacheToRedis(Long messageId, String languageCode, String content) {
         try {
             String key = getCacheKey(messageId, languageCode);
             redisTemplate.opsForValue().set(key, content, CACHE_TTL);
         } catch (Exception e) {
-            log.warn("Redis 캐싱 실패 (무시됨)", e);
+            log.warn("Redis 캐싱 실패", e);
         }
     }
 
@@ -139,27 +131,60 @@ public class ChatTranslationService {
     }
 
     /**
-     * [전송 시 호출]
-     * 메시지 전송 시점에 번역을 수행하고 결과만 리턴 (저장은 비동기로 처리)
+     * 메인 스레드 격리 및 2초 타임아웃 적용 (Resilience4j)
      */
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "translationFallback")
+    @TimeLimiter(name = "translationApi")
     public CompletableFuture<String> translateAndCache(Long messageId, String content, String targetLang) {
+        // 반드시 주입받은 taskExecutor 안에서 동작하도록 두 번째 파라미터로 지정
         return CompletableFuture.supplyAsync(() -> {
-            try {
-                // API 호출
-                List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
-                if (res.isEmpty()) return content;
+            List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
+            if (res.isEmpty()) return content;
 
-                String translated = res.get(0);
+            String translated = res.get(0);
 
-                // [핵심 수정 3] 결과 나왔으면 바로 비동기 저장 태우기 (Fire-and-Forget)
-                // 여기서도 self를 써야 Async가 먹힙니다.
-                self.saveTranslationAsync(messageId, targetLang, translated);
+            // API 성공 시 비동기 저장 호출
+            self.saveTranslationAsync(messageId, targetLang, translated);
 
-                return translated;
-            } catch (Exception e) {
-                log.error("Translation failed", e);
-                return content; // 실패 시 원문 리턴
-            }
-        });
+            return translated;
+        }, taskExecutor);
+    }
+
+    /**
+     * 번역 API가 2초 이상 지연되거나 장애가 날 경우 즉시 원문을 반환하는 대체 로직
+     */
+    public CompletableFuture<String> translationFallback(Long messageId, String content, String targetLang, Throwable t) {
+        log.warn("번역 API 지연 또는 예외 발생. 원문으로 처리합니다. 사유: {}", t.getMessage());
+        return CompletableFuture.completedFuture(content);
+    }
+    /**
+     * [신규] 저장 없이 번역만 수행 (서킷 브레이커 및 2초 타임아웃 적용)
+     */
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "translateTextFallback")
+    @TimeLimiter(name = "translationApi")
+    public CompletableFuture<String> translateTextOnly(String content, String targetLang) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
+            return res.isEmpty() ? content : res.get(0);
+        }, taskExecutor);
+    }
+
+    /**
+     * 타임아웃 2초 초과 시 에러 대신 원문을 반환하여 메인 채팅 전송이 멈추지 않게 방어
+     * 번역 실패가 **채팅 전송 실패로 이어지는 것을 막기 위한 '플랜 B (대체재)'**입니다.
+     *
+     * 폴백(Fallback)이 없을 때의 대참사
+     * 구글 서버가 아파서 에러를 던지거나 2초 넘게 응답을 안 주면, 예외(Exception)가 발생합니다.
+     * 이 예외가 메인 채팅 로직까지 파고들면 트랜잭션이 롤백되고 사용자 화면에는 "메시지 전송 실패" 에러가 뜹니다.
+     * 번역 하나 안 됐다고 채팅 서비스 전체가 마비되는 셈입니다.
+     *
+     * 폴백(Fallback)이 있을 때의 방어 (현재 코드)
+     * 구글 서버에서 에러가 터지거나 2초 타임아웃이 발생하는 순간, Resilience4j가 그 에러를 낚아챕니다.
+     * 그리고 메인 로직으로 에러를 던지는 대신, 재빨리 translateTextFallback 메서드로 실행 흐름을 돌려버립니다.
+     * 이 메서드는 에러를 내뿜지 않고 조용히 **"채팅 원문(content)"**을 결과값인 것처럼 포장해서 반환해 줍니다.
+     */
+    public CompletableFuture<String> translateTextFallback(String content, String targetLang, Throwable t) {
+        log.warn("번역 API 지연. 실시간 전송을 위해 원문을 반환합니다. 언어: {}", targetLang);
+        return CompletableFuture.completedFuture(content);
     }
 }
