@@ -259,9 +259,7 @@ public class ChatMessageService {
     /**
      * 병렬로 번역을 수행하되, 내용 기반 캐시를 먼저 확인합니다.
   */
-    /**
-     * 병렬로 번역을 수행하며, Stream을 사용하지 않고 명령형으로 작성하여 가독성을 높였습니다.
-     */
+
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
