@@ -6,6 +6,32 @@ spring:
   threads:
     virtual:
       enabled: true
+
+  resilience4j:
+    circuitbreaker:
+      configs:
+        default:
+          registerHealthIndicator: true
+          slidingWindowSize: 10
+          minimumNumberOfCalls: 5
+          permittedNumberOfCallsInHalfOpenState: 3
+          waitDurationInOpenState: 10s
+          failureRateThreshold: 50
+      instances:
+        translationApi:
+          baseConfig: default
+        storageApi:
+          baseConfig: default
+
+    timelimiter:
+      configs:
+        default:
+          cancelRunningFuture: true
+      instances:
+        translationApi:
+          timeoutDuration: 2s
+        storageApi:
+          timeoutDuration: 2s
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME}
     username: ${DB_USERNAME}
