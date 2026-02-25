@@ -22,5 +22,4 @@ public interface ChatMessageTranslationRepository extends JpaRepository<ChatMess
     void saveIgnoreDuplicate(@Param("messageId") Long messageId,
                              @Param("languageCode") String languageCode,
                              @Param("content") String content);
-    void deleteByCreatedAtBefore(java.time.Instant threshold);
 }

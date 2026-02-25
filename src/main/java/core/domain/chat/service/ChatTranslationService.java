@@ -2,11 +2,8 @@ package core.domain.chat.service;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageTranslation;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.stream.Collectors;
 import java.util.*;
-
-
-
 import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.global.service.TranslationService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -40,75 +37,94 @@ public class ChatTranslationService {
     @Lazy
     private ChatTranslationService self;
 
-    private static final String CACHE_PREFIX = "trans:";
     private static final Duration CACHE_TTL = Duration.ofDays(30);
     private static final String DICT_CACHE_PREFIX = "trans:dict:";
     private static final String ID_CACHE_PREFIX = "trans:";
-    @Transactional(readOnly = true) // 읽기 전용 트랜잭션 권장
+
+    @Transactional(readOnly = true)
     public Map<Long, String> getTranslatedMessages(List<ChatMessage> messages, String targetLang) {
-        if (messages.isEmpty() || targetLang == null) return Collections.emptyMap();
+        if (messages.isEmpty() || targetLang == null) {
+            return Collections.emptyMap();
+        }
 
         Map<Long, String> resultMap = new HashMap<>();
-        List<ChatMessage> missingMessages = new ArrayList<>();
 
-        // 1. Redis에서 먼저 조회 (Bulk Get)
+        // 1. Redis에서 1차 벌크 조회
+        List<ChatMessage> missingAfterRedis = fetchFromRedis(messages, targetLang, resultMap);
+        if (missingAfterRedis.isEmpty()) return resultMap;
+
+        // 2. DB에서 2차 벌크 조회
+        List<ChatMessage> missingAfterDb = fetchFromDb(missingAfterRedis, targetLang, resultMap);
+        if (missingAfterDb.isEmpty()) return resultMap;
+
+        // 3. 최후의 수단: 구글 API 호출 및 비동기 저장
+        fetchFromApi(missingAfterDb, targetLang, resultMap);
+
+        return resultMap;
+    }
+
+    /**
+     * Step 1: Redis 벌크 조회 및 결과 채우기
+     */
+    private List<ChatMessage> fetchFromRedis(List<ChatMessage> messages, String targetLang, Map<Long, String> resultMap) {
         List<String> keys = messages.stream()
                 .map(msg -> getCacheKey(msg.getId(), targetLang))
                 .toList();
+
         List<String> cachedValues = redisTemplate.opsForValue().multiGet(keys);
+        if (cachedValues == null) return messages;
 
-        if (cachedValues != null) {
-            for (int i = 0; i < messages.size(); i++) {
-                String value = cachedValues.get(i);
-                if (value != null) {
-                    resultMap.put(messages.get(i).getId(), value);
-                } else {
-                    missingMessages.add(messages.get(i)); // Redis에 없는 것들
-                }
+        List<ChatMessage> missing = new ArrayList<>();
+        for (int i = 0; i < messages.size(); i++) {
+            String cached = cachedValues.get(i);
+            ChatMessage message = messages.get(i);
+
+            if (cached != null) {
+                resultMap.put(message.getId(), cached);
+            } else {
+                missing.add(message);
             }
-        } else {
-            missingMessages.addAll(messages);
+        }
+        return missing;
+    }
+
+    /**
+     * Step 2: DB 벌크 조회 및 Cache Warming
+     */
+    private List<ChatMessage> fetchFromDb(List<ChatMessage> missingMessages, String targetLang, Map<Long, String> resultMap) {
+        List<Long> ids = missingMessages.stream().map(ChatMessage::getId).toList();
+        List<ChatMessageTranslation> dbResults = translationRepository.findByMessageIdInAndLanguageCode(ids, targetLang);
+
+        for (ChatMessageTranslation translation : dbResults) {
+            resultMap.put(translation.getMessageId(), translation.getContent());
+            // 조회된 데이터 Redis에 Warming
+            cacheToRedis(translation.getMessageId(), targetLang, translation.getContent());
         }
 
-        if (missingMessages.isEmpty()) return resultMap;
+        // DB에서도 못 찾은 메시지만 필터링하여 반환
+        Set<Long> foundIds = dbResults.stream()
+                .map(ChatMessageTranslation::getMessageId)
+                .collect(Collectors.toSet());
 
-        // 2. Redis에 없는 건 DB에서 조회 (Bulk Select)
-        List<Long> missingIds = missingMessages.stream().map(ChatMessage::getId).toList();
-        List<ChatMessageTranslation> dbTranslations = translationRepository.findByMessageIdInAndLanguageCode(missingIds, targetLang);
-
-        Set<Long> foundInDbIds = new HashSet<>();
-        for (ChatMessageTranslation t : dbTranslations) {
-            resultMap.put(t.getMessageId(), t.getContent());
-            foundInDbIds.add(t.getMessageId());
-            // DB에 있던 건 나중을 위해 Redis에 올려둠 (Cache Warming)
-            // 주의: 단순 Redis 저장은 트랜잭션과 무관하므로 this로 호출해도 무방하나, 일관성을 위해 내부 메서드 사용
-            cacheToRedis(t.getMessageId(), targetLang, t.getContent());
-        }
-
-        // 3. DB에도 없는 건 API 호출 (최후의 수단 - 비용 발생)
-        List<ChatMessage> totallyMissing = missingMessages.stream()
-                .filter(msg -> !foundInDbIds.contains(msg.getId()))
+        return missingMessages.stream()
+                .filter(msg -> !foundIds.contains(msg.getId()))
                 .toList();
+    }
 
-        if (!totallyMissing.isEmpty()) {
-            List<String> originalContents = totallyMissing.stream().map(ChatMessage::getContent).toList();
+    /**
+     * Step 3: API 호출 및 결과 분배
+     */
+    private void fetchFromApi(List<ChatMessage> totallyMissing, String targetLang, Map<Long, String> resultMap) {
+        List<String> contents = totallyMissing.stream().map(ChatMessage::getContent).toList();
+        List<String> apiResults = externalTranslationService.translateMessages(contents, targetLang);
 
-            // 외부 API 호출 (동기)
-            List<String> apiResults = externalTranslationService.translateMessages(originalContents, targetLang);
+        for (int i = 0; i < totallyMissing.size(); i++) {
+            ChatMessage msg = totallyMissing.get(i);
+            String translated = apiResults.get(i);
 
-            for (int i = 0; i < totallyMissing.size(); i++) {
-                ChatMessage msg = totallyMissing.get(i);
-                String translatedText = apiResults.get(i);
-
-                resultMap.put(msg.getId(), translatedText);
-
-                // 4. [핵심 수정 2] 'self'를 통해 호출하여 프록시를 경유하게 함
-                // 이제 별도 스레드 + 별도 트랜잭션에서 실행되므로 메인 로직에 영향을 주지 않음
-                self.saveTranslationAsync(msg.getId(), targetLang, translatedText);
-            }
+            resultMap.put(msg.getId(), translated);
+            self.saveTranslationAsync(msg.getId(), targetLang, translated);
         }
-
-        return resultMap;
     }
 
 
@@ -122,7 +138,7 @@ public class ChatTranslationService {
         String idCacheKey = ID_CACHE_PREFIX + messageId + ":" + languageCode;
         redisTemplate.opsForValue().set(idCacheKey, content, CACHE_TTL);
     }
-    // 텍스트를 MD5 해시로 변환하여 Redis 키 생성
+    /* 텍스트를 MD5 해시로 변환하여 Redis 키 생성 */
     private String getContentHash(String content) {
         try {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
