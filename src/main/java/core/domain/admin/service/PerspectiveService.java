@@ -1,5 +1,6 @@
 package core.domain.admin.service;
 
+import com.nimbusds.oauth2.sdk.util.StringUtils;
 import core.domain.admin.dto.PerspectiveRequest;
 import core.domain.admin.dto.PerspectiveResponse;
 import core.global.service.TranslationService;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -30,65 +32,77 @@ public class PerspectiveService {
     private static final String API_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=";
     public static final double SPAM_THRESHOLD = 0.9;
     public static final double TOXICITY_THRESHOLD = 0.8;
-
+    private static final String DEFAULT_LANG_EN = "en";
     /**
-     * 서킷 브레이커와 타임리미터를 적용하여 외부 API 장애가 서버 전체로 퍼지는 것을 방지합니다.
+     * 유해 콘텐츠 여부 판별 (Circuit Breaker & Time Limiter 적용)
      */
     @CircuitBreaker(name = "spamCheck", fallbackMethod = "spamCheckFallback")
     @TimeLimiter(name = "spamCheck")
     public boolean isHarmful(String text) {
-        if (text == null || text.isBlank()) return false;
+        if (StringUtils.isBlank(text)) return false;
 
-        // 1. 분석을 위해 텍스트 준비 (필요 시 영어로 번역)
-        String textToAnalyze = prepareTextForAnalysis(text);
+        String analyzedText = prepareAnalysisText(text);
+        PerspectiveResponse response = requestPerspectiveAnalysis(analyzedText);
 
-        // 2. API 호출 및 점수 검사
-        return checkScoresViaApi(textToAnalyze, text);
+        return isExceedingThreshold(response, text);
     }
 
-    private String prepareTextForAnalysis(String text) {
+    /**
+     * 분석에 적합한 텍스트로 가공 (영어 권장)
+     */
+    private String prepareAnalysisText(String text) {
         try {
-            String lang = translationService.detectLanguage(text);
-            if ("en".equalsIgnoreCase(lang)) return text;
-            return translationService.translatePost(text, "en");
+            String detectedLang = translationService.detectLanguage(text);
+            if (DEFAULT_LANG_EN.equalsIgnoreCase(detectedLang)) return text;
+
+            return translationService.translatePost(text, DEFAULT_LANG_EN);
         } catch (Exception e) {
-            log.warn("언어 감지/번역 실패, 원문으로 진행: {}", e.getMessage());
+            log.warn("분석 전 언어 처리 실패, 원문 사용: {}", e.getMessage());
             return text;
         }
     }
 
-    private boolean checkScoresViaApi(String textToAnalyze, String originalText) {
-        PerspectiveRequest requestBody = PerspectiveRequest.forCheck(textToAnalyze, Map.of(
+    /**
+     * Perspective API 실제 호출
+     */
+    private PerspectiveResponse requestPerspectiveAnalysis(String text) {
+        PerspectiveRequest request = PerspectiveRequest.forCheck(text, Map.of(
                 "SPAM", new PerspectiveRequest.ScoreThreshold(),
                 "TOXICITY", new PerspectiveRequest.ScoreThreshold()
         ));
 
         try {
-            PerspectiveResponse response = restTemplate.postForObject(API_URL + apiKey, new HttpEntity<>(requestBody), PerspectiveResponse.class);
-            if (response == null || response.attributeScores() == null) return false;
-
-            double spam = getScore(response, "SPAM");
-            double toxicity = getScore(response, "TOXICITY");
-
-            log.info("스팸 검사 완료 - SPAM: {}, TOXICITY: {}", spam, toxicity);
-            return spam >= SPAM_THRESHOLD || toxicity >= TOXICITY_THRESHOLD;
+            return restTemplate.postForObject(API_URL + apiKey, new HttpEntity<>(request), PerspectiveResponse.class);
         } catch (Exception e) {
-            log.error("Perspective API 호출 실패: {}", e.getMessage());
-            return false;
+            log.error("Perspective API 호출 중 예외 발생: {}", e.getMessage());
+            return null;
         }
     }
 
-    private double getScore(PerspectiveResponse response, String type) {
-        return response.attributeScores().getOrDefault(type,
-                        new PerspectiveResponse.AttributeScore(new PerspectiveResponse.SummaryScore(0.0)))
-                .summaryScore().value();
+    /**
+     * 응답 점수가 임계치를 초과했는지 판별
+     */
+    private boolean isExceedingThreshold(PerspectiveResponse response, String originalText) {
+        if (response == null || response.attributeScores() == null) return false;
+
+        double spamScore = extractScore(response, "SPAM");
+        double toxicityScore = extractScore(response, "TOXICITY");
+
+        log.info("검사 완료(Score): SPAM={}, TOXICITY={}", spamScore, toxicityScore);
+        return spamScore >= SPAM_THRESHOLD || toxicityScore >= TOXICITY_THRESHOLD;
+    }
+
+    private double extractScore(PerspectiveResponse response, String attributeType) {
+        return Optional.ofNullable(response.attributeScores().get(attributeType))
+                .map(score -> score.summaryScore().value())
+                .orElse(0.0);
     }
 
     /**
-     * API 장애 또는 2초 타임아웃 발생 시 실행되는 안전장치
+     * 장애 발생 시 Fallback: 서비스 연속성을 위해 '정상' 반환
      */
     public boolean spamCheckFallback(String text, Throwable t) {
-        log.error("Perspective API 장애/타임아웃! 검사를 생략합니다. 사유: {}", t.getMessage());
-        return false; // 장애 시에는 '정상 메시지'로 처리하여 채팅 중단을 막음
+        log.error("Perspective API 장애/지연 발생 - 검사 건너뜀 [사유: {}]", t.getMessage());
+        return false;
     }
 }
