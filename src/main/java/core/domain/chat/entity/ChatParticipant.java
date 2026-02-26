@@ -87,5 +87,12 @@ public class ChatParticipant {
     public void setNotificationsEnabled(boolean enabled) {
         this.notificationsEnabled = enabled;
     }
+    /**
+     * 특정 유저 ID가 이 참여자(본인)인지 확인합니다.
+     */
+    public boolean isSender(Long userId) {
+        return this.user != null && this.user.getId().equals(userId);
+    }
+
 }
 

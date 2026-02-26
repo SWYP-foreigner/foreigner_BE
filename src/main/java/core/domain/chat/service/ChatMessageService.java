@@ -216,31 +216,46 @@ public class ChatMessageService {
 
 
     /**
-     * 수신자를 언어별로 그룹핑합니다. (SELF, NONE, ko, en ...)
+     * 수신자를 언어별로 그룹핑합니다. (비즈니스 로직과 그룹핑 로직을 명확히 분리)
      */
-    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
-        Map<String, List<Long>> recipientsByLang = new HashMap<>();
+    private Map<String, List<Long>> groupRecipientsByLanguage(
+            ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
 
-        for (ChatParticipant p : chatRoom.getParticipants()) {
-            User recipient = p.getUser();
-
-            if (blockedUserIds.contains(recipient.getId())) continue;
-
-            if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId);
-            }
-            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
-                continue;
-            }
-
-            String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
-                    ? recipient.getTranslateLanguage()
-                    : "NONE";
-
-            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
-        }
-        return recipientsByLang;
+        return chatRoom.getParticipants().stream()
+                .filter(p -> !blockedUserIds.contains(p.getUser().getId())) // 차단 유저 제외
+                .filter(this::isParticipantActiveOrSender) // 활성 유저 혹은 발신자만 처리
+                .peek(p -> updateSenderReadStatus(p, sender, messageId)) // 발신자 읽음 처리 (사이드 이펙트 격리)
+                .filter(p -> p.getStatus() == ChatParticipantStatus.ACTIVE) // 실제 전송은 활성 유저만
+                .collect(Collectors.groupingBy(
+                        this::determineTargetLanguage,
+                        Collectors.mapping(p -> p.getUser().getId(), Collectors.toList())
+                ));
     }
+
+    /**
+     * 참여자의 설정에 따른 번역 언어를 결정합니다.
+     */
+    private String determineTargetLanguage(ChatParticipant p) {
+        if (p.isTranslateEnabled() && p.getUser().getTranslateLanguage() != null) {
+            return p.getUser().getTranslateLanguage();
+        }
+        return "NONE";
+    }
+
+    /**
+     * 발신자일 경우 마지막 읽은 메시지 ID를 즉시 업데이트합니다.
+     */
+    private void updateSenderReadStatus(ChatParticipant p, User sender, Long messageId) {
+        if (p.getUser().getId().equals(sender.getId())) {
+            p.setLastReadMessageId(messageId);
+        }
+    }
+
+    private boolean isParticipantActiveOrSender(ChatParticipant p) {
+        // 활성 상태이거나 발신자 본인이면 일단 파이프라인 통과
+        return p.getStatus() == ChatParticipantStatus.ACTIVE || p.isSender(p.getUser().getId());
+    }
+
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
         if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
             return;
