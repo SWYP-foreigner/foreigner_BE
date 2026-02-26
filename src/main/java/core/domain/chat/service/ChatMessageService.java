@@ -257,38 +257,50 @@ public class ChatMessageService {
     }
 
     /**
-     * 병렬로 번역을 수행하되, 내용 기반 캐시를 먼저 확인합니다.
-  */
-
+     * 병렬로 번역을 수행하며, 캐시 확인 및 결과 수집을 관리합니다.
+     */
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
-        Map<String, String> resultMap = new ConcurrentHashMap<>();
-
-        // 1. 번역이 필요한 유효한 언어들만 먼저 걸러냅니다.
+        // 1. 번역 대상 언어 선별
         List<String> validLanguages = filterTargetLanguages(targetLanguages);
         if (validLanguages.isEmpty()) {
-            return resultMap;
+            return Collections.emptyMap();
         }
 
-        // 2. 각 언어별로 비동기 번역 작업을 생성하여 리스트에 담습니다.
-        List<CompletableFuture<Void>> translationTasks = new ArrayList<>();
-
-        for (String lang : validLanguages) {
-            CompletableFuture<Void> task = chatTranslationService.translateContentWithCache(originalContent, lang)
-                    .thenAccept(translatedText -> {
-                        // 번역이 성공했고 원문과 다를 경우에만 결과 맵에 추가
-                        if (isTranslationSuccessful(originalContent, translatedText)) {
-                            resultMap.put(lang, translatedText);
-                        }
-                    });
-            translationTasks.add(task);
-        }
-
-        // 3. 모든 병렬 작업이 완료될 때까지 대기합니다.
+        // 결과 저장을 위한 스레드 안전한 맵
+        Map<String, String> resultMap = new ConcurrentHashMap<>();
+        // 2. 비동기 번역 작업 시작
+        List<CompletableFuture<Void>> translationTasks = launchTranslationTasks(originalContent, validLanguages, resultMap);
+        // 3. 모든 작업 완료 대기
         waitForAllTasks(translationTasks);
 
         return resultMap;
     }
 
+    /**
+     * 각 언어별 번역 작업을 비동기로 실행하고 리스트로 반환합니다.
+     */
+    private List<CompletableFuture<Void>> launchTranslationTasks(
+            String content, List<String> languages, Map<String, String> resultMap) {
+
+        List<CompletableFuture<Void>> tasks = new ArrayList<>();
+
+        for (String lang : languages) {
+            CompletableFuture<Void> task = chatTranslationService.translateContentWithCache(content, lang)
+                    .thenAccept(translatedText -> collectSuccessfulTranslation(content, lang, translatedText, resultMap));
+            tasks.add(task);
+        }
+
+        return tasks;
+    }
+
+    /**
+     * 번역 결과를 검증한 후 성공한 경우에만 결과 맵에 기록합니다.
+     */
+    private void collectSuccessfulTranslation(String original, String lang, String translated, Map<String, String> resultMap) {
+        if (isTranslationSuccessful(original, translated)) {
+            resultMap.put(lang, translated);
+        }
+    }
     /**
      * 번역 대상에서 제외할 언어(본인, 번역 안함)를 걸러내는 로직
      */

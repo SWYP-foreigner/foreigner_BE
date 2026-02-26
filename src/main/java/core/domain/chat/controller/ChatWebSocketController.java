@@ -39,7 +39,7 @@ public class ChatWebSocketController {
     @UserErrorDocs({UserErrorCode.USER_NOT_FOUND})
     @CommonErrorCodeDocs({CommonErrorCode.TRANSLATE_FAIL})
     public void sendMessage(
-            @Payload SendMessageRequest req,  @AuthenticationPrincipal CustomUserDetails principal
+            @Payload SendMessageRequest req
     ) {
             chatService.processAndSendChatMessage(req);
     }
@@ -64,8 +64,8 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.deleteMessage")
     @ChatErrorDocs({ChatErrorCode.MESSAGE_NOT_FOUND, ChatErrorCode.FORBIDDEN_MESSAGE_DELETE})
-    public void deleteMessage(@Payload DeleteMessageRequest req) {
-        log.info("메시지 삭제 요청 처리: messageId={}, userId={}", req.messageId(), req.senderId());
+    public void deleteMessage(@Payload DeleteMessageRequest req, @AuthenticationPrincipal CustomUserDetails principal) {
+        chatService.deleteMessageAndBroadcast(req.messageId(),principal.getUserId());
     }
 
     @MessageMapping("/chat.sendMedia")

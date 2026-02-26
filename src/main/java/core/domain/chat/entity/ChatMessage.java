@@ -57,5 +57,7 @@ public class ChatMessage {
     public void maskContentAsDeleted() {
         this.content = "BLOCKED_MEDIA";
     }
-
+    public boolean isNotSentBy(Long userId) {
+        return !this.sender.getId().equals(userId);
+    }
 }
