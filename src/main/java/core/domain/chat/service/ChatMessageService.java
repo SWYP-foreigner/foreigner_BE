@@ -1,5 +1,6 @@
 package core.domain.chat.service;
 
+import com.nimbusds.oauth2.sdk.util.StringUtils;
 import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatMessageTranslation;
@@ -533,25 +534,49 @@ public class ChatMessageService {
     }
 
     /**
-     * AI 스팸 감지 로직 (비동기 실행용)
+     * AI 스팸 감지 및 사후 조치 (비동기 파이프라인)
      */
     private void checkSpamAndReport(ChatMessage message) {
-        String content = message.getContent();
-        boolean needsAiCheck = (content.contains("http") || content.contains("www.") || content.contains(".com"));
-
-        if (!needsAiCheck) return;
+        if (isNotEligibleForAiCheck(message.getContent())) {
+            return;
+        }
 
         try {
-            if (perspectiveService.isHarmful(content)) {
-                log.warn("AI Spam Detected: messageId={}", message.getId());
-                ChatReportRequest reportRequest = new ChatReportRequest(
-                        message.getId(), "AI_DETECTED_SPAM", "Perspective API 감지"
-                );
-                chatMemberService.reportChat(null, reportRequest);
-            }
+            processSpamDetection(message);
         } catch (Exception e) {
-            log.error("Async AI Check failed", e);
+            // 서킷 브레이커가 터지거나 기타 예외 발생 시 로그만 남김
+            // (재처리는 PerspectiveService 내 폴백에서 담당)
+            log.error("메시지 스팸 검사 파이프라인 오류: messageId={}", message.getId(), e);
         }
+    }
+
+    /**
+     * AI 검사 대상인지 확인 (URL 포함 여부 등)
+     */
+    private boolean isNotEligibleForAiCheck(String content) {
+        if (StringUtils.isBlank(content)) return true;
+
+        // 비즈니스 규칙: 링크가 포함된 경우에만 정밀 검사 진행
+        return !(content.contains("http") || content.contains("www.") || content.contains(".com"));
+    }
+
+    /**
+     * 실제로 AI 서비스를 호출하고 결과에 따라 신고 접수
+     */
+    private void processSpamDetection(ChatMessage message) {
+        if (perspectiveService.isHarmful(message.getContent())) {
+            log.warn("AI 스팸 감지됨 - 자동 신고 절차 진행: messageId={}", message.getId());
+            executeAutoReport(message.getId());
+        }
+    }
+
+    private void executeAutoReport(Long messageId) {
+        ChatReportRequest reportRequest = new ChatReportRequest(
+                messageId,
+                "AI_DETECTED_SPAM",
+                "Perspective API 자동 감지"
+        );
+        chatMemberService.reportChat(null, reportRequest);
     }
 
     @Transactional
