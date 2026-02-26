@@ -341,46 +341,51 @@ public class ChatMessageService {
         }
     }
 
+    /**
+     * 트랜잭션 커밋 후, 각 언어별 수신자 그룹에게 최적화된 방식으로 메시지를 병렬 전송합니다.
+     */
     private void executeParallelDispatchAfterCommit(
             Map<String, List<Long>> recipientsByLang,
             Map<String, String> translations,
             ChatMessageResponse baseResponse
     ) {
-        // 언어별 그룹 루프 (최대 3~5회 반복 - CPU 부하 거의 없음)
         recipientsByLang.forEach((lang, recipients) -> {
-            if (recipients == null || recipients.isEmpty()) return;
+            if (isRecipientEmpty(recipients)) return;
 
-            // 1. 번역문(targetContent) 결정
-            String targetContent = null;
-            if (!"NONE".equals(lang) && !"SELF".equals(lang)) {
-                targetContent = translations.get(lang);
-            }
+            // 1. 해당 언어에 맞는 맞춤형 메시지 생성 (DTO에 위임)
+            ChatMessageResponse personalizedMsg = createPersonalizedResponse(lang, translations, baseResponse);
 
-            // 2. 언어별 맞춤 DTO 생성 (메모리 연산: 아주 빠름)
-            ChatMessageResponse personalizedMsg = new ChatMessageResponse(
-                    baseResponse.id(),
-                    baseResponse.roomId(),
-                    baseResponse.senderId(),
-                    baseResponse.originContent(),
-                    targetContent,
-                    baseResponse.sentAt(),
-                    baseResponse.senderFirstName(),
-                    baseResponse.senderLastName(),
-                    baseResponse.senderImageUrl(),
-                    baseResponse.messageType(),
-                    baseResponse.mediaUrl(),
-                    baseResponse.thumbnailUrl()
-            );
-
-            // 3. 웹소켓 전송용 래퍼 생성
-            TypedWebSocketResponse<ChatMessageResponse> payload =
-                    new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
-
-            // 4. [핵심] Zero-Copy 전송
-            String destinationSuffix = "/" + baseResponse.roomId() + "/messages";
-            fastSocketSender.sendToUsersFast(recipients, destinationSuffix, payload);
+            // 2. 메시지 전송 실행 (전송 계층에 위임)
+            dispatchToSocket(recipients, baseResponse.roomId(), personalizedMsg);
         });
     }
+
+    /**
+     * 기본 응답 객체와 번역 데이터를 결합하여 언어별 맞춤 응답 객체를 생성합니다.
+     */
+    private ChatMessageResponse createPersonalizedResponse(
+            String lang, Map<String, String> translations, ChatMessageResponse baseResponse) {
+        // 번역 대상이 아닌 경우(NONE, SELF 등)는 원문 유지, 그 외에는 번역본 매핑
+        String targetContent = isTranslationRequired(lang) ? translations.get(lang) : null;
+        // DTO의 copyWithContent 메서드(혹은 static factory)를 활용하여 불필요한 생성자 호출 노출 방지
+        return baseResponse.copyWithContent(targetContent);
+    }
+
+    private void dispatchToSocket(List<Long> recipients, Long roomId, ChatMessageResponse message) {
+        TypedWebSocketResponse<ChatMessageResponse> payload = new TypedWebSocketResponse<>("NEW_MESSAGE", message);
+        String destination = String.format("/%d/messages", roomId);
+
+        fastSocketSender.sendToUsersFast(recipients, destination, payload);
+    }
+
+    private boolean isRecipientEmpty(List<Long> recipients) {
+        return recipients == null || recipients.isEmpty();
+    }
+
+    private boolean isTranslationRequired(String lang) {
+        return !"NONE".equals(lang) && !"SELF".equals(lang);
+    }
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         // 1. 참여자 검증
