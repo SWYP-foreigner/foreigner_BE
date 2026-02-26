@@ -93,6 +93,19 @@ public class ChatParticipant {
     public boolean isSender(Long userId) {
         return this.user != null && this.user.getId().equals(userId);
     }
+    /**
+     * 마지막 읽은 메시지 ID를 가져오되, 기록이 없으면 0L을 반환합니다.
+     * (서비스 레이어의 null 체크 로직을 엔티티 안으로 캡슐화)
+     */
+    public Long getLastReadMessageIdOrDefault() {
+        return this.lastReadMessageId == null ? 0L : this.lastReadMessageId;
+    }
 
+    /**
+     * 최신 읽음 메시지 ID를 업데이트합니다.
+     */
+    public void updateLastReadMessageId(Long messageId) {
+        this.lastReadMessageId = messageId;
+    }
 }
 

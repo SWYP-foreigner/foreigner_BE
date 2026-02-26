@@ -582,33 +582,50 @@ public class ChatMessageService {
     @Transactional
     public void processMarkAsRead(MarkAsReadRequest req, Long readerId) {
         Long roomId = req.roomId();
-        Long newLastReadId = req.lastReadMessageId();
 
-        ChatParticipant readerParticipant = chatParticipantRepository.findByChatRoomIdAndUserId(roomId, readerId)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
+        // 1. 참여자 정보 조회 및 업데이트
+        ChatParticipant reader = findParticipant(roomId, readerId);
+        Long previousLastReadId = reader.getLastReadMessageIdOrDefault();
+        reader.updateLastReadMessageId(req.lastReadMessageId());
 
-        Long previousLastReadId = readerParticipant.getLastReadMessageId() == null ? 0L : readerParticipant.getLastReadMessageId();
-        readerParticipant.setLastReadMessageId(newLastReadId);
+        // 2. 읽음 처리로 인해 영향받는 메시지들의 '읽지 않음(Unread)' 개수 계산
+        List<ReadCountInfo> updatedReadCounts = calculateUpdatedReadCounts(
+                roomId, readerId, previousLastReadId, req.lastReadMessageId()
+        );
 
-        // [성능 개선 포인트] 필요한 데이터만 조회
-        List<ChatParticipant> allParticipants = chatParticipantRepository.findByChatRoomId(roomId);
+        // 3. 변경 사항 이벤트 발행 (Websocket, Push 등은 리스너가 처리)
+        publishReadEvent(roomId, readerId, updatedReadCounts);
+    }
+
+    /**
+     * 영향받는 메시지 범위를 조회하고 새로운 읽음 카운트를 계산합니다.
+     */
+    private List<ReadCountInfo> calculateUpdatedReadCounts(Long roomId, Long readerId, Long startId, Long endId) {
         List<ChatMessage> affectedMessages = chatMessageRepository
-                .findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, previousLastReadId, newLastReadId);
+                .findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(roomId, startId, endId);
 
-        List<ReadCountInfo> updatedReadCounts = new ArrayList<>();
+        if (affectedMessages.isEmpty()) return Collections.emptyList();
+
+        List<ChatParticipant> allParticipants = chatParticipantRepository.findByChatRoomId(roomId);
+        List<ReadCountInfo> updatedCounts = new ArrayList<>();
+
         for (ChatMessage message : affectedMessages) {
-            // 내가 쓴 메시지가 아니면 unread count 계산
-            if (!message.getSender().getId().equals(readerId)) {
-                int newUnreadCount = calculateUnreadCountForMessage(message, allParticipants);
-                updatedReadCounts.add(new ReadCountInfo(message.getId(), newUnreadCount));
+            if (message.isNotSentBy(readerId)) {
+                int unreadCount = calculateUnreadCountForMessage(message, allParticipants);
+                updatedCounts.add(new ReadCountInfo(message.getId(), unreadCount));
             }
         }
+        return updatedCounts;
+    }
 
-        // [리팩토링] 웹소켓 전송 로직 제거 -> 이벤트 데이터 생성
+    private void publishReadEvent(Long roomId, Long readerId, List<ReadCountInfo> updatedReadCounts) {
         ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(roomId, readerId);
-
-        // [핵심] 이벤트 발행
         eventPublisher.publishEvent(new MessageReadEvent(roomId, updatedReadCounts, readerId, summary));
+    }
+
+    private ChatParticipant findParticipant(Long roomId, Long userId) {
+        return chatParticipantRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
     @Transactional
