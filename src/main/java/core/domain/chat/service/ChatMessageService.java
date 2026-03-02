@@ -104,7 +104,8 @@ public class ChatMessageService {
     /**
      * 최적화된 일반(TEXT) 메시지 전송 로직
      */
-
+    private final TranslationService externalTranslationService;
+    private final SimpMessagingTemplate messagingTemplate;
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
@@ -998,63 +999,73 @@ public class ChatMessageService {
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
     }
-    @Transactional // ❌ 여전히 거대한 트랜잭션 유지 (DB 커넥션 점유 중)
+
+    @Transactional // ❌ 이 메서드가 끝날 때까지 DB 커넥션(Connection)을 꽉 붙잡고 있음
     public void sendMessageBad(SendMessageRequest req) {
-        // 1. Fetch Join으로 데이터 조회 (N+1은 해결됨)
+        // 1. 데이터 조회 및 발신자 확인
         ChatRoom chatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
                 .orElseThrow(() -> new RuntimeException("Room not found"));
-
         User sender = userRepository.findById(req.senderId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // 2. 메시지 저장
+        // 2. 원본 메시지 저장 및 스팸 체크 (동기 지연 100ms 시뮬레이션)
         ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
         chatMessageRepository.save(message);
-        chatRoom.updateLastMessageSentAt(message.getSentAt());
 
-        // ❌ 3. 동기식 스팸 체크 (100ms 지연) - 트랜잭션 종료 전까지 커넥션 1개 점유
-        checkSpamSync(message);
+        // 외부 스팸 체크 API 호출 가정 (100ms 대기)
+        try { Thread.sleep(100); } catch (InterruptedException e) { }
 
-        List<ChatParticipant> participants = chatRoom.getParticipants();
+        // 🛑 [부하 테스트 핵심] DB 데이터와 상관없이 43개 언어 리스트 강제 생성
+        List<String> forcedLanguages = List.of(
+                "pt-br", "fr", "am", "ja", "fil", "id", "es", "sq", "uk", "zh",
+                "ach", "da", "ru", "bn", "fr-fr", "hrx", "hy", "be", "az", "ay",
+                "af", "pt-pt", "ro", "sk", "so", "ur", "ta", "te", "ko", "en",
+                "vi", "th", "ar", "de", "it", "tr", "pl", "nl", "sv", "fi", "cs", "el", "hi"
+        );
 
-        for (ChatParticipant participant : participants) {
-            User recipient = participant.getUser();
+        // 3. 실제 참여자 그룹핑 (현재 DB 데이터 기반 - 보통 1개 그룹만 나올 것)
+        Map<String, List<ChatParticipant>> groupByLang = chatRoom.getParticipants().stream()
+                .collect(Collectors.groupingBy(p -> {
+                    String lang = p.getUser().getTranslateLanguage();
+                    return (p.isTranslateEnabled() && lang != null) ? lang : "ORIGINAL";
+                }));
 
-            // [비즈니스 로직] 읽음 처리 및 Rejoin (Dirty Checking 예약)
-            if (participant.getUser().getId().equals(sender.getId())) {
-                participant.setLastReadMessageId(message.getId());
+        // 🛑 [병목 구간] forcedLanguages를 순회하며 43번의 동기 I/O 강제 발생
+        for (String lang : forcedLanguages) {
+
+            // ❌ [핵심 병목] 외부 번역 API 호출 시뮬레이션 (200ms Blocking)
+            // 실제 API를 호출하거나 Thread.sleep으로 8.6초의 지연을 만듭니다.
+            try {
+                Thread.sleep(200); // 43번 돌면 총 8.6초 소요
+            } catch (InterruptedException e) { }
+
+            // ❌ [DB 부하] 번역 결과 DB 저장 (트랜잭션 내부 Write)
+            chatMessageTranslationRepository.save(new ChatMessageTranslation(
+                    message.getId(), lang, "Translated_Content_to_" + lang
+            ));
+
+            // ❌ [소켓 전송 부하]
+            // 해당 언어를 사용하는 실제 유저 그룹이 있다면 전송
+            List<ChatParticipant> groupParticipants = groupByLang.getOrDefault(lang, Collections.emptyList());
+            for (ChatParticipant p : groupParticipants) {
+                if (p.getUser().getId().equals(sender.getId())) continue;
+
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages",
+                        "[" + lang + "] " + req.content());
             }
-            if (Boolean.FALSE.equals(chatRoom.getIsGroup()) && participant.getStatus() == ChatParticipantStatus.LEFT) {
-                participant.reJoin();
-            }
-
-            if (recipient.getId().equals(sender.getId())) continue;
-
-            String contentToSend = message.getContent();
-
-            // ❌ 4. 핵심 병목: 외부 번역 API 호출 (200ms Blocking)
-            // 알림은 비동기로 뺐지만, 여기서 발생하는 200ms는 '트랜잭션 내부'에서 일어납니다.
-            // 참여자가 100명만 되어도 20초 동안 DB 커넥션이 묶입니다.
-            if (participant.isTranslateEnabled() && recipient.getTranslateLanguage() != null) {
-                String translatedText = translateSync(contentToSend, recipient.getTranslateLanguage());
-                if (translatedText != null) {
-                    contentToSend = translatedText;
-                    // ❌ 번역본 건건이 DB Insert
-                    chatMessageTranslationRepository.save(new ChatMessageTranslation(
-                            message.getId(), recipient.getTranslateLanguage(), contentToSend
-                    ));
-                }
-            }
-
-            // ✅ [가정] 알림 전송은 비동기로 처리됨 (루프 지연 없음)
-            // sendNotificationAsync(recipient, contentToSend);
-
-            // ❌ 5. 소켓 전송 (루프 내 동기 전송)
-            // 클라이언트가 많아질수록 네트워크 I/O 지연이 루프에 누적됩니다.
-            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", "PAYLOAD");
         }
 
-        // 이 메서드가 리턴되어야 Dirty Checking Update가 날아가고 트랜잭션이 끝납니다.
+        // 4. [잔여 작업] ORIGINAL 그룹 및 본인 상태 업데이트
+        List<ChatParticipant> originalGroup = groupByLang.getOrDefault("ORIGINAL", Collections.emptyList());
+        for (ChatParticipant p : originalGroup) {
+            if (p.getUser().getId().equals(sender.getId())) {
+                p.setLastReadMessageId(message.getId()); // Dirty Checking
+            } else {
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", req.content());
+            }
+        }
+
+        // 5️⃣ 모든 루프가 종료되어야 트랜잭션 커밋 및 DB 커넥션 반납 (약 9초 소요)
     }
     private String translateSync(String content, String targetLang) {
         try {
