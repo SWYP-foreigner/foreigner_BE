@@ -998,4 +998,103 @@ public class ChatMessageService {
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
     }
+    @Transactional // ❌ 여전히 거대한 트랜잭션 유지 (DB 커넥션 점유 중)
+    public void sendMessageBad(SendMessageRequest req) {
+        // 1. Fetch Join으로 데이터 조회 (N+1은 해결됨)
+        ChatRoom chatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 2. 메시지 저장
+        ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
+        chatMessageRepository.save(message);
+        chatRoom.updateLastMessageSentAt(message.getSentAt());
+
+        // ❌ 3. 동기식 스팸 체크 (100ms 지연) - 트랜잭션 종료 전까지 커넥션 1개 점유
+        checkSpamSync(message);
+
+        List<ChatParticipant> participants = chatRoom.getParticipants();
+
+        for (ChatParticipant participant : participants) {
+            User recipient = participant.getUser();
+
+            // [비즈니스 로직] 읽음 처리 및 Rejoin (Dirty Checking 예약)
+            if (participant.getUser().getId().equals(sender.getId())) {
+                participant.setLastReadMessageId(message.getId());
+            }
+            if (Boolean.FALSE.equals(chatRoom.getIsGroup()) && participant.getStatus() == ChatParticipantStatus.LEFT) {
+                participant.reJoin();
+            }
+
+            if (recipient.getId().equals(sender.getId())) continue;
+
+            String contentToSend = message.getContent();
+
+            // ❌ 4. 핵심 병목: 외부 번역 API 호출 (200ms Blocking)
+            // 알림은 비동기로 뺐지만, 여기서 발생하는 200ms는 '트랜잭션 내부'에서 일어납니다.
+            // 참여자가 100명만 되어도 20초 동안 DB 커넥션이 묶입니다.
+            if (participant.isTranslateEnabled() && recipient.getTranslateLanguage() != null) {
+                String translatedText = translateSync(contentToSend, recipient.getTranslateLanguage());
+                if (translatedText != null) {
+                    contentToSend = translatedText;
+                    // ❌ 번역본 건건이 DB Insert
+                    chatMessageTranslationRepository.save(new ChatMessageTranslation(
+                            message.getId(), recipient.getTranslateLanguage(), contentToSend
+                    ));
+                }
+            }
+
+            // ✅ [가정] 알림 전송은 비동기로 처리됨 (루프 지연 없음)
+            // sendNotificationAsync(recipient, contentToSend);
+
+            // ❌ 5. 소켓 전송 (루프 내 동기 전송)
+            // 클라이언트가 많아질수록 네트워크 I/O 지연이 루프에 누적됩니다.
+            messagingTemplate.convertAndSend("/topic/user/" + recipient.getId() + "/messages", "PAYLOAD");
+        }
+
+        // 이 메서드가 리턴되어야 Dirty Checking Update가 날아가고 트랜잭션이 끝납니다.
+    }
+    private String translateSync(String content, String targetLang) {
+        try {
+            // 실제 네트워크 통신 시간 + 번역 처리 시간 (약 200ms 가정)
+            // 이 시간 동안 DB Connection을 계속 물고 있게 됩니다.
+            Thread.sleep(200);
+
+            return "[Translated to " + targetLang + "] " + content;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return content;
+        }
+    }
+
+
+    // ⛔ [가짜 알림 전송] FCM/APNS 통신 지연을 흉내 냅니다.
+    private void sendNotificationSync(User recipient, String message) {
+        try {
+            // 실제 네트워크 통신처럼 50ms 딜레이를 줍니다.
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    private void checkSpamSync(ChatMessage message) {
+        try {
+            // Perspective API 호출 시간 흉내 (약 100ms)
+            Thread.sleep(100);
+
+            String content = message.getContent();
+            // 간단한 키워드로 스팸 감지 흉내
+            boolean needsAiCheck = (content.contains("http") || content.contains("www"));
+
+            if (needsAiCheck) {
+                // 신고 로직도 여기서 동기로 처리한다고 가정 (DB insert 시간 등)
+                // chatMemberService.reportChat(...) 대신 로그만 찍거나 추가 sleep
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 }
