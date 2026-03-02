@@ -9,6 +9,8 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.notification.entity.Notification;
+import core.domain.notification.service.PushNotificationService;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -87,7 +89,7 @@ public class ChatMessageService {
     private final TranslationService translationService;
     private final S3Client s3Client;
     private final S3ImageStorageClient s3ImageStorageClient;
-
+    private final PushNotificationService notificationService;
     @Value("${cdn.base-url}")
     private String cdnBaseUrl;
 
@@ -1022,33 +1024,21 @@ public class ChatMessageService {
                     return (p.isTranslateEnabled() && lang != null) ? lang : "ORIGINAL";
                 }));
 
-        // 🛑 [병목 2] 43개 언어 그룹별 순차 처리 (Sequential Loop)
+        // 🛑 여전한 핵심 병목: 43개 언어 순차 번역
         for (Map.Entry<String, List<ChatParticipant>> entry : groupByLang.entrySet()) {
             String lang = entry.getKey();
-            List<ChatParticipant> groupParticipants = entry.getValue();
+            if ("ORIGINAL".equals(lang)) continue;
 
-            // 번역이 필요한 언어인 경우 (KO 포함 43개 언어)
-            if (!"ORIGINAL".equals(lang)) {
-                // ❌ 외부 번역 API 동기 호출 (200ms Blocking)
-                // 43번 반복 시 여기서만 8.6초 소요
-                String translatedText = translateSync(message.getContent(), lang);
+            // ❌ 트랜잭션 안에서 외부 API 호출 (200ms * 43 = 8.6초)
+            String translatedText = translateSync(message.getContent(), lang);
 
-                // ❌ 번역 결과 DB 저장 (트랜잭션 내부 Write)
-                chatMessageTranslationRepository.save(new ChatMessageTranslation(
-                        message.getId(), lang, translatedText
-                ));
+            // ❌ 번역 결과 DB 저장 (트랜잭션 내부 I/O)
+            chatMessageTranslationRepository.save(new ChatMessageTranslation(message.getId(), lang, translatedText));
 
-                // ❌ 해당 언어 그룹 유저들에게 전송 및 알림
-                for (ChatParticipant p : groupParticipants) {
-                    if (p.getUser().getId().equals(sender.getId())) continue;
-
-                    // 소켓 전송 (I/O)
-                    messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", translatedText);
-
-                    // 🛑 [병목 3] 푸시 알림 동기 전송 (인당 50ms 대기)
-                    // 방 인원이 300명이면 300 * 50ms = 15초 추가 지연 발생
-                    sendNotificationSync(p.getUser(), translatedText);
-                }
+            for (ChatParticipant p : entry.getValue()) {
+                if (p.getUser().getId().equals(sender.getId())) continue;
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", translatedText);
+                notificationService.sendPushAsync(p.getUser(), translatedText);
             }
         }
 
