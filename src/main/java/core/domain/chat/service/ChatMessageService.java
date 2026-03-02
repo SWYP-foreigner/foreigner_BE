@@ -1000,112 +1000,82 @@ public class ChatMessageService {
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
     }
 
-    @Transactional // ❌ 이 메서드가 끝날 때까지 DB 커넥션(Connection)을 꽉 붙잡고 있음
+    @Transactional // ❌ 이 메서드가 완전히 끝날 때까지 DB 커넥션을 점유 (약 15~20초 예상)
     public void sendMessageBad(SendMessageRequest req) {
-        // 1. 데이터 조회 및 발신자 확인
+        // 1. 데이터 조회 (유저가 43종으로 섞여 있으므로 Fetch Join으로 가져옴)
         ChatRoom chatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
                 .orElseThrow(() -> new RuntimeException("Room not found"));
         User sender = userRepository.findById(req.senderId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // 2. 원본 메시지 저장 및 스팸 체크 (동기 지연 100ms 시뮬레이션)
+        // 2. 메시지 저장
         ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
         chatMessageRepository.save(message);
 
-        // 외부 스팸 체크 API 호출 가정 (100ms 대기)
-        try { Thread.sleep(100); } catch (InterruptedException e) { }
+        // 🛑 [병목 1] 동기 스팸 체크 (100ms 대기)
+        checkSpamSync(message);
 
-        // 🛑 [부하 테스트 핵심] DB 데이터와 상관없이 43개 언어 리스트 강제 생성
-        List<String> forcedLanguages = List.of(
-                "pt-br", "fr", "am", "ja", "fil", "id", "es", "sq", "uk", "zh",
-                "ach", "da", "ru", "bn", "fr-fr", "hrx", "hy", "be", "az", "ay",
-                "af", "pt-pt", "ro", "sk", "so", "ur", "ta", "te", "ko", "en",
-                "vi", "th", "ar", "de", "it", "tr", "pl", "nl", "sv", "fi", "cs", "el", "hi"
-        );
-
-        // 3. 실제 참여자 그룹핑 (현재 DB 데이터 기반 - 보통 1개 그룹만 나올 것)
+        // 3. 수신자들을 언어별로 그룹핑 (DB에 43종이 있으므로 Map 사이즈는 43이 됨)
         Map<String, List<ChatParticipant>> groupByLang = chatRoom.getParticipants().stream()
                 .collect(Collectors.groupingBy(p -> {
                     String lang = p.getUser().getTranslateLanguage();
                     return (p.isTranslateEnabled() && lang != null) ? lang : "ORIGINAL";
                 }));
 
-        // 🛑 [병목 구간] forcedLanguages를 순회하며 43번의 동기 I/O 강제 발생
-        for (String lang : forcedLanguages) {
+        // 🛑 [병목 2] 43개 언어 그룹별 순차 처리 (Sequential Loop)
+        for (Map.Entry<String, List<ChatParticipant>> entry : groupByLang.entrySet()) {
+            String lang = entry.getKey();
+            List<ChatParticipant> groupParticipants = entry.getValue();
 
-            // ❌ [핵심 병목] 외부 번역 API 호출 시뮬레이션 (200ms Blocking)
-            // 실제 API를 호출하거나 Thread.sleep으로 8.6초의 지연을 만듭니다.
-            try {
-                Thread.sleep(200); // 43번 돌면 총 8.6초 소요
-            } catch (InterruptedException e) { }
+            // 번역이 필요한 언어인 경우 (KO 포함 43개 언어)
+            if (!"ORIGINAL".equals(lang)) {
+                // ❌ 외부 번역 API 동기 호출 (200ms Blocking)
+                // 43번 반복 시 여기서만 8.6초 소요
+                String translatedText = translateSync(message.getContent(), lang);
 
-            // ❌ [DB 부하] 번역 결과 DB 저장 (트랜잭션 내부 Write)
-            chatMessageTranslationRepository.save(new ChatMessageTranslation(
-                    message.getId(), lang, "Translated_Content_to_" + lang
-            ));
+                // ❌ 번역 결과 DB 저장 (트랜잭션 내부 Write)
+                chatMessageTranslationRepository.save(new ChatMessageTranslation(
+                        message.getId(), lang, translatedText
+                ));
 
-            // ❌ [소켓 전송 부하]
-            // 해당 언어를 사용하는 실제 유저 그룹이 있다면 전송
-            List<ChatParticipant> groupParticipants = groupByLang.getOrDefault(lang, Collections.emptyList());
-            for (ChatParticipant p : groupParticipants) {
-                if (p.getUser().getId().equals(sender.getId())) continue;
+                // ❌ 해당 언어 그룹 유저들에게 전송 및 알림
+                for (ChatParticipant p : groupParticipants) {
+                    if (p.getUser().getId().equals(sender.getId())) continue;
 
-                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages",
-                        "[" + lang + "] " + req.content());
+                    // 소켓 전송 (I/O)
+                    messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", translatedText);
+
+                    // 🛑 [병목 3] 푸시 알림 동기 전송 (인당 50ms 대기)
+                    // 방 인원이 300명이면 300 * 50ms = 15초 추가 지연 발생
+                    sendNotificationSync(p.getUser(), translatedText);
+                }
             }
         }
 
-        // 4. [잔여 작업] ORIGINAL 그룹 및 본인 상태 업데이트
+        // 4. 번역 미사용 유저 처리 (ORIGINAL)
         List<ChatParticipant> originalGroup = groupByLang.getOrDefault("ORIGINAL", Collections.emptyList());
         for (ChatParticipant p : originalGroup) {
             if (p.getUser().getId().equals(sender.getId())) {
                 p.setLastReadMessageId(message.getId()); // Dirty Checking
             } else {
                 messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", req.content());
+                sendNotificationSync(p.getUser(), req.content());
             }
         }
+    } // 🏁 여기서 트랜잭션 종료 및 커넥션 반납
 
-        // 5️⃣ 모든 루프가 종료되어야 트랜잭션 커밋 및 DB 커넥션 반납 (약 9초 소요)
-    }
-    private String translateSync(String content, String targetLang) {
-        try {
-            // 실제 네트워크 통신 시간 + 번역 처리 시간 (약 200ms 가정)
-            // 이 시간 동안 DB Connection을 계속 물고 있게 됩니다.
-            Thread.sleep(200);
+// --- 시뮬레이션용 도우미 메서드 ---
 
-            return "[Translated to " + targetLang + "] " + content;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return content;
-        }
-    }
-
-
-    // ⛔ [가짜 알림 전송] FCM/APNS 통신 지연을 흉내 냅니다.
-    private void sendNotificationSync(User recipient, String message) {
-        try {
-            // 실제 네트워크 통신처럼 50ms 딜레이를 줍니다.
-            Thread.sleep(50);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
     private void checkSpamSync(ChatMessage message) {
-        try {
-            // Perspective API 호출 시간 흉내 (약 100ms)
-            Thread.sleep(100);
+        try { Thread.sleep(100); } catch (InterruptedException e) { }
+    }
 
-            String content = message.getContent();
-            // 간단한 키워드로 스팸 감지 흉내
-            boolean needsAiCheck = (content.contains("http") || content.contains("www"));
+    private String translateSync(String content, String lang) {
+        try { Thread.sleep(200); } catch (InterruptedException e) { }
+        return "[Translated to " + lang + "] " + content;
+    }
 
-            if (needsAiCheck) {
-                // 신고 로직도 여기서 동기로 처리한다고 가정 (DB insert 시간 등)
-                // chatMemberService.reportChat(...) 대신 로그만 찍거나 추가 sleep
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    private void sendNotificationSync(User recipient, String message) {
+        try { Thread.sleep(50); } catch (InterruptedException e) { }
     }
 }
