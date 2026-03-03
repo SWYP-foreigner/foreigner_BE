@@ -158,6 +158,9 @@ logging:
     core.global.config.core.global.security.JwtTokenFilter: INFO
     core.global.search: INFO
 
+    com.zaxxer.hikari: DEBUG
+    com.zaxxer.hikari.HikariConfig: DEBUG
+    org.springframework.orm.jpa: DEBUG # 트랜잭션 시작/종료 확인용
 # 운영에서는 에러 본문 노출 금지
 server.error.include-message: always
 server.error.include-binding-errors: always
