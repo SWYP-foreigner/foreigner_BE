@@ -394,7 +394,7 @@ public class PushNotificationService {
             log.info("유효하지 않은 토큰 {}개 삭제 완료", tokensToDelete.size());
         }
     }
-    @Async("authExecutor") // 👈 알람만 별도 스레드 풀로 격리
+    @Async
     public void sendPushAsync(User recipient, String message) {
         try {
             Thread.sleep(50); // 동기 지연은 여전하지만, 메인 트랜잭션 스레드는 기다리지 않음
