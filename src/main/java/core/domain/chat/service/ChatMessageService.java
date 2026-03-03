@@ -59,6 +59,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static core.global.enums.NotificationType.chat;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -1013,7 +1015,8 @@ public class ChatMessageService {
         // 2. 메시지 저장
         ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
         chatMessageRepository.save(message);
-
+        chatMessageRepository.save(message); // ✅ 여기서 repository 대신 이걸 쓰세요!
+        chatMessageRepository.flush();       // ✅ 강제로 커넥션 점유!
         // 🛑 [병목 1] 동기 스팸 체크 (100ms 대기)
         checkSpamSync(message);
 
