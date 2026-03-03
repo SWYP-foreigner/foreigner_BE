@@ -92,9 +92,9 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.sendMessageBad")
     public void sendMessageBad(
-            @Payload SendMessageRequest req,
-            @AuthenticationPrincipal CustomUserDetails principal
+            @Payload SendMessageRequest req
     ) {
+        log.info(">>>>>> 요청 들어옴! roomId: {}", req.roomId());
         try {
             chatService.sendMessageBad(req);
         } catch (Exception e) {
