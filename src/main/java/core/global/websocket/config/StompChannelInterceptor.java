@@ -38,6 +38,17 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
+        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+            log.info(" 부하 테스트를 위해 CONNECT 인증을 일시 허용합니다.");
+            return message;
+        }
+
+        String destination = accessor.getDestination();
+        if (destination != null && destination.startsWith("/app/chat.sendMessageBad")) {
+            return message;
+        }
+        /*부하 테스트 끝나고 지워야함
+        * */
         if (accessor == null) {
             accessor = StompHeaderAccessor.wrap(message);
         }
