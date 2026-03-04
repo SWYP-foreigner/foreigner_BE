@@ -15,12 +15,13 @@ public record CommendUsersProfileResponse(
         String purpose,
         List<String> language,
         List<String> hobby,
-        String imageKey
+        String imageKey,
+        String followStatus // 추가: 팔로우 상태 (PENDING, ACCEPTED, null 등)
 ) {
-    public CommendUsersProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey) {
-        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()), u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey);
+    public CommendUsersProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey, String followStatus) {
+        this(u.getId(), u.getFirstName(), u.getLastName(), u.getSex(), extractYear(u.getBirthdate()),
+                u.getCountry(), u.getIntroduction(), u.getPurpose(), languages, hobbies, imageKey, followStatus);
     }
-
     private static Integer extractYear(String birthdate) {
         if (birthdate == null || birthdate.length() != 10) {
             return null;

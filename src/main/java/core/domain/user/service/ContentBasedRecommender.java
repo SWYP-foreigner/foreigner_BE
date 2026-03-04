@@ -89,10 +89,16 @@ public class ContentBasedRecommender {
         int poolSize = Math.min(scoredCandidates.size(), 10);
         List<UserScore> topTierPool = new ArrayList<>(scoredCandidates.subList(0, poolSize));
         Collections.shuffle(topTierPool, secureRandom);
-
         return topTierPool.stream()
                 .limit(limit)
-                .map(us -> toDto(us.getUser()))
+                .map(us -> {
+                    User candidate = us.getUser();
+                    String status = followRepository.findByUserIdAndFollowingId(meId, candidate.getId())
+                            .map(f -> f.getStatus().name())
+                            .orElse(null);
+
+                    return toDto(candidate, status);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -175,13 +181,14 @@ public class ContentBasedRecommender {
                 .collect(Collectors.toSet());
     }
 
-    private CommendUsersProfileResponse toDto(User u) {
+    private CommendUsersProfileResponse toDto(User u, String followStatus) {
         String imageKey = imageService.getUserProfileKey(u.getId());
         return new CommendUsersProfileResponse(
                 u,
                 csvToSet(u.getLanguage()).stream().toList(),
                 csvToSet(u.getHobby()).stream().toList(),
-                imageKey
+                imageKey,
+                followStatus // 상태값 전달
         );
     }
 
