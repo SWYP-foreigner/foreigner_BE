@@ -1,6 +1,7 @@
 package core.domain.user.service;
 
 import core.domain.user.dto.CommendUsersProfileResponse;
+import core.domain.user.entity.Follow;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
 import core.domain.user.repository.FollowRepository;
@@ -43,56 +44,51 @@ public class ContentBasedRecommender {
 
     @Transactional(readOnly = true)
     public List<CommendUsersProfileResponse> recommendForUser(Long meId, int limit) {
-        // 1. 내 정보 조회
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        // 2. 제외 대상 필터링
-        List<FollowStatus> statusesToExclude = List.of(FollowStatus.PENDING, FollowStatus.ACCEPTED);
+        // [방어 1] 이미 친구(ACCEPTED)와 차단된 유저만 제외 (PENDING은 노출)
+        List<FollowStatus> statusesToExclude = List.of(FollowStatus.ACCEPTED);
         Set<Long> followingIds = followRepository.findFollowingIdsByUserId(meId, statusesToExclude);
         Set<Long> blockedIds = blockRepository.findAllBlockedUserIds(meId);
 
         Set<Long> excludeIds = new HashSet<>(followingIds);
         excludeIds.addAll(blockedIds);
         excludeIds.add(meId);
-        if (excludeIds.isEmpty()) excludeIds.add(0L);
 
-        // [변경] 검색 범위: 최근 24시간 이내 접속자로 제한 (최우선)
-        Instant activeLimit = Instant.now().minus(1, ChronoUnit.DAYS);
-        List<User> candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
+        // [방어 2] 단계적 검색 범위 확장
+        List<User> candidates;
 
-        // [Fallback] 24시간 이내 접속자가 너무 적으면 최근 3일로 확장
-        if (candidates.size() < 5) {
-            activeLimit = Instant.now().minus(3, ChronoUnit.DAYS);
-            candidates = userRepository.findActiveCandidates(excludeIds, activeLimit);
+        // 1단계: 24시간 이내
+        candidates = userRepository.findActiveCandidates(excludeIds, Instant.now().minus(1, ChronoUnit.DAYS));
+
+        // 2단계: 7일 이내
+        if (candidates.size() < limit) {
+            candidates = userRepository.findActiveCandidates(excludeIds, Instant.now().minus(7, ChronoUnit.DAYS));
         }
 
-        if (candidates.isEmpty()) {
-            return List.of();
+        // 3단계: 전체 유저
+        if (candidates.size() < limit) {
+            candidates = userRepository.findActiveCandidates(excludeIds, Instant.EPOCH);
         }
 
-        // 3. 내 취향 정보 준비
-        String myCountry = me.getCountry();
-        Set<String> myHobbies = csvToSet(me.getHobby());
+        if (candidates.isEmpty()) return List.of();
 
-        // 4. 점수 계산 (Recency + Activity 집중)
+        // 4. 점수 계산 (동일)
         List<UserScore> scoredCandidates = candidates.stream()
-                .map(candidate -> {
-                    double score = calculateScore(candidate, myCountry, myHobbies);
-                    return new UserScore(candidate, score);
-                })
+                .map(candidate -> new UserScore(candidate, calculateScore(candidate, me.getCountry(), csvToSet(me.getHobby()))))
                 .sorted(Comparator.comparingDouble(UserScore::getScore).reversed())
                 .collect(Collectors.toList());
 
-        // 5. 상위권 셔플 (고인물 고착화 방지용 최소한의 셔플)
-        // 점수가 높은 상위 10명 중에서만 랜덤으로 3명을 뽑음
-        int poolSize = Math.min(scoredCandidates.size(), 10);
-        List<UserScore> topTierPool = new ArrayList<>(scoredCandidates.subList(0, poolSize));
-        Collections.shuffle(topTierPool, secureRandom);
+        // [방어 3] 셔플 로직 유연화
+        // 후보가 limit보다 적으면 셔플 없이 다 보여주고, 많으면 상위권에서 셔플
+        int poolSize = Math.min(scoredCandidates.size(), limit * 3); // limit의 3배수 안에서 섞기
+        List<UserScore> pool = new ArrayList<>(scoredCandidates.subList(0, poolSize));
+        Collections.shuffle(pool, secureRandom);
 
-        return topTierPool.stream()
+        return pool.stream()
                 .limit(limit)
-                .map(us -> toDto(us.getUser()))
+                .map(us -> toDto(me, us.getUser()))
                 .collect(Collectors.toList());
     }
 
@@ -175,13 +171,46 @@ public class ContentBasedRecommender {
                 .collect(Collectors.toSet());
     }
 
-    private CommendUsersProfileResponse toDto(User u) {
-        String imageKey = imageService.getUserProfileKey(u.getId());
+    /**
+     * 1. 관계 판단 로직 추가
+     */
+    private FriendType determineFriendType(User me, User other) {
+        List<Follow> relations = followRepository.findAllRelations(me, other);
+
+        if (relations.isEmpty()) return FriendType.NONE;
+
+        // 수락된 관계가 있으면 친구
+        boolean isAccepted = relations.stream()
+                .anyMatch(f -> f.getStatus() == FollowStatus.ACCEPTED);
+        if (isAccepted) return FriendType.FRIEND;
+
+        // 내가 보낸 요청이 대기 중인가?
+        boolean iRequested = relations.stream()
+                .anyMatch(f -> f.getUser().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING);
+        if (iRequested) return FriendType.FOLLOWING;
+
+        // 상대가 보낸 요청이 대기 중인가?
+        boolean theyRequested = relations.stream()
+                .anyMatch(f -> f.getFollowing().getId().equals(me.getId()) && f.getStatus() == FollowStatus.PENDING);
+
+        return theyRequested ? FriendType.FOLLOWED : FriendType.NONE;
+    }
+
+    /**
+     * 2. DTO 변환 로직 수정 (me 정보 전달 필요)
+     */
+    private CommendUsersProfileResponse toDto(User me, User target) {
+        String imageKey = imageService.getUserProfileKey(target.getId());
+
+        // 관계 결정
+        FriendType type = determineFriendType(me, target);
+
         return new CommendUsersProfileResponse(
-                u,
-                csvToSet(u.getLanguage()).stream().toList(),
-                csvToSet(u.getHobby()).stream().toList(),
-                imageKey
+                target,
+                csvToSet(target.getLanguage()).stream().toList(),
+                csvToSet(target.getHobby()).stream().toList(),
+                imageKey,
+                type // FriendType 전달
         );
     }
 
