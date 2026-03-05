@@ -4,6 +4,7 @@ import core.domain.user.entity.User;
 import core.domain.user.service.FriendType;
 
 import java.util.List;
+
 public record CommendUsersProfileResponse(
         Long userId,
         String firstname,
@@ -16,7 +17,7 @@ public record CommendUsersProfileResponse(
         List<String> language,
         List<String> hobby,
         String imageKey,
-        FriendType friendType // FriendType 열거형 사용
+        FriendType followStatus // FriendType 열거형 사용
 ) {
     // 생성자 파라미터 타입을 FriendType으로 일치시킵니다.
     public CommendUsersProfileResponse(User u, List<String> languages, List<String> hobbies, String imageKey, FriendType friendType) {
