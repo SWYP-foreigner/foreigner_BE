@@ -113,65 +113,50 @@ public class ChatMessageService {
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
-            // 1. 메시지 저장 및 필수 데이터 조회 (DB Insert)
+            // 1. [DB 작업] 메시지 저장 및 필수 데이터 조회 (커넥션 점유 시작)
             ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
             chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
 
-            User sender = savedMessage.getSender();
-
-            // =================================================================
-            // [NEW] 1:1 채팅(isGroup == false)이면 나간 사람 복구 (Rejoin)
-            // =================================================================
             if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
                 reviveParticipantsIfDm(chatRoom);
             }
-            // 2. 비동기 스팸 체크 (Fire-and-Forget, 이건 상관없음)
-            runSpamCheckAsync(savedMessage);
 
-            // 3. 부가 정보 조회
+            // 2. [데이터 준비] 트랜잭션 종료 후 번역/전송에 필요한 데이터들을 '불변' 상태로 추출
+            User sender = savedMessage.getSender();
             String userImageUrl = getUserProfileImage(sender.getId());
             List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            // 4. 수신자 그룹핑 (언어별)
+            // 수신자 그룹핑 및 대상 언어 셋 추출
             Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
                     chatRoom, sender, blockedUserIds, savedMessage.getId()
             );
-            List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
+            Set<String> targetLanguages = new HashSet<>(recipientsByLang.keySet());
 
-            // 5. 병렬 번역 실행 (저장 X, 메모리상에 결과만 보유)
-            Map<String, String> finalTranslations = new HashMap<>();
-            if (savedMessage.getMessageType() == MessageType.TEXT) {
-                finalTranslations = executePureParallelTranslations(
-                        savedMessage.getContent(), recipientsByLang.keySet()
-                );
-            }
-
-            // 6. 트랜잭션 커밋 후 실행 (이벤트 발행 및 비동기 저장)
             final Long messageId = savedMessage.getId();
-            final Map<String, String> translationsToSave = finalTranslations;
-            final String userImg = userImageUrl;
+            final String originalContent = savedMessage.getContent();
+            final ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, userImageUrl);
 
-            // 이벤트 발행 (기본 메시지 전송용)
-            // -> 여기서 ChatEventListener.handleMessageSent가 호출됨
-            ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, userImg);
-            eventPublisher.publishEvent(new MessageSentEvent(baseResponse, allRecipientIds, null));
-
-            // 커밋 후 동작: 번역 저장 및 언어별 전송
+            // 3. [핵심] 커밋 직후 실행될 로직 등록
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    // A. 번역 결과 DB 저장 (Async)
+                    Map<String, String> finalTranslations = new HashMap<>();
+                    if (baseResponse.messageType() == MessageType.TEXT) {
+                        finalTranslations = executePureParallelTranslations(originalContent, targetLanguages);
+                    }
+
+                    final Map<String, String> translationsToSave = finalTranslations;
                     translationsToSave.forEach((lang, content) ->
                             chatTranslationService.saveTranslationAsync(messageId, lang, content)
                     );
 
-                    // B. [언어별 전송] 여기가 중요합니다!
-                    // 기본 메시지(MessageCreatedEvent)는 원문을 보내지만,
-                    // 번역이 필요한 사용자들에게는 '번역된 버전'을 따로 쏴줘야 합니다.
                     executeParallelDispatchAfterCommit(recipientsByLang, translationsToSave, baseResponse);
                 }
             });
+
+            runSpamCheckAsync(savedMessage);
+
         } catch (Exception e) {
             log.error("Error in processAndSendChatMessage", e);
             throw e;
