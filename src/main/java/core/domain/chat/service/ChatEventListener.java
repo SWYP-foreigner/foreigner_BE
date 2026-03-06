@@ -22,10 +22,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ChatEventListener {
 
-    // [변경 1] 우리가 만든 고성능 전송기 주입
     private final FastSocketSender fastSocketSender;
-
-    // [유지] 단건 전송이나 방 단위 브로드캐스팅용으로 기존 템플릿도 필요함
     private final SimpMessagingTemplate messagingTemplate;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -38,35 +35,31 @@ public class ChatEventListener {
     public void handleMessageSent(MessageSentEvent event) {
         ChatMessageResponse message = event.messageResponse();
         ChatRoomSummaryResponse commonSummary = event.roomSummary();
-
-        // 1. 알림 전송 로직은 그대로 유지
         sendPushNotification(event, message, commonSummary);
-
         List<Long> recipients = event.recipientIds();
         if (recipients == null || recipients.isEmpty()) return;
 
-        // =================================================================
-        // [변경] 웹소켓 전송 (SimpMessagingTemplate 루프 방식)
-        // =================================================================
-
-        // A. 채팅방 내부 메시지 전송 (NEW_MESSAGE)
+        String messageSuffix = "/" + message.roomId() + "/messages";
         TypedWebSocketResponse<ChatMessageResponse> messagePayload =
                 new TypedWebSocketResponse<>("NEW_MESSAGE", message);
+        fastSocketSender.sendToUsersFast(recipients, messageSuffix, messagePayload);
 
-        for (Long userId : recipients) {
-            String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
-            messagingTemplate.convertAndSend(destination, messagePayload);
-        }
-
-        // B. 채팅방 목록 갱신 (ROOM_UPDATE)
         if (commonSummary != null) {
-            TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
-                    new TypedWebSocketResponse<>("ROOM_UPDATE", commonSummary);
+            ChatRoomSummaryResponse fastSummary = new ChatRoomSummaryResponse(
+                    commonSummary.roomId(),
+                    commonSummary.roomName(),
+                    commonSummary.lastMessageContent(),
+                    commonSummary.lastMessageTime(),
+                    commonSummary.roomImageUrl(),
+                    commonSummary.unreadCount(),
+                    commonSummary.participantCount()
+            );
 
-            for (Long userId : recipients) {
-                String destination = "/topic/user/" + userId + "/rooms";
-                messagingTemplate.convertAndSend(destination, roomPayload);
-            }
+            String roomSuffix = "/rooms";
+            TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
+                    new TypedWebSocketResponse<>("ROOM_UPDATE", fastSummary);
+
+            fastSocketSender.sendToUsersFast(recipients, roomSuffix, roomPayload);
         }
     }
 
