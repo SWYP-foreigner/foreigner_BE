@@ -39,49 +39,34 @@ public class ChatEventListener {
         ChatMessageResponse message = event.messageResponse();
         ChatRoomSummaryResponse commonSummary = event.roomSummary();
 
-        // 1. 알림(Notification) 전송 로직 (기존 유지)
+        // 1. 알림 전송 로직은 그대로 유지
         sendPushNotification(event, message, commonSummary);
-
-        // =================================================================
-        // [변경 2] 웹소켓 전송 최적화 (Zero-Copy 적용)
-        // 기존: parallelStream 루프 -> 변경: JSON 1회 변환 후 헤더만 바꿔서 전송
-        // =================================================================
 
         List<Long> recipients = event.recipientIds();
         if (recipients == null || recipients.isEmpty()) return;
 
+        // =================================================================
+        // [변경] 웹소켓 전송 (SimpMessagingTemplate 루프 방식)
+        // =================================================================
+
         // A. 채팅방 내부 메시지 전송 (NEW_MESSAGE)
-        // 목표 주소: /topic/user/{userId}/{roomId}/messages
-        // Suffix:   /{roomId}/messages
-        String messageSuffix = "/" + message.roomId() + "/messages";
         TypedWebSocketResponse<ChatMessageResponse> messagePayload =
                 new TypedWebSocketResponse<>("NEW_MESSAGE", message);
 
-        // 1,000명에게 쏠 때, JSON 변환은 여기서 딱 1번만 일어납니다.
-        fastSocketSender.sendToUsersFast(recipients, messageSuffix, messagePayload);
-
+        for (Long userId : recipients) {
+            String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
+            messagingTemplate.convertAndSend(destination, messagePayload);
+        }
 
         // B. 채팅방 목록 갱신 (ROOM_UPDATE)
-        // 목표 주소: /topic/user/{userId}/rooms
-        // Suffix:   /rooms
         if (commonSummary != null) {
-            // 목록 갱신용 DTO 생성 (내용이 모두 같으므로 1개만 생성)
-            ChatRoomSummaryResponse fastSummary = new ChatRoomSummaryResponse(
-                    commonSummary.roomId(),
-                    commonSummary.roomName(),
-                    commonSummary.lastMessageContent(),
-                    commonSummary.lastMessageTime(),
-                    commonSummary.roomImageUrl(),
-                    commonSummary.unreadCount(),
-                    commonSummary.participantCount()
-            );
-
-            String roomSuffix = "/rooms";
             TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
-                    new TypedWebSocketResponse<>("ROOM_UPDATE", fastSummary);
+                    new TypedWebSocketResponse<>("ROOM_UPDATE", commonSummary);
 
-            // 목록 갱신도 Zero-Copy로 전송
-            fastSocketSender.sendToUsersFast(recipients, roomSuffix, roomPayload);
+            for (Long userId : recipients) {
+                String destination = "/topic/user/" + userId + "/rooms";
+                messagingTemplate.convertAndSend(destination, roomPayload);
+            }
         }
     }
 

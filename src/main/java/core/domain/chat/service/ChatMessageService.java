@@ -295,55 +295,42 @@ public class ChatMessageService {
         return resultMap;
     }
 
-
-   /* [Zero-Copy 최적화 적용]
-            * 1. N+1 DB 조회(Race Condition Check) 제거 -> 서버 멈춤 현상 해결
- * 2. 언어별(Language)로 DTO를 1번만 생성 -> 1,000번 반복되는 JSON 변환 제거
- * 3. executeParallelDispatchAfterCommit 메서드 시그니처 유지
- */
     private void executeParallelDispatchAfterCommit(
             Map<String, List<Long>> recipientsByLang,
-            Map<String, String> translations, // 번역 결과 Map ("en": "Hello", "ko": "안녕")
-            ChatMessageResponse baseResponse  // 기본 메시지 정보 (원문 포함)
+            Map<String, String> translations,
+            ChatMessageResponse baseResponse
     ) {
-        // 언어별 그룹 루프 (최대 3~5회 반복 - CPU 부하 거의 없음)
+        // 언어별 그룹 루프
         recipientsByLang.forEach((lang, recipients) -> {
             if (recipients == null || recipients.isEmpty()) return;
 
-            // 1. 번역문(targetContent) 결정
-            // "NONE"(번역안함)이거나 "SELF"(나)인 경우 null, 그 외에는 번역맵에서 가져옴
-            String targetContent = null;
-            if (!"NONE".equals(lang) && !"SELF".equals(lang)) {
-                targetContent = translations.get(lang);
-            }
+            // 1. 해당 언어에 맞는 번역문 결정
+            String targetContent = (!"NONE".equals(lang) && !"SELF".equals(lang))
+                    ? translations.get(lang)
+                    : null;
 
-            // 2. 언어별 맞춤 DTO 생성 (메모리 연산: 아주 빠름)
-            // 원문(originContent)은 유지하고, 번역문(targetContent)만 갈아끼웁니다.
+            // 2. [중요] 언어별 DTO 생성 (이 단계까지는 언어당 1번만 수행)
             ChatMessageResponse personalizedMsg = new ChatMessageResponse(
                     baseResponse.id(),
                     baseResponse.roomId(),
                     baseResponse.senderId(),
-                    baseResponse.originContent(), // 원문 유지
-                    targetContent,                // 번역문 (있으면 넣고, 없으면 null)
+                    baseResponse.originContent(),
+                    targetContent,
                     baseResponse.sentAt(),
                     baseResponse.senderFirstName(),
                     baseResponse.senderLastName(),
-                    baseResponse.senderImageUrl(), // DTO 필드명 확인 필요 (senderImageUrl vs userImageUrl)
+                    baseResponse.senderImageUrl(),
                     baseResponse.messageType(),
                     baseResponse.mediaUrl(),
                     baseResponse.thumbnailUrl()
             );
 
-            // 3. 웹소켓 전송용 래퍼 생성
-            // 프론트엔드가 받는 JSON 형태: { "type": "NEW_MESSAGE", "data": { ... } }
             TypedWebSocketResponse<ChatMessageResponse> payload =
                     new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
-
-            // 4. [핵심] Zero-Copy 전송
-            // - 여기서 JSON 변환은 딱 1번만 일어납니다.
-            // - 생성된 byte[]를 N명(recipients)에게 쫙 뿌립니다.
-            String destinationSuffix = "/" + baseResponse.roomId() + "/messages";
-            fastSocketSender.sendToUsersFast(recipients, destinationSuffix, payload);
+            for (Long userId : recipients) {
+                String destination = "/topic/user/" + userId + "/" + baseResponse.roomId() + "/messages";
+                messagingTemplate.convertAndSend(destination, payload);
+            }
         });
     }
     @Transactional(readOnly = true)
