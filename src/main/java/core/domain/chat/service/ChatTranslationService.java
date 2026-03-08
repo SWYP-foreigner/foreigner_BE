@@ -138,23 +138,15 @@ public class ChatTranslationService {
         return CACHE_PREFIX + messageId + ":" + languageCode;
     }
 
-    /**
-     * [전송 시 호출]
-     * 메시지 전송 시점에 번역을 수행하고 결과만 리턴 (저장은 비동기로 처리)
-     */
     public CompletableFuture<String> translateAndCache(Long messageId, String content, String targetLang) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // API 호출
                 List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
                 if (res.isEmpty()) return content;
-                String translated = res.get(0);
-                self.saveTranslationAsync(messageId, targetLang, translated);
-
-                return translated;
+                return res.get(0);
             } catch (Exception e) {
                 log.error("Translation failed", e);
-                return content; // 실패 시 원문 리턴
+                return content;
             }
         });
     }

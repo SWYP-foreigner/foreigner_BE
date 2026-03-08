@@ -141,7 +141,9 @@ public class ChatMessageService {
             if (!futures.isEmpty()) {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
-
+            if (!translations.isEmpty()) {
+                registerTranslationStorage(savedMessage.getId(), translations);
+            }
             // 4. 전송용 기본 DTO 구성
             ChatMessageResponse baseResponse = buildBaseMessageResponse(
                     savedMessage,

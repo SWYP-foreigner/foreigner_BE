@@ -38,7 +38,7 @@ public class TranslationService {
         try {
             // 1. Mock 서버(FastAPI) 규격에 맞는 요청 바디 생성
             java.util.Map<String, Object> requestBody = java.util.Map.of(
-                    "contents", messages,
+                    "description", messages,
                     "targetLanguageCode", targetLanguage
             );
 
