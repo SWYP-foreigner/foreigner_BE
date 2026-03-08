@@ -148,11 +148,7 @@ public class ChatTranslationService {
                 // API 호출
                 List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
                 if (res.isEmpty()) return content;
-
                 String translated = res.get(0);
-
-                // [핵심 수정 3] 결과 나왔으면 바로 비동기 저장 태우기 (Fire-and-Forget)
-                // 여기서도 self를 써야 Async가 먹힙니다.
                 self.saveTranslationAsync(messageId, targetLang, translated);
 
                 return translated;

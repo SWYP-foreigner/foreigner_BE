@@ -107,29 +107,57 @@ public class ChatMessageService {
     /**
      * 최적화된 일반(TEXT) 메시지 전송 로직
      */
-
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
-            // 1. 데이터 베이스 및 기본 객체 준비
+            // 1. 데이터베이스 및 기본 객체 준비
             ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
             User sender = savedMessage.getSender();
 
-            // 2. 비즈니스 룰 처리 (DM 복구, 스팸 체크)
+            // 2. 비즈니스 룰 처리 (DM 복구, 스팸 체크 등)
             handleBusinessRules(chatRoom, savedMessage);
 
-            // 3. 수신자 및 번역 데이터 준비 (성능 최적화 핵심)
-            ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
 
-            // 4. 전송용 DTO 구성 및 이벤트 발행
-            ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, getUserProfileImage(sender.getId()));
+            ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
+            Map<String, String> translations = new ConcurrentHashMap<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+            // 발신자 언어는 번역할 필요 없으니 미리 제외
+            String senderLang = sender.getLanguage();
+
+            for (String lang : context.onlineMap().keySet()) {
+                if (lang == null || lang.equals("NONE") || lang.equals(senderLang)) {
+                    continue;
+                }
+
+                CompletableFuture<Void> future = chatTranslationService
+                        .translateAndCache(savedMessage.getId(), savedMessage.getContent(), lang)
+                        .thenAccept(translatedText -> translations.put(lang, translatedText));
+
+                futures.add(future);
+            }
+            // k6 테스트 시 실제 API 지연(Mock 서버의 0.3초)을 반영하기 위해 모든 번역 완료 대기
+            if (!futures.isEmpty()) {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            }
+
+            // 4. 전송용 기본 DTO 구성
+            ChatMessageResponse baseResponse = buildBaseMessageResponse(
+                    savedMessage,
+                    getUserProfileImage(sender.getId())
+            );
+
             ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(chatRoom, savedMessage);
 
-            publishMessageEvent(baseResponse, context, roomSummary);
-
-            // 5. 사후 처리 (번역 저장)
-            registerTranslationStorage(savedMessage.getId(), context.translations());
+            // 5. 이벤트 발행
+            eventPublisher.publishEvent(new MessageSentEvent(
+                    baseResponse,               // 1. 기본 메시지 정보
+                    context.onlineMap(),     // 2. 온라인 수신자 맵 (언어별)
+                    context.pushIds(), // 3. 푸시 대상 리스트
+                    translations,               // 4. [핵심] Mock 서버에서 받아온 번역본 뭉치
+                    roomSummary                 // 5. 방 요약 정보
+            ));
 
         } catch (Exception e) {
             log.error("❌ [ChatProcess Failed] roomId: {}, senderId: {}", req.roomId(), req.senderId(), e);
