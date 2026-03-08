@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -105,5 +106,18 @@ public class RedisService {
      */
     public void deleteData(String key) {
         redisTemplate.delete(key);
+    }
+
+
+    public void addSetElement(String key, String value) {
+        redisTemplate.opsForSet().add(key, value);
+    }
+
+    public void removeSetElement(String key, String value) {
+        redisTemplate.opsForSet().remove(key, value);
+    }
+
+    public Set<String> getSetElements(String key) {
+        return redisTemplate.opsForSet().members(key);
     }
 }

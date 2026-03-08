@@ -27,7 +27,9 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.metrics.ChatMetrics;
 import core.domain.admin.service.PerspectiveService;
+import core.global.redis.service.RedisService;
 import core.global.service.TranslationService;
+import core.global.websocket.config.StompChannelInterceptor;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +81,7 @@ public class ChatMessageService {
     private final PerspectiveService perspectiveService;
     private final ChatMemberService chatMemberService;
     private final ChatSummaryService chatSummaryService;
+    private final RedisService redisService;
 
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
@@ -220,24 +223,39 @@ public class ChatMessageService {
     private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
         Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
+        // 1. Redis에서 현재 실시간 접속 중인 유저 ID 목록을 한 번에 가져옴
+        // (StompChannelInterceptor.ACTIVE_USERS_KEY = "chat:active_users")
+        Set<String> activeUserStrIds = redisService.getSetElements(StompChannelInterceptor.ACTIVE_USERS_KEY);
+
+        // String -> Long 변환 (Set의 contains 효율성을 위해)
+        Set<Long> activeUserIds = activeUserStrIds.stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
+
         for (ChatParticipant p : chatRoom.getParticipants()) {
             User recipient = p.getUser();
+            Long rid = recipient.getId();
 
-            if (blockedUserIds.contains(recipient.getId())) continue;
+            // [기본 필터] 차단 유저 및 방 나간 유저 제외
+            if (blockedUserIds.contains(rid)) continue;
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
 
-            if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId);
-            }
-            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
+            // [핵심 필터] 현재 접속 중이 아닌 유저는 '전송 및 번역 대상'에서 과감히 제외!
+            // (단, 보낸 사람 본인은 세션에 없을 수 있으므로 포함하거나 별도 처리)
+            if (!activeUserIds.contains(rid) && !rid.equals(sender.getId())) {
                 continue;
             }
 
+            // 실제 접속자들에 대해서만 언어를 파악함
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
                     : "NONE";
 
-            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
+            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
         }
+
+        // 이제 이 Map의 keySet()에는 접속자들이 쓰는 언어(예: ko, en)만 남게 됨
+        // -> executePureParallelTranslations()는 43번이 아닌 '2~3번'만 실행됨
         return recipientsByLang;
     }
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {

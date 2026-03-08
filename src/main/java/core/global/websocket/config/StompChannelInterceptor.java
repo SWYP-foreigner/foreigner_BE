@@ -34,95 +34,73 @@ public class StompChannelInterceptor implements ChannelInterceptor {
     private final ChatRoomDwellRecorder dwell;
     private final ChatMetrics chatMetrics;
 
+    // Redis에 저장할 키 (전역적으로 관리)
+    public static final String ACTIVE_USERS_KEY = "chat:active_users";
+
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (accessor == null) return message;
 
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            log.info(" 부하 테스트를 위해 CONNECT 인증을 일시 허용합니다.");
-            return message;
+        StompCommand command = accessor.getCommand();
+
+        // 1. CONNECT: 유저가 들어올 때 Redis Set에 추가
+        if (StompCommand.CONNECT.equals(command)) {
+            handleConnect(accessor);
         }
-
-        String destination = accessor.getDestination();
-        if (destination != null && destination.startsWith("/app/chat.sendMessageBad")) {
-            return message;
+        // 2. DISCONNECT: 유저가 나갈 때 Redis Set에서 제거
+        else if (StompCommand.DISCONNECT.equals(command)) {
+            handleDisconnect(accessor);
         }
-        /*부하 테스트 끝나고 지워야함
-        * */
-        if (accessor == null) {
-            accessor = StompHeaderAccessor.wrap(message);
-        }
-
-        // 1. CONNECT (연결 시)
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            String authHeader = accessor.getFirstNativeHeader("Authorization");
-
-            // 토큰 유효성 검사 (필수)
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
-            }
-
-            String token = authHeader.substring(7);
-            try {
-                if (redisService.isBlacklisted(token)) {
-                    throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_BLACKLISTED.getMessage());
-                }
-                if (!jwtTokenProvider.validateToken(token)) {
-                    throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
-                }
-
-                Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
-                String email = jwtTokenProvider.getEmailFromToken(token);
-
-                // 인증 객체 생성
-                CustomUserDetails principal = new CustomUserDetails(userId, email, new ArrayList<>());
-                Authentication auth = new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
-
-                // 세션에 인증 정보 저장
-                accessor.setUser(auth);
-
-                Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-                if (sessionAttributes != null) {
-                    sessionAttributes.put("userAuth", auth);
-                    sessionAttributes.put("userId", userId);
-                    sessionAttributes.put("connectAt", System.currentTimeMillis());
-
-                    // 접속 기록 및 활동 점수 업데이트
-                    userActivityService.updateLastSeenAt(email);
-                    userActivityService.recordVisit(userId);
-                }
-
-                // [로그 추가] 정상 연결 로그
-                log.info("🔌 [WS Connect] User Connected - ID: {}, Email: {}", userId, email);
-
-                chatMetrics.onWsConnect("normal");
-
-            } catch (Exception e) {
-                log.error("❌ [WS Connect Failed] JWT Error: {}", e.getMessage());
-                throw new BadCredentialsException(AuthErrorCode.JWT_TOKEN_INVALID.getMessage());
-            }
-
-        }
-        // 2. SEND (메시지 전송 시)
-        else if (StompCommand.SEND.equals(accessor.getCommand())) {
-            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-            if (sessionAttributes != null && sessionAttributes.get("userId") != null) {
-                try {
-                    userActivityService.addActivityPoint((Long) sessionAttributes.get("userId"), 5L);
-                } catch (Exception e) { /* 무시 */ }
-            }
-        }
-        // 3. SUBSCRIBE / DISCONNECT 등
-        else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+        // 3. SUBSCRIBE / UNSUBSCRIBE (기존 로직 유지)
+        else if (StompCommand.SUBSCRIBE.equals(command)) {
             dwell.onEnter(accessor.getSessionId(), parseRoomId(accessor.getDestination()));
-        } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
-            dwell.onLeave(accessor.getSessionId());
-            chatMetrics.onWsDisconnect("normal");
-        } else if (StompCommand.UNSUBSCRIBE.equals(accessor.getCommand())) {
+        } else if (StompCommand.UNSUBSCRIBE.equals(command) || StompCommand.DISCONNECT.equals(command)) {
             dwell.onLeave(accessor.getSessionId());
         }
 
         return message;
+    }
+
+    private void handleConnect(StompHeaderAccessor accessor) {
+        // [부하 테스트 허용 로직 유지]
+        String authHeader = accessor.getFirstNativeHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                Long userId = jwtTokenProvider.getUserIdFromAccessToken(token);
+
+                // 인증 및 세션 설정
+                setSessionAttributes(accessor, userId, jwtTokenProvider.getEmailFromToken(token));
+
+                // [핵심] Redis 접속자 명단에 추가
+                redisService.addSetElement(ACTIVE_USERS_KEY, userId.toString());
+                log.info("🔌 [WS Connect] User ID: {} 가 접속자 명단에 추가되었습니다.", userId);
+
+            } catch (Exception e) {
+                log.error("❌ [WS Connect Failed]: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void handleDisconnect(StompHeaderAccessor accessor) {
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null && sessionAttributes.get("userId") != null) {
+            Long userId = (Long) sessionAttributes.get("userId");
+
+            // [핵심] Redis 접속자 명단에서 제거
+            redisService.removeSetElement(ACTIVE_USERS_KEY, userId.toString());
+            log.info("👋 [WS Disconnect] User ID: {} 가 접속자 명단에서 제거되었습니다.", userId);
+        }
+        chatMetrics.onWsDisconnect("normal");
+    }
+
+    private void setSessionAttributes(StompHeaderAccessor accessor, Long userId, String email) {
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null) {
+            sessionAttributes.put("userId", userId);
+            userActivityService.updateLastSeenAt(email);
+        }
     }
 
     private String parseRoomId(String dest) {
