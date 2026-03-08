@@ -137,8 +137,7 @@ google:
   maps:
     api:
       key: ${GCP_MAP_API_KEY}
-  translate: # ngrok 주소 뒤에 mock_server.py에 정의한 경로와 똑같이 맞춤
-      api-url: https://taylor-easternmost-temple.ngrok-free.dev/v3/projects/any-id/locations/global:translateText
+
 
 logging:
   level:

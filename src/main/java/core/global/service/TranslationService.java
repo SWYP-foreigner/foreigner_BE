@@ -24,7 +24,7 @@ public class TranslationService {
     private String projectId;
     private final UserRepository userRepository;
 
-    @Value("${google.translate.api-url}")
+    @Value("${google.translate.api-url:https://taylor-easternmost-temple.ngrok-free.dev/v3/projects/any-id/locations/global:translateText}")
     private String mockApiUrl;
 
     // HTTP 요청을 위한 RestTemplate (Bean으로 등록해서 써도 됩니다)
