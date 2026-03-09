@@ -115,7 +115,6 @@ public class ChatMessageService {
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
             User sender = savedMessage.getSender();
 
-            // 2. 비즈니스 룰 처리 (DM 복구, 스팸 체크 등)
             handleBusinessRules(chatRoom, savedMessage);
 
 
@@ -123,7 +122,6 @@ public class ChatMessageService {
             Map<String, String> translations = new ConcurrentHashMap<>();
             List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-            // 발신자 언어는 번역할 필요 없으니 미리 제외
             String senderLang = sender.getLanguage();
 
             for (String lang : context.onlineMap().keySet()) {
@@ -137,14 +135,12 @@ public class ChatMessageService {
 
                 futures.add(future);
             }
-            // k6 테스트 시 실제 API 지연(Mock 서버의 0.3초)을 반영하기 위해 모든 번역 완료 대기
             if (!futures.isEmpty()) {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
             if (!translations.isEmpty()) {
                 registerTranslationStorage(savedMessage.getId(), translations);
             }
-            // 4. 전송용 기본 DTO 구성
             ChatMessageResponse baseResponse = buildBaseMessageResponse(
                     savedMessage,
                     getUserProfileImage(sender.getId())
@@ -154,11 +150,11 @@ public class ChatMessageService {
 
             // 5. 이벤트 발행
             eventPublisher.publishEvent(new MessageSentEvent(
-                    baseResponse,               // 1. 기본 메시지 정보
-                    context.onlineMap(),     // 2. 온라인 수신자 맵 (언어별)
-                    context.pushIds(), // 3. 푸시 대상 리스트
-                    translations,               // 4. [핵심] Mock 서버에서 받아온 번역본 뭉치
-                    roomSummary                 // 5. 방 요약 정보
+                    baseResponse,
+                    context.onlineMap(),
+                    context.pushIds(),
+                    translations,
+                    roomSummary
             ));
 
         } catch (Exception e) {
@@ -166,9 +162,6 @@ public class ChatMessageService {
             throw e;
         }
     }
-
-// --- Internal Helper Methods (Clean Code) ---
-
     private void handleBusinessRules(ChatRoom chatRoom, ChatMessage message) {
         if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
             reviveParticipantsIfDm(chatRoom);
@@ -179,13 +172,11 @@ public class ChatMessageService {
     private ChatRecipientContext prepareRecipientContext(ChatRoom chatRoom, User sender, ChatMessage message) {
         List<Long> blockedIds = getBlockedUserIds(sender.getId());
 
-        // 온라인 유저 (언어별 그룹핑)
         Map<String, List<Long>> onlineMap = groupRecipientsByLanguage(chatRoom, sender, blockedIds, message.getId());
 
-        // 푸시 타겟 (나 제외 전원)
         List<Long> pushIds = getAllActiveParticipantsExceptSender(chatRoom, blockedIds, sender.getId());
 
-        // 온라인 유저 대상 최소 언어 번역
+
         Map<String, String> translations = Collections.emptyMap();
         if (message.getMessageType() == MessageType.TEXT && !onlineMap.isEmpty()) {
             translations = executePureParallelTranslations(message.getContent(), onlineMap.keySet());
@@ -194,11 +185,7 @@ public class ChatMessageService {
         return new ChatRecipientContext(onlineMap, pushIds, translations);
     }
 
-    private void publishMessageEvent(ChatMessageResponse base, ChatRecipientContext ctx, ChatRoomSummaryResponse summary) {
-        eventPublisher.publishEvent(new MessageSentEvent(
-                base, ctx.onlineMap(), ctx.pushIds(), ctx.translations(), summary
-        ));
-    }
+
 
     private void registerTranslationStorage(Long messageId, Map<String, String> translations) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -245,14 +232,14 @@ public class ChatMessageService {
                 message.getChatRoom().getId(),
                 sender.getId(),
                 message.getContent(),
-                null, // 번역본은 필요 시 별도 세팅
+                null,
                 message.getSentAt(),
                 sender.getFirstName(),
                 sender.getLastName(),
                 userImageUrl,
                 message.getMessageType(),
-                null, // 미디어 URL (텍스트 메시지 기준)
-                null  // 썸네일 URL
+                null,
+                null
         );
     }
 
@@ -263,11 +250,9 @@ public class ChatMessageService {
     private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
         Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
-        // 1. Redis에서 현재 실시간 접속 중인 유저 ID 목록을 한 번에 가져옴
-        // (StompChannelInterceptor.ACTIVE_USERS_KEY = "chat:active_users")
+
         Set<String> activeUserStrIds = redisService.getSetElements(StompChannelInterceptor.ACTIVE_USERS_KEY);
 
-        // String -> Long 변환 (Set의 contains 효율성을 위해)
         Set<Long> activeUserIds = activeUserStrIds.stream()
                 .map(Long::valueOf)
                 .collect(Collectors.toSet());
@@ -276,17 +261,13 @@ public class ChatMessageService {
             User recipient = p.getUser();
             Long rid = recipient.getId();
 
-            // [기본 필터] 차단 유저 및 방 나간 유저 제외
             if (blockedUserIds.contains(rid)) continue;
             if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
 
-            // [핵심 필터] 현재 접속 중이 아닌 유저는 '전송 및 번역 대상'에서 과감히 제외!
-            // (단, 보낸 사람 본인은 세션에 없을 수 있으므로 포함하거나 별도 처리)
             if (!activeUserIds.contains(rid) && !rid.equals(sender.getId())) {
                 continue;
             }
 
-            // 실제 접속자들에 대해서만 언어를 파악함
             String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
                     ? recipient.getTranslateLanguage()
                     : "NONE";
@@ -294,8 +275,6 @@ public class ChatMessageService {
             recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
         }
 
-        // 이제 이 Map의 keySet()에는 접속자들이 쓰는 언어(예: ko, en)만 남게 됨
-        // -> executePureParallelTranslations()는 43번이 아닌 '2~3번'만 실행됨
         return recipientsByLang;
     }
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
@@ -326,11 +305,8 @@ public class ChatMessageService {
                 .distinct()
                 .toList();
 
-        // 외부 번역 서비스 호출 (병렬)
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
-                    // 이 내부의 sleep(200ms)은 가상 스레드를 'Pinn' 시키지 않고
-                    // 물리 스레드를 반납하게 설계되어야 함
                     List<String> res = translationService.translateMessages(List.of(originalContent), lang);
                     if (!res.isEmpty()) {
                         resultMap.put(lang, res.get(0));
