@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -19,6 +20,7 @@ import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.impl.S3ImageStorageClient;
+import core.global.enums.NotificationType;
 import core.global.enums.chat.ChatParticipantStatus;
 import core.global.enums.chat.MessageType;
 import core.global.enums.common.ImageType;
@@ -977,5 +979,83 @@ public class ChatMessageService {
                     .map(Image::getUrl).orElse(null);
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
+    }
+
+    private final TranslationService externalTranslationService;
+    private final SimpMessagingTemplate messagingTemplate;
+    @Transactional
+    public void sendMessageBad(SendMessageRequest req) {
+        // 1. 데이터 조회 (방, 참여자, 보낸 사람)
+        ChatRoom chatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 2. 메시지 저장 및 즉시 반영
+        ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
+        chatMessageRepository.save(message);
+        chatMessageRepository.flush();
+
+        // 3. 스팸 체크 (동기 지연 100ms)
+        checkSpamSync(message);
+
+        // 4. 수신자 언어별 그룹핑
+        Map<String, List<ChatParticipant>> groupByLang = chatRoom.getParticipants().stream()
+                .collect(Collectors.groupingBy(p -> {
+                    String lang = p.getUser().getTranslateLanguage();
+                    return (p.isTranslateEnabled() && lang != null) ? lang : "ORIGINAL";
+                }));
+
+        // 5. [추가] 알림 이벤트 발행을 위한 수신자 ID 추출
+        List<Long> recipientIds = chatRoom.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .filter(id -> !id.equals(sender.getId()))
+                .toList();
+
+        if (!recipientIds.isEmpty()) {
+            eventPublisher.publishEvent(new NotificationBulkEvent(
+                    recipientIds,
+                    sender.getId(),
+                    NotificationType.chat,
+                    chatRoom.getId(),
+                    message.getContent(),
+                    chatRoom.getRoomName()
+            ));
+        }
+
+        // 6. 웹소켓 전송 (기존 로직 유지)
+        for (Map.Entry<String, List<ChatParticipant>> entry : groupByLang.entrySet()) {
+            String lang = entry.getKey();
+            if ("ORIGINAL".equals(lang)) continue;
+
+            List<String> translatedResults = externalTranslationService.translateMessages(List.of(message.getContent()), lang);
+            String translatedText = translatedResults.get(0);
+
+            for (ChatParticipant p : entry.getValue()) {
+                if (p.getUser().getId().equals(sender.getId())) continue;
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", translatedText);
+            }
+        }
+
+        List<ChatParticipant> originalGroup = groupByLang.getOrDefault("ORIGINAL", Collections.emptyList());
+        for (ChatParticipant p : originalGroup) {
+            if (p.getUser().getId().equals(sender.getId())) {
+                p.setLastReadMessageId(message.getId());
+            } else {
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", req.content());
+            }
+        }
+    }
+
+    private void checkSpamSync(ChatMessage message) {
+        try { Thread.sleep(100); } catch (InterruptedException e) { }
+    }
+    private String translateSync(String content, String lang) {
+        try { Thread.sleep(200); } catch (InterruptedException e) { }
+        return "[Translated to " + lang + "] " + content;
+    }
+
+    private void sendNotificationSync(User recipient, String message) {
+        try { Thread.sleep(50); } catch (InterruptedException e) { }
     }
 }
