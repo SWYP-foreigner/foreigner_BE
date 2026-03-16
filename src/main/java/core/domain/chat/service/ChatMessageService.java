@@ -100,15 +100,7 @@ public class ChatMessageService {
     private String bucketName;
 
 
-    /**
-     * 최적화된 메시지 전송 로직
-     * 1. Blocking IO(AI, DB) 최소화
-     * 2. N+1 문제 해결 (Block, Image)
-     * 3. 반복적인 객체 생성 제거 (Summary)
-     */
-    /**
-     * 최적화된 일반(TEXT) 메시지 전송 로직
-     */
+
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {

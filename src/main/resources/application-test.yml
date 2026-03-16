@@ -11,16 +11,7 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      # 200 VU 부하 테스트 시 'Connection Timeout'이 나지 않는 최소 적정 수치
-      maximum-pool-size: 50
-      # DAU 100인 평상시 상태를 고려한 최소 연결 수
-      minimum-idle: 10
-      # 스레드가 커넥션을 받기 위해 대기하는 최대 시간 (30초는 너무 길고 3~5초가 적당)
-      connection-timeout: 3000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      register-mbeans: true
+
 
   messages:
     basename: messages
