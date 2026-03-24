@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.user.SimpSession;
 import org.springframework.messaging.simp.user.SimpUser;
 import org.springframework.messaging.simp.user.SimpUserRegistry;
@@ -20,10 +21,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FastSocketSender {
 
+
     private final MessageChannel clientOutboundChannel;
     private final ObjectMapper objectMapper;
     private final SimpUserRegistry userRegistry;
-
+    /*최적화 버전*/
+/*
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
@@ -53,6 +56,26 @@ public class FastSocketSender {
             }
         }
     }
+    */
+    /*최적화 아닌 버전*/
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
+        if (recipientIds == null || recipientIds.isEmpty()) return;
+
+        for (Long userId : recipientIds) {
+            String userIdStr = String.valueOf(userId);
+            String destination = "/topic/user/" + userIdStr + topicSuffix;
+
+            try {
+                messagingTemplate.convertAndSend(destination, payloadData);
+
+            } catch (Exception e) {
+                log.error("전송 실패: {}", userIdStr);
+            }
+        }
+    }
+
 
     private void sendToSession(String sessionId, String destination, byte[] payload) {
         SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);

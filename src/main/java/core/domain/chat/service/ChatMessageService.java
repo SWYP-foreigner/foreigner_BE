@@ -239,9 +239,10 @@ public class ChatMessageService {
 
 
     /**
-     * 수신자를 언어별로 그룹핑합니다. (SELF, NONE, ko, en ...)
+     * 최적화 버전
+     * 세션에 참가한 참가자들만 발송
      */
-    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
+   /* private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
         Map<String, List<Long>> recipientsByLang = new HashMap<>();
 
 
@@ -270,7 +271,29 @@ public class ChatMessageService {
         }
 
         return recipientsByLang;
+    }*/
+    /**
+     * [역최적화] 수신자를 온라인 여부와 상관없이 모든 ACTIVE 참가자로 그룹핑합니다.
+     */
+    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
+        Map<String, List<Long>> recipientsByLang = new HashMap<>();
+
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            User recipient = p.getUser();
+            Long rid = recipient.getId();
+
+            if (blockedUserIds.contains(rid)) continue;
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
+            String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
+                    ? recipient.getTranslateLanguage()
+                    : "NONE";
+
+            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
+        }
+
+        return recipientsByLang;
     }
+
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
         if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
             return;
