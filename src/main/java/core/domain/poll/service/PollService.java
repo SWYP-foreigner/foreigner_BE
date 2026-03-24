@@ -24,6 +24,8 @@ import core.global.enums.errorcode.CommunityErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +75,7 @@ public class PollService {
                 poll.getType(),
                 poll.getTitle(),
                 poll.getDescription(),
+                poll.getPost().getContent(),
                 poll.getCloseAt(),
                 poll.getTotalVoteCount(),
                 optionItems,
@@ -228,15 +231,12 @@ public class PollService {
 
     // 관리자용 전체 퀴즈 목록 조회
     @Transactional(readOnly = true)
-    public List<PollItem> getAllQuizzes() {
-        // PollType이 QUIZ인 모든 데이터를 조회 (최신순)
-        return pollRepository.findAllByTypeOrderByCreatedAtDesc(PollType.QUIZ).stream()
-                .map(poll -> {
-                    // 목록 조회이므로 선택된 옵션이나 정답 ID 정보는 null로 처리하거나
-                    // 필요에 따라 로직을 추가할 수 있습니다.
-                    return mapToPollItem(poll, null, null);
-                })
-                .toList();
+    public Page<PollItem> getAllQuizzes(Pageable pageable) {
+        Page<Poll> pollPage = pollRepository.findAllByType(PollType.QUIZ, pageable);
+
+        // 2. Page<Entity> -> Page<Dto> 변환
+        // map 함수를 쓰면 내부 데이터만 쏙쏙 변환해서 새로운 Page 객체를 만들어줍니다.
+        return pollPage.map(poll -> mapToPollItem(poll, null, null));
     }
 
     // 관리자용 특정 퀴즈 상세 조회
@@ -249,14 +249,21 @@ public class PollService {
             throw new BusinessException(CommunityErrorCode.INVALID_INPUT);
         }
 
-        // 수정 페이지에서 정답을 보여줘야 하므로 정답 ID를 찾아서 넘김
         Long correctOptionId = poll.getOptions().stream()
-                .filter(PollOption::getIsCorrect)
+                .filter(opt -> Boolean.TRUE.equals(opt.getIsCorrect()))
                 .map(PollOption::getId)
                 .findFirst()
                 .orElse(null);
 
         return mapToPollItem(poll, null, correctOptionId);
+    }
+
+    @Transactional
+    public void deletePoll(Long pollId) {
+        Post post = postRepository.findById(pollId)
+                .orElseThrow(() -> new BusinessException(CommunityErrorCode.POLL_NOT_FOUND));
+
+        postRepository.delete(post);
     }
 
     private void validateAuthor(Post post) {

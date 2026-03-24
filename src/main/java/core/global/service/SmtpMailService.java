@@ -19,18 +19,19 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SmtpMailService {
 
     private final MessageSource messageSource;
-    private final TemplateEngine templateEngine; // ✅ 타임리프 템플릿 엔진 주입
+    private final TemplateEngine templateEngine;
     private final AsyncMailDispatcher asyncMailDispatcher;
 
     @Value("${app.mail.from}")
     private String from; // 발신 주소
 
     @Value("${app.mail.brand}")
-    private String defaultBrand; // 번들에 brand.name 없을 때 기본값
+    private String defaultBrand;
 
     public void sendAdminOtpResetEmail(String toEmail, String code, Duration ttl) {
-        String subject = "[Kori] 관리자 OTP 초기화 인증번호입니다.";
+        log.info("[DEBUG-MAIL] AdminOtp - from(YAML): '{}', to: '{}'", from, toEmail);
 
+        String subject = "[Kori] 관리자 OTP 초기화 인증번호입니다.";
         Locale locale = Locale.KOREA;
 
         Context ctx = new Context(locale);
@@ -41,22 +42,21 @@ public class SmtpMailService {
         String html = templateEngine.process("email/verification", ctx);
 
         asyncMailDispatcher.sendHtmlAsync(from, toEmail, subject, html);
-
-        log.info("[Admin OTP] 초기화 메일 발송 완료: {} (코드: {})", toEmail, code);
+        log.info("[Admin OTP] 초기화 메일 발송 요청 완료");
     }
 
     public String sendVerificationEmail(String toEmail, Duration ttl, Locale locale) {
-        // 1) 코드 생성
+        // 🔍 주입된 from 값 로그 찍기
+        log.info("[DEBUG-MAIL] Verification - from(YAML): '{}', to: '{}'", from, toEmail);
+
         String code = generateCode();
 
-        // 2) 제목 (다국어 처리)
         String subject = messageSource.getMessage(
-                "password.reset.subject",        // messages_xx.properties에 정의된 키
-                new Object[]{defaultBrand},       // 파라미터
+                "password.reset.subject",
+                new Object[]{defaultBrand},
                 locale
         );
 
-        // 3) 본문 (타임리프 템플릿 사용)
         Context ctx = new Context(locale);
         ctx.setVariable("brand", defaultBrand);
         ctx.setVariable("code", code);
@@ -64,16 +64,15 @@ public class SmtpMailService {
 
         String html = templateEngine.process("email/verification", ctx);
 
-        // 4) 메일 발송
+        // 🔍 Dispatcher로 넘기기 직전의 값 확인
+        log.info("[DEBUG-MAIL] Dispatcher 호출 직전 from 파라미터 확인: '{}'", from);
         asyncMailDispatcher.sendHtmlAsync(from, toEmail, subject, html);
 
         log.info("인증 메일 발송 완료: {} (코드: {})", toEmail, code);
         return code;
     }
 
-
     private String generateCode() {
-        // 6자리 숫자: 100000 ~ 999999
         int n = ThreadLocalRandom.current().nextInt(100000, 1_000_000);
         return Integer.toString(n);
     }
