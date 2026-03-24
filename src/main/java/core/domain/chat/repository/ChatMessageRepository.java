@@ -45,18 +45,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
 
     List<ChatMessage> findByChatRoomId(Long roomId, PageRequest sentAt);
 
-    List<ChatMessage> findTop50ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
-
-
     Optional<ChatMessage> findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
-    /**
-     * 특정 채팅방의 가장 최근 메시지를 조회합니다.
-     * chatRoomId로 메시지를 찾고, sentAt 필드를 기준으로 내림차순 정렬하여 첫 번째 결과를 반환합니다.
-     *
-     * @param chatRoomId 메시지를 찾을 채팅방의 ID
-     * @return 가장 최근 메시지가 담긴 Optional 객체
-     */
-    Optional<ChatMessage> findFirstByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
     @Query("SELECT COUNT(m) FROM ChatMessage m " +
             "WHERE m.chatRoom.id = :roomId " +
             "  AND m.id > :lastReadId " +
@@ -83,20 +72,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
      * 특정 메시지 ID보다 큰(이후) 메시지들을 순서대로 20개 조회합니다.
      */
     List<ChatMessage> findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long messageId);
-    Optional<ChatMessage> findFirstByChatRoomIdAndSenderNotInOrderBySentAtDesc(Long chatRoomId, List<User> senders);
     List<ChatMessage> findTop10ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
-    List<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long chatRoomId);
-
-    /**
-     * 무한 스크롤을 위한 메시지 조회 (커서 기반)
-     * @param roomId 채팅방 ID
-     * @param lastMessageId 마지막으로 조회된 메시지의 ID (커서)
-     * @param pageable 페이지 크기 정보 (항상 20개씩)
-     * @return Slice<ChatMessage> - hasNext()로 다음 페이지 유무 확인 가능
-     */
-    Slice<ChatMessage> findByChatRoomIdAndIdLessThanOrderByIdDesc(Long roomId, Long lastMessageId, Pageable pageable);
-    Slice<ChatMessage> findByChatRoomIdOrderByIdDesc(Long roomId, Pageable pageable);
-
     List<ChatMessage> findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
             Long roomId, Long startId, Long endId);
 
@@ -163,9 +139,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         ) final_data
     """, nativeQuery = true)
     List<Object[]> calculateFirstResponseTime(@Param("start") Instant start, @Param("end") Instant end);
-
-    @EntityGraph(attributePaths = {"sender"})
-    List<ChatMessage> findTop5ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
 
     @Query(value = """
         SELECT

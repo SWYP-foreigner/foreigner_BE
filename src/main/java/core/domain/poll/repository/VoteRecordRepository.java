@@ -18,4 +18,5 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecord, Long> {
     List<Object[]> findUserVotesInPolls(@Param("userId") Long userId, @Param("pollIds") List<Long> pollIds);
     void deleteAllByUserId(Long userId);
     void deleteAllByPollIn(List<Poll> polls);
+
 }

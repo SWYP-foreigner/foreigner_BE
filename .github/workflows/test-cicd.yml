@@ -287,7 +287,7 @@ jobs:
             IAP_IOS_ISSUER_ID=${{secrets.IAP_IOS_ISSUER_ID}}
             IAP_IOS_KEY_ID=${{secrets.IAP_IOS_KEY_ID}}
             IAP_IOS_P8_B64=${{secrets.IAP_IOS_P8_B64}}
-            
+            APP_PACKAGE_NAME=${{secrets.APP_PACKAGE_NAME}}
             SPRING_PROFILES_ACTIVE=test
             SPRINGDOC_ENABLED=true
             JAVA_TOOL_OPTIONS="-Xms1g -Xmx3g"

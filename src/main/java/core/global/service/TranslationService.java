@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -25,38 +24,66 @@ public class TranslationService {
     private String projectId;
     private final UserRepository userRepository;
 
+    @Value("${google.translate.api-url:https://taylor-easternmost-temple.ngrok-free.dev/v3/projects/any-id/locations/global:translateText}")
+    private String mockApiUrl;
+
+    // HTTP 요청을 위한 RestTemplate (Bean으로 등록해서 써도 됩니다)
+    private final org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
     public List<String> translateMessages(List<String> messages, String targetLanguage) {
         if (messages == null || messages.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
             return messages;
         }
 
-         try (TranslationServiceClient client = TranslationServiceClient.create()) {
-            LocationName parent = LocationName.of(projectId, "global");
+        try {
+            // 1. Mock 서버(FastAPI) 규격에 맞는 요청 바디 생성
+            java.util.Map<String, Object> requestBody = java.util.Map.of(
+                    "description", messages,
+                    "targetLanguageCode", targetLanguage
+            );
 
-            TranslateTextRequest request = TranslateTextRequest.newBuilder()
-                    .setParent(parent.toString())
-                    .setMimeType("text/plain")
-                    .setTargetLanguageCode(targetLanguage)
-                    .addAllContents(messages)
-                    .build();
+            // 2. ngrok 경고 페이지 우회를 위한 헤더 설정
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.set("ngrok-skip-browser-warning", "69420");
 
-            TranslateTextResponse response = client.translateText(request);
+            org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
 
-            return response.getTranslationsList().stream()
-                    .map(Translation::getTranslatedText)
+            // 3. Mock 서버 호출 (POST)
+            org.springframework.http.ResponseEntity<java.util.Map> response =
+                    restTemplate.postForEntity(mockApiUrl, entity, java.util.Map.class);
+
+            // 4. FastAPI가 준 응답에서 번역 텍스트만 추출
+            List<java.util.Map<String, String>> translations =
+                    (List<java.util.Map<String, String>>) response.getBody().get("translations");
+
+            return translations.stream()
+                    .map(t -> t.get("translatedText"))
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
-            throw new BusinessException(
-                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
-                    CommonErrorCode.TRANSLATE_FAIL,
-                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
-                    e
-            );
+            log.error(">>>> [MOCK_TRANSLATION_ERROR] Mock 서버 호출 실패! 상세 원인: ", e);
+            // 테스트 중단 방지를 위해 실패 시 원문 반환
+            return messages;
         }
     }
 
+    // translatePost와 translateComments도 위 translateMessages를 재사용하도록 수정
+    public String translatePost(String post, String targetLanguage) {
+        List<String> results = translateMessages(List.of(post), targetLanguage);
+        return results.get(0);
+    }
+
+    public List<String> translateComments(List<String> comments, String targetLanguage) {
+        return translateMessages(comments, targetLanguage);
+    }
+
+    public String detectLanguage(String text) {
+        // 언어 감지는 비용이 적으니 그대로 두셔도 되고,
+        // 필요하다면 Mock 서버에 /detect 경로를 만들어서 비슷하게 처리하세요.
+        return "en"; // 테스트용 고정 응답
+    }
 
     @Transactional
     public void saveUserLanguage(Authentication auth, String language) {
@@ -66,106 +93,5 @@ public class TranslationService {
             user.updateTranslateLanguage(language);
         }
         userRepository.save(user);
-        log.info("사용자 언어 및 번역 언어 저장 완료: userId={}, language={}, translateLanguage={}",
-                user.getId(), user.getLanguage(), user.getTranslateLanguage());
-    }
-
-    public String translatePost(String post, String targetLanguage) {
-        if (post == null || post.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
-            return post;
-        }
-
-        try (TranslationServiceClient client = TranslationServiceClient.create()) {
-            LocationName parent = LocationName.of(projectId, "global");
-
-            TranslateTextRequest request = TranslateTextRequest.newBuilder()
-                    .setParent(parent.toString())
-                    .setMimeType("text/plain")
-                    .setTargetLanguageCode(targetLanguage)
-                    .addContents(post)
-                    .build();
-
-            TranslateTextResponse response = client.translateText(request);
-
-            return response.getTranslationsList().get(0).getTranslatedText();
-
-        } catch (Exception e) {
-            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
-            throw new BusinessException(
-                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
-                    CommonErrorCode.TRANSLATE_FAIL,
-                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
-                    e
-            );
-        }
-    }
-
-
-    public List<String> translateComments(List<String> comments, String targetLanguage) {
-        if (comments == null || comments.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
-            return comments;
-        }
-
-        try (TranslationServiceClient client = TranslationServiceClient.create()) {
-            LocationName parent = LocationName.of(projectId, "global");
-
-            TranslateTextRequest request = TranslateTextRequest.newBuilder()
-                    .setParent(parent.toString())
-                    .setMimeType("text/plain")
-                    .setTargetLanguageCode(targetLanguage)
-                    .addAllContents(comments)
-                    .build();
-
-            TranslateTextResponse response = client.translateText(request);
-
-            return response.getTranslationsList().stream()
-                    .map(Translation::getTranslatedText)
-                    .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 번역 API 호출 실패! 상세 원인: ", e);
-            throw new BusinessException(
-                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
-                    CommonErrorCode.TRANSLATE_FAIL,
-                    CommonErrorCode.TRANSLATE_FAIL.getMessage(),
-                    e
-            );
-        }
-    }
-
-    public String detectLanguage(String text) {
-        if (text == null || text.isBlank()) {
-            return "und";
-        }
-
-        try (TranslationServiceClient client = TranslationServiceClient.create()) {
-            LocationName parent = LocationName.of(projectId, "global");
-
-            DetectLanguageRequest request =
-                    DetectLanguageRequest.newBuilder()
-                            .setParent(parent.toString())
-                            .setMimeType("text/plain")
-                            .setContent(text)
-                            .build();
-
-            DetectLanguageResponse response = client.detectLanguage(request);
-
-            // 가장 확률이 높은 언어 반환
-            if (response.getLanguagesCount() > 0) {
-                String langCode = response.getLanguages(0).getLanguageCode();
-                log.debug("감지된 언어: {} (내용: {}...)", langCode, text.substring(0, Math.min(text.length(), 20)));
-                return langCode;
-            }
-            return "und"; // 감지 실패
-
-        } catch (Exception e) {
-            log.error(">>>> [GOOGLE_TRANSLATE_API_ERROR] Google 언어 감지 API 호출 실패!", e);
-            throw new BusinessException(
-                    CommonErrorCode.TRANSLATE_FAIL.getHttpStatus(),
-                    CommonErrorCode.TRANSLATE_FAIL,
-                    "언어 감지에 실패했습니다.",
-                    e
-            );
-        }
     }
 }

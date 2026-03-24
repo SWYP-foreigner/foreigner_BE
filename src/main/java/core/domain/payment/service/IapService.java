@@ -1,7 +1,7 @@
 package core.domain.payment.service;
 
-import core.domain.payment.AppleClient;
-import core.domain.payment.GoogleClient;
+import core.domain.payment.config.AppleClient;
+import core.domain.payment.config.GoogleClient;
 import core.domain.payment.dto.AppleTransactionInfo;
 import core.domain.payment.dto.EntitlementResponse;
 import core.domain.payment.dto.GooglePurchase;

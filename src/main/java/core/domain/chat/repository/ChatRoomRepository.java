@@ -43,9 +43,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
             ")")
     List<ChatRoom> findActiveHumanChatRoomsByUserId(@Param("userId") Long userId, @Param("participantStatus") ChatParticipantStatus participantStatus);
 
-    @Query("SELECT cr FROM ChatRoom cr JOIN FETCH cr.participants p JOIN FETCH p.user WHERE cr.id = :roomId")
-    Optional<ChatRoom> findByIdWithParticipantsAndUsers(@Param("roomId") Long roomId);
-
     @EntityGraph(attributePaths = {"participants", "participants.user"})
     @Query("""
         select cr
@@ -65,15 +62,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long>, ChatR
     """)
     List<ChatRoom> findOneToOneRoomByParticipantIds(@Param("userIds") List<Long> userIds);
     List<ChatRoom> findAllByOwnerId(Long ownerId);
-
-    @Query("SELECT cr FROM ChatRoom cr " +
-            "JOIN cr.participants p1 " +
-            "JOIN cr.participants p2 " +
-            "WHERE cr.isGroup = false " +
-            "AND p1.user.id = :userId1 " +
-            "AND p2.user.id = :userId2")
-    Optional<ChatRoom> findOneToOneChatRoomByParticipants(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
-
 
     @Query("SELECT cr FROM ChatRoom cr " +
             "JOIN FETCH cr.participants p " +
