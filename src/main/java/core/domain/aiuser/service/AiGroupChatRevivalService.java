@@ -52,7 +52,7 @@ public class AiGroupChatRevivalService {
     private static final long SILENCE_THRESHOLD_MINUTES = 720;
 
     // 2. 스케줄러 실행 주기
-    @Scheduled(cron = "0 0 * * * *")
+    //@Scheduled(cron = "0 0 * * * *")
     public void reviveSilentChatRooms() {
 
         // 1. AI가 참여 중인 방 ID 목록 확보
