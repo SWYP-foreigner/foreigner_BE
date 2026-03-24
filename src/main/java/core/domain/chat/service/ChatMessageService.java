@@ -9,6 +9,7 @@ import core.domain.chat.repository.ChatMessageRepository;
 import core.domain.chat.repository.ChatMessageTranslationRepository;
 import core.domain.chat.repository.ChatParticipantRepository;
 import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.notification.dto.NotificationBulkEvent;
 import core.domain.user.entity.BlockUser;
 import core.domain.user.entity.User;
 import core.domain.user.repository.BlockRepository;
@@ -19,6 +20,7 @@ import core.global.entity.image.dto.ImageModerationEvent;
 import core.global.entity.image.entity.Image;
 import core.global.entity.image.repository.ImageRepository;
 import core.global.entity.image.service.impl.S3ImageStorageClient;
+import core.global.enums.NotificationType;
 import core.global.enums.chat.ChatParticipantStatus;
 import core.global.enums.chat.MessageType;
 import core.global.enums.common.ImageType;
@@ -27,7 +29,9 @@ import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
 import core.global.metrics.ChatMetrics;
 import core.domain.admin.service.PerspectiveService;
+import core.global.redis.service.RedisService;
 import core.global.service.TranslationService;
+import core.global.websocket.config.StompChannelInterceptor;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +83,7 @@ public class ChatMessageService {
     private final PerspectiveService perspectiveService;
     private final ChatMemberService chatMemberService;
     private final ChatSummaryService chatSummaryService;
+    private final RedisService redisService;
 
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
@@ -95,85 +100,110 @@ public class ChatMessageService {
     private String bucketName;
 
 
-    /**
-     * 최적화된 메시지 전송 로직
-     * 1. Blocking IO(AI, DB) 최소화
-     * 2. N+1 문제 해결 (Block, Image)
-     * 3. 반복적인 객체 생성 제거 (Summary)
-     */
-    /**
-     * 최적화된 일반(TEXT) 메시지 전송 로직
-     */
 
     @Transactional
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
-            // 1. 메시지 저장 및 필수 데이터 조회 (DB Insert)
-            ChatMessage savedMessage = this.saveMessage(req.roomId(), req.senderId(), req.content());
+            // 1. 데이터베이스 및 기본 객체 준비
+            ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());
             ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
-            chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
-
             User sender = savedMessage.getSender();
 
-            // =================================================================
-            // [NEW] 1:1 채팅(isGroup == false)이면 나간 사람 복구 (Rejoin)
-            // =================================================================
-            if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
-                reviveParticipantsIfDm(chatRoom);
-            }
-            // 2. 비동기 스팸 체크 (Fire-and-Forget, 이건 상관없음)
-            runSpamCheckAsync(savedMessage);
+            handleBusinessRules(chatRoom, savedMessage);
 
-            // 3. 부가 정보 조회
-            String userImageUrl = getUserProfileImage(sender.getId());
-            List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
 
-            // 4. 수신자 그룹핑 (언어별)
-            Map<String, List<Long>> recipientsByLang = groupRecipientsByLanguage(
-                    chatRoom, sender, blockedUserIds, savedMessage.getId()
-            );
-            List<Long> allRecipientIds = getAllRecipientIds(recipientsByLang);
+            ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
+            Map<String, String> translations = new ConcurrentHashMap<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-            // 5. 병렬 번역 실행 (저장 X, 메모리상에 결과만 보유)
-            Map<String, String> finalTranslations = new HashMap<>();
-            if (savedMessage.getMessageType() == MessageType.TEXT) {
-                finalTranslations = executePureParallelTranslations(
-                        savedMessage.getContent(), recipientsByLang.keySet()
-                );
-            }
+            String senderLang = sender.getLanguage();
 
-            // 6. 트랜잭션 커밋 후 실행 (이벤트 발행 및 비동기 저장)
-            final Long messageId = savedMessage.getId();
-            final Map<String, String> translationsToSave = finalTranslations;
-            final String userImg = userImageUrl;
-
-            // 이벤트 발행 (기본 메시지 전송용)
-            // -> 여기서 ChatEventListener.handleMessageSent가 호출됨
-            ChatMessageResponse baseResponse = buildBaseMessageResponse(savedMessage, userImg);
-            eventPublisher.publishEvent(new MessageSentEvent(baseResponse, allRecipientIds, null));
-
-            // 커밋 후 동작: 번역 저장 및 언어별 전송
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    // A. 번역 결과 DB 저장 (Async)
-                    translationsToSave.forEach((lang, content) ->
-                            chatTranslationService.saveTranslationAsync(messageId, lang, content)
-                    );
-
-                    // B. [언어별 전송] 여기가 중요합니다!
-                    // 기본 메시지(MessageCreatedEvent)는 원문을 보내지만,
-                    // 번역이 필요한 사용자들에게는 '번역된 버전'을 따로 쏴줘야 합니다.
-                    executeParallelDispatchAfterCommit(recipientsByLang, translationsToSave, baseResponse);
+            for (String lang : context.onlineMap().keySet()) {
+                if (lang == null || lang.equals("NONE") || lang.equals(senderLang)) {
+                    continue;
                 }
-            });
+
+                CompletableFuture<Void> future = chatTranslationService
+                        .translateAndCache(savedMessage.getId(), savedMessage.getContent(), lang)
+                        .thenAccept(translatedText -> translations.put(lang, translatedText));
+
+                futures.add(future);
+            }
+            if (!futures.isEmpty()) {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            }
+            if (!translations.isEmpty()) {
+                registerTranslationStorage(savedMessage.getId(), translations);
+            }
+            ChatMessageResponse baseResponse = buildBaseMessageResponse(
+                    savedMessage,
+                    getUserProfileImage(sender.getId())
+            );
+
+            ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(chatRoom, savedMessage);
+
+            // 5. 이벤트 발행
+            eventPublisher.publishEvent(new MessageSentEvent(
+                    baseResponse,
+                    context.onlineMap(),
+                    context.pushIds(),
+                    translations,
+                    roomSummary
+            ));
+
         } catch (Exception e) {
-            log.error("Error in processAndSendChatMessage", e);
+            log.error("❌ [ChatProcess Failed] roomId: {}, senderId: {}", req.roomId(), req.senderId(), e);
             throw e;
         }
     }
+    private void handleBusinessRules(ChatRoom chatRoom, ChatMessage message) {
+        if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
+            reviveParticipantsIfDm(chatRoom);
+        }
+        runSpamCheckAsync(message);
+    }
+
+    private ChatRecipientContext prepareRecipientContext(ChatRoom chatRoom, User sender, ChatMessage message) {
+        List<Long> blockedIds = getBlockedUserIds(sender.getId());
+
+        Map<String, List<Long>> onlineMap = groupRecipientsByLanguage(chatRoom, sender, blockedIds, message.getId());
+
+        List<Long> pushIds = getAllActiveParticipantsExceptSender(chatRoom, blockedIds, sender.getId());
 
 
+        Map<String, String> translations = Collections.emptyMap();
+        if (message.getMessageType() == MessageType.TEXT && !onlineMap.isEmpty()) {
+            translations = executePureParallelTranslations(message.getContent(), onlineMap.keySet());
+        }
+
+        return new ChatRecipientContext(onlineMap, pushIds, translations);
+    }
+
+
+
+    private void registerTranslationStorage(Long messageId, Map<String, String> translations) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                translations.forEach((lang, content) ->
+                        chatTranslationService.saveTranslationAsync(messageId, lang, content)
+                );
+            }
+        });
+    }
+
+    private ChatRoomSummaryResponse buildCommonRoomSummary(ChatRoom chatRoom, ChatMessage message) {
+        return new ChatRoomSummaryResponse(
+                chatRoom.getId(), chatRoom.getRoomName(), message.getContent(),
+                message.getSentAt(), null, 0, chatRoom.getParticipants().size()
+        );
+    }
+
+    private record ChatRecipientContext(
+            Map<String, List<Long>> onlineMap,
+            List<Long> pushIds,
+            Map<String, String> translations
+    ) {}
     private ChatRoom fetchChatRoomWithParticipants(Long roomId) {
         return chatRoomRepository.findChatRoomWithParticipantsAndUsers(roomId)
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
@@ -196,39 +226,40 @@ public class ChatMessageService {
                 message.getChatRoom().getId(),
                 sender.getId(),
                 message.getContent(),
-                null, // 번역본은 필요 시 별도 세팅
+                null,
                 message.getSentAt(),
                 sender.getFirstName(),
                 sender.getLastName(),
                 userImageUrl,
                 message.getMessageType(),
-                null, // 미디어 URL (텍스트 메시지 기준)
-                null  // 썸네일 URL
+                null,
+                null
         );
-    }
-
-    private List<Long> getAllRecipientIds(Map<String, List<Long>> recipientsByLang) {
-        return recipientsByLang.values().stream()
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
     }
 
 
     /**
-     * 수신자를 언어별로 그룹핑합니다. (SELF, NONE, ko, en ...)
+     * 최적화 버전
+     * 세션에 참가한 참가자들만 발송
      */
-    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
+   /* private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
         Map<String, List<Long>> recipientsByLang = new HashMap<>();
+
+
+        Set<String> activeUserStrIds = redisService.getSetElements(StompChannelInterceptor.ACTIVE_USERS_KEY);
+
+        Set<Long> activeUserIds = activeUserStrIds.stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
 
         for (ChatParticipant p : chatRoom.getParticipants()) {
             User recipient = p.getUser();
+            Long rid = recipient.getId();
 
-            if (blockedUserIds.contains(recipient.getId())) continue;
+            if (blockedUserIds.contains(rid)) continue;
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
 
-            if (recipient.getId().equals(sender.getId())) {
-                p.setLastReadMessageId(messageId);
-            }
-            if (p.getStatus() != ChatParticipantStatus.ACTIVE) {
+            if (!activeUserIds.contains(rid) && !rid.equals(sender.getId())) {
                 continue;
             }
 
@@ -236,10 +267,33 @@ public class ChatMessageService {
                     ? recipient.getTranslateLanguage()
                     : "NONE";
 
-            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(recipient.getId());
+            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
         }
+
+        return recipientsByLang;
+    }*/
+    /**
+     * [역최적화] 수신자를 온라인 여부와 상관없이 모든 ACTIVE 참가자로 그룹핑합니다.
+     */
+    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
+        Map<String, List<Long>> recipientsByLang = new HashMap<>();
+
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            User recipient = p.getUser();
+            Long rid = recipient.getId();
+
+            if (blockedUserIds.contains(rid)) continue;
+            if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
+            String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
+                    ? recipient.getTranslateLanguage()
+                    : "NONE";
+
+            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
+        }
+
         return recipientsByLang;
     }
+
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
         if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
             return;
@@ -268,11 +322,8 @@ public class ChatMessageService {
                 .distinct()
                 .toList();
 
-        // 외부 번역 서비스 호출 (병렬)
         List<CompletableFuture<Void>> futures = languagesToTranslate.stream()
                 .map(lang -> CompletableFuture.runAsync(() -> {
-                    // 이 내부의 sleep(200ms)은 가상 스레드를 'Pinn' 시키지 않고
-                    // 물리 스레드를 반납하게 설계되어야 함
                     List<String> res = translationService.translateMessages(List.of(originalContent), lang);
                     if (!res.isEmpty()) {
                         resultMap.put(lang, res.get(0));
@@ -290,57 +341,6 @@ public class ChatMessageService {
         return resultMap;
     }
 
-
-   /* [Zero-Copy 최적화 적용]
-            * 1. N+1 DB 조회(Race Condition Check) 제거 -> 서버 멈춤 현상 해결
- * 2. 언어별(Language)로 DTO를 1번만 생성 -> 1,000번 반복되는 JSON 변환 제거
- * 3. executeParallelDispatchAfterCommit 메서드 시그니처 유지
- */
-    private void executeParallelDispatchAfterCommit(
-            Map<String, List<Long>> recipientsByLang,
-            Map<String, String> translations, // 번역 결과 Map ("en": "Hello", "ko": "안녕")
-            ChatMessageResponse baseResponse  // 기본 메시지 정보 (원문 포함)
-    ) {
-        // 언어별 그룹 루프 (최대 3~5회 반복 - CPU 부하 거의 없음)
-        recipientsByLang.forEach((lang, recipients) -> {
-            if (recipients == null || recipients.isEmpty()) return;
-
-            // 1. 번역문(targetContent) 결정
-            // "NONE"(번역안함)이거나 "SELF"(나)인 경우 null, 그 외에는 번역맵에서 가져옴
-            String targetContent = null;
-            if (!"NONE".equals(lang) && !"SELF".equals(lang)) {
-                targetContent = translations.get(lang);
-            }
-
-            // 2. 언어별 맞춤 DTO 생성 (메모리 연산: 아주 빠름)
-            // 원문(originContent)은 유지하고, 번역문(targetContent)만 갈아끼웁니다.
-            ChatMessageResponse personalizedMsg = new ChatMessageResponse(
-                    baseResponse.id(),
-                    baseResponse.roomId(),
-                    baseResponse.senderId(),
-                    baseResponse.originContent(), // 원문 유지
-                    targetContent,                // 번역문 (있으면 넣고, 없으면 null)
-                    baseResponse.sentAt(),
-                    baseResponse.senderFirstName(),
-                    baseResponse.senderLastName(),
-                    baseResponse.senderImageUrl(), // DTO 필드명 확인 필요 (senderImageUrl vs userImageUrl)
-                    baseResponse.messageType(),
-                    baseResponse.mediaUrl(),
-                    baseResponse.thumbnailUrl()
-            );
-
-            // 3. 웹소켓 전송용 래퍼 생성
-            // 프론트엔드가 받는 JSON 형태: { "type": "NEW_MESSAGE", "data": { ... } }
-            TypedWebSocketResponse<ChatMessageResponse> payload =
-                    new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
-
-            // 4. [핵심] Zero-Copy 전송
-            // - 여기서 JSON 변환은 딱 1번만 일어납니다.
-            // - 생성된 byte[]를 N명(recipients)에게 쫙 뿌립니다.
-            String destinationSuffix = "/" + baseResponse.roomId() + "/messages";
-            fastSocketSender.sendToUsersFast(recipients, destinationSuffix, payload);
-        });
-    }
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long roomId, Long userId, Long lastMessageId) {
         // 1. 참여자 검증
@@ -493,7 +493,22 @@ public class ChatMessageService {
             log.error("Async AI Check failed", e);
         }
     }
+    private List<Long> getAllActiveParticipantsExceptSender(ChatRoom chatRoom, List<Long> blockedUserIds, Long senderId) {
+        List<Long> targets = new ArrayList<>();
+        for (ChatParticipant p : chatRoom.getParticipants()) {
+            Long rid = p.getUser().getId();
 
+            // 차단 유저 제외 및 보낸 사람 본인 제외
+            if (blockedUserIds.contains(rid)) continue;
+            if (rid.equals(senderId)) continue;
+
+            // 방에서 나가지 않은(ACTIVE) 상태의 유저라면 전부 추가
+            if (p.getStatus() == ChatParticipantStatus.ACTIVE) {
+                targets.add(rid);
+            }
+        }
+        return targets;
+    }
     @Transactional
     public void processMarkAsRead(MarkAsReadRequest req, Long readerId) {
         Long roomId = req.roomId();
@@ -541,86 +556,68 @@ public class ChatMessageService {
         // [리팩토링] 웹소켓 전송 로직 제거 -> 이벤트 발행
         eventPublisher.publishEvent(new MessageDeletedEvent(roomId, messageId));
     }
-
-
     @Transactional
     public void processAndSendMediaMessage(SendMediaMessageRequest req) {
-        // 1. [검증] 실제 스토리지에 파일이 존재하는지 확인 (보안)
+        // 1. [검증] 파일 존재 여부 확인
         validateObjectStorageFile(req.mediaKey());
         if (req.messageType() == MessageType.VIDEO && req.thumbnailKey() != null) {
-            validateObjectStorageFile(req.thumbnailKey()); // 썸네일도 확인
+            validateObjectStorageFile(req.thumbnailKey());
         }
 
+        // 2. 데이터 조회
         ChatRoom chatRoom = chatRoomRepository.findById(req.roomId())
                 .orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         User sender = userRepository.findById(req.senderId())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        // 2. 메시지 저장 (DB에는 파일 Key만 저장)
+        // 3. 메시지 저장 및 읽음 처리
         ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
         chatMessageRepository.save(savedMessage);
-
         chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
-
-        // 3. Image 테이블 저장 (사진 및 동영상 썸네일 관리용)
         saveMediaToImageTable(savedMessage, req);
 
-        // 4. 읽음 처리
         chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
                 .ifPresent(participant -> participant.setLastReadMessageId(savedMessage.getId()));
 
-        // 5. 수신자 계산 (차단 로직 포함)
-        List<Long> recipientIds = chatRoom.getParticipants().stream()
-                .map(ChatParticipant::getUser)
-                .filter(user -> !blockRepository.existsBlock(user.getId(), sender.getId())
-                                && !blockRepository.existsBlock(sender.getId(), user.getId())) // 양방향 체크
-                .map(User::getId)
+        // 4. [수신자 결정] 차단 제외하고 나 빼고 전원 (필터링 없이 이 명단 그대로 다 쏩니다)
+        List<Long> blockedUserIds = getBlockedUserIds(sender.getId());
+        List<Long> targetIds = chatRoom.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .filter(id -> !id.equals(sender.getId()) && !blockedUserIds.contains(id))
                 .toList();
 
-        // 6. 응답 DTO 생성
-        // 6-1. URL 생성 (s3ImageStorageClient를 주입받아 쓰는 것을 권장하지만, 기존 로직 유지 시 아래처럼 사용)
-        // UrlUtil.buildCdnUrlFromKey(cdnBaseUrl, key)를 사용하는 것이 더 안전합니다.
+        // 리스너 규격에 맞게 Map으로 감싸기만 함 (필터링 X)
+        Map<String, List<Long>> recipientsMap = targetIds.isEmpty() ?
+                Map.of() : Map.of("NONE", targetIds);
+
+        // 5. 응답 DTO 및 요약본 생성
         String mediaUrl = cdnBaseUrl + "/" + savedMessage.getContent();
         String thumbnailUrl = (req.thumbnailKey() != null) ? cdnBaseUrl + "/" + req.thumbnailKey() : null;
+        String senderProfileUrl = getUserProfileImage(sender.getId());
 
-        // 6-2. 프로필 이미지 조회
-        // (참고: Image 엔티티에 저장된 값이 Key라면 URL 변환 필요, 이미 URL이면 그대로 사용)
-        String senderProfileUrl = imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, sender.getId())
-                .map(Image::getUrl)
-                .orElse(null);
-
-        // 6-3. 텍스트 대체 문구 설정
-        String originContentText = (req.messageType() == MessageType.IMAGE) ? "사진" : "동영상";
-
-        // 6-4. DTO 생성 (Record 순서 주의)
         ChatMessageResponse messageResponse = new ChatMessageResponse(
-                savedMessage.getId(),           // id
-                chatRoom.getId(),               // roomId
-                sender.getId(),                 // senderId
-                originContentText,              // originContent ("사진" or "동영상")
-                null,                           // targetContent (번역 없음)
-                savedMessage.getSentAt(),       // sentAt
-                sender.getFirstName(),          // senderFirstName
-                sender.getLastName(),           // senderLastName
-                senderProfileUrl,               // senderImageUrl
-                savedMessage.getMessageType(),  // messageType
-                mediaUrl,                       // mediaUrl [NEW]
-                thumbnailUrl                    // thumbnailUrl [NEW]
+                savedMessage.getId(), chatRoom.getId(), sender.getId(),
+                (req.messageType() == MessageType.IMAGE ? "사진" : "동영상"), null,
+                savedMessage.getSentAt(), sender.getFirstName(), sender.getLastName(),
+                senderProfileUrl, savedMessage.getMessageType(), mediaUrl, thumbnailUrl
         );
 
-        // 7. [비동기 전송] 트랜잭션 커밋 후 이벤트 발행
         ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(chatRoom.getId(), sender.getId());
 
+        // 6. [전송] 이벤트 발행 (targetIds 명단 그대로 웹소켓/푸시 둘 다 발송)
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                // 별도 스레드에서 웹소켓 전송
-                eventPublisher.publishEvent(new MessageSentEvent(messageResponse, recipientIds, summary));
+                eventPublisher.publishEvent(new MessageSentEvent(
+                        messageResponse, // 1. 기본 정보
+                        recipientsMap,   // 2. 웹소켓 대상 (targetIds 전체)
+                        targetIds,       // 3. 푸시 대상 (targetIds 전체)
+                        Map.of(),        // 4. 번역 없음
+                        summary          // 5. 요약본
+                ));
             }
         });
     }
-
-
     private void validateObjectStorageFile(String fileKey) {
         try {
             // S3 클라이언트로 파일 메타데이터 조회 (없으면 예외 발생)
@@ -997,5 +994,83 @@ public class ChatMessageService {
                     .map(Image::getUrl).orElse(null);
         }
         return new ChatRoomSummaryResponse(room.getId(), name, lastContent, lastTime, img, unread, room.getParticipants().size());
+    }
+
+    private final TranslationService externalTranslationService;
+    private final SimpMessagingTemplate messagingTemplate;
+    @Transactional
+    public void sendMessageBad(SendMessageRequest req) {
+        // 1. 데이터 조회 (방, 참여자, 보낸 사람)
+        ChatRoom chatRoom = chatRoomRepository.findChatRoomWithParticipantsAndUsers(req.roomId())
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+        User sender = userRepository.findById(req.senderId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // 2. 메시지 저장 및 즉시 반영
+        ChatMessage message = new ChatMessage(chatRoom, sender, req.content());
+        chatMessageRepository.save(message);
+        chatMessageRepository.flush();
+
+        // 3. 스팸 체크 (동기 지연 100ms)
+        checkSpamSync(message);
+
+        // 4. 수신자 언어별 그룹핑
+        Map<String, List<ChatParticipant>> groupByLang = chatRoom.getParticipants().stream()
+                .collect(Collectors.groupingBy(p -> {
+                    String lang = p.getUser().getTranslateLanguage();
+                    return (p.isTranslateEnabled() && lang != null) ? lang : "ORIGINAL";
+                }));
+
+        // 5. [추가] 알림 이벤트 발행을 위한 수신자 ID 추출
+        List<Long> recipientIds = chatRoom.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .filter(id -> !id.equals(sender.getId()))
+                .toList();
+
+        if (!recipientIds.isEmpty()) {
+            eventPublisher.publishEvent(new NotificationBulkEvent(
+                    recipientIds,
+                    sender.getId(),
+                    NotificationType.chat,
+                    chatRoom.getId(),
+                    message.getContent(),
+                    chatRoom.getRoomName()
+            ));
+        }
+
+        // 6. 웹소켓 전송 (기존 로직 유지)
+        for (Map.Entry<String, List<ChatParticipant>> entry : groupByLang.entrySet()) {
+            String lang = entry.getKey();
+            if ("ORIGINAL".equals(lang)) continue;
+
+            List<String> translatedResults = externalTranslationService.translateMessages(List.of(message.getContent()), lang);
+            String translatedText = translatedResults.get(0);
+
+            for (ChatParticipant p : entry.getValue()) {
+                if (p.getUser().getId().equals(sender.getId())) continue;
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", translatedText);
+            }
+        }
+
+        List<ChatParticipant> originalGroup = groupByLang.getOrDefault("ORIGINAL", Collections.emptyList());
+        for (ChatParticipant p : originalGroup) {
+            if (p.getUser().getId().equals(sender.getId())) {
+                p.setLastReadMessageId(message.getId());
+            } else {
+                messagingTemplate.convertAndSend("/topic/user/" + p.getUser().getId() + "/messages", req.content());
+            }
+        }
+    }
+
+    private void checkSpamSync(ChatMessage message) {
+        try { Thread.sleep(100); } catch (InterruptedException e) { }
+    }
+    private String translateSync(String content, String lang) {
+        try { Thread.sleep(200); } catch (InterruptedException e) { }
+        return "[Translated to " + lang + "] " + content;
+    }
+
+    private void sendNotificationSync(User recipient, String message) {
+        try { Thread.sleep(50); } catch (InterruptedException e) { }
     }
 }

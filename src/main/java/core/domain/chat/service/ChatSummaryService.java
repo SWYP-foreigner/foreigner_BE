@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -48,17 +49,30 @@ public class ChatSummaryService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendSummaryToRecipientsInNewTx(
             ChatMessageResponse messageResponse,
-            List<Long> recipientIds
+            List<Long> recipientIds,
+            Map<String, String> translations // 서비스에서 넘어온 번역본 맵 (없으면 Collections.emptyMap())
     ) {
         Long roomId = messageResponse.roomId();
+
         for (Long recipientId : recipientIds) {
+            // 1. 각 유저별로 커스텀된 요약본(unreadCount 등 포함) 생성
             ChatRoomSummaryResponse summary = buildChatRoomSummaryResponse(roomId, recipientId);
+
+            // 2. 바뀐 MessageSentEvent 생성자에 맞춰 파라미터 구성
+            // 이 메서드는 요약본 업데이트용이므로, 언어별 맵에는 자기 자신만 넣어서 보냅니다.
+            Map<String, List<Long>> singleRecipientMap = Map.of("NONE", List.of(recipientId));
+
             eventPublisher.publishEvent(
-                    new MessageSentEvent(messageResponse, List.of(recipientId), summary)
+                    new MessageSentEvent(
+                            messageResponse,      // 기본 메시지 정보
+                            singleRecipientMap,   // 웹소켓 전송 대상 (방 목록 갱신용)
+                            List.of(),            // 푸시 알림 대상 (이미 메인 로직에서 보냈다면 빈 리스트)
+                            translations,         // 번역 결과 맵
+                            summary               // 유저별 요약 정보
+                    )
             );
         }
     }
-
     /**
      * Summary DTO를 생성합니다.
      * 이 메서드는 `sendSummaryToRecipientsInNewTx`의 트랜잭션 내에서 실행됩니다.

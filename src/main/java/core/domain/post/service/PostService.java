@@ -35,9 +35,12 @@ public interface PostService {
 
     CommentWriteAnonymousAvailableResponse isAnonymousAvaliable(@Positive(message = "postId는 양수여야 합니다.") Long postId);
 
+    CursorPageResponse<BoardItem> getUserPostList(Long targetUserId, CommunitySortOption sort, String cursor, int size);
+
     void blockUser(@Positive Long postId);
 
     void blockPost(@Positive Long postId);
+
 
     void createAdminPost(String title, String content, String publishType,
                          String boardCategoryStr, String kNewsTypeStr,
@@ -47,5 +50,4 @@ public interface PostService {
                          User adminUser, List<String> recommendationKeywords) throws IOException;
 
     void reportPost(Long reporterUserId, Long postId, PostReportRequest request);
-
 }

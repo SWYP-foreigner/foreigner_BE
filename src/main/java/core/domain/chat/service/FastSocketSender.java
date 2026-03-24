@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.user.SimpSession;
 import org.springframework.messaging.simp.user.SimpUser;
 import org.springframework.messaging.simp.user.SimpUserRegistry;
@@ -20,20 +21,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FastSocketSender {
 
+
     private final MessageChannel clientOutboundChannel;
     private final ObjectMapper objectMapper;
     private final SimpUserRegistry userRegistry;
-
-    /**
-     * [Zero-Copy 전송 + 스마트 유저 조회]
-     * 1. JSON 변환 1회 수행
-     * 2. Principal Name(Email) 또는 ID로 유저 조회
-     * 3. 세션별 전송
-     */
+    /*최적화 버전*/
+/*
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
-
-        // 1. JSON 직렬화 (루프 밖에서 단 1회 수행 -> CPU 절약)
 
         byte[] payloadBytes;
         try {
@@ -46,25 +41,41 @@ public class FastSocketSender {
         for (Long userId : recipientIds) {
             String userIdStr = String.valueOf(userId);
 
-            // [검색 1단계] ID로 조회 시도
             SimpUser user = userRegistry.getUser(userIdStr);
+
             if (user == null) {
-                log.warn("유저를 찾을 수 없음: {}. 현재 접속 유저 수: {}", userIdStr, userRegistry.getUserCount());
                 String principalName = "loadtest_" + userId + "@test.com";
                 user = userRegistry.getUser(principalName);
             }
 
-            // 그래도 없으면 다음 유저로 넘어감
             if (user == null) {
                 continue;
             }
-
-            // 세션별 전송
             for (SimpSession session : user.getSessions()) {
                 sendToSession(session.getId(), "/topic/user/" + userIdStr + topicSuffix, payloadBytes);
             }
         }
     }
+    */
+    /*최적화 아닌 버전*/
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
+        if (recipientIds == null || recipientIds.isEmpty()) return;
+
+        for (Long userId : recipientIds) {
+            String userIdStr = String.valueOf(userId);
+            String destination = "/topic/user/" + userIdStr + topicSuffix;
+
+            try {
+                messagingTemplate.convertAndSend(destination, payloadData);
+
+            } catch (Exception e) {
+                log.error("전송 실패: {}", userIdStr);
+            }
+        }
+    }
+
 
     private void sendToSession(String sessionId, String destination, byte[] payload) {
         SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);

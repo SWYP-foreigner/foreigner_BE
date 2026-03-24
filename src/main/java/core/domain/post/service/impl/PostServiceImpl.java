@@ -298,6 +298,73 @@ public class PostServiceImpl implements PostService {
         return (i == null) ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
     }
 
+
+    @Transactional(readOnly = true)
+    public CursorPageResponse<BoardItem> getUserPostList(Long targetUserId, CommunitySortOption sort, String cursor, int size) {
+        // 1. 현재 로그인한 유저 (좋아요 여부 등 판별용)
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User loggedInUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        // 2. 조회하려는 타겟 유저가 존재하는지 검증
+        if (!userRepository.existsById(targetUserId)) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        final int pageSize = Math.min(Math.max(size, 1), 50);
+        final Map<String, Object> c = safeDecode(cursor);
+
+        // 3. 타겟 유저 전용 핸들러로 분기
+        return switch (sort) {
+            case POPULAR -> handleUserPopular(loggedInUser.getId(), targetUserId, c, pageSize);
+            case LATEST -> handleUserLatest(loggedInUser.getId(), targetUserId, c, pageSize);
+            default -> handleUserLatest(loggedInUser.getId(), targetUserId, c, pageSize);
+        };
+    }
+
+
+    private CursorPageResponse<BoardItem> handleUserLatest(Long loggedInUserId, Long targetUserId, Map<String, Object> c, int pageSize) {
+        var k = parseLatest(c);
+
+        List<BoardItem> rows = postRepository.findUserLatestPosts(
+                loggedInUserId, // 로그인한 사람 (isLiked 등 판별)
+                targetUserId,   // 조회할 대상 작성자 ID (WHERE author.id = targetUserId)
+                truncateToMillis(k.t),
+                k.id,
+                pageSize + 1
+        );
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
+        fillPollOptions(rows);
+
+        return CursorPages.ofLatest(rows, pageSize, BoardItem::createdAt, BoardItem::id);
+    }
+
+    private CursorPageResponse<BoardItem> handleUserPopular(Long loggedInUserId, Long targetUserId, Map<String, Object> c, int pageSize) {
+        var k = parsePopular(c);
+        Instant since = popularSince();
+
+        List<BoardItem> rows = postRepository.findUserPopularPosts(
+                loggedInUserId,
+                targetUserId,
+                since,
+                k.sc,
+                k.id,
+                pageSize + 1
+        );
+
+        if (rows == null || rows.isEmpty()) {
+            return new CursorPageResponse<>(List.of(), false, null);
+        }
+
+        fillPollOptions(rows);
+
+        return CursorPages.ofPopular(rows, pageSize, BoardItem::score, BoardItem::id);
+    }
+
     @Override
     @Transactional
     public PostDetailResponse getPostDetail(Long postId, Boolean translate) {
