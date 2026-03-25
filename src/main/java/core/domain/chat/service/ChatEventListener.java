@@ -78,33 +78,7 @@ public class ChatEventListener {
         }
     }
 
-    /**
-     * [메시지 읽음 처리 이벤트]
-     * 여기는 대량 발송이 아니라 특정 방(Room) 단위거나 단건이므로
-     * 기존 messagingTemplate을 써도 무방합니다.
-     */
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleMessageRead(MessageReadEvent event) {
-        // 1. 말풍선 옆 숫자 갱신 (채팅방 내부) -> /topic/rooms/... (브로드캐스트)
-        if (!event.updatedReadCounts().isEmpty()) {
-            messagingTemplate.convertAndSend(
-                    "/topic/rooms/" + event.roomId() + "/read-counts",
-                    new TypedWebSocketResponse<>(
-                            "READ_COUNT_UPDATE",
-                            new MessageReadCountUpdateResponse(event.updatedReadCounts())
-                    )
-            );
-        }
 
-        // 2. 채팅방 목록의 빨간 배지 갱신 (특정 유저 1명) -> Unicast
-        if (event.roomSummary() != null) {
-            messagingTemplate.convertAndSend(
-                    "/topic/user/" + event.readerId() + "/rooms",
-                    new TypedWebSocketResponse<>("ROOM_UPDATE", event.roomSummary())
-            );
-        }
-    }
 
     /**
      * [메시지 삭제 이벤트]
