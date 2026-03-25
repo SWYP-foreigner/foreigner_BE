@@ -76,7 +76,7 @@ public class FastSocketSender {
         }
     }
 
-
+/*
     private void sendToSession(String sessionId, String destination, byte[] payload) {
         SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
         accessor.setSessionId(sessionId);
@@ -84,5 +84,5 @@ public class FastSocketSender {
         accessor.setLeaveMutable(true);
 
         clientOutboundChannel.send(new GenericMessage<>(payload, accessor.getMessageHeaders()));
-    }
+    }*/
 }

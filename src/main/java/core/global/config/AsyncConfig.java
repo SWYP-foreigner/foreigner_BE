@@ -18,12 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableAsync
 public class AsyncConfig implements AsyncConfigurer {
 
-    /**
-     * 1. 메인 비동기 실행기 (taskExecutor)
-     * - 에러 메시지에서 찾던 그 빈입니다.
-     * - @Async만 붙였을 때 기본으로 사용됩니다.
-     * - 채팅 번역, 알림 전송 등 일반적인 비동기 작업 처리
-     */
+    /*
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -39,16 +34,14 @@ public class AsyncConfig implements AsyncConfigurer {
         return executor;
     }
 
-    /**
      * 2. AsyncConfigurer 인터페이스 구현
      * - @Async 어노테이션이 사용할 기본 Executor를 지정합니다.
      * - 위에서 만든 taskExecutor()를 리턴합니다.
-     */
     @Override
     public Executor getAsyncExecutor() {
         return taskExecutor();
     }
-
+    */
     /**
      * 3. 비동기 예외 처리기
      * - 비동기 메서드(void 반환)에서 에러가 터지면 메인 스레드는 모릅니다.
@@ -99,12 +92,4 @@ public class AsyncConfig implements AsyncConfigurer {
 
         return executor;
     }
-
-    /*@Bean(name = "websocketExecutor")
-    public Executor websocketExecutor() {
-         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-         executor.setCorePoolSize(50);
-         executor.initialize();
-         return executor;
-    }*/
 }
