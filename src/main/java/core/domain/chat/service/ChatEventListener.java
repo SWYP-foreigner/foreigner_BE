@@ -22,7 +22,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ChatEventListener {
 
-    private final FastSocketSender fastSocketSender;
     private final SimpMessagingTemplate messagingTemplate;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -33,51 +32,41 @@ public class ChatEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleMessageSent(MessageSentEvent event) {
-        ChatMessageResponse baseResponse = event.baseResponse();
-        Map<String, List<Long>> recipientsByLang = event.recipientsByLang();
-        Map<String, String> translations = event.translations();
+        ChatMessageResponse message = event.baseResponse();
 
-        // 1. [Push] 나를 제외한 모든 참여자에게 알림 발송
-        if (event.pushTargetIds() != null && !event.pushTargetIds().isEmpty()) {
-            sendPushNotification(event.pushTargetIds(), baseResponse, event.roomSummary());
+        Map<String, List<Long>> recipientsByLang = event.recipientsByLang();
+        ChatRoomSummaryResponse commonSummary = event.roomSummary();
+        sendPushNotification(event, message, commonSummary);
+        List<Long> recipients = recipientsByLang.values()
+                .stream()
+                .flatMap(List::stream)
+                .toList();
+        if (recipients.isEmpty()) return;
+
+        // =================================================================
+        // [변경] 웹소켓 전송 (SimpMessagingTemplate 루프 방식)
+        // =================================================================
+
+        // A. 채팅방 내부 메시지 전송 (NEW_MESSAGE)
+        TypedWebSocketResponse<ChatMessageResponse> messagePayload =
+                new TypedWebSocketResponse<>("NEW_MESSAGE", message);
+
+        for (Long userId : recipients) {
+            String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
+            messagingTemplate.convertAndSend(destination, messagePayload);
         }
 
-        if (recipientsByLang == null || recipientsByLang.isEmpty()) return;
+        // B. 채팅방 목록 갱신 (ROOM_UPDATE)
+        if (commonSummary != null) {
+            TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
+                    new TypedWebSocketResponse<>("ROOM_UPDATE", commonSummary);
 
-        // 2. [Websocket] 언어별 Zero-Copy 발송 엔진
-        recipientsByLang.forEach((lang, recipients) -> {
-            if (recipients == null || recipients.isEmpty()) return;
-
-            // 언어에 따른 번역본 결정
-            String targetContent = (!"NONE".equals(lang) && !"SELF".equals(lang))
-                    ? translations.get(lang) : null;
-
-            // 클라이언트 협의 DTO (원문 + 번역본)
-            ChatMessageResponse personalizedMsg = new ChatMessageResponse(
-                    baseResponse.id(), baseResponse.roomId(), baseResponse.senderId(),
-                    baseResponse.originContent(), targetContent,
-                    baseResponse.sentAt(), baseResponse.senderFirstName(),
-                    baseResponse.senderLastName(), baseResponse.senderImageUrl(),
-                    baseResponse.messageType(), baseResponse.mediaUrl(), baseResponse.thumbnailUrl()
-            );
-
-            TypedWebSocketResponse<ChatMessageResponse> payload =
-                    new TypedWebSocketResponse<>("NEW_MESSAGE", personalizedMsg);
-
-            String destination = "/" + baseResponse.roomId() + "/messages";
-            fastSocketSender.sendToUsersFast(recipients, destination, payload);
-        });
-
-        // 3. [Room Update] 온라인 유저들에게 방 목록 갱신
-        if (event.roomSummary() != null) {
-            List<Long> allOnlineIds = recipientsByLang.values().stream()
-                    .flatMap(List::stream).toList();
-
-            fastSocketSender.sendToUsersFast(allOnlineIds, "/rooms",
-                    new TypedWebSocketResponse<>("ROOM_UPDATE", event.roomSummary()));
+            for (Long userId : recipients) {
+                String destination = "/topic/user/" + userId + "/rooms";
+                messagingTemplate.convertAndSend(destination, roomPayload);
+            }
         }
     }
-
 
 
     /**
@@ -95,32 +84,31 @@ public class ChatEventListener {
         log.info("Broadcasted delete event for message {} in room {}", event.messageId(), event.roomId());
     }
 
-
-    private void sendPushNotification(List<Long> pushTargetIds, ChatMessageResponse message, ChatRoomSummaryResponse commonSummary) {
-        // 1. 전송 대상이 없으면 바로 종료
-        if (pushTargetIds == null || pushTargetIds.isEmpty()) return;
-
-        // 2. 메시지 타입에 따른 요약 문구 생성
+    // (알림 로직 분리 - 코드가 길어서 메서드로 뺌)
+    private void sendPushNotification(MessageSentEvent event, ChatMessageResponse message, ChatRoomSummaryResponse commonSummary) {
         String contentSnippet = message.originContent();
         if (message.messageType() == MessageType.IMAGE) {
-            contentSnippet = "sent a picture.";
+            contentSnippet = "send picture";
         } else if (message.messageType() == MessageType.VIDEO) {
-            contentSnippet = "sent a video.";
+            contentSnippet = "send video.";
         }
-
         String roomName = (commonSummary != null) ? commonSummary.roomName() : "Chat Room";
 
-        // 3. 알림 이벤트 발행 (Notification 서비스가 처리하도록)
-        // 서비스에서 이미 본인(senderId)은 필터링해서 보냈으므로 여기서 추가 필터링은 필요 없음
-        NotificationBulkEvent bulkEvent = new NotificationBulkEvent(
-                pushTargetIds,
-                message.senderId(),
-                NotificationType.chat,
-                message.roomId(),
-                contentSnippet,
-                roomName
-        );
+        List<Long> notificationTargets = event.recipientsByLang().values().stream()
+                .flatMap(List::stream)
+                .filter(id -> !id.equals(message.senderId()))
+                .toList();
 
-        eventPublisher.publishEvent(bulkEvent);
+        if (!notificationTargets.isEmpty()) {
+            NotificationBulkEvent bulkEvent = new NotificationBulkEvent(
+                    notificationTargets,
+                    message.senderId(),
+                    NotificationType.chat,
+                    message.roomId(),
+                    contentSnippet,
+                    roomName
+            );
+            eventPublisher.publishEvent(bulkEvent);
+        }
     }
 }

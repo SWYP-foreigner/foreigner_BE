@@ -58,23 +58,6 @@ public class FastSocketSender {
     }
     */
     /*최적화 아닌 버전*/
-    private final SimpMessagingTemplate messagingTemplate;
-
-    public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
-        if (recipientIds == null || recipientIds.isEmpty()) return;
-
-        for (Long userId : recipientIds) {
-            String userIdStr = String.valueOf(userId);
-            String destination = "/topic/user/" + userIdStr + topicSuffix;
-
-            try {
-                messagingTemplate.convertAndSend(destination, payloadData);
-
-            } catch (Exception e) {
-                log.error("전송 실패: {}", userIdStr);
-            }
-        }
-    }
 
 /*
     private void sendToSession(String sessionId, String destination, byte[] payload) {
