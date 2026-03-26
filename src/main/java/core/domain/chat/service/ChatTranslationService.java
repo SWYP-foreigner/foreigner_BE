@@ -118,7 +118,7 @@ public class ChatTranslationService {
      * @Async 어노테이션으로 메인 스레드를 차단하지 않습니다.
      * REQUIRES_NEW: 메인 트랜잭션이 롤백되어도 번역 저장은 성공 시키거나, 반대로 여기서 실패해도 메인 로직은 살리기 위함
      */
-    @Async("taskExecutor")
+    @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveTranslationAsync(Long messageId, String languageCode, String content) {
         translationRepository.saveIgnoreDuplicate(messageId, languageCode, content);

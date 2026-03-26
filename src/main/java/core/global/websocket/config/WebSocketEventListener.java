@@ -13,21 +13,21 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 public class WebSocketEventListener {
 
     /** CONNECT 요청 시 */
-    @Async("dispatchExecutor")
+    @Async
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         log.info("WebSocket CONNECT 요청 감지: headers={}", event.getMessage().getHeaders());
     }
 
     /** WebSocket 세션이 실제로 연결 완료되었을 때 */
-    @Async("dispatchExecutor")
+    @Async
     @EventListener
     public void handleWebSocketConnected(SessionConnectedEvent event) {
         log.info("WebSocket 세션 연결 완료: headers={}", event.getMessage().getHeaders());
     }
 
     /** 연결 끊김 감지 */
-    @Async("dispatchExecutor")
+    @Async
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         log.info("WebSocket 세션 종료: sessionId={}", event.getSessionId());

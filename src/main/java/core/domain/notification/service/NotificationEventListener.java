@@ -41,7 +41,7 @@ public class NotificationEventListener {
     private final NotificationRepository notificationRepository;
     private final ChatRoomRepository chatRoomRepository;
 
-    @Async("dispatchExecutor")
+    @Async
     @EventListener
     @Transactional
     public void handleNotificationEvent(NotificationEvent event) {
