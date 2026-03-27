@@ -56,6 +56,7 @@ public class ChatEventListener {
             messagingTemplate.convertAndSend(destination, messagePayload);
             sendCount++;
         }
+        log.info("payload={}", messagePayload);
         log.info("[SEND_DONE] roomId={}, totalSend={}", message.roomId(), sendCount);
         // B. 채팅방 목록 갱신 (ROOM_UPDATE)
         if (commonSummary != null) {
