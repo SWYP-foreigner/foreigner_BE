@@ -2,22 +2,31 @@ package core.global.websocket.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+// import org.springframework.context.ApplicationListener; // 1. 리스너 제거
+// import org.springframework.context.event.ContextRefreshedEvent; // 2. 이벤트 제거
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
+// import org.springframework.messaging.handler.invocation.HandlerMethodArgumentResolver; // 3. 리졸버 제거
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+// import org.springframework.messaging.simp.annotation.support.SimpAnnotationMethodMessageHandler; // 4. 핸들러 제거
+// import org.springframework.security.messaging.context.AuthenticationPrincipalArgumentResolver; // 5. 보안 리졸버 제거
+// import org.springframework.security.messaging.context.SecurityContextChannelInterceptor; // 6. 보안 인터셉터 제거
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
+import org.springframework.context.annotation.Lazy;
+
+// import java.util.ArrayList; // 7. List 제거
+// import java.util.List; // 8. List 제거
 
 @Configuration
 @EnableWebSocketMessageBroker
 @Slf4j
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer { // 9. ApplicationListener 구현 제거
 
-    // STOMP 채널 인터셉터 (인증 / 로깅 등)
     private StompChannelInterceptor stompChannelInterceptor;
+
 
     @Autowired
     @Lazy
@@ -25,6 +34,30 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         this.stompChannelInterceptor = stompChannelInterceptor;
     }
 
+
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*")
+                .addInterceptors(new HttpSessionHandshakeInterceptor() {
+                    @Override
+                    public boolean beforeHandshake(
+                            org.springframework.http.server.ServerHttpRequest request,
+                            org.springframework.http.server.ServerHttpResponse response,
+                            org.springframework.web.socket.WebSocketHandler wsHandler,
+                            java.util.Map<String, Object> attributes) throws Exception {
+                        return super.beforeHandshake(request, response, wsHandler, attributes);
+                    }
+                });
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // (이하 코드는 동일)
+        config.enableSimpleBroker("/topic");
+        config.setApplicationDestinationPrefixes("/app");
+    }
     /**
      * ============================
      * 1. 클라이언트 → 서버 (Inbound)
@@ -37,11 +70,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration
-                .interceptors(stompChannelInterceptor)
+                .interceptors(stompChannelInterceptor) // 인증 / 로깅
                 .taskExecutor()
-                .corePoolSize(50)
-                .maxPoolSize(200)
-                .queueCapacity(1000);
+                .corePoolSize(50)     // 기본 처리 thread
+                .maxPoolSize(200)     // 최대 확장 thread
+                .queueCapacity(1000); // 🔥 중요: queue 작게 잡아야 thread 증가
     }
 
     /**
@@ -50,7 +83,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * ============================
      *
      * - SimpMessagingTemplate.convertAndSend() 여기로 감
+     * - 지금 네 병목이 여기 있음
      *
+     * 핵심:
      * queue가 꽉 차야 thread가 늘어남
      */
     @Override
@@ -60,37 +95,5 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .corePoolSize(50)
                 .maxPoolSize(200)
                 .queueCapacity(1000); // 🔥 이거 없으면 thread 절대 안 늘어남
-    }
-
-    /**
-     * ============================
-     * 3. WebSocket endpoint
-     * ============================
-     *
-     * ws://.../ws 로 연결
-     */
-    @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(new HttpSessionHandshakeInterceptor());
-    }
-
-    /**
-     * ============================
-     * 4. 메시지 브로커 설정
-     * ============================
-     *
-     * /topic → 구독 (SUBSCRIBE)
-     * /app   → 서버 처리 (SEND)
-     */
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-
-        // SimpleBroker (메모리 기반, 현재 사용 중)
-        config.enableSimpleBroker("/topic");
-
-        // 클라이언트 → 서버 prefix
-        config.setApplicationDestinationPrefixes("/app");
     }
 }
