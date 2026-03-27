@@ -51,15 +51,11 @@ public class ChatEventListener {
         TypedWebSocketResponse<ChatMessageResponse> messagePayload =
                 new TypedWebSocketResponse<>("NEW_MESSAGE", message);
 
-        /*for (Long userId : recipients) {
+        for (Long userId : recipients) {
             String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
             messagingTemplate.convertAndSend(destination, messagePayload);
-        }*/
+        }
 
-        messagingTemplate.convertAndSend(
-                "/topic/room/" + message.roomId(),
-                messagePayload
-        );
         // B. 채팅방 목록 갱신 (ROOM_UPDATE)
         if (commonSummary != null) {
             TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
