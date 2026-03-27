@@ -50,12 +50,13 @@ public class ChatEventListener {
         // A. 채팅방 내부 메시지 전송 (NEW_MESSAGE)
         TypedWebSocketResponse<ChatMessageResponse> messagePayload =
                 new TypedWebSocketResponse<>("NEW_MESSAGE", message);
-
+        int sendCount = 0;
         for (Long userId : recipients) {
             String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
             messagingTemplate.convertAndSend(destination, messagePayload);
+            sendCount++;
         }
-
+        log.info("[SEND_DONE] roomId={}, totalSend={}", message.roomId(), sendCount);
         // B. 채팅방 목록 갱신 (ROOM_UPDATE)
         if (commonSummary != null) {
             TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
