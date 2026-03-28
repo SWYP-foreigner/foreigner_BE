@@ -24,7 +24,7 @@ public class ChatEventListener {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final ApplicationEventPublisher eventPublisher;
-
+    private final FastSocketSender fastSocketSender;
     /**
      * [메시지 전송 이벤트] - 여기가 핵심 최적화 대상입니다.
      * DB 커밋 후 실행 (AFTER_COMMIT)
@@ -43,30 +43,23 @@ public class ChatEventListener {
                 .toList();
         if (recipients.isEmpty()) return;
 
-        // =================================================================
-        // [변경] 웹소켓 전송 (SimpMessagingTemplate 루프 방식)
-        // =================================================================
-
-        // A. 채팅방 내부 메시지 전송 (NEW_MESSAGE)
         TypedWebSocketResponse<ChatMessageResponse> messagePayload =
                 new TypedWebSocketResponse<>("NEW_MESSAGE", message);
-        int sendCount = 0;
-        for (Long userId : recipients) {
-            String destination = "/topic/user/" + userId + "/" + message.roomId() + "/messages";
-            messagingTemplate.convertAndSend(destination, messagePayload);
-            sendCount++;
-        }
-        log.info("payload={}", messagePayload);
-        log.info("[SEND_DONE] roomId={}, totalSend={}", message.roomId(), sendCount);
-        // B. 채팅방 목록 갱신 (ROOM_UPDATE)
+
+        fastSocketSender.sendToUsersFast(
+                recipients,
+                "/" + message.roomId() + "/messages",
+                messagePayload
+        );
         if (commonSummary != null) {
             TypedWebSocketResponse<ChatRoomSummaryResponse> roomPayload =
                     new TypedWebSocketResponse<>("ROOM_UPDATE", commonSummary);
 
-            for (Long userId : recipients) {
-                String destination = "/topic/user/" + userId + "/rooms";
-                messagingTemplate.convertAndSend(destination, roomPayload);
-            }
+            fastSocketSender.sendToUsersFast(
+                    recipients,
+                    "/rooms",
+                    roomPayload
+            );
         }
     }
 

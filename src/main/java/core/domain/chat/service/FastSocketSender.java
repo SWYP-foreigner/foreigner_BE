@@ -25,8 +25,7 @@ public class FastSocketSender {
     private final MessageChannel clientOutboundChannel;
     private final ObjectMapper objectMapper;
     private final SimpUserRegistry userRegistry;
-    /*최적화 버전*/
-/*
+
     public void sendToUsersFast(List<Long> recipientIds, String topicSuffix, Object payloadData) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
@@ -56,10 +55,7 @@ public class FastSocketSender {
             }
         }
     }
-    */
-    /*최적화 아닌 버전*/
 
-/*
     private void sendToSession(String sessionId, String destination, byte[] payload) {
         SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
         accessor.setSessionId(sessionId);
@@ -67,5 +63,5 @@ public class FastSocketSender {
         accessor.setLeaveMutable(true);
 
         clientOutboundChannel.send(new GenericMessage<>(payload, accessor.getMessageHeaders()));
-    }*/
+    }
 }
