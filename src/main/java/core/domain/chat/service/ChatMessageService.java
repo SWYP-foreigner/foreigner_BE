@@ -905,7 +905,7 @@ public class ChatMessageService {
                     .filter(p -> !p.getUser().getId().equals(senderId) && p.getStatus() == ChatParticipantStatus.LEFT)
                     .forEach(ChatParticipant::reJoin);
         }
-        return chatMessageRepository.save(new ChatMessage(room, sender, content));
+        return chatMessageRepository.saveAndFlush(new ChatMessage(room, sender, content));
     }
 
     // --- Private Helper Methods ---

@@ -116,7 +116,9 @@ public class ChatTranslationService {
      * [쓰기 핵심 로직]
      * 번역 결과를 DB와 Redis에 비동기로 저장합니다.
      * @Async 어노테이션으로 메인 스레드를 차단하지 않습니다.
+     * afterCommit: 메인 트랜잭션이 죽으면 번역 저장도 같이 안 하게 막아주는 '안전장치'.
      * REQUIRES_NEW: 메인 트랜잭션이 롤백되어도 번역 저장은 성공 시키거나, 반대로 여기서 실패해도 메인 로직은 살리기 위함
+     * REQUIRES_NEW: 메인이 성공한 뒤, 여러 언어의 번역을 저장할 때 하나가 실패해도 다른 언어 저장은 살려두는 '장애 격리벽'.
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
