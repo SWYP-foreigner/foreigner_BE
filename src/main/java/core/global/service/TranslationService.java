@@ -9,10 +9,15 @@ import core.global.enums.errorcode.UserErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 @Service
@@ -27,8 +32,10 @@ public class TranslationService {
     @Value("${google.translate.api-url:https://taylor-easternmost-temple.ngrok-free.dev/v3/projects/any-id/locations/global:translateText}")
     private String mockApiUrl;
 
-    // HTTP 요청을 위한 RestTemplate (Bean으로 등록해서 써도 됩니다)
-    private final org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+    private final RestTemplate restTemplate = new RestTemplateBuilder()
+            .connectTimeout(Duration.ofSeconds(1))
+            .readTimeout(Duration.ofSeconds(2))
+            .build();
 
     public List<String> translateMessages(List<String> messages, String targetLanguage) {
         if (messages == null || messages.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
