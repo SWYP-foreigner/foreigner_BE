@@ -7,13 +7,12 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  #hikari:
-  #    maximum-pool-size: 25   # 🔥 핵심
-  #    minimum-idle: 10        # 유지 커넥션
-  #    idle-timeout: 30000     # 30초
-  #    max-lifetime: 1800000   # 30분
-  #    connection-timeout: 3000 # 3초 (중요)
-
+  hikari:
+    maximum-pool-size: 30
+    minimum-idle: 30         # 🔥 아까 말한 대로 30개 풀 충전 상태 유지
+    connection-timeout: 3000 # 30초나 기다리지 말고 3초 안에 안 나오면 에러 내라 (빠른 실패)
+    idle-timeout: 600000     # 10분 동안 안 쓰면 반납
+    max-lifetime: 1800000    # 커넥션 생존 시간 (30분)
   messages:
     basename: messages
     encoding: UTF-8
@@ -389,3 +388,11 @@ otp:
 
 encryption:
   secret: ${ENCRYPTION_SECRET}
+
+server:
+  tomcat:
+    threads:
+      max: 200         # 톰캣 일꾼 최대 200명
+      min-spare: 20    # 놀고 있는 일꾼 최소 20명 유지
+    max-connections: 2000 # 동시에 유지할 수 있는 TCP 연결 수 (넉넉하게)
+    accept-count: 200    # 스레드가 다 찼을 때 OS 레벨에서 대기시킬 큐 크기

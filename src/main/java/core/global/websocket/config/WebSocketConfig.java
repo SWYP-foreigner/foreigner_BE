@@ -70,11 +70,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer { // 9.
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration
-                .interceptors(stompChannelInterceptor) // 인증 / 로깅
+                .interceptors(stompChannelInterceptor)
                 .taskExecutor()
-                .corePoolSize(50)     // 기본 처리 thread
-                .maxPoolSize(200)     // 최대 확장 thread
-                .queueCapacity(1000); // 🔥 중요: queue 작게 잡아야 thread 증가
+                .corePoolSize(50)
+                .maxPoolSize(200)
+                .queueCapacity(100);
     }
 
     /**
@@ -94,6 +94,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer { // 9.
                 .taskExecutor()
                 .corePoolSize(50)
                 .maxPoolSize(200)
-                .queueCapacity(1000); // 🔥 이거 없으면 thread 절대 안 늘어남
+                .queueCapacity(100);
     }
 }
