@@ -30,10 +30,12 @@ public class FirebaseConfig {
         }
 
         InputStream serviceAccount = new ByteArrayInputStream(firebaseCredentialsJsonString.getBytes());
-
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                .setConnectTimeout(2000)
+                .setReadTimeout(3000)
                 .build();
+
         return FirebaseApp.initializeApp(options);
     }
 
@@ -44,4 +46,5 @@ public class FirebaseConfig {
     public FirebaseMessaging firebaseMessaging(FirebaseApp firebaseApp) {
         return FirebaseMessaging.getInstance(firebaseApp);
     }
+
 }
