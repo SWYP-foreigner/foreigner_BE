@@ -149,8 +149,8 @@ jobs:
             docker compose version || (echo "docker compose not found" && exit 1)
 
             SMOKE_TOKEN="${{ secrets.SMOKE_TOKEN }}"
-            SMOKE_RETRIES="${{ secrets.SMOKE_RETRIES }}"
-            SMOKE_SLEEP="${{ secrets.SMOKE_SLEEP }}"
+            SMOKE_RETRIES="60"  # ✅ 60번 시도하도록 고정
+            SMOKE_SLEEP="3"     # ✅ 3초 간격 대기 (총 180초 대기)
             
             : "${SMOKE_TOKEN:?SMOKE_TOKEN is required}"
             
