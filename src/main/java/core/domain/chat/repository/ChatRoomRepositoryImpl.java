@@ -131,19 +131,12 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
             }
 
             if ("updatedAt".equals(order.getProperty())) {
-                QChatMessage subMessage = new QChatMessage("subMessage");
-
-                var latestMessageTime = JPAExpressions
-                        .select(subMessage.sentAt.max())
-                        .from(subMessage)
-                        .where(subMessage.chatRoom.id.eq(chatRoom.id));
-
                 return new OrderSpecifier<>(
-                        direction,
-                        new CaseBuilder()
-                                .when(latestMessageTime.isNull())
-                                .then(Expressions.constant(Instant.EPOCH))
-                                .otherwise(latestMessageTime)
+                    direction,
+                    new CaseBuilder()
+                        .when(chatRoom.lastMessageSentAt.isNull())
+                        .then(chatRoom.createdAt)
+                        .otherwise(chatRoom.lastMessageSentAt)
                 );
             }
 
