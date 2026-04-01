@@ -187,4 +187,37 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     long countByChatRoomId(Long chatRoomId);
 
     boolean existsBySenderIdAndChatRoomIdAndSentAtAfter(Long senderId, Long chatRoomId, Instant sentAt);
+
+    @Query(value = """
+    SELECT 
+        m.message_id as id, 
+        r.chatroom_id as roomId, 
+        r.room_name as roomName, 
+        u.user_id as userId, 
+        CONCAT(u.first_name, ' ', u.last_name) as senderName, 
+        u.email as senderEmail, 
+        m.content as content, 
+        m.sent_at as sentAt
+    FROM chat_message m
+    JOIN chat_room r ON m.chatroom_id = r.chatroom_id
+    JOIN users u ON m.sender_id = u.user_id
+    WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
+      AND (:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%')))
+      AND (:name IS NULL OR LOWER(u.first_name) LIKE LOWER(CONCAT('%', :name, '%')))
+    ORDER BY m.sent_at DESC
+    """,
+            countQuery = """
+    SELECT COUNT(*) FROM chat_message m
+    JOIN users u ON m.sender_id = u.user_id
+    WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
+      AND (:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%')))
+      AND (:name IS NULL OR LOWER(u.first_name) LIKE LOWER(CONCAT('%', :name, '%')))
+    """,
+            nativeQuery = true)
+    Page<Object[]> searchMessagesNative(
+            @Param("keyword") String keyword,
+            @Param("email") String email,
+            @Param("name") String name,
+            Pageable pageable
+    );
 }

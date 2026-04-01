@@ -69,7 +69,25 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
-        return chatMessageRepository.searchMessages(request, pageable);
+        // 1. 네이티브 쿼리 호출 (Page<Object[]> 반환)
+        Page<Object[]> resultPage = chatMessageRepository.searchMessagesNative(
+                request.keyword(),
+                request.senderEmail(),
+                request.senderName(),
+                pageable
+        );
+
+        // 2. 수동 매핑 (데이터가 많을수록 여기서도 CPU를 꽤 씁니다)
+        return resultPage.map(row -> new ChatMessageSearchResultDto(
+                ((Number) row[0]).longValue(),                   // message_id
+                ((Number) row[1]).longValue(),                   // chatroom_id
+                (String) row[2],                                 // room_name
+                ((Number) row[3]).longValue(),                   // user_id
+                (String) row[4],                                 // senderName (CONCAT 결과)
+                (String) row[5],                                 // email
+                (String) row[6],                                 // content
+                ((java.sql.Timestamp) row[7]).toInstant()       // sent_at (DB 타입에 따라 변환 필요)
+        ));
     }
 
     @Transactional(readOnly = true)
