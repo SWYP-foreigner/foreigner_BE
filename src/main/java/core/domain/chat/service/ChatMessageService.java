@@ -573,6 +573,7 @@ public class ChatMessageService {
         ChatMessage savedMessage = new ChatMessage(chatRoom, sender, req.mediaKey(), req.messageType());
         chatMessageRepository.save(savedMessage);
         chatRoom.updateLastMessageSentAt(savedMessage.getSentAt());
+        chatRoom.incrementMessageCount();
         saveMediaToImageTable(savedMessage, req);
 
         chatParticipantRepository.findByChatRoomIdAndUserId(req.roomId(), req.senderId())
@@ -905,7 +906,11 @@ public class ChatMessageService {
                     .filter(p -> !p.getUser().getId().equals(senderId) && p.getStatus() == ChatParticipantStatus.LEFT)
                     .forEach(ChatParticipant::reJoin);
         }
-        return chatMessageRepository.saveAndFlush(new ChatMessage(room, sender, content));
+        ChatMessage message = new ChatMessage(room, sender, content);
+        room.updateLastMessageSentAt(message.getSentAt());
+        room.updateLastMessageSentAt(message.getSentAt());
+
+        return chatMessageRepository.saveAndFlush(message);
     }
 
     // --- Private Helper Methods ---

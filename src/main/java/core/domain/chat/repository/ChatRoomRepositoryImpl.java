@@ -39,25 +39,20 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
     public Page<ChatRoomListResponse> searchChatRooms(ChatRoomSearchRequest condition, Pageable pageable) {
         QChatParticipant searchParticipant = new QChatParticipant("searchParticipant");
         QUser searchUser = new QUser("searchUser");
-        QChatMessage messageCountAlias = new QChatMessage("messageCountAlias");
 
         var participantCountSubQuery = JPAExpressions.select(chatParticipant.count())
                 .from(chatParticipant)
                 .where(chatParticipant.chatRoom.id.eq(chatRoom.id)
                         .and(chatParticipant.status.eq(ChatParticipantStatus.ACTIVE)));
 
-        Expression<Long> messageCountSubQuery = JPAExpressions.select(messageCountAlias.count())
-                .from(messageCountAlias)
-                .where(messageCountAlias.chatRoom.id.eq(chatRoom.id));
-
         List<ChatRoomListResponse> content = query
                 .select(Projections.constructor(ChatRoomListResponse.class,
-                        chatRoom.id,
-                        chatRoom.roomName,
-                        chatRoom.isGroup,
-                        participantCountSubQuery,
-                        chatRoom.createdAt,
-                        messageCountSubQuery
+                    chatRoom.id,
+                    chatRoom.roomName,
+                    chatRoom.isGroup,
+                    participantCountSubQuery,
+                    chatRoom.createdAt,
+                    chatRoom.messageCount
                 ))
                 .from(chatRoom)
                 .leftJoin(chatRoom.participants, searchParticipant)
@@ -120,30 +115,16 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepositoryCustom {
             Order direction = order.isAscending() ? Order.ASC : Order.DESC;
 
             if ("messageCount".equals(order.getProperty())) {
-                QChatMessage sortMessage = new QChatMessage("sortMessage");
-
-                var messageCountExpression = JPAExpressions
-                        .select(sortMessage.count())
-                        .from(sortMessage)
-                        .where(sortMessage.chatRoom.id.eq(chatRoom.id));
-
-                return new OrderSpecifier<>(direction, messageCountExpression);
+                return new OrderSpecifier<>(direction, chatRoom.messageCount);
             }
 
             if ("updatedAt".equals(order.getProperty())) {
-                QChatMessage subMessage = new QChatMessage("subMessage");
-
-                var latestMessageTime = JPAExpressions
-                        .select(subMessage.sentAt.max())
-                        .from(subMessage)
-                        .where(subMessage.chatRoom.id.eq(chatRoom.id));
-
                 return new OrderSpecifier<>(
-                        direction,
-                        new CaseBuilder()
-                                .when(latestMessageTime.isNull())
-                                .then(Expressions.constant(Instant.EPOCH))
-                                .otherwise(latestMessageTime)
+                    direction,
+                    new CaseBuilder()
+                        .when(chatRoom.lastMessageSentAt.isNull())
+                        .then(chatRoom.createdAt)
+                        .otherwise(chatRoom.lastMessageSentAt)
                 );
             }
 

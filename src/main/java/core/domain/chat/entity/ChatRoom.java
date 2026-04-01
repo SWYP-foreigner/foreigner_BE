@@ -47,6 +47,9 @@ public class ChatRoom {
     @Column(name = "last_message_sent_at")
     private Instant lastMessageSentAt;
 
+    @Column(name = "message_count", nullable = false)
+    private Long messageCount = 0L;
+
     public void addParticipant(ChatParticipant participant) {
         participants.add(participant);
     }
@@ -97,5 +100,9 @@ public class ChatRoom {
 
     public void updateLastMessageSentAt(Instant sentAt) {
         this.lastMessageSentAt = sentAt;
+    }
+
+    public void incrementMessageCount() {
+        this.messageCount++;
     }
 }
