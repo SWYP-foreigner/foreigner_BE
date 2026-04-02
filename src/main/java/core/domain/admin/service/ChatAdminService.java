@@ -4,10 +4,8 @@ import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatReport;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.ChatMessageRepository;
-import core.domain.chat.repository.ChatParticipantRepository;
-import core.domain.chat.repository.ChatReportRepository;
-import core.domain.chat.repository.ChatRoomRepository;
+import core.domain.chat.repository.*;
+import core.domain.chat.service.ChatMessageService;
 import core.domain.chat.service.ChatRoomService;
 import core.global.enums.chat.ChatReportStatus;
 import core.global.enums.errorcode.ChatErrorCode;
@@ -30,6 +28,7 @@ public class ChatAdminService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatReportRepository chatReportRepository;
     private final ChatRoomService chatRoomService;
+    private final ChatMessageRepositoryImpl chatMessageRepositoryImpl;
 
     @Transactional(readOnly = true)
     public Page<ChatRoomListResponse> searchChatRooms(ChatRoomSearchRequest request, Pageable pageable) {
@@ -70,25 +69,7 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
-        // 1. 네이티브 쿼리 호출 (Page<Object[]> 반환)
-        Page<Object[]> resultPage = chatMessageRepository.searchMessagesNative(
-                request.keyword(),
-                request.senderEmail(),
-                request.senderName(),
-                pageable
-        );
-
-        // 2. 수동 매핑 (데이터가 많을수록 여기서도 CPU를 꽤 씁니다)
-        return resultPage.map(row -> new ChatMessageSearchResultDto(
-                ((Number) row[0]).longValue(),
-                ((Number) row[1]).longValue(),
-                (String) row[2],
-                ((Number) row[3]).longValue(),
-                (String) row[4],
-                (String) row[5],
-                (String) row[6],
-                convertToInstant(row[7]) // 강제 캐스팅 대신 유연하게 처리
-        ));
+        return chatMessageRepositoryImpl.searchMessages(request, pageable);
     }
     private Instant convertToInstant(Object obj) {
         if (obj == null) return null;
