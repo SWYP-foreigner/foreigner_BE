@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -79,15 +80,28 @@ public class ChatAdminService {
 
         // 2. 수동 매핑 (데이터가 많을수록 여기서도 CPU를 꽤 씁니다)
         return resultPage.map(row -> new ChatMessageSearchResultDto(
-                ((Number) row[0]).longValue(),                   // message_id
-                ((Number) row[1]).longValue(),                   // chatroom_id
-                (String) row[2],                                 // room_name
-                ((Number) row[3]).longValue(),                   // user_id
-                (String) row[4],                                 // senderName (CONCAT 결과)
-                (String) row[5],                                 // email
-                (String) row[6],                                 // content
-                ((java.sql.Timestamp) row[7]).toInstant()       // sent_at (DB 타입에 따라 변환 필요)
+                ((Number) row[0]).longValue(),
+                ((Number) row[1]).longValue(),
+                (String) row[2],
+                ((Number) row[3]).longValue(),
+                (String) row[4],
+                (String) row[5],
+                (String) row[6],
+                convertToInstant(row[7]) // 강제 캐스팅 대신 유연하게 처리
         ));
+    }
+    private Instant convertToInstant(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof Instant) {
+            return (Instant) obj;
+        }
+        if (obj instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) obj).toInstant();
+        }
+        if (obj instanceof java.util.Date) {
+            return ((java.util.Date) obj).toInstant();
+        }
+        throw new IllegalArgumentException("지원하지 않는 날짜 타입입니다: " + obj.getClass());
     }
 
     @Transactional(readOnly = true)
