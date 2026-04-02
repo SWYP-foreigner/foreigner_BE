@@ -196,30 +196,34 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     boolean existsBySenderIdAndChatRoomIdAndSentAtAfter(Long senderId, Long chatRoomId, Instant sentAt);
 
     @Query(value = """
-        SELECT 
-            m.message_id as id, 
-            r.chatroom_id as roomId, 
-            UPPER(r.room_name || ' (' || r.category || ')') as roomName, 
-            u.user_id as userId, 
-            CONCAT(u.first_name, ' ', u.last_name, ' (', u.email, ')') as senderName, 
-            u.email as senderEmail, 
-            m.content as content, 
-            m.sent_at as sentAt
-        FROM chat_message m
-        JOIN chat_room r ON m.chatroom_id = r.chatroom_id
-        JOIN users u ON m.sender_id = u.user_id
-        WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
-          AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
-          AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
-        ORDER BY m.sent_at DESC, m.message_id ASC
-        """,
-                    countQuery = """
-        SELECT COUNT(*) FROM chat_message m
-        JOIN users u ON m.sender_id = u.user_id
-        WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))
-          AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
-          AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
-        """,
+    SELECT 
+        m.message_id as id, 
+        r.chatroom_id as roomId, 
+        UPPER(r.room_name || ' (' || r.category || ')') as roomName, 
+        u.user_id as userId, 
+        CONCAT(u.first_name, ' ', u.last_name, ' (', u.email, ')') as senderName, 
+        u.email as senderEmail, 
+        m.content as content, 
+        m.sent_at as sentAt
+    FROM chat_message m
+    JOIN chat_room r ON m.chatroom_id = r.chatroom_id
+    JOIN users u ON m.sender_id = u.user_id
+    WHERE (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
+      AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
+      AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
+    ORDER BY m.sent_at DESC, m.message_id ASC
+    """,
+            countQuery = """
+    SELECT COUNT(*) 
+    FROM chat_message m
+    WHERE (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
+      AND (:email IS NULL OR EXISTS (
+          SELECT 1 FROM users u 
+          WHERE u.user_id = m.sender_id 
+            AND (u.email ILIKE CONCAT('%', CAST(:email AS text), '%')
+                 OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
+      ))
+    """,
             nativeQuery = true)
     Page<Object[]> searchMessagesNative(
             @Param("keyword") String keyword,
@@ -227,5 +231,4 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
             @Param("name") String name,
             Pageable pageable
     );
-
 }

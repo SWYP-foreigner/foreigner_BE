@@ -4,8 +4,10 @@ import core.domain.chat.dto.*;
 import core.domain.chat.entity.ChatMessage;
 import core.domain.chat.entity.ChatReport;
 import core.domain.chat.entity.ChatRoom;
-import core.domain.chat.repository.*;
-import core.domain.chat.service.ChatMessageService;
+import core.domain.chat.repository.ChatMessageRepository;
+import core.domain.chat.repository.ChatParticipantRepository;
+import core.domain.chat.repository.ChatReportRepository;
+import core.domain.chat.repository.ChatRoomRepository;
 import core.domain.chat.service.ChatRoomService;
 import core.global.enums.chat.ChatReportStatus;
 import core.global.enums.errorcode.ChatErrorCode;
@@ -28,7 +30,6 @@ public class ChatAdminService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatReportRepository chatReportRepository;
     private final ChatRoomService chatRoomService;
-    private final ChatMessageRepositoryImpl chatMessageRepositoryImpl;
 
     @Transactional(readOnly = true)
     public Page<ChatRoomListResponse> searchChatRooms(ChatRoomSearchRequest request, Pageable pageable) {
@@ -69,7 +70,22 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
-        return chatMessageRepositoryImpl.searchMessages(request, pageable);
+        Page<Object[]> resultPage = chatMessageRepository.searchMessagesNative(
+                request.keyword(),
+                request.senderEmail(),
+                request.senderName(),
+                pageable
+        );
+        return resultPage.map(row -> new ChatMessageSearchResultDto(
+                ((Number) row[0]).longValue(),
+                ((Number) row[1]).longValue(),
+                (String) row[2],
+                ((Number) row[3]).longValue(),
+                (String) row[4],
+                (String) row[5],
+                (String) row[6],
+                convertToInstant(row[7])
+        ));
     }
     private Instant convertToInstant(Object obj) {
         if (obj == null) return null;
