@@ -19,6 +19,7 @@ import java.util.Optional;
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>, ChatMessageRepositoryCustom {
 
     void deleteByChatRoomId(Long chatRoomId);
+
     @Query("SELECT cm FROM ChatMessage cm " +
             "WHERE cm.id IN (" +
             "    SELECT MAX(m.id) FROM ChatMessage m " +
@@ -32,7 +33,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
      * (SQL의 LIKE '%keyword%'와 동일)
      *
      * @param chatRoomId 검색할 채팅방의 ID
-     * @param keyword 검색할 키워드 문자열
+     * @param keyword    검색할 키워드 문자열
      * @return 키워드가 포함된 메시지 리스트
      */
     List<ChatMessage> findByChatRoomIdAndContentContaining(Long chatRoomId, String keyword);
@@ -46,6 +47,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     List<ChatMessage> findByChatRoomId(Long roomId, PageRequest sentAt);
 
     Optional<ChatMessage> findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
+
     @Query("SELECT COUNT(m) FROM ChatMessage m " +
             "WHERE m.chatRoom.id = :roomId " +
             "  AND m.id > :lastReadId " +
@@ -53,12 +55,14 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     int countUnreadMessages(@Param("roomId") Long roomId,
                             @Param("lastReadId") Long lastReadId,
                             @Param("userId") Long userId);
+
     /**
      * 특정 채팅방(chatRoomId)에서, 특정 메시지 ID(id)보다 큰 ID를 가진 메시지들의 개수를 반환합니다.
      * Spring Data JPA가 메서드 이름을 분석하여 아래와 유사한 쿼리를 자동으로 생성합니다:
      * SELECT COUNT(cm) FROM ChatMessage cm WHERE cm.chatRoom.id = :chatRoomId AND cm.id > :id
      */
     Optional<ChatMessage> findTopByChatRoomIdOrderByIdDesc(Long chatRoomId);
+
     @Modifying
     @Query("DELETE FROM ChatMessage m WHERE m.sender.id = :userId")
     void deleteAllBySenderId(@Param("userId") Long userId);
@@ -72,7 +76,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
      * 특정 메시지 ID보다 큰(이후) 메시지들을 순서대로 20개 조회합니다.
      */
     List<ChatMessage> findTop20ByChatRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long messageId);
+
     List<ChatMessage> findTop10ByChatRoomIdOrderBySentAtDesc(Long chatRoomId);
+
     List<ChatMessage> findByChatRoomIdAndIdGreaterThanAndIdLessThanEqualOrderByIdAsc(
             Long roomId, Long startId, Long endId);
 
@@ -87,7 +93,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
 
     @Query(
             value = """
-            SELECT COUNT(DISTINCT sender_id)
+
+                    SELECT COUNT(DISTINCT sender_id)
             FROM chat_message
             WHERE sent_at >= NOW() - INTERVAL '1 day'
             """,
@@ -194,24 +201,24 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         r.chatroom_id as roomId, 
         r.room_name as roomName, 
         u.user_id as userId, 
-        CONCAT(u.first_name, ' ', u.last_name) as senderName, 
+        u.first_name || ' ' || u.last_name as senderName, 
         u.email as senderEmail, 
         m.content as content, 
         m.sent_at as sentAt
     FROM chat_message m
     JOIN chat_room r ON m.chatroom_id = r.chatroom_id
     JOIN users u ON m.sender_id = u.user_id
-    WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
-      AND (:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%')))
-      AND (:name IS NULL OR LOWER(u.first_name) LIKE LOWER(CONCAT('%', :name, '%')))
-    ORDER BY m.sent_at DESC
+    WHERE (:keyword IS NULL OR m.content ILIKE '%' || CAST(:keyword AS text) || '%')
+      AND (:email IS NULL OR u.email ILIKE '%' || CAST(:email AS text) || '%')
+      AND (:name IS NULL OR u.first_name ILIKE '%' || CAST(:name AS text) || '%')
+    -- ORDER BY와 페이징은 Pageable 객체가 처리하도록 위임
     """,
             countQuery = """
     SELECT COUNT(*) FROM chat_message m
     JOIN users u ON m.sender_id = u.user_id
-    WHERE (:keyword IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
-      AND (:email IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :email, '%')))
-      AND (:name IS NULL OR LOWER(u.first_name) LIKE LOWER(CONCAT('%', :name, '%')))
+    WHERE (:keyword IS NULL OR m.content ILIKE '%' || CAST(:keyword AS text) || '%')
+      AND (:email IS NULL OR u.email ILIKE '%' || CAST(:email AS text) || '%')
+      AND (:name IS NULL OR u.first_name ILIKE '%' || CAST(:name AS text) || '%')
     """,
             nativeQuery = true)
     Page<Object[]> searchMessagesNative(
@@ -220,4 +227,5 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
             @Param("name") String name,
             Pageable pageable
     );
+
 }
