@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -70,12 +71,15 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
+        LocalDateTime startDate = LocalDateTime.now().minusMonths(3);
         Page<Object[]> resultPage = chatMessageRepository.searchMessagesNative(
                 request.keyword(),
                 request.senderEmail(),
                 request.senderName(),
+                startDate,
                 pageable
         );
+
         return resultPage.map(row -> new ChatMessageSearchResultDto(
                 ((Number) row[0]).longValue(),
                 ((Number) row[1]).longValue(),
