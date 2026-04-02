@@ -71,7 +71,7 @@ public class ChatAdminService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageSearchResultDto> searchMessages(ChatMessageSearchRequest request, Pageable pageable) {
-        LocalDateTime startDate = LocalDateTime.now().minusMonths(3);
+        LocalDateTime startDate = LocalDateTime.now().minusMonths(1);
         Page<Object[]> resultPage = chatMessageRepository.searchMessagesNative(
                 request.keyword(),
                 request.senderEmail(),
