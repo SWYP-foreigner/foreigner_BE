@@ -206,23 +206,30 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         m.content as content, 
         m.sent_at as sentAt
     FROM chat_message m
+    JOIN (
+        SELECT sub_m.message_id 
+        FROM chat_message sub_m
+        LEFT JOIN users sub_u ON sub_m.sender_id = sub_u.user_id -- 필터링을 위해 최소한의 조인만 유지
+        WHERE (:keyword IS NULL OR sub_m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
+          AND (:email IS NULL OR sub_u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
+          AND (:name IS NULL OR (sub_u.first_name || sub_u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
+        ORDER BY sub_m.sent_at DESC, sub_m.message_id ASC
+        LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}
+    ) temp ON m.message_id = temp.message_id
     JOIN chat_room r ON m.chatroom_id = r.chatroom_id
     JOIN users u ON m.sender_id = u.user_id
-    WHERE (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
-      AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
-      AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
     ORDER BY m.sent_at DESC, m.message_id ASC
     """,
             countQuery = """
-    SELECT COUNT(*) 
-    FROM chat_message m
-    WHERE (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
-      AND (:email IS NULL OR EXISTS (
-          SELECT 1 FROM users u 
-          WHERE u.user_id = m.sender_id 
-            AND (u.email ILIKE CONCAT('%', CAST(:email AS text), '%')
-                 OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
-      ))
+    SELECT COUNT(*) FROM (
+        SELECT 1 
+        FROM chat_message m
+        LEFT JOIN users u ON m.sender_id = u.user_id
+        WHERE (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
+          AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
+          AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
+        LIMIT 1001 
+    ) t
     """,
             nativeQuery = true)
     Page<Object[]> searchMessagesNative(
