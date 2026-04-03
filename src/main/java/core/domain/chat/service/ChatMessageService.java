@@ -27,8 +27,8 @@ import core.global.enums.common.ImageType;
 import core.global.enums.errorcode.ChatErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
 import core.global.exception.BusinessException;
-import core.global.metrics.ChatMetrics;
-import core.domain.admin.service.PerspectiveService;
+
+
 import core.global.redis.service.RedisService;
 import core.global.service.TranslationService;
 import core.global.websocket.config.StompChannelInterceptor;
@@ -75,19 +75,14 @@ public class ChatMessageService {
     private final UserRepository userRepository;
     private final ImageRepository imageRepository;
     private final BlockRepository blockRepository;
-    private final ChatMessageTranslationRepository chatMessageTranslationRepository;
-    private final FastSocketSender fastSocketSender;
+    private final ChatDbService chatDbService;
 
     // Service
     private final UserRoleDetectService userRoleDetectService;
-    private final PerspectiveService perspectiveService;
-    private final ChatMemberService chatMemberService;
-    private final ChatSummaryService chatSummaryService;
     private final RedisService redisService;
 
     private final S3Presigner s3Presigner;
     private final ApplicationEventPublisher eventPublisher;
-    private final ChatMetrics chatMetrics;
     private final ChatTranslationService chatTranslationService;
     private final TranslationService translationService;
     private final S3Client s3Client;
@@ -100,22 +95,32 @@ public class ChatMessageService {
     private String bucketName;
 
 
-
-    @Transactional
+    /*
+    * 메인 메세지 발송
+    * 전체 흐름(DB -> 데이터 조립 -> 외부 API -> DB -> 이벤트 발행)
+    */
     public void processAndSendChatMessage(SendMessageRequest req) {
         try {
-            // 1. 데이터베이스 및 기본 객체 준비
-            ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());
-            ChatRoom chatRoom = fetchChatRoomWithParticipants(req.roomId());
+            // --------------------------------------------------------
+            // 1. [DB 영역] 메시지 저장 및 비즈니스 룰 처리 (트랜잭션 획득 -> 즉시 반납)
+            // --------------------------------------------------------
+            ChatTransactionResult dbResult = chatDbService.saveAndProcessBusinessRules(req);
+
+            ChatMessage savedMessage = dbResult.savedMessage();
+            ChatRoom chatRoom = dbResult.chatRoom();
             User sender = savedMessage.getSender();
 
-            handleBusinessRules(chatRoom, savedMessage);
-
-
+            // --------------------------------------------------------
+            // 2. [데이터 조립 영역] 수신자 분류 및 DTO 생성 (DB 커넥션 0개 사용)
+            // --------------------------------------------------------
             ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
+
+            // --------------------------------------------------------
+            // 3. [외부 API 영역] 다국어 병렬 번역 (DB 커넥션 0개 사용, 스레드 대기)
+            // --------------------------------------------------------
             List<CompletableFuture<Void>> futures = new ArrayList<>();
-            Map<String, String> dbTranslations = new ConcurrentHashMap<>();      // 진짜 번역 성공해서 DB에 저장할 용도
-            Map<String, String> payloadTranslations = new ConcurrentHashMap<>(); // 소켓으로 쏠 용도 (성공 번역 + 실패 땜빵 포함)
+            Map<String, String> dbTranslations = new ConcurrentHashMap<>();
+            Map<String, String> payloadTranslations = new ConcurrentHashMap<>();
             String senderLang = sender.getLanguage();
 
             for (String lang : context.onlineMap().keySet()) {
@@ -125,14 +130,13 @@ public class ChatMessageService {
 
                 CompletableFuture<Void> future = chatTranslationService
                         .translateAndCache(savedMessage.getId(), savedMessage.getContent(), lang)
-                        // 2. 성공 시: 양쪽 맵에 모두 담는다.
                         .thenAccept(translatedText -> {
                             dbTranslations.put(lang, translatedText);
                             payloadTranslations.put(lang, translatedText);
                         })
                         .orTimeout(2, TimeUnit.SECONDS)
-                        // 3. 실패 시: 전송용(payload) 맵에만 원문을 땜빵한다! DB 맵에는 넣지 않음!
                         .exceptionally(ex -> {
+                            log.warn("🚨 [{}] 언어 번역 실패. 전송용 맵에만 원문 대체. (사유: {})", lang, ex.getMessage());
                             payloadTranslations.put(lang, savedMessage.getContent());
                             return null;
                         });
@@ -144,10 +148,16 @@ public class ChatMessageService {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
 
+            // --------------------------------------------------------
+            // 4. [DB 영역] 번역 성공 결과만 DB에 저장 (다시 아주 짧게 커넥션 획득 -> 반납)
+            // --------------------------------------------------------
             if (!dbTranslations.isEmpty()) {
-                registerTranslationStorage(savedMessage.getId(), dbTranslations);
+                chatDbService.saveTranslations(savedMessage.getId(), dbTranslations);
             }
 
+            // --------------------------------------------------------
+            // 5. [이벤트 발행 영역] 응답 DTO 조립 및 소켓 발송
+            // --------------------------------------------------------
             ChatMessageResponse baseResponse = buildBaseMessageResponse(
                     savedMessage,
                     getUserProfileImage(sender.getId())
@@ -155,24 +165,18 @@ public class ChatMessageService {
 
             ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(chatRoom, savedMessage);
 
-            // 5. 소켓 전송(이벤트 발행): 땜빵이 포함된 '전송용(payloadTranslations)'을 실어 보낸다!
             eventPublisher.publishEvent(new MessageSentEvent(
                     baseResponse,
                     context.onlineMap(),
                     context.pushIds(),
-                    payloadTranslations, // <--- 여기 주목
+                    payloadTranslations, // 실패 시 원문 땜빵이 포함된 맵 전송
                     roomSummary
             ));
+
         } catch (Exception e) {
             log.error("❌ [ChatProcess Failed] roomId: {}, senderId: {}", req.roomId(), req.senderId(), e);
-            throw e;
+            throw e; // 필요 시 커스텀 예외로 래핑
         }
-    }
-    private void handleBusinessRules(ChatRoom chatRoom, ChatMessage message) {
-        if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
-            reviveParticipantsIfDm(chatRoom);
-        }
-        runSpamCheckAsync(message);
     }
 
     private ChatRecipientContext prepareRecipientContext(ChatRoom chatRoom, User sender, ChatMessage message) {
@@ -216,14 +220,8 @@ public class ChatMessageService {
             List<Long> pushIds,
             Map<String, String> translations
     ) {}
-    private ChatRoom fetchChatRoomWithParticipants(Long roomId) {
-        return chatRoomRepository.findChatRoomWithParticipantsAndUsers(roomId)
-                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_CHAT_PARTICIPANT));
-    }
 
-    private void runSpamCheckAsync(ChatMessage message) {
-        CompletableFuture.runAsync(() -> checkSpamAndReport(message));
-    }
+
 
     private String getUserProfileImage(Long userId) {
         return imageRepository.findFirstByImageTypeAndRelatedIdOrderByOrderIndexAsc(ImageType.USER, userId)
@@ -305,20 +303,6 @@ public class ChatMessageService {
         return recipientsByLang;
     }*/
 
-    private void reviveParticipantsIfDm(ChatRoom chatRoom) {
-        if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
-            return;
-        }
-
-        for (ChatParticipant participant : chatRoom.getParticipants()) {
-            if (participant.getStatus() == ChatParticipantStatus.LEFT) {
-                log.info("1:1 채팅 메시지 전송으로 인한 유저 복구(Rejoin). RoomId: {}, UserId: {}",
-                        chatRoom.getId(), participant.getUser().getId());
-
-                participant.reJoin();
-            }
-        }
-    }
     /**
      * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
      */
@@ -483,27 +467,6 @@ public class ChatMessageService {
         );
     }
 
-    /**
-     * AI 스팸 감지 로직 (비동기 실행용)
-     */
-    private void checkSpamAndReport(ChatMessage message) {
-        String content = message.getContent();
-        boolean needsAiCheck = (content.contains("http") || content.contains("www.") || content.contains(".com"));
-
-        if (!needsAiCheck) return;
-
-        try {
-            if (perspectiveService.isHarmful(content)) {
-                log.warn("AI Spam Detected: messageId={}", message.getId());
-                ChatReportRequest reportRequest = new ChatReportRequest(
-                        message.getId(), "AI_DETECTED_SPAM", "Perspective API 감지"
-                );
-                chatMemberService.reportChat(null, reportRequest);
-            }
-        } catch (Exception e) {
-            log.error("Async AI Check failed", e);
-        }
-    }
     private List<Long> getAllActiveParticipantsExceptSender(ChatRoom chatRoom, List<Long> blockedUserIds, Long senderId) {
         List<Long> targets = new ArrayList<>();
         for (ChatParticipant p : chatRoom.getParticipants()) {
@@ -902,28 +865,7 @@ public class ChatMessageService {
         );
     }
 
-    @Transactional
-    public ChatMessage saveMessage(Long roomId, Long senderId, String content) {
-        User sender = userRepository.findById(senderId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
-        ChatRoom room = chatRoomRepository.findById(roomId).orElseThrow(() -> new BusinessException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        // 나간 유저 재입장 처리
-        chatParticipantRepository.findByChatRoomIdAndUserId(roomId, senderId)
-                .ifPresent(p -> {
-                    if (p.getStatus() == ChatParticipantStatus.LEFT) p.reJoin();
-                });
-
-        if (!room.getIsGroup()) {
-            chatParticipantRepository.findByChatRoomId(roomId).stream()
-                    .filter(p -> !p.getUser().getId().equals(senderId) && p.getStatus() == ChatParticipantStatus.LEFT)
-                    .forEach(ChatParticipant::reJoin);
-        }
-        ChatMessage message = new ChatMessage(room, sender, content);
-        room.updateLastMessageSentAt(message.getSentAt());
-        room.updateLastMessageSentAt(message.getSentAt());
-
-        return chatMessageRepository.saveAndFlush(message);
-    }
 
     // --- Private Helper Methods ---
 
