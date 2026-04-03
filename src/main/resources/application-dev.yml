@@ -386,7 +386,14 @@ encryption:
 server:
   tomcat:
     threads:
-      max: 200         # 톰캣 일꾼 최대 200명
-      min-spare: 20    # 놀고 있는 일꾼 최소 20명 유지
-    max-connections: 2000 # 동시에 유지할 수 있는 TCP 연결 수 (넉넉하게)
-    accept-count: 200    # 스레드가 다 찼을 때 OS 레벨에서 대기시킬 큐 크기
+      # 핵심: 2코어 서버에서 200개는 너무 많습니다.
+      # 100개로 줄여서 CPU 경합을 방지하고 개별 처리 속도를 높입니다.
+      max: 100
+      # 최소한으로 유지할 스레드 수
+      min-spare: 20
+    # 접속을 허용할 최대 연결 수 (스레드 수보다 넉넉하게 잡음)
+    max-connections: 2000
+    # OS 수준에서 대기시킬 요청 수 (대기실 크기)
+    accept-count: 100
+    # 요청 처리 타임아웃 (무한 대기 방지)
+    connection-timeout: 20000
