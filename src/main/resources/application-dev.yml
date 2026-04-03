@@ -10,7 +10,7 @@ spring:
     hikari:
       # 2코어 환경 최적 수치: (core_count * 2) + effective_spindle_count
       # 28ms의 빠른 로직이므로 20~25개면 초당 수천 건의 쿼리 처리가 가능.
-      maximum-pool-size: 25
+      maximum-pool-size: 50
       # 풀에 여유가 없을 때 대기하는 시간 (3초 이상 넘어가면 서버 부하로 판단)
       connection-timeout: 3000
       # 유휴 커넥션 유지 시간
@@ -18,7 +18,7 @@ spring:
       # 커넥션 최대 생존 시간 (DB 서버 설정보다 약간 짧게)
       max-lifetime: 1800000
       # 최소 유휴 커넥션 (보통 max와 동일하게 가져가서 풀 출렁임을 방지함)
-      minimum-idle: 25
+      minimum-idle: 50
       # 성능 모니터링을 위한 풀 이름
       pool-name: HikariPool-Chat
   messages:

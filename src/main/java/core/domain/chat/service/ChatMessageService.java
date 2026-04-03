@@ -116,9 +116,6 @@ public class ChatMessageService {
             dispatchMessageEvent(savedMessage, chatRoom, context, translationResult.payloadTranslations());
     }
 
-// ===================================================================================
-// [새로 추가된 Helper 메서드 및 Record]
-// ===================================================================================
 
     private record TranslationResult(
             Map<String, String> dbTranslations,
