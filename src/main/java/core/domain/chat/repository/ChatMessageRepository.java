@@ -239,5 +239,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
             @Param("startDate") LocalDateTime startDate,
             Pageable pageable
     );
-
+    // 최근 targetTime 이후 작성된 링크 포함 메시지 조회
+    @Query("SELECT m FROM ChatMessage m WHERE m.sentAt >= :targetTime " +
+            "AND (m.content LIKE '%http%' OR m.content LIKE '%www.%' OR m.content LIKE '%.com%')")
+    List<ChatMessage> findRecentMessagesWithLinks(@Param("targetTime") LocalDateTime targetTime);
 }

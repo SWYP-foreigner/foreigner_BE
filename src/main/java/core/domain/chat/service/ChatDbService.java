@@ -81,7 +81,6 @@ public class ChatDbService {
         if (Boolean.FALSE.equals(chatRoom.getIsGroup())) {
             reviveParticipantsIfDm(chatRoom);
         }
-        runSpamCheckAsync(message);
     }
     private void reviveParticipantsIfDm(ChatRoom chatRoom) {
         if (chatRoom.getParticipants() == null || chatRoom.getParticipants().isEmpty()) {
@@ -90,35 +89,9 @@ public class ChatDbService {
 
         for (ChatParticipant participant : chatRoom.getParticipants()) {
             if (participant.getStatus() == ChatParticipantStatus.LEFT) {
-                log.info("1:1 채팅 메시지 전송으로 인한 유저 복구(Rejoin). RoomId: {}, UserId: {}",
-                        chatRoom.getId(), participant.getUser().getId());
-
                 participant.reJoin();
             }
         }
     }
-    private void runSpamCheckAsync(ChatMessage message) {
-        CompletableFuture.runAsync(() -> checkSpamAndReport(message));
-    }
-    /**
-     * AI 스팸 감지 로직 (비동기 실행용)
-     */
-    private void checkSpamAndReport(ChatMessage message) {
-        String content = message.getContent();
-        boolean needsAiCheck = (content.contains("http") || content.contains("www.") || content.contains(".com"));
 
-        if (!needsAiCheck) return;
-
-        try {
-            if (perspectiveService.isHarmful(content)) {
-                log.warn("AI Spam Detected: messageId={}", message.getId());
-                ChatReportRequest reportRequest = new ChatReportRequest(
-                        message.getId(), "AI_DETECTED_SPAM", "Perspective API 감지"
-                );
-                chatMemberService.reportChat(null, reportRequest);
-            }
-        } catch (Exception e) {
-            log.error("Async AI Check failed", e);
-        }
-    }
 }
