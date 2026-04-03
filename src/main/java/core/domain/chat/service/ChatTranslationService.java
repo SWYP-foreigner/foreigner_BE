@@ -139,17 +139,17 @@ public class ChatTranslationService {
     private String getCacheKey(Long messageId, String languageCode) {
         return CACHE_PREFIX + messageId + ":" + languageCode;
     }
-
+    @Async("chatAsyncExecutor")
     public CompletableFuture<String> translateAndCache(Long messageId, String content, String targetLang) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
-                if (res.isEmpty()) return content;
-                return res.get(0);
-            } catch (Exception e) {
-                log.error("Translation failed", e);
-                return content;
+        try {
+            List<String> res = externalTranslationService.translateMessages(List.of(content), targetLang);
+            if (res.isEmpty()) {
+                return CompletableFuture.completedFuture(content);
             }
-        });
+            return CompletableFuture.completedFuture(res.get(0));
+        } catch (Exception e) {
+            log.error("Translation failed", e);
+            return CompletableFuture.completedFuture(content);
+        }
     }
 }

@@ -7,12 +7,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  hikari:
-    maximum-pool-size: 30
-    minimum-idle: 30         # 🔥 아까 말한 대로 30개 풀 충전 상태 유지
-    connection-timeout: 3000 # 30초나 기다리지 말고 3초 안에 안 나오면 에러 내라 (빠른 실패)
-    idle-timeout: 600000     # 10분 동안 안 쓰면 반납
-    max-lifetime: 1800000    # 커넥션 생존 시간 (30분)
   messages:
     basename: messages
     encoding: UTF-8

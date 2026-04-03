@@ -29,7 +29,7 @@ public class ChatEventListener {
      * [메시지 전송 이벤트] - 여기가 핵심 최적화 대상입니다.
      * DB 커밋 후 실행 (AFTER_COMMIT)
      */
-    @Async
+    @Async("chatAsyncExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleMessageSent(MessageSentEvent event) {
         ChatMessageResponse message = event.baseResponse();
@@ -69,7 +69,7 @@ public class ChatEventListener {
      * 방 전체 브로드캐스트이므로 기존 템플릿 유지
      */
     @EventListener
-    @Async
+    @Async("chatAsyncExecutor")
     public void handleMessageDeleted(MessageDeletedEvent event) {
         Map<String, String> payload = Map.of(
                 "type", "MESSAGE_DELETE",

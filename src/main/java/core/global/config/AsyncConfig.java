@@ -18,32 +18,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableAsync
 public class AsyncConfig implements AsyncConfigurer {
 
-    /*
-    @Bean(name = "taskExecutor")
-    public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(20);
-        executor.setMaxPoolSize(100);
-        executor.setQueueCapacity(500);
-
-        executor.setThreadNamePrefix("Async-Executor-");
-
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-
-        executor.initialize();
-        return executor;
-    }
-
-     * 2. AsyncConfigurer 인터페이스 구현
-     * - @Async 어노테이션이 사용할 기본 Executor를 지정합니다.
-     * - 위에서 만든 taskExecutor()를 리턴합니다.
-    @Override
-    public Executor getAsyncExecutor() {
-        return taskExecutor();
-    }
-    */
     /**
-     * 3. 비동기 예외 처리기
+     * 비동기 예외 처리기
      * - 비동기 메서드(void 반환)에서 에러가 터지면 메인 스레드는 모릅니다.
      * - 여기서 로그를 찍어줘야 에러 추적이 가능합니다.
      */
@@ -55,7 +31,7 @@ public class AsyncConfig implements AsyncConfigurer {
     }
 
     /**
-     * 4. 이미지 검열 전용 실행기 (moderationExecutor)
+     *  이미지 검열 전용 실행기 (moderationExecutor)
      * - 기존에 작성하신 코드 유지
      * - @Async("moderationExecutor") 라고 명시했을 때만 사용됨
      */
@@ -90,6 +66,21 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
 
+        return executor;
+    }
+    @Bean(name = "chatAsyncExecutor")
+    public Executor chatAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        // 2코어 환경 최적화 값
+        executor.setCorePoolSize(10);  // 평소 유지할 일꾼
+        executor.setMaxPoolSize(30);   // 정말 바쁠 때 늘어날 최대 일꾼
+        executor.setQueueCapacity(500); // 일꾼이 다 차면 대기할 장소 (무제한 방지!)
+        executor.setThreadNamePrefix("ChatAsync-");
+
+        // 중요: 큐까지 꽉 찼을 때 어떻게 할 것인가?
+        // CallerRunsPolicy: "나 바쁘니까 네(메인스레드)가 직접 해!" -> 시스템 전체 속도를 늦춰서 폭주 방지
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
         return executor;
     }
 }
