@@ -37,6 +37,7 @@ public class ChatDbService {
     private final UserRepository userRepository;
     private final PerspectiveService perspectiveService;
     private final ChatMemberService chatMemberService;
+
     @Transactional
     public ChatTransactionResult saveAndProcessBusinessRules(SendMessageRequest req) {
         ChatMessage savedMessage = saveMessage(req.roomId(), req.senderId(), req.content());

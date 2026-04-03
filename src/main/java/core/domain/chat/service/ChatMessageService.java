@@ -100,85 +100,85 @@ public class ChatMessageService {
     * 전체 흐름(DB -> 데이터 조립 -> 외부 API -> DB -> 이벤트 발행)
     */
     public void processAndSendChatMessage(SendMessageRequest req) {
-        try {
-            // --------------------------------------------------------
-            // 1. [DB 영역] 메시지 저장 및 비즈니스 룰 처리 (트랜잭션 획득 -> 즉시 반납)
-            // --------------------------------------------------------
             ChatTransactionResult dbResult = chatDbService.saveAndProcessBusinessRules(req);
-
             ChatMessage savedMessage = dbResult.savedMessage();
             ChatRoom chatRoom = dbResult.chatRoom();
-            User sender = savedMessage.getSender();
 
-            // --------------------------------------------------------
-            // 2. [데이터 조립 영역] 수신자 분류 및 DTO 생성 (DB 커넥션 0개 사용)
-            // --------------------------------------------------------
-            ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
+            ChatRecipientContext context = prepareRecipientContext(chatRoom, savedMessage.getSender(), savedMessage);
 
-            // --------------------------------------------------------
-            // 3. [외부 API 영역] 다국어 병렬 번역 (DB 커넥션 0개 사용, 스레드 대기)
-            // --------------------------------------------------------
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
-            Map<String, String> dbTranslations = new ConcurrentHashMap<>();
-            Map<String, String> payloadTranslations = new ConcurrentHashMap<>();
-            String senderLang = sender.getLanguage();
-
-            for (String lang : context.onlineMap().keySet()) {
-                if (lang == null || lang.equals("NONE") || lang.equals(senderLang)) {
-                    continue;
-                }
-
-                CompletableFuture<Void> future = chatTranslationService
-                        .translateAndCache(savedMessage.getId(), savedMessage.getContent(), lang)
-                        .thenAccept(translatedText -> {
-                            dbTranslations.put(lang, translatedText);
-                            payloadTranslations.put(lang, translatedText);
-                        })
-                        .orTimeout(2, TimeUnit.SECONDS)
-                        .exceptionally(ex -> {
-                            log.warn("🚨 [{}] 언어 번역 실패. 전송용 맵에만 원문 대체. (사유: {})", lang, ex.getMessage());
-                            payloadTranslations.put(lang, savedMessage.getContent());
-                            return null;
-                        });
-
-                futures.add(future);
-            }
-
-            if (!futures.isEmpty()) {
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            }
-
-            // --------------------------------------------------------
-            // 4. [DB 영역] 번역 성공 결과만 DB에 저장 (다시 아주 짧게 커넥션 획득 -> 반납)
-            // --------------------------------------------------------
-            if (!dbTranslations.isEmpty()) {
-                chatDbService.saveTranslations(savedMessage.getId(), dbTranslations);
-            }
-
-            // --------------------------------------------------------
-            // 5. [이벤트 발행 영역] 응답 DTO 조립 및 소켓 발송
-            // --------------------------------------------------------
-            ChatMessageResponse baseResponse = buildBaseMessageResponse(
+            TranslationResult translationResult = executeParallelTranslations(
                     savedMessage,
-                    getUserProfileImage(sender.getId())
+                    context.onlineMap().keySet()
             );
 
-            ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(chatRoom, savedMessage);
+            saveTranslationsIfPresent(savedMessage.getId(), translationResult.dbTranslations());
 
-            eventPublisher.publishEvent(new MessageSentEvent(
-                    baseResponse,
-                    context.onlineMap(),
-                    context.pushIds(),
-                    payloadTranslations, // 실패 시 원문 땜빵이 포함된 맵 전송
-                    roomSummary
-            ));
+            dispatchMessageEvent(savedMessage, chatRoom, context, translationResult.payloadTranslations());
+    }
 
-        } catch (Exception e) {
-            log.error("❌ [ChatProcess Failed] roomId: {}, senderId: {}", req.roomId(), req.senderId(), e);
-            throw e; // 필요 시 커스텀 예외로 래핑
+// ===================================================================================
+// [새로 추가된 Helper 메서드 및 Record]
+// ===================================================================================
+
+    private record TranslationResult(
+            Map<String, String> dbTranslations,
+            Map<String, String> payloadTranslations
+    ) {}
+
+    private TranslationResult executeParallelTranslations(ChatMessage message, Set<String> targetLanguages) {
+        Map<String, String> dbTranslations = new ConcurrentHashMap<>();
+        Map<String, String> payloadTranslations = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        String senderLang = message.getSender().getLanguage();
+
+        for (String lang : targetLanguages) {
+            if (lang == null || lang.equals("NONE") || lang.equals(senderLang)) {
+                continue;
+            }
+
+            CompletableFuture<Void> future = chatTranslationService
+                    .translateAndCache(message.getId(), message.getContent(), lang)
+                    .thenAccept(translatedText -> {
+                        dbTranslations.put(lang, translatedText);
+                        payloadTranslations.put(lang, translatedText);
+                    })
+                    .orTimeout(2, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.warn("🚨 [{}] 언어 번역 실패. 전송용 맵에만 원문 대체. (사유: {})", lang, ex.getMessage());
+                        payloadTranslations.put(lang, message.getContent());
+                        return null;
+                    });
+
+            futures.add(future);
+        }
+
+        if (!futures.isEmpty()) {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        }
+
+        return new TranslationResult(dbTranslations, payloadTranslations);
+    }
+
+    private void saveTranslationsIfPresent(Long messageId, Map<String, String> dbTranslations) {
+        if (!dbTranslations.isEmpty()) {
+            chatDbService.saveTranslations(messageId, dbTranslations);
         }
     }
 
+    private void dispatchMessageEvent(ChatMessage message, ChatRoom room, ChatRecipientContext context, Map<String, String> payloadTranslations) {
+        User sender = message.getSender();
+
+        ChatMessageResponse baseResponse = buildBaseMessageResponse(message, getUserProfileImage(sender.getId()));
+        ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(room, message);
+
+        eventPublisher.publishEvent(new MessageSentEvent(
+                baseResponse,
+                context.onlineMap(),
+                context.pushIds(),
+                payloadTranslations,
+                roomSummary
+        ));
+    }
     private ChatRecipientContext prepareRecipientContext(ChatRoom chatRoom, User sender, ChatMessage message) {
         List<Long> blockedIds = getBlockedUserIds(sender.getId());
 
@@ -193,19 +193,6 @@ public class ChatMessageService {
         }
 
         return new ChatRecipientContext(onlineMap, pushIds, translations);
-    }
-
-
-
-    private void registerTranslationStorage(Long messageId, Map<String, String> translations) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                translations.forEach((lang, content) ->
-                        chatTranslationService.saveTranslationAsync(messageId, lang, content)
-                );
-            }
-        });
     }
 
     private ChatRoomSummaryResponse buildCommonRoomSummary(ChatRoom chatRoom, ChatMessage message) {
@@ -282,33 +269,6 @@ public class ChatMessageService {
 
         return recipientsByLang;
     }
-    /**
-     * [역최적화] 수신자를 온라인 여부와 상관없이 모든 ACTIVE 참가자로 그룹핑합니다.
-    private Map<String, List<Long>> groupRecipientsByLanguage(ChatRoom chatRoom, User sender, List<Long> blockedUserIds, Long messageId) {
-        Map<String, List<Long>> recipientsByLang = new HashMap<>();
-
-        for (ChatParticipant p : chatRoom.getParticipants()) {
-            User recipient = p.getUser();
-            Long rid = recipient.getId();
-
-            if (blockedUserIds.contains(rid)) continue;
-            if (p.getStatus() != ChatParticipantStatus.ACTIVE) continue;
-            String lang = (p.isTranslateEnabled() && recipient.getTranslateLanguage() != null)
-                    ? recipient.getTranslateLanguage()
-                    : "NONE";
-
-            recipientsByLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(rid);
-        }
-
-        return recipientsByLang;
-    }*/
-
-    /**
-     * 필요한 언어들에 대해 병렬로 번역을 수행합니다.
-     */
-    /**
-     * [신규] 저장 없이 순수하게 번역 API만 호출하여 결과를 리턴합니다.
-     */
     private Map<String, String> executePureParallelTranslations(String originalContent, Set<String> targetLanguages) {
         Map<String, String> resultMap = new ConcurrentHashMap<>();
 
