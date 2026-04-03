@@ -211,7 +211,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
         SELECT sub_m.message_id 
         FROM chat_message sub_m
         LEFT JOIN users sub_u ON sub_m.sender_id = sub_u.user_id
-        WHERE sub_m.sent_at >= :startDate  -- [핵심] 최근 3개월 인덱스 스캔 강제
+        WHERE sub_m.sent_at >= :startDate
           AND (:keyword IS NULL OR sub_m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
           AND (:email IS NULL OR sub_u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
           AND (:name IS NULL OR (sub_u.first_name || sub_u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
@@ -223,23 +223,20 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long>,
     ORDER BY m.sent_at DESC, m.message_id ASC
     """,
             countQuery = """
-    SELECT COUNT(*) FROM (
-        SELECT 1 
+        SELECT COUNT(*) 
         FROM chat_message m
         LEFT JOIN users u ON m.sender_id = u.user_id
-        WHERE m.sent_at >= :startDate  -- [핵심] 카운트도 3개월치만 계산
+        WHERE m.sent_at >= :startDate  
           AND (:keyword IS NULL OR m.content ILIKE CONCAT('%', CAST(:keyword AS text), '%'))
           AND (:email IS NULL OR u.email ILIKE CONCAT('%', CAST(:email AS text), '%'))
           AND (:name IS NULL OR (u.first_name || u.last_name) ILIKE CONCAT('%', CAST(:name AS text), '%'))
-        LIMIT 1001 
-    ) t
-    """,
+        """,
             nativeQuery = true)
     Page<Object[]> searchMessagesNative(
             @Param("keyword") String keyword,
             @Param("email") String email,
             @Param("name") String name,
-            @Param("startDate") LocalDateTime startDate, // 기본값: Now - 3 months
+            @Param("startDate") LocalDateTime startDate,
             Pageable pageable
     );
 
