@@ -113,9 +113,9 @@ public class ChatMessageService {
 
 
             ChatRecipientContext context = prepareRecipientContext(chatRoom, sender, savedMessage);
-            Map<String, String> translations = new ConcurrentHashMap<>();
             List<CompletableFuture<Void>> futures = new ArrayList<>();
-
+            Map<String, String> dbTranslations = new ConcurrentHashMap<>();      // 진짜 번역 성공해서 DB에 저장할 용도
+            Map<String, String> payloadTranslations = new ConcurrentHashMap<>(); // 소켓으로 쏠 용도 (성공 번역 + 실패 땜빵 포함)
             String senderLang = sender.getLanguage();
 
             for (String lang : context.onlineMap().keySet()) {
@@ -125,16 +125,29 @@ public class ChatMessageService {
 
                 CompletableFuture<Void> future = chatTranslationService
                         .translateAndCache(savedMessage.getId(), savedMessage.getContent(), lang)
-                        .thenAccept(translatedText -> translations.put(lang, translatedText));
+                        // 2. 성공 시: 양쪽 맵에 모두 담는다.
+                        .thenAccept(translatedText -> {
+                            dbTranslations.put(lang, translatedText);
+                            payloadTranslations.put(lang, translatedText);
+                        })
+                        .orTimeout(2, TimeUnit.SECONDS)
+                        // 3. 실패 시: 전송용(payload) 맵에만 원문을 땜빵한다! DB 맵에는 넣지 않음!
+                        .exceptionally(ex -> {
+                            payloadTranslations.put(lang, savedMessage.getContent());
+                            return null;
+                        });
 
                 futures.add(future);
             }
+
             if (!futures.isEmpty()) {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
-            if (!translations.isEmpty()) {
-                registerTranslationStorage(savedMessage.getId(), translations);
+
+            if (!dbTranslations.isEmpty()) {
+                registerTranslationStorage(savedMessage.getId(), dbTranslations);
             }
+
             ChatMessageResponse baseResponse = buildBaseMessageResponse(
                     savedMessage,
                     getUserProfileImage(sender.getId())
@@ -142,15 +155,14 @@ public class ChatMessageService {
 
             ChatRoomSummaryResponse roomSummary = buildCommonRoomSummary(chatRoom, savedMessage);
 
-            // 5. 이벤트 발행
+            // 5. 소켓 전송(이벤트 발행): 땜빵이 포함된 '전송용(payloadTranslations)'을 실어 보낸다!
             eventPublisher.publishEvent(new MessageSentEvent(
                     baseResponse,
                     context.onlineMap(),
                     context.pushIds(),
-                    translations,
+                    payloadTranslations, // <--- 여기 주목
                     roomSummary
             ));
-
         } catch (Exception e) {
             log.error("❌ [ChatProcess Failed] roomId: {}, senderId: {}", req.roomId(), req.senderId(), e);
             throw e;
