@@ -75,7 +75,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
                 // [핵심] Redis 접속자 명단에 추가
                 redisService.addSetElement(ACTIVE_USERS_KEY, userId.toString());
-                log.info("🔌 [WS Connect] User ID: {} 가 접속자 명단에 추가되었습니다.", userId);
 
             } catch (Exception e) {
                 log.error("❌ [WS Connect Failed]: {}", e.getMessage());
@@ -90,7 +89,6 @@ public class StompChannelInterceptor implements ChannelInterceptor {
 
             // [핵심] Redis 접속자 명단에서 제거
             redisService.removeSetElement(ACTIVE_USERS_KEY, userId.toString());
-            log.info("👋 [WS Disconnect] User ID: {} 가 접속자 명단에서 제거되었습니다.", userId);
         }
         chatMetrics.onWsDisconnect("normal");
     }

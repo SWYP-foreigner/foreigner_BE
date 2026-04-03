@@ -73,9 +73,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer { // 9.
         registration
                 .interceptors(stompChannelInterceptor)
                 .taskExecutor()
-                .corePoolSize(50)
-                .maxPoolSize(200)
-                .queueCapacity(100);
+                .corePoolSize(10)      // 평소 일꾼 10명
+                .maxPoolSize(20)       // 피크 시 20명까지 (2코어 최적)
+                .queueCapacity(500);   // 대기실 넉넉히
     }
 
     /**
@@ -93,14 +93,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer { // 9.
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         registration
                 .taskExecutor()
-                .corePoolSize(50)
-                .maxPoolSize(200)
-                .queueCapacity(100);
+                .corePoolSize(15)
+                .maxPoolSize(30)
+                .queueCapacity(3000)
+                .keepAliveSeconds(60);
     }
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
-        registration.setMessageSizeLimit(64 * 1024);      // 메시지 크기 제한 (64KB)
-        registration.setSendTimeLimit(20 * 1000);         // 전송 제한 시간 (20초)
-        registration.setSendBufferSizeLimit(10 * 1024 * 1024); // 전송 버퍼 크기 (10MB로 확장!) 🔥
+        registration.setMessageSizeLimit(64 * 1024);
+        registration.setSendTimeLimit(5 * 1000);
+        registration.setSendBufferSizeLimit(10 * 1024 * 1024);
     }
 }
