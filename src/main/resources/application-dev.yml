@@ -218,14 +218,17 @@ management:
         enabled: true
 
 resilience4j:
-  retry:
+  circuitbreaker:
     instances:
-      mailSend:
-        max-attempts: 3
-        wait-duration: 1s
-        retry-exceptions:
-          - jakarta.mail.MessagingException
-
+      translationApi: # 서킷 브레이커 이름
+        registerHealthIndicator: true
+        slidingWindowSize: 10              # 최근 10개의 요청을 기준으로 판단
+        failureRateThreshold: 50           # 에러율이 50% 이상이면 Open
+        waitDurationInOpenState: 10s       # Open 상태에서 10초 대기 후 Half-Open으로 전환
+        slowCallDurationThreshold: 2s      # 2초 이상 걸리면 느린 호출로 간주
+        slowCallRateThreshold: 100         # 느린 호출이 100%면 Open
+        permittedNumberOfCallsInHalfOpenState: 3 # Half-Open 상태에서 3번 시도해보고 복구 결정
+        slidingWindowType: COUNT_BASED
 iap:
   android:
     packageName: ${APP_PACKAGE_NAME}
@@ -411,3 +414,5 @@ server:
     accept-count: 100
     # 요청 처리 타임아웃 (무한 대기 방지)
     connection-timeout: 20000
+
+

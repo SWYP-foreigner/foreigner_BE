@@ -133,6 +133,10 @@ dependencies {
     // HTTP 통신 및 인증을 위한 클라이언트 라이브러리 (필수)
     implementation 'com.google.api-client:google-api-client-android:2.2.0'
     implementation 'com.google.auth:google-auth-library-oauth2-http:1.19.0'
+    //서킷 브레이커
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 
 tasks.withType(JavaCompile).configureEach {
