@@ -1,18 +1,14 @@
 package core.global.service;
 
-import com.google.cloud.translate.v3.*;
 import core.domain.user.entity.User;
 import core.domain.user.repository.UserRepository;
 import core.global.exception.BusinessException;
-import core.global.enums.errorcode.CommonErrorCode;
 import core.global.enums.errorcode.UserErrorCode;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
-import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +16,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -28,6 +26,7 @@ public class TranslationService {
 
     @Value("${google.cloud.project.id}")
     private String projectId;
+
     private final UserRepository userRepository;
 
     @Value("${google.translate.api-url:https://taylor-easternmost-temple.ngrok-free.dev/v3/projects/any-id/locations/global:translateText}")
@@ -38,59 +37,58 @@ public class TranslationService {
             .readTimeout(Duration.ofSeconds(2))
             .build();
 
+    /**
+     * [리스트 번역]
+     * 외부 API 호출 중 에러가 발생하거나 응답 지연이 발생하면 서킷이 Open됩니다.
+     */
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "fallbackTranslateMessages")
     public List<String> translateMessages(List<String> messages, String targetLanguage) {
         if (messages == null || messages.isEmpty() || targetLanguage == null || targetLanguage.isEmpty()) {
             return messages;
         }
 
-        try {
-            // 1. Mock 서버(FastAPI) 규격에 맞는 요청 바디 생성
-            java.util.Map<String, Object> requestBody = java.util.Map.of(
-                    "description", messages,
-                    "targetLanguageCode", targetLanguage
-            );
+        Map<String, Object> requestBody = Map.of(
+                "description", messages,
+                "targetLanguageCode", targetLanguage
+        );
 
-            // 2. ngrok 경고 페이지 우회를 위한 헤더 설정
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            headers.set("ngrok-skip-browser-warning", "69420");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        headers.set("ngrok-skip-browser-warning", "69420");
 
-            org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity =
-                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+        org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                new org.springframework.http.HttpEntity<>(requestBody, headers);
+        org.springframework.http.ResponseEntity<Map> response =
+                restTemplate.postForEntity(mockApiUrl, entity, Map.class);
 
-            // 3. Mock 서버 호출 (POST)
-            org.springframework.http.ResponseEntity<java.util.Map> response =
-                    restTemplate.postForEntity(mockApiUrl, entity, java.util.Map.class);
+        List<Map<String, String>> translations =
+                (List<Map<String, String>>) response.getBody().get("translations");
 
-            // 4. FastAPI가 준 응답에서 번역 텍스트만 추출
-            List<java.util.Map<String, String>> translations =
-                    (List<java.util.Map<String, String>>) response.getBody().get("translations");
-
-            return translations.stream()
-                    .map(t -> t.get("translatedText"))
-                    .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            log.error(">>>> [MOCK_TRANSLATION_ERROR] Mock 서버 호출 실패! 상세 원인: ", e);
-            // 테스트 중단 방지를 위해 실패 시 원문 반환
-            return messages;
-        }
+        return translations.stream()
+                .map(t -> t.get("translatedText"))
+                .collect(Collectors.toList());
     }
 
-    // translatePost와 translateComments도 위 translateMessages를 재사용하도록 수정
+    /**
+     * [포스트 단일 번역]
+     * 내부 호출 문제를 방지하기 위해 여기에도 서킷 브레이커를 명시합니다.
+     */
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "fallbackTranslateSingle")
     public String translatePost(String post, String targetLanguage) {
         List<String> results = translateMessages(List.of(post), targetLanguage);
         return results.get(0);
     }
 
+    /**
+     * [댓글 리스트 번역]
+     */
+    @CircuitBreaker(name = "translationApi", fallbackMethod = "fallbackTranslateMessages")
     public List<String> translateComments(List<String> comments, String targetLanguage) {
         return translateMessages(comments, targetLanguage);
     }
 
     public String detectLanguage(String text) {
-        // 언어 감지는 비용이 적으니 그대로 두셔도 되고,
-        // 필요하다면 Mock 서버에 /detect 경로를 만들어서 비슷하게 처리하세요.
-        return "en"; // 테스트용 고정 응답
+        return "en";
     }
 
     @Transactional
@@ -101,5 +99,25 @@ public class TranslationService {
             user.updateTranslateLanguage(language);
         }
         userRepository.save(user);
+    }
+
+    // ==========================================
+    // Fallback Methods (에러 발생 혹은 서킷 Open 시 실행)
+    // ==========================================
+
+    /**
+     * 리스트 번역 실패 시: 원문 리스트 그대로 반환
+     */
+    public List<String> fallbackTranslateMessages(List<String> messages, String targetLanguage, Throwable t) {
+        log.error("🚨 [Translation Service] 번역 리스트 호출 실패. 원문 반환. 사유: {}", t.getMessage());
+        return messages;
+    }
+
+    /**
+     * 단일 번역 실패 시: 원문 그대로 반환
+     */
+    public String fallbackTranslateSingle(String post, String targetLanguage, Throwable t) {
+        log.error("🚨 [Translation Service] 단일 번역 호출 실패. 원문 반환. 사유: {}", t.getMessage());
+        return post;
     }
 }
