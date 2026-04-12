@@ -12,6 +12,7 @@ import core.domain.usernotificationsetting.entity.UserNotificationSetting;
 import core.domain.usernotificationsetting.repository.UserNotificationSettingRepository;
 import core.global.enums.NotificationType;
 import core.global.metrics.NotificationMetrics;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -38,6 +39,7 @@ public class PushNotificationService {
      * SENDER_ID_MISMATCH 발생 시 로그 없이 토큰을 삭제합니다.
      */
     @Transactional
+    @CircuitBreaker(name = "fcmPush", fallbackMethod = "fcmFallback")
     public void sendPushNotification(User recipient, NotificationEvent event, String message) throws FirebaseMessagingException {
 
         if (!recipient.isAgreedToPushNotification()) {
@@ -176,87 +178,11 @@ public class PushNotificationService {
         }
     }
 
-    @Transactional
-    public void sendBatchPush(List<String> tokens, String title, String body, Long actorId) {
-        if (tokens == null || tokens.isEmpty()) return;
-
-        MulticastMessage message = MulticastMessage.builder()
-                .addAllTokens(tokens)
-                .setNotification(Notification.builder()
-                        .setTitle(title)
-                        .setBody(body)
-                        .build())
-                .putData("notificationType", NotificationType.newuser.name())
-                .putData("type", "newuser")
-                .putData("userId", String.valueOf(actorId))
-                .build();
-
-        try {
-            long start = System.currentTimeMillis();
-            BatchResponse response = firebaseMessaging.sendEachForMulticast(message);
-            if (response.getFailureCount() > 0) {
-                List<String> tokensToDelete = new ArrayList<>();
-                List<SendResponse> responses = response.getResponses();
-
-                for (int i = 0; i < responses.size(); i++) {
-                    SendResponse sendResponse = responses.get(i);
-
-                    if (!sendResponse.isSuccessful()) {
-                        String failedToken = tokens.get(i);
-                        FirebaseMessagingException e = sendResponse.getException();
-                        MessagingErrorCode code = e.getMessagingErrorCode();
-                        String errorMessage = e.getMessage();
-
-                        if (code == MessagingErrorCode.SENDER_ID_MISMATCH) {
-                            tokensToDelete.add(failedToken);
-                            notificationMetrics.mark("push_batch", "failed", "invalid_token_mismatch");
-                        }
-                        // 기존 만료 토큰 로그
-                        else if (code == MessagingErrorCode.UNREGISTERED ||
-                                (code == MessagingErrorCode.INVALID_ARGUMENT && errorMessage != null && errorMessage.contains("registration token"))) {
-
-                            log.warn("🚨 만료/무효 토큰 감지 -> 삭제 예정: {} (코드: {})", failedToken, code);
-                            tokensToDelete.add(failedToken);
-                            notificationMetrics.mark("push_batch", "failed", "invalid_token");
-
-                        }
-                        // 일시적 장애
-                        else if (code == MessagingErrorCode.QUOTA_EXCEEDED ||
-                                code == MessagingErrorCode.UNAVAILABLE ||
-                                code == MessagingErrorCode.INTERNAL) {
-                            log.warn("⚠️ FCM 서버 일시적 장애 (재시도 권장): {} (코드: {})", failedToken, code);
-                            notificationMetrics.mark("push_batch", "failed", "retryable");
-                        }
-                        // 기타 에러
-                        else {
-                            log.error("❌ 기타 배치 발송 실패: {} (코드: {}, 에러: {})", failedToken, code, errorMessage);
-                            notificationMetrics.mark("push_batch", "failed", "unknown");
-                        }
-                    } else {
-                        notificationMetrics.mark("push_batch", "sent", "ok");
-                    }
-                }
-
-                if (!tokensToDelete.isEmpty()) {
-                    userDeviceTokenRepository.deleteByDeviceTokenIn(tokensToDelete);
-                    // 삭제 완료 사실만 가볍게 INFO로 남김
-                    log.info("🧹 만료 및 프로젝트 불일치 토큰 {}개 정리 완료.", tokensToDelete.size());
-                }
-            }
-
-            log.info("📊 배치 발송 완료: 요청 {}건 / 성공 {}건 / 실패 {}건 (소요시간: {}ms)",
-                    tokens.size(), response.getSuccessCount(), response.getFailureCount(), System.currentTimeMillis() - start);
-
-        } catch (FirebaseMessagingException e) {
-            log.error("💥 FCM 배치 발송 요청 자체 실패", e);
-            notificationMetrics.mark("push_batch", "error", "exception");
-        }
-    }
-
     /**
      * [New] 채팅방 대량 알림 발송 (Listener에서 호출)
      */
     @Transactional
+    @CircuitBreaker(name = "fcmPush", fallbackMethod = "fcmFallback")
     public void sendGroupPush(List<Long> recipientIds, String messageBody, String roomId, String roomName, Long senderId) {
         if (recipientIds == null || recipientIds.isEmpty()) return;
 
