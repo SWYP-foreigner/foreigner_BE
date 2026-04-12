@@ -71,14 +71,12 @@ public class AsyncConfig implements AsyncConfigurer {
     @Bean(name = "chatAsyncExecutor")
     public Executor chatAsyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // 2코어 환경 최적화 값
-        executor.setCorePoolSize(10);  // 평소 유지할 일꾼
-        executor.setMaxPoolSize(30);   // 정말 바쁠 때 늘어날 최대 일꾼
-        executor.setQueueCapacity(500); // 일꾼이 다 차면 대기할 장소 (무제한 방지!)
+
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(30);
+        executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("ChatAsync-");
 
-        // 중요: 큐까지 꽉 찼을 때 어떻게 할 것인가?
-        // CallerRunsPolicy: "나 바쁘니까 네(메인스레드)가 직접 해!" -> 시스템 전체 속도를 늦춰서 폭주 방지
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;

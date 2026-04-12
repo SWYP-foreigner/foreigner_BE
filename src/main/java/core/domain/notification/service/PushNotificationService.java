@@ -65,7 +65,6 @@ public class PushNotificationService {
                 return;
             }
         }
-
         List<UserDeviceToken> deviceTokens = userDeviceTokenRepository.findAllByUser(recipient);
         for (UserDeviceToken userDeviceToken : deviceTokens) {
             long start = System.currentTimeMillis();
@@ -128,7 +127,7 @@ public class PushNotificationService {
             }
 
             Message fcmMessage = messageBuilder.build();
-
+            firebaseMessaging.send(fcmMessage);
             try {
                 firebaseMessaging.send(fcmMessage);
                 log.info("사용자 ID {} 에게 푸시 알림을 성공적으로 발송했습니다. (기기 토큰: ...{})", recipient.getId(), userDeviceToken.getDeviceToken().substring(Math.max(0, userDeviceToken.getDeviceToken().length() - 5)));
@@ -394,12 +393,17 @@ public class PushNotificationService {
             log.info("유효하지 않은 토큰 {}개 삭제 완료", tokensToDelete.size());
         }
     }
-    @Async
-    public void sendPushAsync(User recipient, String message) {
-        try {
-            Thread.sleep(50); // 동기 지연은 여전하지만, 메인 트랜잭션 스레드는 기다리지 않음
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    public void fcmFallback(User recipient, NotificationEvent event, String message, Throwable t) {
+        log.error("❌ [Circuit Open] FCM 단일 발송 차단됨. 대상: {}, 사유: {}", recipient.getId(), t.getMessage());
+        notificationMetrics.mark("push", "failed", "circuit_open");
+        // 실패했다고 DB를 롤백시키지 않고 로그만 남기고 조용히 넘어감 (가용성 확보)
+    }
+
+    /**
+     * 서킷이 열렸을 때 실행 (배치 발송용)
+     */
+    public void fcmBatchFallback(List<Long> recipientIds, String messageBody, String roomId, String roomName, Long senderId, Throwable t) {
+        log.error("❌ [Circuit Open] FCM 배치 발송 차단됨. 대상 수: {}, 사유: {}", recipientIds.size(), t.getMessage());
+        notificationMetrics.mark("push_batch", "failed", "circuit_open");
     }
 }
