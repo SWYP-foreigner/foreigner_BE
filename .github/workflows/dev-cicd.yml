@@ -443,7 +443,7 @@ jobs:
         with:
           host: ${{ secrets.DEV_HOST }}
           username: ${{ secrets.DEV_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
+          password: ${{ secrets.DEV_SSH_KEY }}
           script: |
             set -euo pipefail
             REPO="${{ secrets.DOCKERHUB_USERNAME }}/foreigner"
